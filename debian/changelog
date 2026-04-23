@@ -1,3 +1,9 @@
+cloudstack (ABLESTACK-4.7.0) unstable; urgency=low
+
+  * Update the version to ABLESTACK-4.7.0
+
+ -- the ABLESTACK Cloud project <dev@ablestack.io>  Thu, 23 Apr 2026 04:07:48 +0000
+
 cloudstack (4.22.0.0-SNAPSHOT) unstable; urgency=low
 
   * Update the version to 4.22.0.0-SNAPSHOT
