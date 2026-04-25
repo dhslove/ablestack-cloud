@@ -173,7 +173,7 @@ public class KVMHAMonitor extends KVMHABase implements Runnable {
             for (String uuid : sPool.keySet()) {
                 HAStoragePool primaryStoragePool = sPool.get(uuid);
                 if (primaryStoragePool.getPool().getType() == StoragePoolType.NetworkFilesystem || primaryStoragePool.getPool().getType() == StoragePoolType.SharedMountPoint || primaryStoragePool.getPool().getType() == StoragePoolType.RBD || primaryStoragePool.getPool().getType() == StoragePoolType.CLVM) {
-                    checkForNotExistingPools(removedPools, uuid);
+                    checkForNotExistingLibvirtStoragePools(removedPools, uuid);
                     if (removedPools.contains(uuid)) {
                         continue;
                     }
@@ -214,7 +214,7 @@ public class KVMHAMonitor extends KVMHABase implements Runnable {
         return result;
     }
 
-    private void checkForNotExistingPools(Set<String> removedPools, String uuid) {
+    private void checkForNotExistingLibvirtStoragePools(Set<String> removedPools, String uuid) {
         try {
             Connect conn = LibvirtConnection.getConnection();
             StoragePool storage = conn.storagePoolLookupByUUIDString(uuid);

@@ -26,6 +26,7 @@ These scripts are also used by the CloudStack team to build packages for the off
 The RPM and DEB packages have dependencies on versions of specific libraries. Due to these dependencies the following distributions and their versions are supported by the packages.
 
 * CentOS / RHEL: 7 and 8
+* Rocky Linux: 9.7 validation path via GitHub Actions container build
 * Debian 7 (Wheezy) and 8 (Jessy) (untested!)
 * Ubuntu: 16.04 (Xenial), 18.04 (Bionic) and 20.04 (Focal)
 
@@ -58,3 +59,13 @@ The commands above will generate Ubuntu 14.04, 16.04, and 22.04 packages which y
 The *package.sh* script can be used to build RPM packages for CloudStack. In the *packaging* script you can run the following command:
 
 ``./package.sh --pack oss --distribution centos7``
+
+For Rocky Linux 9.7 validation, use the `rocky9` distribution alias. This currently reuses the existing EL8/CentOS 8 spec assets while running the package build inside a Rocky 9.7 environment:
+
+``./package.sh --pack oss --distribution rocky9``
+
+The recommended execution path for Rocky 9.7 is the serverless GitHub Actions workflow:
+
+* `.github/workflows/rocky97-rpm.yml`
+
+The workflow downloads the official Rocky 9.7 container archive, runs the package build inside that container, and uploads the generated RPMs as artifacts.

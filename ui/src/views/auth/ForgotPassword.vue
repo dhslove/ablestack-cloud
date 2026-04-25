@@ -120,6 +120,10 @@ export default {
     }
   },
   created () {
+    if (this.$config.forgotPasswordEnabled === false) {
+      this.$router.replace({ name: 'login' })
+      return
+    }
     if (this.$config.multipleServer) {
       this.server = this.$localStorage.get(SERVER_MANAGER) || this.$config.servers[0]
     }

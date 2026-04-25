@@ -1,0 +1,315 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: ABLESTACK Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_id:
+        description: Release identifier used for the source release, tag, and GitHub Release
+        required: true
+        type: string
+      base_branch:
+        description: Branch to release from
+        required: true
+        default: ablestack-europa
+        type: choice
+        options:
+          - ablestack-europa
+          - ablestack-diplo
+      release_seq:
+        description: RPM release sequence appended after the timestamp
+        required: true
+        default: '1'
+        type: string
+      pack:
+        description: Package variant
+        required: false
+        default: oss
+        type: choice
+        options:
+          - oss
+          - noredist
+      simulator:
+        description: Include simulator packaging
+        required: false
+        default: default
+        type: choice
+        options:
+          - default
+          - simulator
+      templates:
+        description: Optional template list (for example kvm,xen,vmware)
+        required: false
+        default: ''
+        type: string
+      node_version:
+        description: Node.js version injected into the Rocky build container
+        required: false
+        default: 14.21.3
+        type: string
+      push_refs:
+        description: Push the generated RC branch and release tag back to origin
+        required: false
+        default: true
+        type: boolean
+      sign_artifacts:
+        description: Sign the source tarball with the configured GPG key
+        required: false
+        default: false
+        type: boolean
+      sign_tag:
+        description: Create a signed git tag with the configured GPG key
+        required: false
+        default: false
+        type: boolean
+      draft:
+        description: Create the GitHub Release as a draft
+        required: false
+        default: true
+        type: boolean
+      prerelease:
+        description: Mark the GitHub Release as a prerelease
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: release-${{ inputs.release_id }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  metadata:
+    runs-on: ubuntu-24.04
+    outputs:
+      brand: ${{ steps.derive.outputs.brand }}
+      package_version: ${{ steps.derive.outputs.package_version }}
+      timestamp_value: ${{ steps.derive.outputs.timestamp_value }}
+      source_artifact_name: ${{ steps.derive.outputs.source_artifact_name }}
+      rpm_artifact_name: ${{ steps.derive.outputs.rpm_artifact_name }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.base_branch }}
+          fetch-depth: 0
+
+      - id: derive
+        run: |
+          case "${{ inputs.base_branch }}" in
+            ablestack-europa) brand="Mold.Europa" ;;
+            ablestack-diplo) brand="Mold.Diplo" ;;
+            *)
+              echo "::error::Unsupported base branch ${{ inputs.base_branch }}"
+              exit 1
+              ;;
+          esac
+
+          pom_version=$(awk '
+            /<artifactId>cloudstack<\/artifactId>/ { seen=1; next }
+            seen && /<version>/ {
+              line=$0
+              sub(/.*<version>/, "", line)
+              sub(/<\/version>.*/, "", line)
+              print line
+              exit
+            }
+          ' pom.xml)
+
+          if [ -z "$pom_version" ]; then
+            echo "::error::Unable to derive root project version from pom.xml"
+            exit 1
+          fi
+
+          package_version=${pom_version%%-*}
+          timestamp_value=$(date -u +%Y%m%d%H%M)
+
+          {
+            echo "brand=$brand"
+            echo "package_version=$package_version"
+            echo "timestamp_value=$timestamp_value"
+            echo "source_artifact_name=source-release-${{ inputs.release_id }}"
+            echo "rpm_artifact_name=rocky97-rpm-${{ inputs.release_id }}"
+          } >> "$GITHUB_OUTPUT"
+
+  prepare-source-release:
+    needs: metadata
+    runs-on: ubuntu-24.04
+    outputs:
+      rc_branch: ${{ steps.prepare.outputs.rc_branch }}
+      source_commit_sha: ${{ steps.prepare.outputs.source_commit_sha }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.base_branch }}
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Validate signing configuration
+        run: |
+          if [ "${{ inputs.sign_tag }}" = "true" ] && [ "${{ inputs.push_refs }}" != "true" ]; then
+            echo "::error::sign_tag requires push_refs=true so the signed tag reaches origin"
+            exit 1
+          fi
+
+          if [ "${{ inputs.sign_artifacts || inputs.sign_tag }}" = "true" ] && [ -z "${{ secrets.RELEASE_GPG_PRIVATE_KEY }}" ]; then
+            echo "::error::sign_artifacts/sign_tag was requested but RELEASE_GPG_PRIVATE_KEY is not configured"
+            exit 1
+          fi
+
+      - name: Import release GPG key
+        if: ${{ inputs.sign_artifacts || inputs.sign_tag }}
+        env:
+          RELEASE_GPG_PRIVATE_KEY: ${{ secrets.RELEASE_GPG_PRIVATE_KEY }}
+          RELEASE_GPG_PASSPHRASE: ${{ secrets.RELEASE_GPG_PASSPHRASE }}
+          RELEASE_GPG_KEY_ID: ${{ secrets.RELEASE_GPG_KEY_ID }}
+        run: |
+          export GNUPGHOME="$RUNNER_TEMP/gnupg"
+          mkdir -p "$GNUPGHOME"
+          chmod 700 "$GNUPGHOME"
+          printf '%s' "$RELEASE_GPG_PRIVATE_KEY" | gpg --batch --import
+          if [ -n "$RELEASE_GPG_PASSPHRASE" ]; then
+            echo allow-loopback-pinentry > "$GNUPGHOME/gpg-agent.conf"
+            gpgconf --kill gpg-agent || true
+            printf '%s\n' '#!/usr/bin/env bash' "exec gpg --batch --pinentry-mode loopback --passphrase \"$RELEASE_GPG_PASSPHRASE\" \"\$@\"" > "$RUNNER_TEMP/gpg-loopback.sh"
+            chmod +x "$RUNNER_TEMP/gpg-loopback.sh"
+            git config gpg.program "$RUNNER_TEMP/gpg-loopback.sh"
+          fi
+          if [ -n "$RELEASE_GPG_KEY_ID" ]; then
+            git config user.signingkey "$RELEASE_GPG_KEY_ID"
+          fi
+          echo "GNUPGHOME=$GNUPGHOME" >> "$GITHUB_ENV"
+
+      - id: prepare
+        env:
+          GPG_PASSPHRASE: ${{ secrets.RELEASE_GPG_PASSPHRASE }}
+        run: |
+          args=(
+            --release-id "${{ inputs.release_id }}"
+            --branch "${{ inputs.base_branch }}"
+            --outputdir "$GITHUB_WORKSPACE/dist/release/source"
+            --timestamp "${{ needs.metadata.outputs.timestamp_value }}"
+            --archive-prefix "ablestack-cloud"
+            --tag
+          )
+
+          if [ "${{ inputs.sign_artifacts }}" = "true" ]; then
+            args+=(--sign-artifacts)
+          fi
+
+          if [ "${{ inputs.sign_tag }}" = "true" ]; then
+            args+=(--sign-tag)
+          fi
+
+          if [ -n "${{ secrets.RELEASE_GPG_KEY_ID }}" ]; then
+            args+=(--gpg-key-id "${{ secrets.RELEASE_GPG_KEY_ID }}")
+          fi
+
+          ./tools/build/prepare_ablestack_source_release.sh "${args[@]}"
+
+      - name: Push RC branch and release tag
+        if: ${{ inputs.push_refs }}
+        run: |
+          git push origin "${{ steps.prepare.outputs.rc_branch }}"
+          git push origin "refs/tags/${{ inputs.release_id }}"
+
+      - name: Upload source release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.metadata.outputs.source_artifact_name }}
+          if-no-files-found: error
+          path: dist/release/source/**
+
+  validate-build:
+    needs: prepare-source-release
+    uses: ./.github/workflows/build.yml
+    with:
+      ref: ${{ needs.prepare-source-release.outputs.source_commit_sha }}
+
+  validate-ui:
+    needs: prepare-source-release
+    uses: ./.github/workflows/ui.yml
+    with:
+      ref: ${{ needs.prepare-source-release.outputs.source_commit_sha }}
+
+  build-rpm:
+    needs:
+      - metadata
+      - prepare-source-release
+      - validate-build
+      - validate-ui
+    uses: ./.github/workflows/rocky97-rpm.yml
+    with:
+      ref: ${{ needs.prepare-source-release.outputs.source_commit_sha }}
+      pack: ${{ inputs.pack }}
+      simulator: ${{ inputs.simulator }}
+      release: ${{ inputs.release_seq }}
+      brand: ${{ needs.metadata.outputs.brand }}
+      package_version: ${{ needs.metadata.outputs.package_version }}
+      use_timestamp: true
+      timestamp_value: ${{ needs.metadata.outputs.timestamp_value }}
+      build_srpm: true
+      templates: ${{ inputs.templates }}
+      node_version: ${{ inputs.node_version }}
+      artifact_name: ${{ needs.metadata.outputs.rpm_artifact_name }}
+
+  publish-release:
+    needs:
+      - metadata
+      - prepare-source-release
+      - build-rpm
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download source release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.metadata.outputs.source_artifact_name }}
+          path: download/source
+
+      - name: Download RPM artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.metadata.outputs.rpm_artifact_name }}
+          path: download/rpm
+
+      - name: Assemble GitHub Release assets
+        run: |
+          mkdir -p release-assets
+          find download/source -type f -exec cp {} release-assets/ \;
+          find download/rpm -type f -exec cp {} release-assets/ \;
+          (
+            cd release-assets
+            sha256sum * > SHA256SUMS
+          )
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_id }}
+          target_commitish: ${{ needs.prepare-source-release.outputs.source_commit_sha }}
+          name: ${{ inputs.release_id }}
+          draft: ${{ inputs.draft }}
+          prerelease: ${{ inputs.prerelease }}
+          generate_release_notes: false
+          files: release-assets/*

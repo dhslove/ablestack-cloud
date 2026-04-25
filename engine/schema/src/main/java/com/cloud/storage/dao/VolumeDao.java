@@ -170,4 +170,12 @@ public interface VolumeDao extends GenericDao<VolumeVO, Long>, StateDao<Volume.S
     VolumeVO findByLastIdAndState(long lastVolumeId, Volume.State...states);
 
     int getVolumeCountByOfferingId(long diskOfferingId);
+
+    /**
+     *  Retrieves volume by its externalId
+     *
+     * @param externalUuid
+     * @return Volume Object of matching search criteria
+     */
+    VolumeVO findByExternalUuid(String externalUuid);
 }

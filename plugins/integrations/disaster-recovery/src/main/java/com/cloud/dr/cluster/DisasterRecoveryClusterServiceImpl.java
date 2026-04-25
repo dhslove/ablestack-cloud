@@ -78,6 +78,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonElement;
 
+import org.apache.cloudstack.acl.apikeypair.ApiKeyPair;
 import org.apache.cloudstack.api.ApiConstants;
 import org.apache.cloudstack.api.command.admin.dr.GetDisasterRecoveryClusterListCmd;
 import org.apache.cloudstack.api.command.admin.dr.UpdateDisasterRecoveryClusterCmd;
@@ -128,6 +129,17 @@ public class DisasterRecoveryClusterServiceImpl extends ManagerBase implements D
     private AccountDao accountDao;
     @Inject
     private DiskOfferingDao diskOfferingDao;
+
+    private String[] getServiceUserKeys() {
+        UserAccount user = accountService.getActiveUserAccount("admin", 1L);
+        ApiKeyPair keyPair = accountService.getLatestUserKeyPair(user.getId());
+        String apiKey = keyPair != null ? keyPair.getApiKey() : null;
+        String secretKey = keyPair != null ? keyPair.getSecretKey() : null;
+        if (StringUtils.isAnyEmpty(apiKey, secretKey)) {
+            return accountService.createApiKeyAndSecretKey(user.getId());
+        }
+        return new String[] {apiKey, secretKey};
+    }
     @Inject
     private VMInstanceDetailsDao vmInstanceDetailsDao;
     @Inject
@@ -552,9 +564,9 @@ public class DisasterRecoveryClusterServiceImpl extends ManagerBase implements D
         if (cmd.getDrClusterUrl() != null) {
             String drClusterUrl = cmd.getDrClusterUrl();
             drcluster.setDrClusterUrl(drClusterUrl);
-            UserAccount user = accountService.getActiveUserAccount("admin", 1L);
-            String priApiKey = user.getApiKey();
-            String priSecretKey = user.getSecretKey();
+            String[] keys = getServiceUserKeys();
+            String priApiKey = keys[0];
+            String priSecretKey = keys[1];
             String ipList = Script.runSimpleBashScript("cat /etc/hosts | grep -E 'scvm.*-mngt' | awk '{print $1}' | tr '\n' ','");
             if (ipList != null || !ipList.isEmpty()) {
                 ipList = ipList.replaceAll(",$", "");
@@ -600,9 +612,9 @@ public class DisasterRecoveryClusterServiceImpl extends ManagerBase implements D
                 moldParams.put("details[0].mirrorscheduleinterval", details.get("mirrorscheduleinterval"));
                 DisasterRecoveryClusterUtil.moldUpdateDisasterRecoveryClusterAPI(moldUrl, moldCommand, moldMethod, apiKey, secretKey, moldParams);
             }
-            UserAccount user = accountService.getActiveUserAccount("admin", 1L);
-            String priApiKey = user.getApiKey();
-            String priSecretKey = user.getSecretKey();
+            String[] keys = getServiceUserKeys();
+            String priApiKey = keys[0];
+            String priSecretKey = keys[1];
             String[] properties = getServerProperties();
             ManagementServerHostVO msHost = msHostDao.findByMsid(ManagementServerNode.getManagementServerId());
             String priUrl = properties[1] + "://" + msHost.getServiceIP() + ":" + properties[0];
@@ -728,9 +740,9 @@ public class DisasterRecoveryClusterServiceImpl extends ManagerBase implements D
         ManagementServerHostVO msHost = msHostDao.findByMsid(ManagementServerNode.getManagementServerId());
         String priUrl = properties[1] + "://" + msHost.getServiceIP() + ":" + properties[0];
         String priClusterType = "primary";
-        UserAccount user = accountService.getActiveUserAccount("admin", 1L);
-        String priApiKey = user.getApiKey();
-        String priSecretKey = user.getSecretKey();
+        String[] keys = getServiceUserKeys();
+        String priApiKey = keys[0];
+        String priSecretKey = keys[1];
         Map<String, String> secParams = new HashMap<>();
         secParams.put("name", drName);
         secParams.put("description", drDescription);
@@ -908,9 +920,9 @@ public class DisasterRecoveryClusterServiceImpl extends ManagerBase implements D
             ManagementServerHostVO msHost = msHostDao.findByMsid(ManagementServerNode.getManagementServerId());
             String priUrl = properties[1] + "://" + msHost.getServiceIP() + ":" + properties[0];
             String priClusterType = "primary";
-            UserAccount user = accountService.getActiveUserAccount("admin", 1L);
-            String priApiKey = user.getApiKey();
-            String priSecretKey = user.getSecretKey();
+            String[] keys = getServiceUserKeys();
+            String priApiKey = keys[0];
+            String priSecretKey = keys[1];
             // 미러링 클러스터 삭제 glue-api 호출
             String ipList = Script.runSimpleBashScript("cat /etc/hosts | grep -E 'scvm.*-mngt' | awk '{print $1}' | tr '\n' ','");
             if (ipList != null || !ipList.isEmpty()) {
@@ -1041,9 +1053,9 @@ public class DisasterRecoveryClusterServiceImpl extends ManagerBase implements D
         ManagementServerHostVO msHost = msHostDao.findByMsid(ManagementServerNode.getManagementServerId());
         String priUrl = properties[1] + "://" + msHost.getServiceIP() + ":" + properties[0];
         String priClusterType = "primary";
-        UserAccount user = accountService.getActiveUserAccount("admin", 1L);
-        String priApiKey = user.getApiKey();
-        String priSecretKey = user.getSecretKey();
+        String[] keys = getServiceUserKeys();
+        String priApiKey = keys[0];
+        String priSecretKey = keys[1];
         // 미러링 활성화 glue-api 호출
         String ipList = Script.runSimpleBashScript("cat /etc/hosts | grep -E 'scvm.*-mngt' | awk '{print $1}' | tr '\n' ','");
         if (ipList != null || !ipList.isEmpty()) {
@@ -2862,11 +2874,11 @@ public class DisasterRecoveryClusterServiceImpl extends ManagerBase implements D
             throw new InvalidParameterValueException("A disaster recovery cluster with the same name exists:" + name);
         }
 
-        UserAccount user = accountService.getActiveUserAccount("admin", 1L);
-        String priApiKey = user.getApiKey();
-        String priSecretKey = user.getSecretKey();
+        String[] keys = getServiceUserKeys();
+        String priApiKey = keys[0];
+        String priSecretKey = keys[1];
         if (StringUtils.isAnyEmpty(priApiKey, priSecretKey)) {
-            accountService.createApiKeyAndSecretKey(user.getId());
+            throw new InvalidParameterValueException("Failed to resolve service user API keys for disaster recovery cluster operations");
         }
     }
 

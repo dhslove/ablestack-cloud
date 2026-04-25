@@ -16,33 +16,10 @@
 // under the License.
 package com.cloud.server;
 
-import com.cloud.alert.Alert;
-import com.cloud.capacity.Capacity;
-import com.cloud.dc.Pod;
-import com.cloud.dc.Vlan;
-import com.cloud.exception.ConcurrentOperationException;
-import com.cloud.exception.ManagementServerException;
-import com.cloud.exception.ResourceUnavailableException;
-import com.cloud.exception.VirtualMachineMigrationException;
-import com.cloud.host.Host;
-import com.cloud.hypervisor.Hypervisor.HypervisorType;
-import com.cloud.hypervisor.HypervisorCapabilities;
-import com.cloud.network.IpAddress;
-import com.cloud.org.Cluster;
-import com.cloud.storage.GuestOS;
-import com.cloud.storage.GuestOSHypervisor;
-import com.cloud.storage.GuestOsCategory;
-import com.cloud.storage.StoragePool;
-import com.cloud.user.SSHKeyPair;
-import com.cloud.user.UserData;
-import com.cloud.utils.Pair;
-import com.cloud.utils.Ternary;
-import com.cloud.vm.InstanceGroup;
-import com.cloud.vm.VirtualMachine;
-import com.cloud.vm.VirtualMachine.Type;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+
 import org.apache.cloudstack.api.command.admin.cluster.ListClustersCmd;
 import org.apache.cloudstack.api.command.admin.config.ListCfgGroupsByCmd;
 import org.apache.cloudstack.api.command.admin.config.ListCfgsByCmd;
@@ -60,6 +37,7 @@ import org.apache.cloudstack.api.command.admin.guest.UpdateGuestOsCmd;
 import org.apache.cloudstack.api.command.admin.guest.UpdateGuestOsMappingCmd;
 import org.apache.cloudstack.api.command.admin.host.ListHostsCmd;
 import org.apache.cloudstack.api.command.admin.host.UpdateHostPasswordCmd;
+import org.apache.cloudstack.api.command.admin.management.RemoveManagementServerCmd;
 import org.apache.cloudstack.api.command.admin.outofbandmanagement.CreateVhbaDeviceCmd;
 import org.apache.cloudstack.api.command.admin.outofbandmanagement.DeleteVhbaDeviceCmd;
 import org.apache.cloudstack.api.command.admin.outofbandmanagement.LicenseCheckCmd;
@@ -71,7 +49,6 @@ import org.apache.cloudstack.api.command.admin.outofbandmanagement.ListHostUsbDe
 import org.apache.cloudstack.api.command.admin.outofbandmanagement.ListVhbaDevicesCmd;
 import org.apache.cloudstack.api.command.admin.outofbandmanagement.ListVmHostDevicesCmd;
 import org.apache.cloudstack.api.command.admin.outofbandmanagement.UpdateHostDevicesCmd;
-import org.apache.cloudstack.api.command.admin.management.RemoveManagementServerCmd;
 import org.apache.cloudstack.api.command.admin.outofbandmanagement.UpdateHostHbaDevicesCmd;
 import org.apache.cloudstack.api.command.admin.outofbandmanagement.UpdateHostLunDevicesCmd;
 import org.apache.cloudstack.api.command.admin.outofbandmanagement.UpdateHostScsiDevicesCmd;
@@ -130,7 +107,31 @@ import org.apache.cloudstack.api.response.UpdateHostVhbaDevicesResponse;
 import org.apache.cloudstack.api.response.VmDeviceAssignmentResponse;
 import org.apache.cloudstack.config.Configuration;
 import org.apache.cloudstack.config.ConfigurationGroup;
-import org.apache.cloudstack.framework.config.ConfigKey;
+
+import com.cloud.alert.Alert;
+import com.cloud.capacity.Capacity;
+import com.cloud.dc.Pod;
+import com.cloud.dc.Vlan;
+import com.cloud.exception.ConcurrentOperationException;
+import com.cloud.exception.ManagementServerException;
+import com.cloud.exception.ResourceUnavailableException;
+import com.cloud.exception.VirtualMachineMigrationException;
+import com.cloud.host.Host;
+import com.cloud.hypervisor.Hypervisor.HypervisorType;
+import com.cloud.hypervisor.HypervisorCapabilities;
+import com.cloud.network.IpAddress;
+import com.cloud.org.Cluster;
+import com.cloud.storage.GuestOS;
+import com.cloud.storage.GuestOSHypervisor;
+import com.cloud.storage.GuestOsCategory;
+import com.cloud.storage.StoragePool;
+import com.cloud.user.SSHKeyPair;
+import com.cloud.user.UserData;
+import com.cloud.utils.Pair;
+import com.cloud.utils.Ternary;
+import com.cloud.vm.InstanceGroup;
+import com.cloud.vm.VirtualMachine;
+import com.cloud.vm.VirtualMachine.Type;
 
 
 /**
@@ -139,14 +140,6 @@ import org.apache.cloudstack.framework.config.ConfigKey;
  */
 public interface ManagementService {
     static final String Name = "management-server";
-
-    ConfigKey<Boolean> JsInterpretationEnabled = new ConfigKey<>("Hidden"
-            , Boolean.class
-            , "js.interpretation.enabled"
-            , "false"
-            , "Enable/Disable all JavaScript interpretation related functionalities to create or update Javascript rules."
-            , false
-            , ConfigKey.Scope.Global);
 
     /**
      * returns the a map of the names/values in the configuration table
@@ -593,7 +586,5 @@ public interface ManagementService {
     LicenseCheckerResponse checkLicense(LicenseCheckCmd cmd);
 
     boolean removeManagementServer(RemoveManagementServerCmd cmd);
-
-    void checkJsInterpretationAllowedIfNeededForParameterValue(String paramName, boolean paramValue);
 
 }

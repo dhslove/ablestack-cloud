@@ -20,6 +20,9 @@
         <version>4.22.0.0-SNAPSHOT</version>
         <relativePath>../../../pom.xml</relativePath>
     </parent>
+    <properties>
+        <storpool.skip.git.properties>true</storpool.skip.git.properties>
+    </properties>
     <dependencies>
         <dependency>
             <groupId>org.apache.cloudstack</groupId>
@@ -68,31 +71,6 @@
     <build>
         <plugins>
             <plugin>
-                <groupId>org.codehaus.gmaven</groupId>
-                <artifactId>gmaven-plugin</artifactId>
-                <version>1.5</version>
-                <executions>
-                    <execution>
-                        <id>set-properties</id>
-                        <phase>validate</phase>
-                        <goals>
-                            <goal>execute</goal>
-                        </goals>
-                        <configuration>
-                            <providerSelection>1.7</providerSelection>
-                            <source>
-                                File git = new File("./.git")
-                                if (!git.exists()) {
-                                    pom.properties['storpool.skip.git.properties'] = 'true'
-                                } else {
-                                    pom.properties['storpool.skip.git.properties'] = 'false'
-                                }
-                            </source>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <executions>
                     <execution>
@@ -117,7 +95,8 @@
                 </executions>
                 <configuration>
                     <skip>${storpool.skip.git.properties}</skip>
-                    <dotGitDirectory>${project.basedir}/.git</dotGitDirectory>
+                    <dotGitDirectory>${maven.multiModuleProjectDirectory}/.git</dotGitDirectory>
+                    <failOnNoGitDirectory>false</failOnNoGitDirectory>
                     <prefix>git</prefix>
                     <verbose>false</verbose>
                     <generateGitPropertiesFile>true</generateGitPropertiesFile>
@@ -135,4 +114,17 @@
             </plugin>
         </plugins>
     </build>
+    <profiles>
+        <profile>
+            <id>storpool-git-metadata</id>
+            <activation>
+                <file>
+                    <exists>${maven.multiModuleProjectDirectory}/.git</exists>
+                </file>
+            </activation>
+            <properties>
+                <storpool.skip.git.properties>false</storpool.skip.git.properties>
+            </properties>
+        </profile>
+    </profiles>
 </project>

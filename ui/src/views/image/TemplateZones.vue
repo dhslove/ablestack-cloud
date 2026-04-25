@@ -92,7 +92,7 @@
           :rowKey="record => record.datastoreId">
           <template #bodyCell="{ text, record, column }">
             <template v-if="column.dataIndex === 'datastore' && record.datastoreId">
-                <router-link :to="{ path: '/storagepool/' + encodeURIComponent(record.datastoreId) }">
+              <router-link :to="{ path: '/storagepool/' + encodeURIComponent(record.datastoreId) }">
                 {{ text }}
               </router-link>
             </template>
@@ -108,7 +108,7 @@
           :rowKey="record => record.datastoreId">
           <template #bodyCell="{ text, record, column }">
             <template v-if="column.dataIndex === 'datastore' && record.datastoreId">
-                <router-link :to="{ path: '/imagestore/' + record.datastoreId }">
+              <router-link :to="{ path: '/imagestore/' + record.datastoreId }">
                 {{ text }}
               </router-link>
             </template>
@@ -396,10 +396,10 @@ export default {
   },
   computed: {
     isActionsOnTemplatePermitted () {
-      return (['Admin'].includes(this.$store.getters.userInfo.roletype) || // If admin or owner or belongs to current project
+      return (['Admin'].includes(this.$store.getters.userInfo.roletype) ||
         (this.resource.domainid === this.$store.getters.userInfo.domainid && this.resource.account === this.$store.getters.userInfo.account) ||
         (this.resource.domainid === this.$store.getters.userInfo.domainid && this.resource.projectid && this.$store.getters.project && this.$store.getters.project.id && this.resource.projectid === this.$store.getters.project.id)) &&
-        (this.resource.isready || !this.resource.status || this.resource.status.indexOf('Downloaded') === -1) && // Template is ready or downloaded
+        (this.resource.isready || !this.resource.status || this.resource.status.indexOf('Downloaded') === -1) &&
         this.resource.templatetype !== 'SYSTEM'
     }
   },
@@ -481,7 +481,7 @@ export default {
       this.showTable = false
       this.fetchData()
       if (this.dataSource.length === 0) {
-        this.$router.go(-1)
+        this.$router.push({ path: '/template' })
       }
     },
     getOkProps () {

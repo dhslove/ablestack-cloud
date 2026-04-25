@@ -62,7 +62,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@RunWith(MockitoJUnitRunner.class)
+@RunWith(MockitoJUnitRunner.Silent.class)
 public class AccountManagerImplVolumeDeleteEventTest extends AccountManagentImplTestBase {
 
     private static final Long ACCOUNT_ID = 1l;

@@ -50,4 +50,5 @@ public interface ApiServerService {
     boolean resetPassword(UserAccount userAccount, String token, String password);
 
     boolean isPostRequestsAndTimestampsEnforced();
+    String getDomainId(Map<String, Object[]> params);
 }

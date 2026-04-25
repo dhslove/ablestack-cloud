@@ -52,17 +52,17 @@ public class LibvirtCpuTopologyTest {
         return Arrays.asList(new Object[][] {
                 createTestData("8 cores, 2 per socket",2, null, 8, "<cpu><topology sockets='4' cores='2' threads='1' /></cpu>"),
                 createTestData("8 cores, 4 per socket",4, null, 8, "<cpu><topology sockets='2' cores='4' threads='1' /></cpu>"),
-                createTestData("8 cores, nothing specified",null, null, 8, "<cpu><topology sockets='2' cores='4' threads='1' /></cpu>"),
-                createTestData("12 cores, nothing specified",null, null, 12, "<cpu><topology sockets='2' cores='6' threads='1' /></cpu>"),
+                createTestData("8 cores, nothing specified",null, null, 8, "<cpu><topology sockets='1' cores='8' threads='1' /></cpu>"),
+                createTestData("12 cores, nothing specified",null, null, 12, "<cpu><topology sockets='1' cores='12' threads='1' /></cpu>"),
                 createTestData("8 cores, 2C per socket, 2TPC",2, 2, 8, "<cpu><topology sockets='2' cores='2' threads='2' /></cpu>"),
                 createTestData("8 cores, 1C per socket, 2TPC",1, 2, 8, "<cpu><topology sockets='4' cores='1' threads='2' /></cpu>"),
-                createTestData("8 cores, default CPS, 2TPC",null, 2, 8, "<cpu><topology sockets='4' cores='1' threads='2' /></cpu>"),
-                createTestData("6 cores, default CPS, 2TPC",null, 2, 6, "<cpu><topology sockets='3' cores='1' threads='2' /></cpu>"),
+                createTestData("8 cores, default CPS, 2TPC",null, 2, 8, "<cpu><topology sockets='1' cores='8' threads='1' /></cpu>"),
+                createTestData("6 cores, default CPS, 2TPC",null, 2, 6, "<cpu><topology sockets='1' cores='6' threads='1' /></cpu>"),
                 createTestData("12 cores, 2CPS, 2TPC",2, 2, 12, "<cpu><topology sockets='3' cores='2' threads='2' /></cpu>"),
                 createTestData("6 cores, misconfigured cores, CPS, TPC, use default topology",2, 2, 6, "<cpu><topology sockets='1' cores='6' threads='1' /></cpu>"),
-                createTestData("odd cores, nothing specified use default topology",null, null, 3, "<cpu><topology sockets='3' cores='1' threads='1' /></cpu>"),
-                createTestData("odd cores, uneven CPS use default topology",2, null, 3, "<cpu><topology sockets='3' cores='1' threads='1' /></cpu>"),
-                createTestData("8 cores, 2 CPS, odd threads use default topology", 2, 3, 8, "<cpu><topology sockets='2' cores='4' threads='1' /></cpu>"),
+                createTestData("odd cores, nothing specified use default topology",null, null, 3, "<cpu><topology sockets='1' cores='3' threads='1' /></cpu>"),
+                createTestData("odd cores, uneven CPS use default topology",2, null, 3, "<cpu><topology sockets='1' cores='3' threads='1' /></cpu>"),
+                createTestData("8 cores, 2 CPS, odd threads use default topology", 2, 3, 8, "<cpu><topology sockets='1' cores='8' threads='1' /></cpu>"),
                 createTestData("1 core, 2 CPS, odd threads use default topology", 2, 1, 1, "<cpu><topology sockets='1' cores='1' threads='1' /></cpu>")
         });
     }

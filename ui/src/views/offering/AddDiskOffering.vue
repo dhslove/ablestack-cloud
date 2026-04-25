@@ -330,13 +330,12 @@
 </template>
 
 <script>
-import { getAPI, postAPI } from '@/api'
-import { reactive, ref, toRaw } from 'vue'
+import { postAPI } from '@/api'
+import { reactive, ref } from 'vue'
 import { isAdmin } from '@/role'
 import { mixinForm } from '@/utils/mixin'
 import ResourceIcon from '@/components/view/ResourceIcon'
 import TooltipLabel from '@/components/widgets/TooltipLabel'
-import store from '@/store'
 
 export default {
   name: 'AddDiskOffering',
@@ -347,35 +346,15 @@ export default {
   },
   data () {
     return {
-      selectedDomains: [],
-      storageTags: [],
-      storagePolicies: null,
-      storageTagLoading: false,
-      isPublic: true,
-      isEncrypted: false,
-      domains: [],
-      domainLoading: false,
-      zones: [],
-      zoneLoading: false,
-      loading: false,
-      disksizestrictness: false,
-      encryptdisk: false,
-      isDomainAdminAllowedToInformTags: false
+      formRef: null,
+      form: reactive({}),
+      loading: false
     }
   },
   beforeCreate () {
     this.apiParams = this.$getApiParams('createDiskOffering')
   },
   created () {
-    this.zones = [
-      {
-        id: null,
-        name: this.$t('label.all.zone')
-      }
-    ]
-    this.isPublic = isAdmin()
-    this.initForm()
-    this.fetchData()
   },
   methods: {
     initForm () {
@@ -441,76 +420,13 @@ export default {
     isAdmin () {
       return isAdmin()
     },
-    checkIfDomainAdminIsAllowedToInformTag () {
-      const params = { id: store.getters.userInfo.accountid }
-      getAPI('isAccountAllowedToCreateOfferingsWithTags', params).then(json => {
-        this.isDomainAdminAllowedToInformTags = json.isaccountallowedtocreateofferingswithtagsresponse.isallowed.isallowed
-      })
-    },
-    arrayHasItems (array) {
-      return array !== null && array !== undefined && Array.isArray(array) && array.length > 0
-    },
-    fetchDomainData () {
-      const params = {}
-      params.listAll = true
-      params.showicon = true
-      params.details = 'min'
-      this.domainLoading = true
-      getAPI('listDomains', params).then(json => {
-        const listDomains = json.listdomainsresponse.domain
-        this.domains = this.domains.concat(listDomains)
-      }).finally(() => {
-        this.domainLoading = false
-      })
-    },
-    fetchZoneData () {
-      const params = {}
-      params.showicon = true
-      this.zoneLoading = true
-      getAPI('listZones', params).then(json => {
-        const listZones = json.listzonesresponse.zone
-        if (listZones) {
-          this.zones = this.zones.concat(listZones)
-        }
-      }).finally(() => {
-        this.zoneLoading = false
-      })
-    },
-    fetchStorageTagData () {
-      const params = {}
-      this.storageTagLoading = true
-      getAPI('listStorageTags', params).then(json => {
-        const tags = json.liststoragetagsresponse.storagetag || []
-        for (const tag of tags) {
-          if (!this.storageTags.includes(tag.name)) {
-            this.storageTags.push(tag.name)
-          }
-        }
-      }).finally(() => {
-        this.storageTagLoading = false
-      })
-    },
-    fetchvSphereStoragePolicies (zoneIndex) {
-      if (zoneIndex === 0 || this.form.zoneid.length > 1) {
-        this.storagePolicies = null
-        return
-      }
-      const zoneid = this.zones[zoneIndex].id
-      if ('importVsphereStoragePolicies' in this.$store.getters.apis) {
-        this.storagePolicies = []
-        getAPI('listVsphereStoragePolicies', {
-          zoneid: zoneid
-        }).then(response => {
-          this.storagePolicies = response.listvspherestoragepoliciesresponse.StoragePolicy || []
-        })
-      }
-    },
     handleSubmit (e) {
-      e.preventDefault()
+      if (e && e.preventDefault) {
+        e.preventDefault()
+      }
       if (this.loading) return
-      this.formRef.value.validate().then(() => {
-        const formRaw = toRaw(this.form)
-        const values = this.handleRemoveFields(formRaw)
+
+      this.$refs.formRef.validate().then((values) => {
         var params = {
           name: values.name,
           displaytext: values.displaytext,
@@ -572,8 +488,9 @@ export default {
           var domainId = null
           if (domainIndexes && domainIndexes.length > 0) {
             var domainIds = []
+            const domains = this.$refs.formRef.domains
             for (var i = 0; i < domainIndexes.length; i++) {
-              domainIds = domainIds.concat(this.domains[domainIndexes[i]].id)
+              domainIds.push(domains[domainIndexes[i]].id)
             }
             domainId = domainIds.join(',')
           }
@@ -585,8 +502,9 @@ export default {
         var zoneId = null
         if (zoneIndexes && zoneIndexes.length > 0) {
           var zoneIds = []
+          const zones = this.$refs.formRef.zones
           for (var j = 0; j < zoneIndexes.length; j++) {
-            zoneIds = zoneIds.concat(this.zones[zoneIndexes[j]].id)
+            zoneIds.push(zones[zoneIndexes[j]].id)
           }
           zoneId = zoneIds.join(',')
         }
@@ -596,6 +514,8 @@ export default {
         if (values.storagepolicy) {
           params.storagepolicy = values.storagepolicy
         }
+
+        this.loading = true
         postAPI('createDiskOffering', params).then(json => {
           this.$emit('publish-disk-offering-id', json?.creatediskofferingresponse?.diskoffering?.id)
           this.$message.success(`${this.$t('message.disk.offering.created')} ${values.name}`)
@@ -610,12 +530,6 @@ export default {
     },
     closeAction () {
       this.$emit('close-action')
-    },
-    async validateNumber (rule, value) {
-      if (value && (isNaN(value) || value <= 0)) {
-        return Promise.reject(this.$t('message.error.number'))
-      }
-      return Promise.resolve()
     }
   }
 }

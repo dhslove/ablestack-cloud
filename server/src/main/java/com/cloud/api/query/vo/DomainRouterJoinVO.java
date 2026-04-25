@@ -276,6 +276,8 @@ public class DomainRouterJoinVO extends BaseViewVO implements ControlledViewEnti
 
     @Column(name = "link_state")
     private boolean linkState;
+    @Column(name = "is_nic_enabled")
+    private boolean isNicEnabled;
 
     public DomainRouterJoinVO() {
     }
@@ -585,4 +587,7 @@ public class DomainRouterJoinVO extends BaseViewVO implements ControlledViewEnti
         return linkState;
     }
 
+    public boolean isNicEnabled() {
+        return isNicEnabled;
+    }
 }

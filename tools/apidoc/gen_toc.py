@@ -176,6 +176,7 @@ known_categories = {
     'updateVmNicIp': 'Nic',
     'UpdateVmNicLinkState': 'Nic',
     'listNics':'Nic',
+    'updateVmNic': 'Nic',
     'AffinityGroup': 'Affinity Group',
     'ImageStore': 'Image Store',
     'addImageStore': 'Image Store',

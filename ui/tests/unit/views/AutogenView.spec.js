@@ -55,6 +55,11 @@ const spyConsole = {
 }
 
 const state = {
+  app: {
+    metrics: false,
+    listAllProjects: false,
+    allProjects: []
+  },
   user: {
     apis: mockData.apis,
     info: mockData.info,
@@ -70,13 +75,20 @@ const mutations = {
   },
   SET_CUSTOM_COLUMNS: (state, customColumns) => {
     state.user.customColumns = customColumns
+  },
+  SET_LIST_ALL_PROJECTS: (state, bool) => {
+    state.app.listAllProjects = bool
+  },
+  RELOAD_ALL_PROJECTS: (state, allProjects = []) => {
+    state.app.allProjects = allProjects
   }
 }
 
 const actions = {
   SetProject: jest.fn(({ commit }, project) => {}),
   ToggleTheme: jest.fn(({ commit }, theme) => {}),
-  SetCustomColumns: jest.fn(({ commit }, columns) => {})
+  SetCustomColumns: jest.fn(({ commit }, columns) => {}),
+  SetListAllProjects: jest.fn(({ commit }, bool) => {})
 }
 
 mockData.routes.push({
@@ -190,10 +202,12 @@ describe('Views > AutogenView.vue', () => {
     delete window.ResizeObserver
     delete window.ls
 
-    if (!wrapper) {
-      await router.isReady()
-      wrapper = factory()
-    }
+    router = common.createMockRouter(mockData.routes)
+    store = common.createMockStore(state, actions, mutations)
+    i18n = common.createMockI18n('en', mockData.messages)
+    await router.push('/')
+    await router.isReady()
+    wrapper = factory({ router, store, i18n, mocks })
 
     window.ResizeObserver = jest.fn().mockImplementation(() => ({
       observe: jest.fn(),
@@ -212,25 +226,13 @@ describe('Views > AutogenView.vue', () => {
 
   afterEach(() => {
     window.ResizeObserver = ResizeObserver
-    window.ResizeObserver = ls
-
-    if (wrapper) {
-      wrapper.vm.currentAction = {}
-      wrapper.vm.resource = {}
-      wrapper.vm.searchParams = {}
-      wrapper.vm.actionData = {}
-      wrapper.vm.dataView = false
-      wrapper.vm.showAction = false
-      wrapper.vm.selectedRowKeys = []
-      wrapper.vm.selectedRowKeys = []
-      wrapper.vm.items = []
-      wrapper.vm.promises = []
-      wrapper.vm.form = {}
-      wrapper.vm.rules = {}
-    }
+    window.ls = ls
 
     if (Object.keys(originalFunc).length > 0) {
       Object.keys(originalFunc).forEach(key => {
+        if (!wrapper) {
+          return
+        }
         switch (key) {
           case 'fetchData':
             wrapper.vm.fetchData = originalFunc[key]
@@ -278,6 +280,22 @@ describe('Views > AutogenView.vue', () => {
       })
 
       originalFunc = {}
+    }
+    if (wrapper) {
+      wrapper.vm.currentAction = {}
+      wrapper.vm.resource = {}
+      wrapper.vm.searchParams = {}
+      wrapper.vm.actionData = {}
+      wrapper.vm.dataView = false
+      wrapper.vm.showAction = false
+      wrapper.vm.selectedRowKeys = []
+      wrapper.vm.selectedRowKeys = []
+      wrapper.vm.items = []
+      wrapper.vm.promises = []
+      wrapper.vm.form = {}
+      wrapper.vm.rules = {}
+      wrapper.unmount()
+      wrapper = null
     }
     if (spyConsole.log) {
       spyConsole.log.mockClear()
@@ -819,7 +837,7 @@ describe('Views > AutogenView.vue', () => {
         done()
       })
 
-      it('check $notifyError is called and router path = /exception/403 when api is called with throw error', async (done) => {
+      it('check $notifyError is called and router path = /dashboard when api is called with throw error status 405', async (done) => {
         const errorMock = {
           response: {
             status: 405
@@ -833,11 +851,11 @@ describe('Views > AutogenView.vue', () => {
 
         expect(mocks.$notifyError).toHaveBeenCalledTimes(1)
         expect(mocks.$notifyError).toHaveBeenCalledWith(errorMock)
-        expect(router.currentRoute.value.path).toEqual('/exception/403')
+        expect(router.currentRoute.value.path).toEqual('/dashboard')
         done()
       })
 
-      it('check $notifyError is called and router path = /exception/404 when api is called with throw error', async (done) => {
+      it('check $notifyError is called and router path = /dashboard when api is called with throw error status 430', async (done) => {
         const errorMock = {
           response: {
             status: 430
@@ -851,11 +869,11 @@ describe('Views > AutogenView.vue', () => {
 
         expect(mocks.$notifyError).toHaveBeenCalledTimes(1)
         expect(mocks.$notifyError).toHaveBeenCalledWith(errorMock)
-        expect(router.currentRoute.value.path).toEqual('/exception/404')
+        expect(router.currentRoute.value.path).toEqual('/dashboard')
         done()
       })
 
-      it('check $notifyError is called and router path = /exception/500 when api is called with throw error', async (done) => {
+      it('check $notifyError is called and router path = /dashboard when api is called with throw error status 530', async (done) => {
         const errorMock = {
           response: {
             status: 530
@@ -869,7 +887,7 @@ describe('Views > AutogenView.vue', () => {
 
         expect(mocks.$notifyError).toHaveBeenCalledTimes(1)
         expect(mocks.$notifyError).toHaveBeenCalledWith(errorMock)
-        expect(router.currentRoute.value.path).toEqual('/exception/500')
+        expect(router.currentRoute.value.path).toEqual('/dashboard')
         done()
       })
     })
@@ -1036,13 +1054,14 @@ describe('Views > AutogenView.vue', () => {
         })
         await flushPromises()
 
-        expect(wrapper.vm.currentAction.params).toEqual([
+        expect(wrapper.vm.currentAction.params).toHaveLength(5)
+        expect(wrapper.vm.currentAction.params).toEqual(expect.arrayContaining([
           { name: 'id', type: 'string' },
           { name: 'name', type: 'string' },
           { name: 'column1', type: 'string' },
           { name: 'column2', type: 'string' },
           { name: 'column3', type: 'string' }
-        ])
+        ]))
         expect(wrapper.vm.currentAction.paramFields).toEqual([])
         expect(wrapper.vm.showAction).toBeTruthy()
         done()
@@ -1065,13 +1084,14 @@ describe('Views > AutogenView.vue', () => {
         })
         await flushPromises()
 
-        expect(wrapper.vm.currentAction.params).toEqual([
+        expect(wrapper.vm.currentAction.params).toHaveLength(5)
+        expect(wrapper.vm.currentAction.params).toEqual(expect.arrayContaining([
           { name: 'column1', type: 'string' },
           { name: 'column2', type: 'string' },
           { name: 'column3', type: 'string' },
           { name: 'name', type: 'string' },
           { name: 'id', type: 'string' }
-        ])
+        ]))
         expect(wrapper.vm.currentAction.paramFields).toEqual([
           { name: 'column1', type: 'string' },
           { name: 'column2', type: 'string' },
@@ -1101,13 +1121,14 @@ describe('Views > AutogenView.vue', () => {
         })
         await flushPromises()
 
-        expect(wrapper.vm.currentAction.params).toEqual([
+        expect(wrapper.vm.currentAction.params).toHaveLength(5)
+        expect(wrapper.vm.currentAction.params).toEqual(expect.arrayContaining([
           { name: 'id', type: 'string' },
           { name: 'name', type: 'string' },
           { name: 'column1', type: 'string' },
           { name: 'column2', type: 'string' },
           { name: 'column3', type: 'string' }
-        ])
+        ]))
         expect(wrapper.vm.currentAction.paramFields).toEqual([
           { name: 'id', type: 'string' },
           { name: 'name', type: 'string' }
@@ -1600,7 +1621,7 @@ describe('Views > AutogenView.vue', () => {
         done()
       })
 
-      it('fetchData() should be called when $pollJob error response', async (done) => {
+      it('fetchData() should not be called when $pollJob error response', async (done) => {
         originalFunc.fetchData = wrapper.vm.fetchData
         wrapper.vm.fetchData = jest.fn((args) => {})
         const fetchData = jest.spyOn(wrapper.vm, 'fetchData')
@@ -1621,7 +1642,7 @@ describe('Views > AutogenView.vue', () => {
         })
         await flushPromises()
 
-        expect(fetchData).toHaveBeenCalled()
+        expect(fetchData).not.toHaveBeenCalled()
         expect(mockAxios).toHaveBeenCalled()
         expect(mockAxios).toHaveBeenLastCalledWith({
           url: '/',
@@ -2062,6 +2083,12 @@ describe('Views > AutogenView.vue', () => {
 
       it('validate field `confirmpassword` a when validateTwoPassword() is called with confirmDirty equal true', async (done) => {
         wrapper.vm.form = { confirmpassword: '123abc' }
+        if (!wrapper.vm.formRef) {
+          wrapper.vm.formRef = ref({})
+        }
+        if (!wrapper.vm.formRef.value) {
+          wrapper.vm.formRef.value = {}
+        }
         originalFunc.RefValidateFields = wrapper.vm.formRef.value.validateFields
         wrapper.vm.formRef.value.validateFields = jest.fn((field) => {})
 
@@ -2295,6 +2322,9 @@ describe('Views > AutogenView.vue', () => {
         if (!wrapper.vm.formRef) {
           wrapper.vm.formRef = ref()
         }
+        if (!wrapper.vm.formRef.value) {
+          wrapper.vm.formRef.value = {}
+        }
         wrapper.vm.formRef.value.validate = jest.fn((params, resourceName) => {
           return new Promise(resolve => {
             resolve()
@@ -2310,6 +2340,7 @@ describe('Views > AutogenView.vue', () => {
           currentAction: {
             label: 'label.name',
             groupAction: true,
+            invokedAsGroupAction: true,
             groupMap: (selection) => {
               return selection.map(x => { return { id: x } })
             }

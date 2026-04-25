@@ -48,6 +48,7 @@ import com.cloud.vm.VirtualMachine;
 import com.cloud.vm.dao.NicDao;
 import org.apache.cloudstack.network.BgpPeerVO;
 import org.apache.cloudstack.network.dao.BgpPeerDetailsDao;
+import org.apache.cloudstack.framework.config.dao.ConfigurationDao;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -100,6 +101,8 @@ public class CommandSetupHelperTest {
     ASNumberDao asNumberDao;
     @Mock
     BgpPeerDetailsDao bgpPeerDetailsDao;
+    @Mock
+    ConfigurationDao configDao;
 
     @Before
     public void setUp() {
@@ -114,6 +117,9 @@ public class CommandSetupHelperTest {
         ReflectionTestUtils.setField(commandSetupHelper, "_vpcDao", vpcDao);
         ReflectionTestUtils.setField(commandSetupHelper, "_routerControlHelper", routerControlHelper);
         ReflectionTestUtils.setField(commandSetupHelper, "_dcDao", dcDao);
+        ReflectionTestUtils.setField(commandSetupHelper, "_configDao", configDao);
+        ReflectionTestUtils.setField(commandSetupHelper, "configDao", configDao);
+        when(configDao.getValueAndInitIfNotExist(ArgumentMatchers.anyString(), ArgumentMatchers.anyString(), ArgumentMatchers.anyString())).thenReturn("false");
     }
 
     @Test

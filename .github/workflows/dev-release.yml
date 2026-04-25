@@ -1,0 +1,227 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: ABLESTACK Development Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_branch:
+        description: Branch to build for test deployment
+        required: true
+        default: ablestack-europa
+        type: choice
+        options:
+          - ablestack-europa
+          - ablestack-diplo
+      release_seq:
+        description: RPM release sequence appended after the timestamp
+        required: true
+        default: '1'
+        type: string
+      pack:
+        description: Package variant
+        required: false
+        default: oss
+        type: choice
+        options:
+          - oss
+          - noredist
+      simulator:
+        description: Include simulator packaging
+        required: false
+        default: default
+        type: choice
+        options:
+          - default
+          - simulator
+      templates:
+        description: Optional template list (for example kvm,xen,vmware)
+        required: false
+        default: ''
+        type: string
+      node_version:
+        description: Node.js version injected into the Rocky build container
+        required: false
+        default: 14.21.3
+        type: string
+      build_srpm:
+        description: Build SRPM alongside RPMs
+        required: false
+        default: false
+        type: boolean
+      draft:
+        description: Create the GitHub Release as a draft
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: dev-release-${{ inputs.base_branch }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  metadata:
+    runs-on: ubuntu-24.04
+    outputs:
+      brand: ${{ steps.derive.outputs.brand }}
+      package_version: ${{ steps.derive.outputs.package_version }}
+      timestamp_value: ${{ steps.derive.outputs.timestamp_value }}
+      source_commit_sha: ${{ steps.derive.outputs.source_commit_sha }}
+      release_tag: ${{ steps.derive.outputs.release_tag }}
+      release_name: ${{ steps.derive.outputs.release_name }}
+      rpm_artifact_name: ${{ steps.derive.outputs.rpm_artifact_name }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.base_branch }}
+          fetch-depth: 0
+
+      - id: derive
+        run: |
+          case "${{ inputs.base_branch }}" in
+            ablestack-europa) brand="Mold.Europa" ;;
+            ablestack-diplo) brand="Mold.Diplo" ;;
+            *)
+              echo "::error::Unsupported base branch ${{ inputs.base_branch }}"
+              exit 1
+              ;;
+          esac
+
+          pom_version=$(awk '
+            /<artifactId>cloudstack<\/artifactId>/ { seen=1; next }
+            seen && /<version>/ {
+              line=$0
+              sub(/.*<version>/, "", line)
+              sub(/<\/version>.*/, "", line)
+              print line
+              exit
+            }
+          ' pom.xml)
+
+          if [ -z "$pom_version" ]; then
+            echo "::error::Unable to derive root project version from pom.xml"
+            exit 1
+          fi
+
+          package_version=${pom_version%%-*}
+          timestamp_value=$(date -u +%Y%m%d%H%M)
+          source_commit_sha=$(git rev-parse HEAD)
+          release_tag="dev-${{ inputs.base_branch }}-latest"
+          release_name="ABLESTACK Dev ${{ inputs.base_branch }} Latest"
+
+          {
+            echo "brand=$brand"
+            echo "package_version=$package_version"
+            echo "timestamp_value=$timestamp_value"
+            echo "source_commit_sha=$source_commit_sha"
+            echo "release_tag=$release_tag"
+            echo "release_name=$release_name"
+            echo "rpm_artifact_name=dev-rocky97-rpm-${{ github.run_id }}"
+          } >> "$GITHUB_OUTPUT"
+
+  build-rpm:
+    needs: metadata
+    uses: ./.github/workflows/rocky97-rpm.yml
+    with:
+      ref: ${{ needs.metadata.outputs.source_commit_sha }}
+      pack: ${{ inputs.pack }}
+      simulator: ${{ inputs.simulator }}
+      release: ${{ inputs.release_seq }}
+      brand: ${{ needs.metadata.outputs.brand }}
+      package_version: ${{ needs.metadata.outputs.package_version }}
+      use_timestamp: true
+      timestamp_value: ${{ needs.metadata.outputs.timestamp_value }}
+      build_srpm: ${{ inputs.build_srpm }}
+      templates: ${{ inputs.templates }}
+      node_version: ${{ inputs.node_version }}
+      artifact_name: ${{ needs.metadata.outputs.rpm_artifact_name }}
+
+  publish-release:
+    needs:
+      - metadata
+      - build-rpm
+    runs-on: ubuntu-24.04
+    env:
+      DEV_RELEASE_TAG: ${{ needs.metadata.outputs.release_tag }}
+      DEV_RELEASE_NAME: ${{ needs.metadata.outputs.release_name }}
+    steps:
+      - name: Delete previous development release and tag
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const tag = process.env.DEV_RELEASE_TAG;
+            const { owner, repo } = context.repo;
+
+            try {
+              const release = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
+              await github.rest.repos.deleteRelease({ owner, repo, release_id: release.data.id });
+              core.info(`Deleted existing release for ${tag}`);
+            } catch (error) {
+              if (error.status !== 404) {
+                throw error;
+              }
+              core.info(`No existing release found for ${tag}`);
+            }
+
+            try {
+              await github.rest.git.deleteRef({ owner, repo, ref: `tags/${tag}` });
+              core.info(`Deleted existing tag ${tag}`);
+            } catch (error) {
+              if (error.status !== 404 && error.status !== 422) {
+                throw error;
+              }
+              core.info(`No existing tag found for ${tag}`);
+            }
+
+      - name: Download RPM artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.metadata.outputs.rpm_artifact_name }}
+          path: download/rpm
+
+      - name: Assemble development release assets
+        run: |
+          mkdir -p release-assets
+          find download/rpm -type f -exec cp {} release-assets/ \;
+          cat > release-assets/DEV-RELEASE.txt <<EOF
+          Release tag: ${DEV_RELEASE_TAG}
+          Release name: ${DEV_RELEASE_NAME}
+          Base branch: ${{ inputs.base_branch }}
+          Source commit: ${{ needs.metadata.outputs.source_commit_sha }}
+          Package version: ${{ needs.metadata.outputs.package_version }}
+          Timestamp: ${{ needs.metadata.outputs.timestamp_value }}
+          GitHub run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          EOF
+          (
+            cd release-assets
+            sha256sum * > SHA256SUMS
+          )
+
+      - name: Publish development GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.DEV_RELEASE_TAG }}
+          target_commitish: ${{ needs.metadata.outputs.source_commit_sha }}
+          name: ${{ env.DEV_RELEASE_NAME }}
+          draft: ${{ inputs.draft }}
+          prerelease: true
+          generate_release_notes: false
+          files: release-assets/*

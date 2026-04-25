@@ -20,13 +20,16 @@ import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.MockitoAnnotations.openMocks;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
 
 import com.cloud.storage.dao.VMTemplateDao;
+import com.cloud.storage.dao.VolumeDao;
 import org.apache.cloudstack.annotation.dao.AnnotationDao;
 import org.apache.cloudstack.api.ApiConstants;
 import org.apache.cloudstack.api.ResponseObject;
 import org.apache.cloudstack.api.response.UserVmResponse;
+import org.apache.cloudstack.extension.ExtensionHelper;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -51,6 +54,7 @@ import com.cloud.user.dao.UserStatisticsDao;
 import com.cloud.utils.db.SearchBuilder;
 import com.cloud.utils.db.SearchCriteria;
 import com.cloud.vm.dao.VMInstanceDetailsDao;
+import com.cloud.vm.dao.VbmcDao;
 
 @RunWith(MockitoJUnitRunner.class)
 public class UserVmJoinDaoImplTest extends GenericDaoBaseWithTagInformationBaseTest<UserVmJoinVO, UserVmResponse> {
@@ -81,6 +85,12 @@ public class UserVmJoinDaoImplTest extends GenericDaoBaseWithTagInformationBaseT
 
     @Mock
     private VMTemplateDao vmTemplateDao;
+    @Mock
+    private VolumeDao _volsDao;
+    @Mock
+    private ExtensionHelper extensionHelper;
+    @Mock
+    private VbmcDao vbmcDao;
 
     private UserVmJoinVO userVm = new UserVmJoinVO();
     private UserVmResponse userVmResponse = new UserVmResponse();
@@ -130,6 +140,9 @@ public class UserVmJoinDaoImplTest extends GenericDaoBaseWithTagInformationBaseT
         SearchCriteria<UserStatisticsVO> searchCriteriaMock = Mockito.mock(SearchCriteria.class);
         Mockito.doReturn(searchCriteriaMock).when(searchBuilderMock).create();
         Mockito.doReturn(Arrays.asList()).when(userStatsDao).search(searchCriteriaMock, null);
+        Mockito.doReturn(Arrays.asList()).when(_volsDao).findUsableVolumesForInstance(vmId);
+        Mockito.doReturn(Arrays.asList()).when(extensionHelper).getExtensionReservedResourceDetails(Mockito.anyLong());
+        Mockito.doReturn(Collections.emptyList()).when(vbmcDao).listByVmId(vmId);
 
         VnfTemplateNicVO vnfNic1 = new VnfTemplateNicVO(templateId, 0L, "eth0", true, true, "first");
         VnfTemplateNicVO vnfNic2 = new VnfTemplateNicVO(templateId, 1L, "eth1", true, true, "second");

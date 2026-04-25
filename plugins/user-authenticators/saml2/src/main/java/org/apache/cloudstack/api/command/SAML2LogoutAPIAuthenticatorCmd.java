@@ -141,11 +141,31 @@ public class SAML2LogoutAPIAuthenticatorCmd extends BaseCmd implements APIAuthen
         // LogoutRequest logoutRequest = SAMLUtils.buildLogoutRequest(idpMetadata.getSloUrl(), _samlAuthManager.getSPMetadata().getEntityId(), nameId);
 
         // 위 코드값이 null로 전달되어 소스수정(SAML2Logou 전에 ApiServlet에서 session을 삭제하므로 idpId, nameId 값이 무조건 null. 로그아웃시 쿠키에 담긴 파라미터로 전달)
-        String idpId = ((String[])params.get("idpid"))[0];
-        SAMLProviderMetadata idpMetadata = _samlAuthManager.getIdPMetadata(idpId);
-        String nameId = ((String[])params.get("username"))[0];
+        if (params == null || !params.containsKey("idpid") || !params.containsKey("username")) {
+            try {
+                resp.sendRedirect(SAML2AuthManager.SAMLCloudStackRedirectionUrl.value());
+            } catch (IOException ignored) {
+                logger.info("[ignored] final redirected failed.", ignored);
+            }
+            return responseString;
+        }
+
+        String[] idpIds = (String[]) params.get("idpid");
+        String[] usernames = (String[]) params.get("username");
+        String idpId = idpIds != null && idpIds.length > 0 ? idpIds[0] : null;
+        String nameId = usernames != null && usernames.length > 0 ? usernames[0] : null;
 
         if (idpId == null || nameId == null || nameId.isEmpty()) {
+            try {
+                resp.sendRedirect(SAML2AuthManager.SAMLCloudStackRedirectionUrl.value());
+            } catch (IOException ignored) {
+                logger.info("[ignored] final redirected failed.", ignored);
+            }
+            return responseString;
+        }
+
+        SAMLProviderMetadata idpMetadata = _samlAuthManager.getIdPMetadata(idpId);
+        if (idpMetadata == null || idpMetadata.getSloUrl() == null || idpMetadata.getSloUrl().isEmpty() || _samlAuthManager.getSPMetadata() == null) {
             try {
                 resp.sendRedirect(SAML2AuthManager.SAMLCloudStackRedirectionUrl.value());
             } catch (IOException ignored) {

@@ -39,12 +39,15 @@ import org.apache.cloudstack.api.BaseCmd;
 import org.apache.cloudstack.api.ServerApiException;
 import org.apache.cloudstack.api.auth.APIAuthenticationType;
 import org.apache.cloudstack.framework.config.ConfigKey;
+import org.apache.cloudstack.framework.config.impl.ConfigDepotImpl;
 import org.apache.cloudstack.saml.SAML2AuthManager;
 import org.apache.cloudstack.saml.SAMLPluginConstants;
 import org.apache.cloudstack.saml.SAMLProviderMetadata;
 import org.apache.cloudstack.saml.SAMLUtils;
 import org.apache.cloudstack.utils.security.CertUtils;
 import org.joda.time.DateTime;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -114,9 +117,23 @@ public class SAML2LoginAPIAuthenticatorCmdTest {
     @Mock
     Object _responseObject;
 
+    @Mock
+    ConfigDepotImpl configDepot;
+
     @Spy
     @InjectMocks
     private SAML2LoginAPIAuthenticatorCmd cmdSpy;
+
+    @Before
+    public void setUpConfigDepot() {
+        ConfigKey.init(configDepot);
+        Mockito.lenient().when(configDepot.getConfigStringValue(Mockito.anyString(), Mockito.any(ConfigKey.Scope.class), nullable(Long.class))).thenReturn(null);
+    }
+
+    @After
+    public void clearConfigDepot() {
+        ConfigKey.init(null);
+    }
 
     private Response buildMockResponse() throws Exception {
         Response samlMessage = new ResponseBuilder().buildObject();
@@ -301,8 +318,9 @@ public class SAML2LoginAPIAuthenticatorCmdTest {
     private UserAccountVO configureTestWhenFailToAuthenticateThrowExceptionOrRedirectToUrl(String entity, String configurationValue, Boolean isUserAuthorized)
             throws IOException {
         Mockito.when(samlAuthManager.isUserAuthorized(nullable(Long.class), nullable(String.class))).thenReturn(isUserAuthorized);
-        SAML2LoginAPIAuthenticatorCmd.saml2FailedLoginRedirectUrl = new ConfigKey<String>("Advanced", String.class, "saml2.failed.login.redirect.url", configurationValue,
-                "The URL to redirect the SAML2 login failed message (the default vaulue is empty).", true);
+        String effectiveRedirectUrl = configurationValue == null ? "" : configurationValue;
+        Mockito.when(configDepot.getConfigStringValue(Mockito.eq(SAML2AuthManager.SAMLFailedLoginRedirectUrl.key()), Mockito.any(ConfigKey.Scope.class), nullable(Long.class)))
+                .thenReturn(effectiveRedirectUrl);
         UserAccountVO userAccount = new UserAccountVO();
         userAccount.setExternalEntity(entity);
         userAccount.setId(0l);

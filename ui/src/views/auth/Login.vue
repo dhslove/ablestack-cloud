@@ -280,6 +280,10 @@ export default {
   },
   methods: {
     ...mapActions(['Login', 'Logout', 'OauthLogin']),
+    getRuntimeAuthFlag (flagName) {
+      const value = this.$config?.[flagName]
+      return typeof value === 'boolean' ? value : undefined
+    },
     initForm () {
       this.formRef = ref()
       this.form = reactive({
@@ -325,27 +329,38 @@ export default {
       }
     },
     fetchData () {
-      getAPI('listIdps').then(response => {
-        if (response) {
-          this.idps = response.listidpsresponse.idp || []
-          this.idps.sort(function (a, b) {
-            if (a.orgName < b.orgName) { return -1 }
-            if (a.orgName > b.orgName) { return 1 }
-            return 0
-          })
-          this.form.idp = this.idps[0].id || ''
+      const samlLoginEnabled = this.getRuntimeAuthFlag('samlLoginEnabled')
+      if (samlLoginEnabled !== false) {
+        getAPI('listIdps').then(response => {
+          if (response) {
+            this.idps = response.listidpsresponse.idp || []
+            this.idps.sort(function (a, b) {
+              if (a.orgName < b.orgName) { return -1 }
+              if (a.orgName > b.orgName) { return 1 }
+              return 0
+            })
+            this.form.idp = this.idps[0]?.id || ''
 
-          // SAML 비활성화 시 CS 로그인, SAML 활성화 시 SAML 로그인화면으로 리디렉션
-          this.samlEnabled = this.idps.length > 0 && this.idps[0].enable === true
+            // SAML 비활성화 시 CS 로그인, SAML 활성화 시 SAML 로그인화면으로 리디렉션
+            this.samlEnabled = this.idps.length > 0 && this.idps[0].enable === true
 
-          if (this.samlEnabled) {
-            window.location.href = this.$config.apiBase + '?command=samlSso&autologin=false'
-            return
+            if (this.samlEnabled) {
+              window.location.href = this.$config.apiBase + '?command=samlSso&autologin=false'
+              return
+            }
+
+            this.customActiveKey = 'cs'
           }
-
+        }).catch(() => {
+          this.idps = []
+          this.samlEnabled = false
           this.customActiveKey = 'cs'
-        }
-      })
+        })
+      } else {
+        this.idps = []
+        this.samlEnabled = false
+        this.customActiveKey = 'cs'
+      }
       getAPI('listOauthProvider', {}).then(response => {
         if (response) {
           const oauthproviders = response.listoauthproviderresponse.oauthprovider || []
@@ -364,15 +379,20 @@ export default {
           this.socialLogin = this.googleprovider || this.githubprovider
         }
       })
-      postAPI('forgotPassword', {}).then(response => {
-        this.forgotPasswordEnabled = response.forgotpasswordresponse.enabled
-      }).catch((err) => {
-        if (err?.response?.data === null) {
-          this.forgotPasswordEnabled = true
-        } else {
-          this.forgotPasswordEnabled = false
-        }
-      })
+      const forgotPasswordEnabled = this.getRuntimeAuthFlag('forgotPasswordEnabled')
+      if (forgotPasswordEnabled !== undefined) {
+        this.forgotPasswordEnabled = forgotPasswordEnabled
+      } else {
+        postAPI('forgotPassword', {}).then(response => {
+          this.forgotPasswordEnabled = response.forgotpasswordresponse.enabled
+        }).catch((err) => {
+          if (err?.response?.data === null) {
+            this.forgotPasswordEnabled = true
+          } else {
+            this.forgotPasswordEnabled = false
+          }
+        })
+      }
     },
     // handler
     async handleUsernameOrEmail (rule, value) {

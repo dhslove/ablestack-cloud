@@ -36,11 +36,19 @@ const additionalGetAPICommandsList = [
   'verifyoauthcodeandgetuser'
 ]
 
+function getSessionKey (override) {
+  return override || vueProps.$localStorage.get(ACCESS_TOKEN) || Cookies.get('sessionkey')
+}
+
+function hasSessionKey () {
+  return !!getSessionKey()
+}
+
 export function getAPI (command, args = {}) {
   args.command = command
   args.response = 'json'
 
-  const sessionkey = vueProps.$localStorage.get(ACCESS_TOKEN) || Cookies.get('sessionkey')
+  const sessionkey = getSessionKey()
   if (sessionkey) {
     args.sessionkey = sessionkey
   }
@@ -66,8 +74,8 @@ export function postAPI (command, data = {}) {
     })
   }
 
-  const sessionkey = vueProps.$localStorage.get(ACCESS_TOKEN) || Cookies.get('sessionkey')
-  if (sessionkey) {
+  const sessionkey = getSessionKey()
+  if (sessionkey && !params.has('sessionkey')) {
     params.append('sessionkey', sessionkey)
   }
   return axios({
@@ -89,7 +97,9 @@ export function login (arg) {
   }
 
   // Logout before login is called to purge any duplicate sessionkey cookies
-  postAPI('logout')
+  if (hasSessionKey()) {
+    postAPI('logout').catch(() => {})
+  }
 
   const params = new URLSearchParams()
   params.append('command', 'login')
@@ -107,8 +117,15 @@ export function login (arg) {
   })
 }
 
-export async function logout () {
-  const result = await postAPI('logout').finally(() => {
+export async function logout (sessionkey) {
+  if (!getSessionKey(sessionkey)) {
+    sourceToken.cancel()
+    message.destroy()
+    notification.destroy()
+    return {}
+  }
+
+  const result = await postAPI('logout', sessionkey ? { sessionkey } : {}).finally(() => {
     sourceToken.cancel()
     message.destroy()
     notification.destroy()
@@ -122,7 +139,9 @@ export function oauthlogin (arg) {
   }
 
   // Logout before login is called to purge any duplicate sessionkey cookies
-  postAPI('logout')
+  if (hasSessionKey()) {
+    postAPI('logout').catch(() => {})
+  }
 
   const params = new URLSearchParams()
   params.append('command', 'oauthlogin')

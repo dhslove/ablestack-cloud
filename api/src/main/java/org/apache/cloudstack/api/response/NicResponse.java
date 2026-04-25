@@ -149,6 +149,9 @@ public class NicResponse extends BaseResponse {
     @SerializedName(ApiConstants.LINK_STATE)
     @Param(description = "nic link state")
     private boolean linkState;
+    @SerializedName(ApiConstants.ENABLED)
+    @Param(description = "whether the NIC is enabled or not")
+    private Boolean isEnabled;
 
     public void setVmId(String vmId) {
         this.vmId = vmId;
@@ -427,5 +430,13 @@ public class NicResponse extends BaseResponse {
 
     public void setLinkState(boolean linkState) {
         this.linkState = linkState;
+    }
+
+    public Boolean getEnabled() {
+        return isEnabled;
+    }
+
+    public void setEnabled(Boolean enabled) {
+        isEnabled = enabled;
     }
 }

@@ -351,6 +351,10 @@ public class DefaultVMSnapshotStrategy extends ManagerBase implements VMSnapshot
         vmSnapshotDao.persist(vmSnapshot);
     }
 
+    protected void updateVolumePath(List<VolumeObjectTO> volumeTOs) {
+        updateVolumePath(volumeTOs, null);
+    }
+
     protected void updateVolumePath(List<VolumeObjectTO> volumeTOs, String type) {
         for (VolumeObjectTO volume : volumeTOs) {
             if (StringUtils.isAllEmpty(volume.getDataStoreUuid(), volume.getPath(), volume.getChainInfo())) {
@@ -372,7 +376,9 @@ public class DefaultVMSnapshotStrategy extends ManagerBase implements VMSnapshot
             }
             long currentVmSnapshotChainSize = volumeVO.getVmSnapshotChainSize() == null ? 0 : volumeVO.getVmSnapshotChainSize();
             long volumeSize = volumeVO.getSize() == null ? 0 : volumeVO.getSize();
-            if ("finalizeCreate".equals(type)) {
+            if (type == null) {
+                volumeVO.setVmSnapshotChainSize(volume.getSize());
+            } else if ("finalizeCreate".equals(type)) {
                 volumeVO.setVmSnapshotChainSize(currentVmSnapshotChainSize + volumeSize);
             } else if ("finalizeDelete".equals(type)) {
                 long updatedVmSnapshotChainSize = currentVmSnapshotChainSize - volumeSize;

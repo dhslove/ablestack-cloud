@@ -43,7 +43,13 @@ const mockStore = {
         userInfo: () => mockStore.state.user.info,
         defaultListViewPageSize: () => mockStore.state.user.defaultListViewPageSize,
         headerNotices: () => mockStore.state.user.headerNotices,
-        customColumns: () => mockStore.state.user.customColumns
+        customColumns: () => mockStore.state.user.customColumns,
+        metrics: () => mockStore.state.app.metrics,
+        listAllProjects: () => mockStore.state.app.listAllProjects,
+        allProjects: () => mockStore.state.app.allProjects,
+        project: () => mockStore.state.project || null,
+        features: () => mockStore.state.features || {},
+        countNotify: () => mockStore.state.countNotify || 0
       },
       mutations,
       actions

@@ -228,13 +228,15 @@ public class MetricsServiceImplTest {
             Mockito.when(callContextMock.getCallingAccount()).thenReturn(mockAccount);
             Pair<List<UserVmVO>, Integer> result = spy.searchForUserVmsInternal(listVMsUsageHistoryCmdMock);
 
-            Mockito.verify(scMock, Mockito.times(2)).addOr(stringCaptor1.capture(), opCaptor.capture(), objectArrayCaptor.capture());
+            Mockito.verify(scMock, Mockito.times(3)).addOr(stringCaptor1.capture(), opCaptor.capture(), objectArrayCaptor.capture());
             List<String> conditions = stringCaptor1.getAllValues();
             List<Object[]> params = objectArrayCaptor.getAllValues();
             Assert.assertEquals("displayName", conditions.get(0));
             Assert.assertEquals("state", conditions.get(1));
+            Assert.assertEquals("uuid", conditions.get(2));
             Assert.assertEquals("%fakeKeyword%", params.get(0)[0]);
             Assert.assertEquals("fakeKeyword", params.get(1)[0]);
+            Assert.assertEquals("%fakeKeyword%", params.get(2)[0]);
             Assert.assertEquals(expectedVmListAndCounter, result);
         }
     }

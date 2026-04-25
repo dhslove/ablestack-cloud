@@ -19,7 +19,6 @@ package com.cloud.user.dao;
 import com.cloud.user.UserAccount;
 import com.cloud.user.UserAccountVO;
 import com.cloud.utils.db.GenericDaoBase;
-import com.cloud.utils.db.SearchBuilder;
 import com.cloud.utils.db.SearchCriteria;
 
 import org.springframework.stereotype.Component;
@@ -28,14 +27,6 @@ import java.util.List;
 
 @Component
 public class UserAccountDaoImpl extends GenericDaoBase<UserAccountVO, Long> implements UserAccountDao {
-
-    protected final SearchBuilder<UserAccountVO> userAccountSearch;
-
-    public UserAccountDaoImpl() {
-        userAccountSearch = createSearchBuilder();
-        userAccountSearch.and("apiKey", userAccountSearch.entity().getApiKey(), SearchCriteria.Op.EQ);
-        userAccountSearch.done();
-    }
 
     @Override
     public List<UserAccountVO> getAllUsersByNameAndEntity(String username, String entity) {
@@ -83,8 +74,8 @@ public class UserAccountDaoImpl extends GenericDaoBase<UserAccountVO, Long> impl
 
     @Override
     public UserAccount getUserByApiKey(String apiKey) {
-        SearchCriteria<UserAccountVO> sc = userAccountSearch.create();
-        sc.setParameters("apiKey", apiKey);
+        SearchCriteria<UserAccountVO> sc = createSearchCriteria();
+        sc.addAnd("apiKey", SearchCriteria.Op.EQ, apiKey);
         return findOneBy(sc);
     }
 
@@ -94,5 +85,4 @@ public class UserAccountDaoImpl extends GenericDaoBase<UserAccountVO, Long> impl
         sc.addAnd("type", SearchCriteria.Op.EQ, type);
         return listBy(sc);
     }
-
 }

@@ -681,7 +681,8 @@
 </template>
 
 <script>
-import { ref, reactive, toRaw } from 'vue'
+import ComputeOfferingForm from '@/components/offering/ComputeOfferingForm'
+import { ref, reactive } from 'vue'
 import { getAPI, postAPI } from '@/api'
 import AddDiskOffering from '@/views/offering/AddDiskOffering'
 import { isAdmin } from '@/role'
@@ -695,6 +696,7 @@ export default {
   name: 'AddServiceOffering',
   mixins: [mixinForm],
   components: {
+    ComputeOfferingForm,
     AddDiskOffering,
     ResourceIcon,
     TooltipLabel,
@@ -900,9 +902,6 @@ export default {
         this.gpuCardLoading = false
       })
     },
-    addDiskOffering () {
-      this.showDiskOfferingModal = true
-    },
     fetchDiskOfferings () {
       this.diskOfferingLoading = true
       getAPI('listDiskOfferings', {
@@ -916,46 +915,17 @@ export default {
         this.diskOfferingLoading = false
       })
     },
-    updateSelectedDiskOffering (id) {
-      if (id) {
-        this.selectedDiskOfferingId = id
-      }
-    },
-    closeDiskOfferingModal () {
-      this.fetchDiskOfferings()
-      this.showDiskOfferingModal = false
-    },
     isAdmin () {
       return isAdmin()
     },
     isDomainAdmin () {
       return ['DomainAdmin'].includes(this.$store.getters.userInfo.roletype)
     },
-    getVgpuProfileDetails (vgpuProfile) {
-      let output = '('
-      if (vgpuProfile?.videoram) {
-        output += `${vgpuProfile.videoram} MB`
-      }
-      if (vgpuProfile?.maxresolutionx && vgpuProfile?.maxresolutiony) {
-        if (output !== '(') {
-          output += ', '
-        }
-        output += `${vgpuProfile.maxresolutionx}x${vgpuProfile.maxresolutiony}`
-      }
-      output += ')'
-      if (output === '()') {
-        return ''
-      }
-      return output
-    },
     checkIfDomainAdminIsAllowedToInformTag () {
       const params = { id: store.getters.userInfo.accountid }
       getAPI('isAccountAllowedToCreateOfferingsWithTags', params).then(json => {
         this.isDomainAdminAllowedToInformTags = json.isaccountallowedtocreateofferingswithtagsresponse.isallowed.isallowed
       })
-    },
-    arrayHasItems (array) {
-      return array !== null && array !== undefined && Array.isArray(array) && array.length > 0
     },
     fetchDomainData () {
       const params = {}
@@ -1008,83 +978,13 @@ export default {
         this.deploymentPlannerLoading = false
       })
     },
-    fetchvSphereStoragePolicies (zoneIndex) {
-      if (zoneIndex === 0 || this.form.zoneid.length > 1) {
-        this.storagePolicies = null
-        return
-      }
-      const zoneid = this.zones[zoneIndex].id
-      if ('importVsphereStoragePolicies' in this.$store.getters.apis) {
-        this.storagePolicies = []
-        getAPI('listVsphereStoragePolicies', {
-          zoneid: zoneid
-        }).then(response => {
-          this.storagePolicies = response.listvspherestoragepoliciesresponse.StoragePolicy || []
-        })
-      }
-    },
-    handleStorageTypeChange (val) {
-      this.storageType = val
-    },
-    handleProvisioningTypeChange (val) {
-      this.provisioningType = val
-    },
-    handleCacheModeChange (val) {
-      this.cacheMode = val
-    },
-    handleComputeOfferingTypeChange (val) {
-      this.offeringType = val
-    },
-    handleQosTypeChange (val) {
-      this.qosType = val
-    },
-    handleDeploymentPlannerChange (planner) {
-      this.selectedDeploymentPlanner = planner
-      this.plannerModeVisible = false
-      if (this.selectedDeploymentPlanner === 'ImplicitDedicationPlanner') {
-        this.plannerModeVisible = isAdmin()
-      }
-    },
-    handlePlannerModeChange (val) {
-      this.plannerMode = val
-    },
-    handleGpuCardChange (cardId) {
-      this.selectedGpuCard = cardId
-      this.form.vgpuprofile = ''
-      if (cardId && cardId !== '') {
-        this.fetchVgpuProfiles(cardId)
-      } else {
-        this.vgpuProfiles = []
-        this.form.gpucount = '1'
-      }
-    },
-    fetchVgpuProfiles (gpuCardId) {
-      this.vgpuProfileLoading = true
-      this.vgpuProfiles = []
-      getAPI('listVgpuProfiles', {
-        gpucardid: gpuCardId
-      }).then(json => {
-        this.vgpuProfiles = json.listvgpuprofilesresponse.vgpuprofile || []
-        this.form.vgpuprofile = this.vgpuProfiles.length > 0 ? this.vgpuProfiles[0].id : ''
-      }).catch(error => {
-        console.error('Error fetching vGPU profiles:', error)
-        this.vgpuProfiles = []
-      }).finally(() => {
-        this.vgpuProfileLoading = false
-      })
-    },
-    onExternalDetailsEnabledChange (val) {
-      if (val || !this.form.externaldetails) {
-        return
-      }
-      this.form.externaldetails = undefined
-    },
     handleSubmit (e) {
-      e.preventDefault()
+      if (e && e.preventDefault) {
+        e.preventDefault()
+      }
       if (this.loading) return
-      this.formRef.value.validate().then(() => {
-        const formRaw = toRaw(this.form)
-        const values = this.handleRemoveFields(formRaw)
+
+      this.formRef.value.validate().then((values) => {
         var params = {
           issystem: this.isSystem,
           name: values.name,
@@ -1113,7 +1013,6 @@ export default {
           params.diskofferingid = values.diskofferingid
         }
 
-        // Add GPU parameters
         if (values.vgpuprofile) {
           params.vgpuprofileid = values.vgpuprofile
         }
@@ -1124,17 +1023,16 @@ export default {
           params.gpudisplay = values.gpudisplay
         }
 
-        // custom fields (begin)
         if (values.offeringtype === 'fixed') {
           params.cpunumber = values.cpunumber
           params.cpuspeed = values.cpuspeed
           params.memory = values.memory
         } else {
           if (values.cpuspeed != null &&
-              values.mincpunumber != null &&
-              values.maxcpunumber != null &&
-              values.minmemory != null &&
-              values.maxmemory != null) {
+             values.mincpunumber != null &&
+             values.maxcpunumber != null &&
+             values.minmemory != null &&
+             values.maxmemory != null) {
             params.cpuspeed = values.cpuspeed
             params.mincpunumber = values.mincpunumber
             params.maxcpunumber = values.maxcpunumber
@@ -1142,7 +1040,6 @@ export default {
             params.maxmemory = values.maxmemory
           }
         }
-        // custom fields (end)
 
         if (values.networkrate != null && values.networkrate.length > 0) {
           params.networkrate = values.networkrate
@@ -1161,7 +1058,7 @@ export default {
               params.maxiops = values.diskiopsmax
             }
             if (values.hypervisorsnapshotreserve !== undefined &&
-              values.hypervisorsnapshotreserve != null && values.hypervisorsnapshotreserve.length > 0) {
+             values.hypervisorsnapshotreserve != null && values.hypervisorsnapshotreserve.length > 0) {
               params.hypervisorsnapshotreserve = values.hypervisorsnapshotreserve
             }
           }
@@ -1187,15 +1084,15 @@ export default {
           params.hosttags = values.hosttags
         }
         if ('deploymentplanner' in values &&
-          values.deploymentplanner !== undefined &&
-          values.deploymentplanner != null && values.deploymentplanner.length > 0) {
+         values.deploymentplanner !== undefined &&
+         values.deploymentplanner != null && values.deploymentplanner.length > 0) {
           params.deploymentplanner = values.deploymentplanner
         }
         if ('deploymentplanner' in values &&
-          values.deploymentplanner !== undefined &&
-          values.deploymentplanner === 'ImplicitDedicationPlanner' &&
-          values.plannermode !== undefined &&
-          values.plannermode !== '') {
+         values.deploymentplanner !== undefined &&
+         values.deploymentplanner === 'ImplicitDedicationPlanner' &&
+         values.plannermode !== undefined &&
+         values.plannermode !== '') {
           params['serviceofferingdetails[0].key'] = 'ImplicitDedicationMode'
           params['serviceofferingdetails[0].value'] = values.plannermode
         }
@@ -1271,17 +1168,6 @@ export default {
         return Promise.reject(this.$t('message.error.number'))
       }
       return Promise.resolve()
-    },
-    onToggleLeaseData () {
-      if (this.showLeaseOptions === false) {
-        this.leaseduration = undefined
-        this.leaseexpiryaction = undefined
-      } else {
-        this.leaseduration = this.leaseduration !== undefined ? this.leaseduration : this.defaultLeaseDuration
-        this.leaseexpiryaction = this.leaseexpiryaction !== undefined ? this.leaseexpiryaction : this.defaultLeaseExpiryAction
-      }
-      this.form.leaseduration = this.leaseduration
-      this.form.leaseexpiryaction = this.leaseexpiryaction
     }
   }
 }

@@ -142,7 +142,15 @@ export default {
           }
         },
         show: (record) => { return record.state === 'Active' },
-        groupMap: (selection) => { return selection.map(x => { return { id: x } }) }
+        groupMap: (selection) => { return selection.map(x => { return { id: x, state: 'Inactive' } }) }
+      }, {
+        api: 'cloneServiceOffering',
+        icon: 'copy-outlined',
+        label: 'label.clone.compute.offering',
+        docHelp: 'adminguide/service_offerings.html#creating-a-new-compute-offering',
+        dataView: true,
+        popup: true,
+        component: shallowRef(defineAsyncComponent(() => import('@/views/offering/CloneComputeOffering.vue')))
       }]
     },
     {
@@ -224,7 +232,16 @@ export default {
           }
         },
         show: (record) => { return record.state === 'Active' },
-        groupMap: (selection) => { return selection.map(x => { return { id: x } }) }
+        groupMap: (selection) => { return selection.map(x => { return { id: x, state: 'Inactive' } }) }
+      }, {
+        api: 'cloneServiceOffering',
+        icon: 'copy-outlined',
+        label: 'label.clone.system.service.offering',
+        docHelp: 'adminguide/service_offerings.html#creating-a-new-system-service-offering',
+        dataView: true,
+        params: { issystem: 'true' },
+        popup: true,
+        component: shallowRef(defineAsyncComponent(() => import('@/views/offering/CloneComputeOffering.vue')))
       }]
     },
     {
@@ -331,7 +348,15 @@ export default {
           }
         },
         show: (record) => { return record.state === 'Active' },
-        groupMap: (selection) => { return selection.map(x => { return { id: x } }) }
+        groupMap: (selection) => { return selection.map(x => { return { id: x, state: 'Inactive' } }) }
+      }, {
+        api: 'cloneDiskOffering',
+        icon: 'copy-outlined',
+        label: 'label.clone.disk.offering',
+        docHelp: 'adminguide/service_offerings.html#creating-a-new-disk-offering',
+        dataView: true,
+        popup: true,
+        component: shallowRef(defineAsyncComponent(() => import('@/views/offering/CloneDiskOffering.vue')))
       }]
     },
     {
@@ -375,6 +400,14 @@ export default {
         dataView: true,
         popup: true,
         component: shallowRef(defineAsyncComponent(() => import('@/views/offering/UpdateBackupOffering.vue')))
+      }, {
+        api: 'cloneBackupOffering',
+        icon: 'copy-outlined',
+        label: 'label.clone.backup.offering',
+        docHelp: 'adminguide/virtual_machines.html#importing-backup-offerings',
+        dataView: true,
+        popup: true,
+        component: shallowRef(defineAsyncComponent(() => import('@/views/offering/CloneBackupOffering.vue')))
       }, {
         api: 'deleteBackupOffering',
         icon: 'delete-outlined',
@@ -487,6 +520,14 @@ export default {
         popup: true,
         component: shallowRef(defineAsyncComponent(() => import('@/views/offering/UpdateOfferingAccess.vue')))
       }, {
+        api: 'cloneNetworkOffering',
+        icon: 'copy-outlined',
+        label: 'label.clone.network.offering',
+        docHelp: 'adminguide/networking.html#creating-a-new-network-offering',
+        dataView: true,
+        popup: true,
+        component: shallowRef(defineAsyncComponent(() => import('@/views/offering/CloneNetworkOffering.vue')))
+      }, {
         api: 'deleteNetworkOffering',
         icon: 'delete-outlined',
         label: 'label.remove.network.offering',
@@ -507,7 +548,7 @@ export default {
       searchFilters: ['name', 'zoneid', 'domainid'],
       resourceType: 'VpcOffering',
       columns: ['name', 'state', 'displaytext', 'domain', 'zone', 'order'],
-      details: ['name', 'id', 'displaytext', 'internetprotocol', 'distributedvpcrouter', 'tags', 'routingmode', 'specifyasnumber', 'service', 'fornsx', 'networkmode', 'domain', 'zone', 'created'],
+      details: ['name', 'id', 'displaytext', 'internetprotocol', 'distributedvpcrouter', 'tags', 'routingmode', 'specifyasnumber', 'service', 'fornsx', 'networkmode', 'conservemode', 'domain', 'zone', 'created'],
       related: [{
         name: 'vpc',
         title: 'label.vpc',
@@ -578,6 +619,14 @@ export default {
         dataView: true,
         popup: true,
         component: shallowRef(defineAsyncComponent(() => import('@/views/offering/UpdateOfferingAccess.vue')))
+      }, {
+        api: 'cloneVPCOffering',
+        icon: 'copy-outlined',
+        docHelp: 'plugins/nuage-plugin.html?#optional-create-and-enable-vpc-offering',
+        label: 'label.clone.vpc.offering',
+        dataView: true,
+        popup: true,
+        component: shallowRef(defineAsyncComponent(() => import('@/views/offering/CloneVpcOffering.vue')))
       }, {
         api: 'deleteVPCOffering',
         icon: 'delete-outlined',

@@ -98,6 +98,7 @@ public interface VmDetailConstants {
     String CKS_NODE_TYPE = "node";
     String OFFERING = "offering";
     String TEMPLATE = "template";
+    String AFFINITY_GROUP = "affinitygroup";
 
     // boot order details
     String BOOT_ORDER = "bootOrder";

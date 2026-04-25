@@ -36,6 +36,7 @@ import com.cloud.org.Grouping;
 import com.cloud.server.ManagementServer;
 import com.cloud.service.ServiceOfferingVO;
 import com.cloud.service.dao.ServiceOfferingDao;
+import com.cloud.storage.dao.VolumeDao;
 import com.cloud.utils.Pair;
 import com.cloud.utils.Ternary;
 import com.cloud.utils.db.GlobalLock;
@@ -115,6 +116,8 @@ public class ClusterDrsServiceImplTest {
 
     @Mock
     private VMInstanceDao vmInstanceDao;
+    @Mock
+    private VolumeDao volumeDao;
 
     @Spy
     @InjectMocks
@@ -391,6 +394,7 @@ public class ClusterDrsServiceImplTest {
                 new Ternary<>(new Pair<>(List.of(destHost), 1), List.of(destHost), Map.of(destHost, false)));
         Mockito.when(managementServer.listHostsForMigrationOfVM(vm2, 0L, 500L, null, vmList)).thenReturn(
                 new Ternary<>(new Pair<>(List.of(destHost), 1), List.of(destHost), Map.of(destHost, false)));
+        Mockito.when(volumeDao.findUsableVolumesForInstance(Mockito.anyLong())).thenReturn(Collections.emptyList());
         Mockito.when(balancedAlgorithm.getMetrics(cluster, vm1, serviceOffering, destHost, new HashMap<>(),
                 new HashMap<>(), false)).thenReturn(new Ternary<>(1.0, 0.5, 1.5));
 
@@ -447,6 +451,7 @@ public class ClusterDrsServiceImplTest {
                 new Ternary<>(new Pair<>(List.of(destHost), 1), List.of(destHost), Map.of(destHost, false)));
         Mockito.when(managementServer.listHostsForMigrationOfVM(vm2, 0L, 500L, null, vmList)).thenReturn(
                 new Ternary<>(new Pair<>(List.of(destHost), 1), List.of(destHost), Map.of(destHost, false)));
+        Mockito.when(volumeDao.findUsableVolumesForInstance(Mockito.anyLong())).thenReturn(Collections.emptyList());
         Pair<VirtualMachine, Host> bestMigration = clusterDrsService.getBestMigration(cluster, balancedAlgorithm,
                 vmList, vmIdServiceOfferingMap, new HashMap<>(), new HashMap<>());
 

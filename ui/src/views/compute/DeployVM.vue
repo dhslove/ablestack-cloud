@@ -466,6 +466,9 @@
                     :value="securitygroupids"
                     :loading="loading.networks"
                     :preFillContent="dataPreFill"
+                    :domainId="owner.domainid"
+                    :account="owner.account"
+                    :projectId="owner.projectid"
                     @select-security-group-item="($event) => updateSecurityGroups($event)"></security-group-selection>
                 </template>
               </a-step>
@@ -1526,6 +1529,9 @@ export default {
       return tabList
     },
     showSecurityGroupSection () {
+      if (this.zone && this.zone.networktype === 'Basic') {
+        return true
+      }
       if (this.networks.length < 1) {
         return false
       }

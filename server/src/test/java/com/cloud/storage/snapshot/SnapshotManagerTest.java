@@ -71,12 +71,15 @@ import org.apache.cloudstack.engine.subsystem.api.storage.StorageStrategyFactory
 import org.apache.cloudstack.engine.subsystem.api.storage.VolumeDataFactory;
 import org.apache.cloudstack.engine.subsystem.api.storage.VolumeInfo;
 import org.apache.cloudstack.framework.config.ConfigKey;
+import org.apache.cloudstack.reservation.ReservationVO;
+import org.apache.cloudstack.reservation.dao.ReservationDao;
 import org.apache.cloudstack.snapshot.SnapshotHelper;
 import org.apache.cloudstack.storage.datastore.db.PrimaryDataStoreDao;
 import org.apache.cloudstack.storage.datastore.db.SnapshotDataStoreDao;
 import org.apache.cloudstack.storage.datastore.db.SnapshotDataStoreVO;
 import org.apache.cloudstack.storage.datastore.db.StoragePoolVO;
 import org.apache.cloudstack.storage.image.datastore.ImageStoreEntity;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import org.junit.After;
 import org.junit.Assert;
@@ -168,6 +171,8 @@ public class SnapshotManagerTest {
 
     @Mock
     GlobalLock globalLockMock;
+    @Mock
+    ReservationDao reservationDao;
 
     @Mock
     SnapshotPolicyDao snapshotPolicyDaoMock;
@@ -246,6 +251,12 @@ public class SnapshotManagerTest {
         UserVO user = new UserVO(1, "testuser", "password", "firstname", "lastName", "email", "timezone", UUID.randomUUID().toString(), User.Source.UNKNOWN);
         CallContext.register(user, account);
         when(_accountMgr.getAccount(anyLong())).thenReturn(account);
+        Mockito.when(reservationDao.persist(any(ReservationVO.class))).thenAnswer(invocation -> {
+            ReservationVO reservation = invocation.getArgument(0);
+            ReflectionTestUtils.setField(reservation, "id", 1L);
+            return reservation;
+        });
+        Mockito.when(reservationDao.remove(anyLong())).thenReturn(true);
 
         when(_storagePoolDao.findById(anyLong())).thenReturn(poolMock);
         when(poolMock.getScope()).thenReturn(ScopeType.ZONE);
@@ -308,19 +319,24 @@ public class SnapshotManagerTest {
     @SuppressWarnings("unchecked")
     @Test
     public void testAllocSnapshotF4() throws ResourceAllocationException {
-        when(_vmDao.findById(anyLong())).thenReturn(vmMock);
-        when(vmMock.getId()).thenReturn(TEST_VM_ID);
-        when(vmMock.getState()).thenReturn(State.Stopped);
-        when(vmMock.getHypervisorType()).thenReturn(Hypervisor.HypervisorType.KVM);
-        when(volumeInfoMock.getInstanceId()).thenReturn(TEST_VM_ID);
-        List<SnapshotVO> mockList = mock(List.class);
-        when(mockList.size()).thenReturn(0);
-        when(_snapshotDao.listByInstanceId(TEST_VM_ID, Snapshot.State.Creating, Snapshot.State.CreatedOnPrimary, Snapshot.State.BackingUp)).thenReturn(mockList);
-        List<VMSnapshotVO> mockList2 = mock(List.class);
-        when(mockList2.size()).thenReturn(0);
-        when(_vmSnapshotDao.listByInstanceId(TEST_VM_ID, VMSnapshot.State.Creating, VMSnapshot.State.Reverting, VMSnapshot.State.Expunging)).thenReturn(mockList2);
-        when(_snapshotDao.persist(any(SnapshotVO.class))).thenReturn(snapshotMock);
-        _snapshotMgr.allocSnapshot(TEST_VOLUME_ID, Snapshot.MANUAL_POLICY_ID, null, null);
+        try (MockedStatic<GlobalLock> ignored = Mockito.mockStatic(GlobalLock.class)) {
+            BDDMockito.given(GlobalLock.getInternLock(Mockito.anyString())).willReturn(globalLockMock);
+            Mockito.doReturn(true).when(globalLockMock).lock(Mockito.anyInt());
+
+            when(_vmDao.findById(anyLong())).thenReturn(vmMock);
+            when(vmMock.getId()).thenReturn(TEST_VM_ID);
+            when(vmMock.getState()).thenReturn(State.Stopped);
+            when(vmMock.getHypervisorType()).thenReturn(Hypervisor.HypervisorType.KVM);
+            when(volumeInfoMock.getInstanceId()).thenReturn(TEST_VM_ID);
+            List<SnapshotVO> mockList = mock(List.class);
+            when(mockList.size()).thenReturn(0);
+            when(_snapshotDao.listByInstanceId(TEST_VM_ID, Snapshot.State.Creating, Snapshot.State.CreatedOnPrimary, Snapshot.State.BackingUp)).thenReturn(mockList);
+            List<VMSnapshotVO> mockList2 = mock(List.class);
+            when(mockList2.size()).thenReturn(0);
+            when(_vmSnapshotDao.listByInstanceId(TEST_VM_ID, VMSnapshot.State.Creating, VMSnapshot.State.Reverting, VMSnapshot.State.Expunging)).thenReturn(mockList2);
+            when(_snapshotDao.persist(any(SnapshotVO.class))).thenReturn(snapshotMock);
+            _snapshotMgr.allocSnapshot(TEST_VOLUME_ID, Snapshot.MANUAL_POLICY_ID, null, null);
+        }
     }
 
     @Test(expected = InvalidParameterValueException.class)

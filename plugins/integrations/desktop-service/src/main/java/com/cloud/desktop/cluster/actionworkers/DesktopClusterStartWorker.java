@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.cloudstack.acl.apikeypair.ApiKeyPair;
 import org.apache.cloudstack.api.BaseCmd;
 import org.apache.cloudstack.config.ApiServiceConfiguration;
 import org.apache.commons.codec.binary.Base64;
@@ -314,8 +315,9 @@ public class DesktopClusterStartWorker extends DesktopClusterResourceModifierAct
         String username = owner.getAccountName();
         UserAccount user = accountService.getActiveUserAccount(username, owner.getDomainId());
         String[] keys = null;
-        String apiKey = user.getApiKey();
-        String secretKey = user.getSecretKey();
+        ApiKeyPair keyPair = accountService.getLatestUserKeyPair(user.getId());
+        String apiKey = keyPair != null ? keyPair.getApiKey() : null;
+        String secretKey = keyPair != null ? keyPair.getSecretKey() : null;
         if ((apiKey == null || apiKey.length() == 0) || (secretKey == null || secretKey.length() == 0)) {
             keys = accountService.createApiKeyAndSecretKey(user.getId());
         } else {

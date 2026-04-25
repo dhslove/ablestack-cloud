@@ -90,6 +90,7 @@ import org.apache.cloudstack.framework.messagebus.PublishScope;
 import org.apache.cloudstack.managed.context.ManagedContextRunnable;
 import org.apache.cloudstack.secstorage.dao.SecondaryStorageHeuristicDao;
 import org.apache.cloudstack.secstorage.heuristics.HeuristicType;
+import org.apache.cloudstack.reservation.dao.ReservationDao;
 import org.apache.cloudstack.snapshot.SnapshotHelper;
 import org.apache.cloudstack.storage.command.AttachCommand;
 import org.apache.cloudstack.storage.command.CommandResult;
@@ -155,6 +156,7 @@ import com.cloud.hypervisor.HypervisorGuru;
 import com.cloud.hypervisor.HypervisorGuruManager;
 import com.cloud.projects.Project;
 import com.cloud.projects.ProjectManager;
+import com.cloud.resourcelimit.CheckedReservation;
 import com.cloud.storage.DataStoreRole;
 import com.cloud.storage.GuestOSVO;
 import com.cloud.storage.ImageStoreUploadMonitorImpl;
@@ -273,6 +275,8 @@ public class TemplateManagerImpl extends ManagerBase implements TemplateManager,
     private AccountService _accountService;
     @Inject
     private ResourceLimitService _resourceLimitMgr;
+    @Inject
+    private ReservationDao reservationDao;
     @Inject
     private LaunchPermissionDao _launchPermissionDao;
     @Inject
@@ -953,6 +957,7 @@ public class TemplateManagerImpl extends ManagerBase implements TemplateManager,
         }
 
         _accountMgr.checkAccess(caller, AccessType.OperateEntry, true, template);
+        final Account templateOwner = _accountDao.findById(template.getAccountId());
 
         List<String> failedZones = new ArrayList<>();
 
@@ -991,14 +996,13 @@ public class TemplateManagerImpl extends ManagerBase implements TemplateManager,
                     logger.debug("There is Template {} in secondary storage {} in zone {} , don't need to copy", template, dstSecStore, dataCenterVOs.get(destZoneId));
                     continue;
                 }
-                if (!copy(userId, template, srcSecStore, dataCenterVOs.get(destZoneId))) {
-                    failedZones.add(dataCenterVOs.get(destZoneId).getName());
-                }
-                else{
-                    if (template.getSize() != null) {
-                        // increase resource count
-                        long accountId = template.getAccountId();
-                        _resourceLimitMgr.incrementResourceCount(accountId, ResourceType.secondary_storage, template.getSize());
+                if (template.getSize() != null) {
+                    try (CheckedReservation secondaryStorageReservation = new CheckedReservation(templateOwner, ResourceType.secondary_storage, template.getSize(), reservationDao, _resourceLimitMgr)) {
+                        if (!copy(userId, template, srcSecStore, dataCenterVOs.get(destZoneId))) {
+                            failedZones.add(dataCenterVOs.get(destZoneId).getName());
+                            continue;
+                        }
+                        _resourceLimitMgr.incrementResourceCount(templateOwner.getId(), ResourceType.secondary_storage, template.getSize());
                     }
                 }
             }
@@ -2510,7 +2514,10 @@ public class TemplateManagerImpl extends ManagerBase implements TemplateManager,
 
     @Override
     public TemplateType validateTemplateType(BaseCmd cmd, boolean isAdmin, boolean isCrossZones, HypervisorType hypervisorType) {
-        if (!(cmd instanceof UpdateTemplateCmd) && !(cmd instanceof RegisterTemplateCmd) && !(cmd instanceof GetUploadParamsForTemplateCmd) && !(cmd instanceof GetUploadParamsForIsoCmd)) {
+        if (cmd instanceof GetUploadParamsForIsoCmd) {
+            return TemplateType.USER;
+        }
+        if (!(cmd instanceof UpdateTemplateCmd) && !(cmd instanceof RegisterTemplateCmd) && !(cmd instanceof GetUploadParamsForTemplateCmd)) {
             return null;
         }
         TemplateType templateType = null;
@@ -2542,11 +2549,9 @@ public class TemplateManagerImpl extends ManagerBase implements TemplateManager,
             } else if ((cmd instanceof RegisterVnfTemplateCmd || cmd instanceof UpdateVnfTemplateCmd) && !TemplateType.VNF.equals(templateType)) {
                 throw new InvalidParameterValueException("The template type must be VNF for VNF templates, but the actual type is " + templateType);
             }
-        } else if ((cmd instanceof RegisterTemplateCmd) || (cmd instanceof GetUploadParamsForTemplateCmd)) {
+        } else if (cmd instanceof RegisterTemplateCmd || cmd instanceof GetUploadParamsForTemplateCmd) {
             boolean isRouting = Boolean.TRUE.equals(isRoutingType);
             templateType = (cmd instanceof RegisterVnfTemplateCmd) ? TemplateType.VNF : (isRouting ? TemplateType.ROUTING : TemplateType.USER);
-        } else if (cmd instanceof GetUploadParamsForIsoCmd) {
-            templateType = TemplateType.USER;
         }
         validateExternalHypervisorTemplateType(hypervisorType, templateType);
         if (templateType != null && !isAdmin && !Arrays.asList(TemplateType.USER, TemplateType.VNF).contains(templateType)) {
@@ -2554,6 +2559,8 @@ public class TemplateManagerImpl extends ManagerBase implements TemplateManager,
                 throw new InvalidParameterValueException(String.format("Users can not register Template with template type %s.", templateType));
             } else if (cmd instanceof UpdateTemplateCmd) {
                 throw new InvalidParameterValueException(String.format("Users can not update Template to template type %s.", templateType));
+            } else if (cmd instanceof GetUploadParamsForTemplateCmd) {
+                throw new InvalidParameterValueException(String.format("Users can not request upload parameters for Template with template type %s.", templateType));
             }
         }
         return templateType;

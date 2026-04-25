@@ -17,32 +17,38 @@
 package org.apache.cloudstack.ldap;
 
 import org.apache.cloudstack.framework.config.ConfigKey;
+import org.apache.cloudstack.framework.config.impl.ConfigDepotImpl;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
+import java.util.HashMap;
+import java.util.Map;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 
 public class LdapTestConfigTool {
+    private final Map<String, String> overrides = new HashMap<>();
+    private final ConfigDepotImpl configDepot = mock(ConfigDepotImpl.class);
+
     public LdapTestConfigTool() {
+        lenient().when(configDepot.getConfigStringValue(anyString(), any(ConfigKey.Scope.class), nullable(Long.class)))
+                .thenAnswer(invocation -> overrides.get(invocation.getArgument(0)));
     }
 
     void overrideConfigValue(LdapConfiguration ldapConfiguration, final String configKeyName, final Object o) throws IllegalAccessException, NoSuchFieldException {
         Field configKey = LdapConfiguration.class.getDeclaredField(configKeyName);
         configKey.setAccessible(true);
 
-        ConfigKey key = (ConfigKey)configKey.get(ldapConfiguration);
+        ConfigKey<?> key = (ConfigKey<?>) configKey.get(ldapConfiguration);
+        ConfigKey.init(configDepot);
+        overrides.put(key.key(), o == null ? null : String.valueOf(o));
+    }
 
-        Field modifiersField = Field.class.getDeclaredField("modifiers");
-        modifiersField.setAccessible(true);
-        modifiersField.setInt(configKey, configKey.getModifiers() & ~Modifier.FINAL);
-
-        Field f = ConfigKey.class.getDeclaredField("_value");
-        f.setAccessible(true);
-        modifiersField.setInt(f, f.getModifiers() & ~Modifier.FINAL);
-        f.set(key, o);
-
-        Field dynamic = ConfigKey.class.getDeclaredField("_isDynamic");
-        dynamic.setAccessible(true);
-        modifiersField.setInt(dynamic, dynamic.getModifiers() & ~Modifier.FINAL);
-        dynamic.setBoolean(key, false);
+    void resetOverrides() {
+        overrides.clear();
+        ConfigKey.init(null);
     }
 }

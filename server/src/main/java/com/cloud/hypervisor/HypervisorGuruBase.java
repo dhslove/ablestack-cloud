@@ -210,6 +210,7 @@ public abstract class HypervisorGuruBase extends AdapterBase implements Hypervis
         to.setNetworkId(profile.getNetworkId());
         to.setLinkState(profile.getLinkState());
         to.setNwfilter(Boolean.parseBoolean(configDao.getValueAndInitIfNotExist("enable.vm.network.filter.allow.all.traffic", "Advanced", "false")));
+        to.setEnabled(profile.isEnabled());
 
         NetworkVO network = networkDao.findById(profile.getNetworkId());
         to.setNetworkUuid(network.getUuid());

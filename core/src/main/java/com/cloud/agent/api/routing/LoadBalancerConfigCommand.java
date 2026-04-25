@@ -39,6 +39,7 @@ public class LoadBalancerConfigCommand extends NetworkElementCommand {
     public String lbConnectTimeout = "5000";
     public String lbClientTimeout = "50000";
     public String lbServerTimeout = "50000";
+    public Long idleTimeout = 50000L; /* 0=infinite, >0 = timeout in milliseconds */
     public String lbProtocol;
     public boolean keepAliveEnabled = false;
     NicTO nic;
@@ -53,7 +54,7 @@ public class LoadBalancerConfigCommand extends NetworkElementCommand {
     }
 
     public LoadBalancerConfigCommand(LoadBalancerTO[] loadBalancers, String publicIp, String guestIp, String privateIp, NicTO nic, Long vpcId, String maxconn,
-            boolean keepAliveEnabled) {
+            boolean keepAliveEnabled, Long idleTimeout) {
         this.loadBalancers = loadBalancers;
         this.lbStatsPublicIP = publicIp;
         this.lbStatsPrivateIP = privateIp;
@@ -62,6 +63,7 @@ public class LoadBalancerConfigCommand extends NetworkElementCommand {
         this.vpcId = vpcId;
         this.maxconn = maxconn;
         this.keepAliveEnabled = keepAliveEnabled;
+        this.idleTimeout = idleTimeout;
     }
 
     public NicTO getNic() {

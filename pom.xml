@@ -60,7 +60,7 @@
         <cs.jdk.version>11</cs.jdk.version>
         <cs.target.dir>target</cs.target.dir>
         <cs.replace.properties>build/replace.properties</cs.replace.properties>
-        <argLine>-Djava.security.egd=file:/dev/./urandom -noverify --add-opens=java.base/java.lang=ALL-UNNAMED --add-exports=java.base/sun.security.x509=ALL-UNNAMED --add-exports=java.base/sun.security.provider=ALL-UNNAMED --add-opens=java.base/javax.net.ssl=ALL-UNNAMED</argLine>
+        <argLine>-Djava.security.egd=file:/dev/./urandom -noverify --add-opens=java.base/java.lang=ALL-UNNAMED --add-exports=java.base/sun.security.x509=ALL-UNNAMED --add-exports=java.base/sun.security.provider=ALL-UNNAMED --add-opens=java.base/javax.net.ssl=ALL-UNNAMED --add-exports=java.naming/com.sun.jndi.ldap=ALL-UNNAMED</argLine>
 
         <!-- Plugins versions -->
         <cs.antrun-plugin.version>1.8</cs.antrun-plugin.version>
@@ -1065,6 +1065,9 @@
                             <exclude>debian/source/format</exclude>
                             <exclude>dist/console-proxy/js/jquery.js</exclude>
                             <exclude>engine/schema/dist/**</exclude>
+                            <exclude>plugins/integrations/automation-service/src/main/resources/conf/genie</exclude>
+                            <exclude>plugins/integrations/desktop-service/src/main/resources/conf/dc</exclude>
+                            <exclude>plugins/integrations/desktop-service/src/main/resources/conf/works</exclude>
                             <exclude>plugins/hypervisors/hyperv/conf/agent.properties</exclude>
                             <exclude>plugins/hypervisors/hyperv/conf/uefi.properties</exclude>
                             <exclude>plugins/hypervisors/hyperv/DotNet/ServerResource/**</exclude>

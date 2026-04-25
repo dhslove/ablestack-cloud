@@ -64,11 +64,24 @@ export default {
       loading: false
     }
   },
+  computed: {
+    hasSamlAccountSwitchApi () {
+      return 'listAndSwitchSamlAccount' in (store.getters.apis || {})
+    }
+  },
   created () {
-    this.fetchData()
+    if (this.hasSamlAccountSwitchApi) {
+      this.fetchData()
+    }
   },
   methods: {
     fetchData () {
+      if (!this.hasSamlAccountSwitchApi) {
+        this.showSwitcher = false
+        this.loading = false
+        return
+      }
+
       var page = 1
       const samlAccounts = []
       const getNextPage = () => {
@@ -86,6 +99,7 @@ export default {
         }).finally(() => {
           if (samlAccounts.length < 2) {
             this.showSwitcher = false
+            this.loading = false
             return
           }
           this.samlAccounts = samlAccounts
@@ -93,7 +107,7 @@ export default {
           const currentAccount = this.samlAccounts.filter(x => {
             return x.userId === store.getters.userInfo.id
           })[0]
-          this.currentAccount = `${currentAccount.accountName} (${currentAccount.domainName})`
+          this.currentAccount = currentAccount ? `${currentAccount.accountName} (${currentAccount.domainName})` : ''
           this.loading = false
           this.showSwitcher = true
         })
@@ -110,7 +124,7 @@ export default {
           this.$message.success(`Switched to "${account.accountName} (${account.domainPath})"`)
           this.$router.go()
         })
-      }).else(error => {
+      }).catch(error => {
         console.log('error refreshing with new user context: ' + error)
       })
     }

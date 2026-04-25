@@ -17,14 +17,13 @@
 package com.cloud.api.query.dao;
 
 import java.text.DecimalFormat;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.Date;
-
 import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.List;
@@ -34,8 +33,6 @@ import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
-import com.cloud.gpu.dao.VgpuProfileDao;
-import com.cloud.service.dao.ServiceOfferingDao;
 import org.apache.cloudstack.affinity.AffinityGroupResponse;
 import org.apache.cloudstack.annotation.AnnotationService;
 import org.apache.cloudstack.annotation.dao.AnnotationDao;
@@ -49,6 +46,7 @@ import org.apache.cloudstack.api.response.SecurityGroupResponse;
 import org.apache.cloudstack.api.response.UserVmResponse;
 import org.apache.cloudstack.api.response.VnfNicResponse;
 import org.apache.cloudstack.context.CallContext;
+import org.apache.cloudstack.extension.ExtensionHelper;
 import org.apache.cloudstack.framework.config.dao.ConfigurationDao;
 import org.apache.cloudstack.query.QueryService;
 import org.apache.cloudstack.vm.lease.VMLeaseManager;
@@ -61,12 +59,14 @@ import com.cloud.api.ApiDBUtils;
 import com.cloud.api.ApiResponseHelper;
 import com.cloud.api.query.vo.UserVmJoinVO;
 import com.cloud.gpu.GPU;
+import com.cloud.gpu.dao.VgpuProfileDao;
 import com.cloud.host.ControlState;
 import com.cloud.network.IpAddress;
 import com.cloud.network.Network;
 import com.cloud.network.vpc.VpcVO;
 import com.cloud.network.vpc.dao.VpcDao;
 import com.cloud.service.ServiceOfferingDetailsVO;
+import com.cloud.service.dao.ServiceOfferingDao;
 import com.cloud.storage.DiskOfferingVO;
 import com.cloud.storage.GuestOS;
 import com.cloud.storage.Storage.TemplateType;
@@ -139,6 +139,8 @@ public class UserVmJoinDaoImpl extends GenericDaoBaseWithTagInformation<UserVmJo
     private VgpuProfileDao vgpuProfileDao;
     @Inject
     VMTemplateDao vmTemplateDao;
+    @Inject
+    ExtensionHelper extensionHelper;
 
     private final SearchBuilder<UserVmJoinVO> VmDetailSearch;
     private final SearchBuilder<UserVmJoinVO> activeVmByIsoSearch;
@@ -379,6 +381,7 @@ public class UserVmJoinDaoImpl extends GenericDaoBaseWithTagInformation<UserVmJo
                 nicResponse.setIp6Address(userVm.getIp6Address());
                 nicResponse.setIp6Gateway(userVm.getIp6Gateway());
                 nicResponse.setIp6Cidr(userVm.getIp6Cidr());
+                nicResponse.setEnabled(userVm.isNicEnabled());
                 if (userVm.getBroadcastUri() != null) {
                     nicResponse.setBroadcastUri(userVm.getBroadcastUri().toString());
                 }
@@ -482,7 +485,16 @@ public class UserVmJoinDaoImpl extends GenericDaoBaseWithTagInformation<UserVmJo
 
             // Remove deny listed settings if user is not admin
             if (caller.getType() != Account.Type.ADMIN) {
-                String[] userVmSettingsToHide = QueryService.UserVMDeniedDetails.value().split(",");
+                List<String> userVmSettingsToHide = new ArrayList<>();
+                String[] parts = QueryService.UserVMDeniedDetails.value().split(",");
+                if (parts.length > 0) {
+                    Collections.addAll(userVmSettingsToHide, parts);
+                }
+                if (userVm.getTemplateExtensionId() != null) {
+                    userVmSettingsToHide.addAll(extensionHelper.getExtensionReservedResourceDetails(
+                            userVm.getTemplateExtensionId()));
+                }
+
                 for (String key : userVmSettingsToHide) {
                     resourceDetails.remove(key.trim());
                 }
@@ -549,7 +561,6 @@ public class UserVmJoinDaoImpl extends GenericDaoBaseWithTagInformation<UserVmJo
 
         return userVmResponse;
     }
-
 
     private long computeLeaseDurationFromExpiryDate(Date created, Date leaseExpiryDate) {
         LocalDate createdDate = created.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
@@ -655,6 +666,7 @@ public class UserVmJoinDaoImpl extends GenericDaoBaseWithTagInformation<UserVmJo
             /*17: default*/
             nicResponse.setIsDefault(uvo.isDefaultNic());
             nicResponse.setDeviceId(String.valueOf(uvo.getNicDeviceId()));
+            nicResponse.setEnabled(uvo.isNicEnabled());
             List<NicSecondaryIpVO> secondaryIps = ApiDBUtils.findNicSecondaryIps(uvo.getNicId());
             if (secondaryIps != null) {
                 List<NicSecondaryIpResponse> ipList = new ArrayList<NicSecondaryIpResponse>();

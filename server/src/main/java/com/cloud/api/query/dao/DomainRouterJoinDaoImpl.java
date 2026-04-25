@@ -196,6 +196,7 @@ public class DomainRouterJoinDaoImpl extends GenericDaoBase<DomainRouterJoinVO, 
                     nicResponse.setMtu(router.getMtu());
                 }
                 nicResponse.setIsDefault(router.isDefaultNic());
+                nicResponse.setEnabled(router.isNicEnabled());
                 nicResponse.setLinkState(router.getLinkState());
                 nicResponse.setObjectName("nic");
                 routerResponse.addNic(nicResponse);
@@ -290,6 +291,7 @@ public class DomainRouterJoinDaoImpl extends GenericDaoBase<DomainRouterJoinVO, 
                 nicResponse.setMtu(vr.getMtu());
             }
             nicResponse.setIsDefault(vr.isDefaultNic());
+            nicResponse.setEnabled(vr.isNicEnabled());
             nicResponse.setLinkState(vr.getLinkState());
             nicResponse.setObjectName("nic");
             vrData.addNic(nicResponse);

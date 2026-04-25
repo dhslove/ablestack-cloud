@@ -68,6 +68,7 @@ import org.mockito.Spy;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.mockito.stubbing.Answer;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.cloud.dc.DataCenterVO;
 import com.cloud.dc.dao.DataCenterDao;
@@ -157,6 +158,8 @@ public class HypervisorTemplateAdapterTest {
     @Before
     public void before() {
         closeable = MockitoAnnotations.openMocks(this);
+        ReflectionTestUtils.setField(_adapter, "storeMgr", dataStoreManagerMock);
+        ReflectionTestUtils.setField(_adapter, "_statsCollector", statsCollectorMock);
     }
 
     @After
@@ -382,7 +385,7 @@ public class HypervisorTemplateAdapterTest {
     public void getImageStoresThrowsExceptionIfNotFoundTestNullImageStoreShouldThrowCloudRuntimeException() {
         TemplateProfile templateProfileMock = Mockito.mock(TemplateProfile.class);
 
-        Mockito.when(dataStoreManagerMock.getImageStoresByZoneIds(Mockito.anyLong())).thenReturn(null);
+        Mockito.when(dataStoreManagerMock.getImageStoresByScopeExcludingReadOnly(Mockito.any())).thenReturn(null);
 
         _adapter.getImageStoresThrowsExceptionIfNotFound(zoneId, templateProfileMock);
     }
@@ -392,7 +395,7 @@ public class HypervisorTemplateAdapterTest {
         TemplateProfile templateProfileMock = Mockito.mock(TemplateProfile.class);
         List<DataStore> imageStoresList = new ArrayList<>();
 
-        Mockito.when(dataStoreManagerMock.getImageStoresByZoneIds(Mockito.anyLong())).thenReturn(imageStoresList);
+        Mockito.when(dataStoreManagerMock.getImageStoresByScopeExcludingReadOnly(Mockito.any())).thenReturn(imageStoresList);
 
         _adapter.getImageStoresThrowsExceptionIfNotFound(zoneId, templateProfileMock);
     }
@@ -403,7 +406,7 @@ public class HypervisorTemplateAdapterTest {
         DataStore dataStoreMock = Mockito.mock(DataStore.class);
         List<DataStore> imageStoresList = List.of(dataStoreMock);
 
-        Mockito.when(dataStoreManagerMock.getImageStoresByZoneIds(Mockito.anyLong())).thenReturn(imageStoresList);
+        Mockito.when(dataStoreManagerMock.getImageStoresByScopeExcludingReadOnly(Mockito.any())).thenReturn(imageStoresList);
 
         _adapter.getImageStoresThrowsExceptionIfNotFound(zoneId, templateProfileMock);
     }
@@ -458,13 +461,17 @@ public class HypervisorTemplateAdapterTest {
     @Test
     public void isZoneAndImageStoreAvailableTestImageStoreDoesNotHaveEnoughCapacityShouldReturnFalse() {
         DataStore dataStoreMock = Mockito.mock(DataStore.class);
+        Mockito.when(dataStoreMock.getId()).thenReturn(1L);
         Long zoneId = 1L;
         Set<Long> zoneSet = null;
         boolean isTemplatePrivate = false;
         DataCenterVO dataCenterVOMock = Mockito.mock(DataCenterVO.class);
+        DataStore writableStoreMock = Mockito.mock(DataStore.class);
+        Mockito.when(writableStoreMock.getId()).thenReturn(1L);
 
         Mockito.when(_dcDao.findById(Mockito.anyLong())).thenReturn(dataCenterVOMock);
         Mockito.when(dataCenterVOMock.getAllocationState()).thenReturn(Grouping.AllocationState.Enabled);
+        Mockito.when(dataStoreManagerMock.getImageStoresByScopeExcludingReadOnly(Mockito.any())).thenReturn(List.of(writableStoreMock));
         Mockito.when(statsCollectorMock.imageStoreHasEnoughCapacity(any(DataStore.class))).thenReturn(false);
 
         boolean result = _adapter.isZoneAndImageStoreAvailable(dataStoreMock, zoneId, zoneSet, isTemplatePrivate);
@@ -477,13 +484,17 @@ public class HypervisorTemplateAdapterTest {
     @Test
     public void isZoneAndImageStoreAvailableTestImageStoreHasEnoughCapacityAndZoneSetIsNullShouldReturnTrue() {
         DataStore dataStoreMock = Mockito.mock(DataStore.class);
+        Mockito.when(dataStoreMock.getId()).thenReturn(1L);
         Long zoneId = 1L;
         Set<Long> zoneSet = null;
         boolean isTemplatePrivate = false;
         DataCenterVO dataCenterVOMock = Mockito.mock(DataCenterVO.class);
+        DataStore writableStoreMock = Mockito.mock(DataStore.class);
+        Mockito.when(writableStoreMock.getId()).thenReturn(1L);
 
         Mockito.when(_dcDao.findById(Mockito.anyLong())).thenReturn(dataCenterVOMock);
         Mockito.when(dataCenterVOMock.getAllocationState()).thenReturn(Grouping.AllocationState.Enabled);
+        Mockito.when(dataStoreManagerMock.getImageStoresByScopeExcludingReadOnly(Mockito.any())).thenReturn(List.of(writableStoreMock));
         Mockito.when(statsCollectorMock.imageStoreHasEnoughCapacity(any(DataStore.class))).thenReturn(true);
 
         boolean result = _adapter.isZoneAndImageStoreAvailable(dataStoreMock, zoneId, zoneSet, isTemplatePrivate);
@@ -496,13 +507,17 @@ public class HypervisorTemplateAdapterTest {
     @Test
     public void isZoneAndImageStoreAvailableTestTemplateIsPrivateAndItIsAlreadyAllocatedToTheSameZoneShouldReturnFalse() {
         DataStore dataStoreMock = Mockito.mock(DataStore.class);
+        Mockito.when(dataStoreMock.getId()).thenReturn(1L);
         Long zoneId = 1L;
         Set<Long> zoneSet = Set.of(1L);
         boolean isTemplatePrivate = true;
         DataCenterVO dataCenterVOMock = Mockito.mock(DataCenterVO.class);
+        DataStore writableStoreMock = Mockito.mock(DataStore.class);
+        Mockito.when(writableStoreMock.getId()).thenReturn(1L);
 
         Mockito.when(_dcDao.findById(Mockito.anyLong())).thenReturn(dataCenterVOMock);
         Mockito.when(dataCenterVOMock.getAllocationState()).thenReturn(Grouping.AllocationState.Enabled);
+        Mockito.when(dataStoreManagerMock.getImageStoresByScopeExcludingReadOnly(Mockito.any())).thenReturn(List.of(writableStoreMock));
         Mockito.when(statsCollectorMock.imageStoreHasEnoughCapacity(any(DataStore.class))).thenReturn(true);
 
         boolean result = _adapter.isZoneAndImageStoreAvailable(dataStoreMock, zoneId, zoneSet, isTemplatePrivate);
@@ -515,13 +530,17 @@ public class HypervisorTemplateAdapterTest {
     @Test
     public void isZoneAndImageStoreAvailableTestTemplateIsPrivateAndItIsNotAlreadyAllocatedToTheSameZoneShouldReturnTrue() {
         DataStore dataStoreMock = Mockito.mock(DataStore.class);
+        Mockito.when(dataStoreMock.getId()).thenReturn(1L);
         Long zoneId = 1L;
         Set<Long> zoneSet = new HashSet<>();
         boolean isTemplatePrivate = true;
         DataCenterVO dataCenterVOMock = Mockito.mock(DataCenterVO.class);
+        DataStore writableStoreMock = Mockito.mock(DataStore.class);
+        Mockito.when(writableStoreMock.getId()).thenReturn(1L);
 
         Mockito.when(_dcDao.findById(Mockito.anyLong())).thenReturn(dataCenterVOMock);
         Mockito.when(dataCenterVOMock.getAllocationState()).thenReturn(Grouping.AllocationState.Enabled);
+        Mockito.when(dataStoreManagerMock.getImageStoresByScopeExcludingReadOnly(Mockito.any())).thenReturn(List.of(writableStoreMock));
         Mockito.when(statsCollectorMock.imageStoreHasEnoughCapacity(any(DataStore.class))).thenReturn(true);
 
         boolean result = _adapter.isZoneAndImageStoreAvailable(dataStoreMock, zoneId, zoneSet, isTemplatePrivate);

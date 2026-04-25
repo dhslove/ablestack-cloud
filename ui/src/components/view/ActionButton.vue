@@ -68,13 +68,13 @@
       </a-tooltip>
       <a-tooltip arrowPointAtCenter placement="bottomRight" v-if="wallLinkReady">
         <template v-if="!dataView" #title>
-          {{ $t('label.wall.portal.' + $route.meta.name + '.url') }}
+          {{ $t('label.wall.portal.' + routeName + '.url') }}
         </template>
         <a :href="wallLinkUrl" target="_blank">
           <a-button class="action-button-item action-button-item--dataview" type="text">
             <AreaChartOutlined class="action-button-item__icon" />
             <span class="action-button-item__label">
-              {{ $t('label.wall.portal.' + $route.meta.name + '.url') }}
+              {{ $t('label.wall.portal.' + routeName + '.url') }}
             </span>
           </a-button>
         </a>
@@ -256,11 +256,14 @@ export default {
         this.onResourceChange(newItem)
       }
     },
-    '$route.meta.name' () {
+    routeName () {
       this.updateWallLinkUrl()
     }
   },
   computed: {
+    routeName () {
+      return this.$route?.meta?.name || this.$route?.name || ''
+    },
     primaryIconList () {
       return ['PlusOutlined', 'plus-outlined', 'DeleteOutlined', 'delete-outlined', 'UsergroupDeleteOutlined', 'usergroup-delete-outlined']
     },
@@ -285,7 +288,7 @@ export default {
       }
       const requiredApis = ['listVirtualMachines', 'createConsoleEndpoint']
       const hasApis = requiredApis.every(apiName => apiName in this.$store.getters.apis)
-      return hasApis && ['vm', 'systemvm', 'router', 'ilbvm', 'vnfapp'].includes(this.$route.meta.name)
+      return hasApis && ['vm', 'systemvm', 'router', 'ilbvm', 'vnfapp'].includes(this.routeName)
     },
     consoleButtonDisabled () {
       if (!this.resource) {
@@ -295,7 +298,7 @@ export default {
     },
     showWorksButton () {
       return this.resource && this.resource.id && this.resource.worksvmip &&
-        this.$route.meta.name === 'desktopcluster' &&
+        this.routeName === 'desktopcluster' &&
         ('listDesktopClusters' in this.$store.getters.apis)
     },
     worksUrl () {
@@ -308,11 +311,11 @@ export default {
       if (this.selectedRowKeys && this.selectedRowKeys.length > 1) {
         return false
       }
-      return this.resource && this.resource.id && ['vm', 'host', 'cluster'].includes(this.$route.meta.name)
+      return this.resource && this.resource.id && ['vm', 'host', 'cluster'].includes(this.routeName)
     },
     showGenieButton () {
       return this.resource && this.resource.id &&
-        this.$route.meta.name === 'automationcontroller' &&
+        this.routeName === 'automationcontroller' &&
         ('listAutomationController' in this.$store.getters.apis)
     },
     genieUrl () {
@@ -322,7 +325,7 @@ export default {
       return `http://${this.resource.automationcontrollerpublicip}:80`
     },
     showOobmButton () {
-      return this.resource && this.resource.id && this.$route.meta.name === 'host'
+      return this.resource && this.resource.id && this.routeName === 'host'
     },
     oobmButtonDisabled () {
       if (!this.showOobmButton) {
@@ -340,7 +343,7 @@ export default {
       return `${protocol}://${address}:${port}`
     },
     showCubeButton () {
-      return this.resource && this.resource.id && this.$route.meta.name === 'host'
+      return this.resource && this.resource.id && this.routeName === 'host'
     },
     cubeUrl () {
       if (!this.showCubeButton) {
@@ -433,13 +436,13 @@ export default {
         }
 
         let finalUrl = ''
-        if (this.$route.meta.name === 'vm') {
+        if (this.routeName === 'vm') {
           const path = getValue('monitoring.wall.portal.vm.uri') || ''
           finalUrl = `${baseUrl}${path}&var-vm_uuid=${this.resource.id}`
-        } else if (this.$route.meta.name === 'host') {
+        } else if (this.routeName === 'host') {
           const path = getValue('monitoring.wall.portal.host.uri') || ''
           finalUrl = `${baseUrl}${path}&var-host=${this.resource.ipaddress}`
-        } else if (this.$route.meta.name === 'cluster') {
+        } else if (this.routeName === 'cluster') {
           const path = getValue('monitoring.wall.portal.cluster.uri') || ''
           finalUrl = `${baseUrl}${path}`
         }

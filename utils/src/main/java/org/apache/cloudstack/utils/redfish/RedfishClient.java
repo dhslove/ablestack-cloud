@@ -172,7 +172,7 @@ public class RedfishClient {
 
     protected String buildRequestUrl(String hostAddress, RedfishCmdType cmd, String resourceId) {
         String urlHostAddress = validateAddressAndPrepareForUrl(hostAddress);
-        String requestPath = getRequestPathForCommand(cmd, resourceId);
+        String requestPath = StringUtils.strip(getRequestPathForCommand(cmd, resourceId), "/");
 
         if (useHttps) {
             return String.format("https://%s/%s", urlHostAddress, requestPath);
@@ -300,12 +300,12 @@ public class RedfishClient {
             if (StringUtils.isBlank(resourceId)) {
                 throw new RedfishException(String.format("Command '%s' requires a valid resource ID '%s'.", cmd, resourceId));
             }
-            return String.format("%s/%s", SYSTEMS_URL_PATH, resourceId);
+            return String.format("%s%s", SYSTEMS_URL_PATH, resourceId);
         case ComputerSystemReset:
             if (StringUtils.isBlank(resourceId)) {
                 throw new RedfishException(String.format("Command '%s' requires a valid resource ID '%s'.", cmd, resourceId));
             }
-            return String.format("%s/%s/%s", SYSTEMS_URL_PATH, resourceId, COMPUTER_SYSTEM_RESET_URL_PATH);
+            return String.format("%s%s%s", SYSTEMS_URL_PATH, resourceId, COMPUTER_SYSTEM_RESET_URL_PATH);
         default:
             throw new RedfishException(String.format("Redfish client does not support command '%s'.", cmd));
         }

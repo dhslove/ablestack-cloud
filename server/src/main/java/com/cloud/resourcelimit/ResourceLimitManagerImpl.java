@@ -267,7 +267,7 @@ public class ResourceLimitManagerImpl extends ManagerBase implements ResourceLim
 
         templateSizeSearch = _vmTemplateStoreDao.createSearchBuilder(SumCount.class);
         templateSizeSearch.select("sum", Func.SUM, templateSizeSearch.entity().getSize());
-        templateSizeSearch.and("downloadState", templateSizeSearch.entity().getDownloadState(), Op.EQ);
+        templateSizeSearch.and("downloadState", templateSizeSearch.entity().getDownloadState(), Op.IN);
         templateSizeSearch.and("destroyed", templateSizeSearch.entity().getDestroyed(), Op.EQ);
         SearchBuilder<VMTemplateVO> join1 = _vmTemplateDao.createSearchBuilder();
         join1.and("accountId", join1.entity().getAccountId(), Op.EQ);
@@ -1494,7 +1494,7 @@ public class ResourceLimitManagerImpl extends ManagerBase implements ResourceLim
         long totalTemplatesSize = 0;
 
         SearchCriteria<SumCount> sc = templateSizeSearch.create();
-        sc.setParameters("downloadState", Status.DOWNLOADED);
+        sc.setParameters("downloadState", Status.DOWNLOADED, Status.DOWNLOAD_IN_PROGRESS);
         sc.setParameters("destroyed", false);
         sc.setJoinParameters("templates", "accountId", accountId);
         List<SumCount> templates = _vmTemplateStoreDao.customSearch(sc, null);
@@ -1731,7 +1731,8 @@ public class ResourceLimitManagerImpl extends ManagerBase implements ResourceLim
         return tags;
     }
 
-    protected List<String> getResourceLimitStorageTagsForResourceCountOperation(Boolean display, DiskOffering diskOffering) {
+    @Override
+    public List<String> getResourceLimitStorageTagsForResourceCountOperation(Boolean display, DiskOffering diskOffering) {
         if (Boolean.FALSE.equals(display)) {
             return new ArrayList<>();
         }

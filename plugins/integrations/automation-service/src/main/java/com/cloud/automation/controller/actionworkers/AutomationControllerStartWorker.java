@@ -35,6 +35,7 @@ import java.util.Properties;
 import java.net.InetAddress;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cloudstack.acl.apikeypair.ApiKeyPair;
 import com.cloud.api.query.vo.UserAccountJoinVO;
 import com.cloud.automation.version.AutomationControllerVersion;
 import com.cloud.dc.DataCenter;
@@ -217,8 +218,9 @@ public class AutomationControllerStartWorker extends AutomationControllerResourc
         String username = owner.getAccountName();
         UserAccount user = accountService.getActiveUserAccount(username, owner.getDomainId());
         String[] keys = null;
-        String apiKey = user.getApiKey();
-        String secretKey = user.getSecretKey();
+        ApiKeyPair keyPair = accountService.getLatestUserKeyPair(user.getId());
+        String apiKey = keyPair != null ? keyPair.getApiKey() : null;
+        String secretKey = keyPair != null ? keyPair.getSecretKey() : null;
         if ((apiKey == null || apiKey.length() == 0) || (secretKey == null || secretKey.length() == 0)) {
             keys = accountService.createApiKeyAndSecretKey(user.getId());
         } else {

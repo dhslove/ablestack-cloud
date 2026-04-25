@@ -635,6 +635,19 @@ public class HAProxyConfigurator implements LoadBalancerConfigurator {
 
         result.add(blankLine);
         final List<String> dSection = getDefaultsSection(lbCmd.lbConnectTimeout, lbCmd.lbClientTimeout, lbCmd.lbServerTimeout, lbCmd.keepAliveEnabled);
+        if (lbCmd.idleTimeout > 0) {
+            dSection.set(9, "\ttimeout client     " + Long.toString(lbCmd.idleTimeout));
+            dSection.set(10, "\ttimeout server     " + Long.toString(lbCmd.idleTimeout));
+        } else if (lbCmd.idleTimeout == 0) {
+            // .remove() is not allowed, only .set() operations are allowed as the list
+            // is a fixed size.  So lets just mark the entry as blank.
+            dSection.set(9, "");
+            dSection.set(10, "");
+        } else {
+            // Negative idleTimeout values are considered invalid; retain the
+            // default HAProxy timeout values from defaultsSection for predictability.
+            logger.warn("Negative idleTimeout ({}) configured; retaining default HAProxy timeouts.", lbCmd.idleTimeout);
+        }
 
         if (logger.isDebugEnabled()) {
             for (final String s : dSection) {

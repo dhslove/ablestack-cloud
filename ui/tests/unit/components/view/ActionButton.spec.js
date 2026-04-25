@@ -89,7 +89,7 @@ describe('Components > View > ActionButton.vue', () => {
         }
       })
 
-      const expected = '<span role="img" aria-label="plus" class="anticon anticon-plus">'
+      const expected = 'class="anticon anticon-plus action-button-item__icon"'
       const received = wrapper.html()
       expect(received).toContain(expected)
     })
@@ -131,11 +131,11 @@ describe('Components > View > ActionButton.vue', () => {
       it('API should be called and return not empty', async (done) => {
         mockAxios.mockResolvedValue({ testapinameresponse: { count: 2 } })
         const wrapper = factory({
-          props: {
-            actions: [
-              {
-                command: 'test-api-case-3',
-                response: 'json',
+        props: {
+          actions: [
+            {
+              command: 'test-api-case-3',
+              response: 'json',
                 label: 'label.action',
                 api: 'test-api-case-3',
                 showBadge: true,
@@ -143,7 +143,10 @@ describe('Components > View > ActionButton.vue', () => {
                 dataView: true
               }
             ],
-            dataView: true
+            dataView: true,
+            resource: {
+              id: 'test-resource-id'
+            }
           }
         })
         const expected = { 'test-api-case-3': { badgeNum: 2 } }
@@ -166,10 +169,10 @@ describe('Components > View > ActionButton.vue', () => {
       it('API should be called and return empty', async (done) => {
         mockAxios.mockResolvedValue({ data: [] })
         const wrapper = factory({
-          props: {
-            actions: [
-              {
-                command: 'test-api-case-4',
+        props: {
+          actions: [
+            {
+              command: 'test-api-case-4',
                 response: 'json',
                 label: 'label.action',
                 api: 'test-api-case-4',
@@ -178,7 +181,10 @@ describe('Components > View > ActionButton.vue', () => {
                 dataView: true
               }
             ],
-            dataView: true
+            dataView: true,
+            resource: {
+              id: 'test-resource-id'
+            }
           }
         })
         const expected = { 'test-api-case-4': { badgeNum: 0 } }
@@ -201,10 +207,10 @@ describe('Components > View > ActionButton.vue', () => {
       it('API should be called and throw eror', async (done) => {
         mockAxios.mockRejectedValue('errMethodMessage')
         const wrapper = factory({
-          props: {
-            actions: [
-              {
-                command: 'test-api-case-5',
+        props: {
+          actions: [
+            {
+              command: 'test-api-case-5',
                 response: 'json',
                 label: 'label.action',
                 api: 'test-api-case-5',
@@ -213,7 +219,10 @@ describe('Components > View > ActionButton.vue', () => {
                 dataView: true
               }
             ],
-            dataView: true
+            dataView: true,
+            resource: {
+              id: 'test-resource-id'
+            }
           }
         })
 

@@ -164,4 +164,5 @@ public interface Nic extends Identity, InternalIdentity {
     Integer getMtu();
 
     boolean getLinkState();
+    boolean isEnabled();
 }

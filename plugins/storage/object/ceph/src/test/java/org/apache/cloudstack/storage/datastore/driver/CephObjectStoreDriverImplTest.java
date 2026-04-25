@@ -17,6 +17,8 @@
 package org.apache.cloudstack.storage.datastore.driver;
 
 import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.model.BucketCrossOriginConfiguration;
+import com.amazonaws.services.s3.model.CORSRule;
 import com.cloud.agent.api.to.BucketTO;
 import com.cloud.storage.BucketVO;
 import com.cloud.storage.dao.BucketDao;
@@ -36,6 +38,8 @@ import org.mockito.MockitoAnnotations;
 import org.mockito.Spy;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.twonote.rgwadmin4j.RgwAdmin;
+
+import java.util.Collections;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -94,6 +98,9 @@ public class CephObjectStoreDriverImplTest {
         when(accountDetailsDao.findDetail(anyLong(),anyString())).
                 thenReturn(new AccountDetailVO(1L, "abc","def"));
         when(bucketDao.findById(anyLong())).thenReturn(new BucketVO(bucket.getName()));
+        BucketCrossOriginConfiguration corsConfiguration = new BucketCrossOriginConfiguration();
+        corsConfiguration.setRules(Collections.singletonList(new CORSRule().withId("CORSRule")));
+        when(rgwClient.getBucketCrossOriginConfiguration(anyString())).thenReturn(corsConfiguration);
         Bucket bucketRet = cephObjectStoreDriverImpl.createBucket(bucket, false);
         assertEquals(bucketRet.getName(), bucket.getName());
         verify(rgwClient, times(1)).doesBucketExistV2(anyString());

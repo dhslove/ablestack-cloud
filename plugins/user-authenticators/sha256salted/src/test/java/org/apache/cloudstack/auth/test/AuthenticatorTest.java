@@ -67,10 +67,10 @@ public class AuthenticatorTest {
         when(_userAccountDao.getUserAccount("admin", 0L)).thenReturn(adminAccount);
         when(_userAccountDao.getUserAccount("admin20Byte", 0L)).thenReturn(adminAccount20Byte);
         when(_userAccountDao.getUserAccount("fake", 0L)).thenReturn(null);
-        //32 byte salt, and password="password"
-        when(adminAccount.getPassword()).thenReturn("WS3UHhBPKHZeV+G3jnn7G2N3luXgLSfL+2ORDieXa1U=:VhuFOrOU2IpsjKYH8cH1VDaDBh/VivjMcuADjeEbIig=");
-        //20 byte salt, and password="password"
-        when(adminAccount20Byte.getPassword()).thenReturn("QL2NsxVEmRuDaNRkvIyADny7C5w=:JoegiytiWnoBAxmSD/PwBZZYqkr746x2KzPrZNw4NgI=");
+        String thirtyTwoByteSalt = "WS3UHhBPKHZeV+G3jnn7G2N3luXgLSfL+2ORDieXa1U=";
+        String twentyByteSalt = "QL2NsxVEmRuDaNRkvIyADny7C5w=";
+        when(adminAccount.getPassword()).thenReturn(thirtyTwoByteSalt + ":" + authenticator.encode("password", Base64.decode(thirtyTwoByteSalt)));
+        when(adminAccount20Byte.getPassword()).thenReturn(twentyByteSalt + ":" + authenticator.encode("password", Base64.decode(twentyByteSalt)));
 
     }
 

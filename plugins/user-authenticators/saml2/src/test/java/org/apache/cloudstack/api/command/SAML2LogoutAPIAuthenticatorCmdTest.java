@@ -21,7 +21,6 @@ package org.apache.cloudstack.api.command;
 
 import java.lang.reflect.Field;
 import java.net.InetAddress;
-import java.security.cert.X509Certificate;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -30,8 +29,6 @@ import javax.servlet.http.HttpSession;
 import org.apache.cloudstack.api.ApiServerService;
 import org.apache.cloudstack.api.auth.APIAuthenticationType;
 import org.apache.cloudstack.saml.SAML2AuthManager;
-import org.apache.cloudstack.saml.SAMLUtils;
-import org.apache.cloudstack.utils.security.CertUtils;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -71,14 +68,8 @@ public class SAML2LogoutAPIAuthenticatorCmdTest {
         managerField.setAccessible(true);
         managerField.set(cmd, samlAuthManager);
 
-        String spId = "someSPID";
-        String url = "someUrl";
-        X509Certificate cert = SAMLUtils.generateRandomX509Certificate(CertUtils.generateRandomKeyPair(4096));
-        Mockito.when(session.getAttribute(Mockito.anyString())).thenReturn(null);
-
         cmd.authenticate("command", null, session, InetAddress.getByName("127.0.0.1"), HttpUtils.RESPONSE_TYPE_JSON, new StringBuilder(), req, resp);
         Mockito.verify(resp, Mockito.times(1)).sendRedirect(Mockito.anyString());
-        Mockito.verify(session, Mockito.atLeastOnce()).getAttribute(Mockito.anyString());
     }
 
     @Test

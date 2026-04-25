@@ -101,6 +101,7 @@ router.beforeEach((to, from, next) => {
           return
         }
         store.commit('SET_LOGIN_FLAG', true)
+        store.commit('SET_MS_ID', Cookies.get('managementserverid'))
       }
       if (Cookies.get('firstlogin') === 'true' && to.path !== '/firstlogin') {
         store.dispatch('Logout').then(() => {

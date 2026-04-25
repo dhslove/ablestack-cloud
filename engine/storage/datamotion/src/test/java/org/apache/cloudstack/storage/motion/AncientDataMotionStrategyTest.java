@@ -20,8 +20,6 @@ package org.apache.cloudstack.storage.motion;
 
 import static org.mockito.Mockito.when;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
@@ -39,10 +37,12 @@ import org.apache.cloudstack.engine.subsystem.api.storage.HostScope;
 import org.apache.cloudstack.engine.subsystem.api.storage.StorageCacheManager;
 import org.apache.cloudstack.engine.subsystem.api.storage.ZoneScope;
 import org.apache.cloudstack.framework.config.ConfigKey;
+import org.apache.cloudstack.framework.config.impl.ConfigDepotImpl;
 import org.apache.cloudstack.framework.config.dao.ConfigurationDao;
 import org.apache.cloudstack.storage.image.store.TemplateObject;
 import org.apache.cloudstack.storage.to.PrimaryDataStoreTO;
 import org.apache.cloudstack.storage.volume.VolumeObject;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -69,8 +69,6 @@ public class AncientDataMotionStrategyTest {
     @Mock
     PrimaryDataStoreTO dataStoreTO;
     @Mock
-    ConfigKey<Boolean> vmwareKey;
-    @Mock
     StorageManager storageManager;
     @Mock
     StoragePool storagePool;
@@ -78,15 +76,17 @@ public class AncientDataMotionStrategyTest {
     StorageCacheManager cacheMgr;
     @Mock
     ConfigurationDao configDao;
+    @Mock
+    ConfigDepotImpl configDepot;
 
     private static final long POOL_ID = 1l;
     private static final Boolean FULL_CLONE_FLAG = true;
 
     @Before
     public void setup() throws Exception {
-        replaceVmwareCreateCloneFullField();
-
-        when(vmwareKey.valueIn(POOL_ID)).thenReturn(FULL_CLONE_FLAG);
+        ConfigKey.init(configDepot);
+        when(configDepot.getConfigStringValue(Mockito.eq(StorageManager.VmwareCreateCloneFull.key()), Mockito.any(ConfigKey.Scope.class), Mockito.nullable(Long.class)))
+                .thenReturn(FULL_CLONE_FLAG.toString());
 
         when(dataTO.getHypervisorType()).thenReturn(HypervisorType.VMware);
         when(dataTO.getDataStore()).thenReturn(dataStoreTO);
@@ -94,14 +94,9 @@ public class AncientDataMotionStrategyTest {
         when(storageManager.getStoragePool(POOL_ID)).thenReturn(storagePool);
     }
 
-    private void replaceVmwareCreateCloneFullField() throws Exception {
-        Field field = StorageManager.class.getDeclaredField("VmwareCreateCloneFull");
-        field.setAccessible(true);
-        // remove final modifier from field
-        Field modifiersField = Field.class.getDeclaredField("modifiers");
-        modifiersField.setAccessible(true);
-        modifiersField.setInt(field, field.getModifiers() & ~Modifier.FINAL);
-        field.set(null, vmwareKey);
+    @After
+    public void cleanup() {
+        ConfigKey.init(null);
     }
 
     @Test

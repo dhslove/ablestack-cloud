@@ -538,7 +538,7 @@ public class LibvirtStoragePool implements KVMStoragePool {
         }
     }
 
-        public void createRBDSecretKeyFileIfNoExist(String uuid, String localPath, String skey) {
+    public void createRBDSecretKeyFileIfNoExist(String uuid, String localPath, String skey) {
         File file = new File(localPath + File.separator + uuid);
         try {
             // 파일이 존재하지 않을 때만 생성
@@ -554,4 +554,7 @@ public class LibvirtStoragePool implements KVMStoragePool {
         } catch (IOException e) {}
     }
 
+    public void setType(StoragePoolType type) {
+        this.type = type;
+    }
 }

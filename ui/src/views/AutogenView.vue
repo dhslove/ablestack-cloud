@@ -1345,8 +1345,10 @@ export default {
         this.items = []
       }
       if (!this.routeName) {
-        // 원본 로직 유지
-        this.routeName = this.$route.matched[this.$route.matched.length - 1].meta.name
+        const matchedRoute = this.$route?.matched?.length
+          ? this.$route.matched[this.$route.matched.length - 1]
+          : null
+        this.routeName = matchedRoute?.meta?.name || this.$route?.meta?.name || this.$route?.name || ''
       }
       this.apiName = ''
       this.actions = []

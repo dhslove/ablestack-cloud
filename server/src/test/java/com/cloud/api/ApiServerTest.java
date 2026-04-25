@@ -41,7 +41,9 @@ import org.junit.runner.RunWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockedConstruction;
+import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.mockito.Spy;
 import org.mockito.junit.MockitoJUnitRunner;
 
 import java.lang.reflect.Field;
@@ -65,6 +67,7 @@ import javax.servlet.http.HttpSession;
 @RunWith(MockitoJUnitRunner.class)
 public class ApiServerTest {
 
+    @Spy
     @InjectMocks
     ApiServer apiServer = new ApiServer();
 
@@ -76,6 +79,10 @@ public class ApiServerTest {
 
     @Mock
     AccountManager accountManager;
+    @Mock
+    com.cloud.user.dao.UserDao userDao;
+    @Mock
+    com.cloud.user.dao.AccountDao accountDao;
 
     @Mock
     HttpSession session;
@@ -251,15 +258,20 @@ public class ApiServerTest {
         UserVO userVO = mock(UserVO.class);
         Mockito.when(userVO.getUuid()).thenReturn("user-uuid");
         Mockito.when(accountManager.getActiveUser(100L)).thenReturn(userVO);
+        Mockito.when(userDao.getUserByName(username, domainId)).thenReturn(userVO);
+        Mockito.doReturn(false).when(apiServer).validatePassword(userVO, "password");
 
         Mockito.when(session.getAttributeNames()).thenReturn(Collections.enumeration(List.of(PASSWORD_CHANGE_REQUIRED)));
         Mockito.when(session.getAttribute(PASSWORD_CHANGE_REQUIRED)).thenReturn(Boolean.TRUE);
 
-        ResponseObject response = apiServer.loginUser(session, username, password, domainId, domainPath, loginIp, requestParams);
-        Assert.assertNotNull(response);
-        Assert.assertTrue(response instanceof LoginCmdResponse);
-        Mockito.verify(session).setAttribute(eq("userid"), eq(100L));
-        Mockito.verify(session).setAttribute(eq(ApiConstants.SESSIONKEY), anyString());
+        try (MockedStatic<com.cloud.api.ApiDBUtils> ignored = Mockito.mockStatic(com.cloud.api.ApiDBUtils.class)) {
+            ignored.when(com.cloud.api.ApiDBUtils::listZones).thenReturn(Collections.emptyList());
+            ResponseObject response = apiServer.loginUser(session, username, password, domainId, domainPath, loginIp, requestParams);
+            Assert.assertNotNull(response);
+            Assert.assertTrue(response instanceof LoginCmdResponse);
+            Mockito.verify(session).setAttribute(eq("userid"), eq(100L));
+            Mockito.verify(session).setAttribute(eq(ApiConstants.SESSIONKEY), anyString());
+        }
     }
 
     @Test(expected = CloudAuthenticationException.class)

@@ -32,10 +32,12 @@ import com.cloud.hypervisor.dao.HypervisorCapabilitiesDao;
 import com.cloud.service.ServiceOfferingVO;
 import com.cloud.service.dao.ServiceOfferingDao;
 import com.cloud.service.dao.ServiceOfferingDetailsDao;
+import com.cloud.storage.DiskOfferingVO;
 import com.cloud.storage.GuestOSVO;
 import com.cloud.storage.Snapshot;
 import com.cloud.storage.SnapshotVO;
 import com.cloud.storage.VolumeVO;
+import com.cloud.storage.dao.DiskOfferingDao;
 import com.cloud.storage.dao.GuestOSDao;
 import com.cloud.storage.dao.SnapshotDao;
 import com.cloud.storage.dao.VolumeDao;
@@ -143,6 +145,10 @@ public class VMSnapshotManagerTest {
     @Mock
     UserVmManager _userVmManager;
     @Mock
+    DiskOfferingDao _diskOfferingDao;
+    @Mock
+    DiskOfferingVO diskOffering;
+    @Mock
     private AccountVO accountVOMock;
 
     private static final long TEST_VM_ID = 3L;
@@ -205,6 +211,7 @@ public class VMSnapshotManagerTest {
         _vmSnapshotMgr._vmInstanceDetailsDao = _vmInstanceDetailsDao;
         _vmSnapshotMgr._vmSnapshotDetailsDao = _vmSnapshotDetailsDao;
         _vmSnapshotMgr._userVmManager = _userVmManager;
+        _vmSnapshotMgr._diskOfferingDao = _diskOfferingDao;
 
         when(_userVMDao.findById(anyLong())).thenReturn(vmMock);
         when(_vmSnapshotDao.findByName(anyLong(), anyString())).thenReturn(null);
@@ -215,9 +222,12 @@ public class VMSnapshotManagerTest {
         List<VolumeVO> mockVolumeList = new ArrayList<VolumeVO>();
         mockVolumeList.add(volumeMock);
         when(volumeMock.getInstanceId()).thenReturn(TEST_VM_ID);
+        when(volumeMock.getDiskOfferingId()).thenReturn(1L);
         when(_volumeDao.findByInstance(anyLong())).thenReturn(mockVolumeList);
         when(_volumeDao.findReadyRootVolumesByInstance(anyLong())).thenReturn(mockVolumeList);
         when(_storagePoolDao.findById(anyLong())).thenReturn(mock(StoragePoolVO.class));
+        when(diskOffering.getShareable()).thenReturn(false);
+        when(_diskOfferingDao.findById(anyLong())).thenReturn(diskOffering);
 
         when(vmMock.getId()).thenReturn(TEST_VM_ID);
         when(vmMock.getServiceOfferingId()).thenReturn(SERVICE_OFFERING_ID);
@@ -231,6 +241,7 @@ public class VMSnapshotManagerTest {
         when(vmSnapshotVO.getId()).thenReturn(VM_SNAPSHOT_ID);
         when(serviceOffering.isDynamic()).thenReturn(false);
         when(_serviceOfferingDao.findById(SERVICE_OFFERING_ID)).thenReturn(serviceOffering);
+        when(_serviceOfferingDao.findByIdIncludingRemoved(TEST_VM_ID, SERVICE_OFFERING_ID)).thenReturn(serviceOffering);
 
         for (ResourceDetail detail : Arrays.asList(userVmDetailCpuNumber, vmSnapshotDetailCpuNumber)) {
             when(detail.getName()).thenReturn(VmDetailConstants.CPU_NUMBER);
@@ -325,6 +336,9 @@ public class VMSnapshotManagerTest {
         when(userVm.getAccountId()).thenReturn(accountId);
         when(_accountMgr.getAccount(accountId)).thenReturn(accountVOMock);
         when(vmMock.getState()).thenReturn(State.Running);
+        when(_snapshotDao.listByInstanceId(TEST_VM_ID, Snapshot.State.Creating, Snapshot.State.CreatedOnPrimary, Snapshot.State.BackingUp)).thenReturn(new ArrayList<>());
+        when(_vmSnapshotDao.listByInstanceId(TEST_VM_ID, VMSnapshot.State.Creating, VMSnapshot.State.Reverting, VMSnapshot.State.Expunging)).thenReturn(new ArrayList<>());
+        when(_vmSnapshotDao.persist(any(VMSnapshotVO.class))).thenReturn(vmSnapshotVO);
         _vmSnapshotMgr.allocVMSnapshot(TEST_VM_ID, "", "", true);
     }
 
@@ -347,7 +361,9 @@ public class VMSnapshotManagerTest {
     @Test
     public void testAddSupportForCustomServiceOfferingNotDynamicServiceOffering() {
         _vmSnapshotMgr.addSupportForCustomServiceOffering(TEST_VM_ID, SERVICE_OFFERING_ID, VM_SNAPSHOT_ID);
-        verify(_vmInstanceDetailsDao, never()).listDetails(TEST_VM_ID);
+        verify(_vmInstanceDetailsDao).listDetails(TEST_VM_ID);
+        verify(_vmSnapshotDetailsDao).saveDetails(listVmSnapshotDetailsCaptor.capture());
+        assertEquals(2, listVmSnapshotDetailsCaptor.getValue().size());
     }
 
     @Test
@@ -360,25 +376,56 @@ public class VMSnapshotManagerTest {
     }
 
     @Test
-    public void testUpdateUserVmServiceOfferingSameServiceOffering() {
-        _vmSnapshotMgr.updateUserVmServiceOffering(userVm, vmSnapshotVO);
-        verify(_vmSnapshotMgr, never()).changeUserVmServiceOffering(userVm, vmSnapshotVO);
+    public void testUserVmServiceOfferingNeedsChangeWhenSnapshotOfferingDiffers() {
+        when(userVm.getServiceOfferingId()).thenReturn(SERVICE_OFFERING_DIFFERENT_ID);
+        when(vmSnapshotVO.getServiceOfferingId()).thenReturn(SERVICE_OFFERING_ID);
+
+        assertTrue(_vmSnapshotMgr.userVmServiceOfferingNeedsChange(userVm, vmSnapshotVO));
+
+        verify(_serviceOfferingDao, never()).findByIdIncludingRemoved(anyLong(), anyLong());
+        verify(_serviceOfferingDao, never()).getComputeOffering(any(ServiceOfferingVO.class), any());
     }
 
     @Test
-    public void testUpdateUserVmServiceOfferingDifferentServiceOffering() throws ConcurrentOperationException, ResourceUnavailableException, ManagementServerException, VirtualMachineMigrationException {
-        when(userVm.getServiceOfferingId()).thenReturn(SERVICE_OFFERING_DIFFERENT_ID);
-        when(_userVmManager.upgradeVirtualMachine(eq(TEST_VM_ID), eq(SERVICE_OFFERING_ID), mapDetailsCaptor.capture())).thenReturn(true);
-        _vmSnapshotMgr.updateUserVmServiceOffering(userVm, vmSnapshotVO);
+    public void testUserVmServiceOfferingNeedsChangeWhenSameNonDynamicOffering() {
+        assertFalse(_vmSnapshotMgr.userVmServiceOfferingNeedsChange(userVm, vmSnapshotVO));
 
-        verify(_vmSnapshotMgr).changeUserVmServiceOffering(userVm, vmSnapshotVO);
-        verify(_vmSnapshotMgr).getVmMapDetails(userVm);
-        verify(_vmSnapshotMgr).upgradeUserVmServiceOffering(eq(userVm), eq(SERVICE_OFFERING_ID), mapDetailsCaptor.capture());
+        verify(_serviceOfferingDao).findByIdIncludingRemoved(TEST_VM_ID, SERVICE_OFFERING_ID);
+        verify(_serviceOfferingDao, never()).getComputeOffering(any(ServiceOfferingVO.class), any());
+    }
+
+    @Test
+    public void testUserVmServiceOfferingNeedsChangeWhenDynamicOfferingMatchesSnapshot() {
+        when(serviceOffering.isDynamic()).thenReturn(true);
+        when(serviceOffering.getCpu()).thenReturn(2);
+        when(serviceOffering.getRamSize()).thenReturn(2048);
+        when(serviceOffering.getSpeed()).thenReturn(1000);
+        when(_serviceOfferingDao.getComputeOffering(eq(serviceOffering), any())).thenReturn(serviceOffering);
+
+        assertFalse(_vmSnapshotMgr.userVmServiceOfferingNeedsChange(userVm, vmSnapshotVO));
+
+        verify(_serviceOfferingDao).getComputeOffering(eq(serviceOffering), any());
+        verify(_vmSnapshotMgr).getVmMapDetails(vmSnapshotVO);
+    }
+
+    @Test
+    public void testUserVmServiceOfferingNeedsChangeWhenDynamicCpuDiffersFromSnapshot() {
+        when(serviceOffering.isDynamic()).thenReturn(true);
+        when(serviceOffering.getCpu()).thenReturn(2);
+        when(serviceOffering.getRamSize()).thenReturn(2048);
+        when(serviceOffering.getSpeed()).thenReturn(1000);
+        ServiceOfferingVO fromSnapshot = mock(ServiceOfferingVO.class);
+        when(fromSnapshot.getCpu()).thenReturn(4);
+        when(fromSnapshot.getRamSize()).thenReturn(2048);
+        when(fromSnapshot.getSpeed()).thenReturn(1000);
+        when(_serviceOfferingDao.getComputeOffering(eq(serviceOffering), any())).thenReturn(fromSnapshot);
+
+        assertTrue(_vmSnapshotMgr.userVmServiceOfferingNeedsChange(userVm, vmSnapshotVO));
     }
 
     @Test
     public void testGetVmMapDetails() {
-        Map<String, String> result = _vmSnapshotMgr.getVmMapDetails(userVm);
+        Map<String, String> result = _vmSnapshotMgr.getVmMapDetails(vmSnapshotVO);
         assert(result.containsKey(userVmDetailCpuNumber.getName()));
         assert(result.containsKey(userVmDetailMemory.getName()));
         assertEquals(userVmDetails.size(), result.size());
@@ -390,7 +437,7 @@ public class VMSnapshotManagerTest {
     public void testChangeUserVmServiceOffering() throws ConcurrentOperationException, ResourceUnavailableException, ManagementServerException, VirtualMachineMigrationException {
         when(_userVmManager.upgradeVirtualMachine(eq(TEST_VM_ID), eq(SERVICE_OFFERING_ID), mapDetailsCaptor.capture())).thenReturn(true);
         _vmSnapshotMgr.changeUserVmServiceOffering(userVm, vmSnapshotVO);
-        verify(_vmSnapshotMgr).getVmMapDetails(userVm);
+        verify(_vmSnapshotMgr).getVmMapDetails(vmSnapshotVO);
         verify(_vmSnapshotMgr).upgradeUserVmServiceOffering(eq(userVm), eq(SERVICE_OFFERING_ID), mapDetailsCaptor.capture());
     }
 
@@ -398,7 +445,7 @@ public class VMSnapshotManagerTest {
     public void testChangeUserVmServiceOfferingFailOnUpgradeVMServiceOffering() throws ConcurrentOperationException, ResourceUnavailableException, ManagementServerException, VirtualMachineMigrationException {
         when(_userVmManager.upgradeVirtualMachine(eq(TEST_VM_ID), eq(SERVICE_OFFERING_ID), mapDetailsCaptor.capture())).thenReturn(false);
         _vmSnapshotMgr.changeUserVmServiceOffering(userVm, vmSnapshotVO);
-        verify(_vmSnapshotMgr).getVmMapDetails(userVm);
+        verify(_vmSnapshotMgr).getVmMapDetails(vmSnapshotVO);
         verify(_vmSnapshotMgr).upgradeUserVmServiceOffering(eq(userVm), eq(SERVICE_OFFERING_ID), mapDetailsCaptor.capture());
     }
 
@@ -431,7 +478,8 @@ public class VMSnapshotManagerTest {
         _vmSnapshotMgr.revertCustomServiceOfferingDetailsFromVmSnapshot(vmMock, vmSnapshotVO);
 
         verify(_vmSnapshotDetailsDao).listDetails(VM_SNAPSHOT_ID);
-        verify(_vmInstanceDetailsDao, never()).saveDetails(any());
+        verify(_vmInstanceDetailsDao).saveDetails(listUserVmDetailsCaptor.capture());
+        assertTrue(listUserVmDetailsCaptor.getValue().isEmpty());
         ArgumentCaptor<String> detailNameCaptor = ArgumentCaptor.forClass(String.class);
         verify(_vmInstanceDetailsDao, times(2)).addDetail(eq(TEST_VM_ID), detailNameCaptor.capture(), anyString(), anyBoolean());
         List<String> appliedNames = detailNameCaptor.getAllValues();

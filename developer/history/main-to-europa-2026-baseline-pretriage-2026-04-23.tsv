@@ -1,0 +1,238 @@
+sha	date	subject	pretriage_status	detail
+3166e64891fc75d4d32b66d874cff3f613b09b52	2026-04-17	Add support for new variables to the GUI whitelabel runtime system (#12760)	documented	already present in tracker
+f820d0125de3f34977cb55d8a388388f04586452	2026-04-17	fix end of files and codespell errors	needs_source_review	
+83f705ddc58841991e01436210d64bef55d98f52	2026-04-16	Static Routes with nexthop non-functional for private gateways (#12859)	documented	already present in tracker
+6e810989b63859e2c235a3fa2c01d6419b28a0af	2026-04-16	HAProxy Configuration: network.loadbalancer.haproxy.idle.timeout (#12586)	needs_source_review	
+e0fe953791bab5b8e7547c7e559b6f655a3f46c3	2026-04-16	fix: NSX SDK list operations are pageable: the API returns a non-null and non-empty (#12834)	reverse_apply_pass	patch-equivalent likely present
+05c59630e0ae0fb3e7df8b15ff00af0ae005197a	2026-04-16	fix: LB Creation avoid 404 API errors due to non-needed patches (#12835)	documented	already present in tracker
+1fc4cb90bff4d6e3cab6bb4d4de40903a8cef152	2026-04-15	Routed VR: accept packets from related and established connections (#12986)	reverse_apply_pass	patch-equivalent likely present
+c6936889f5cb15ebf6b7fdbd7d1ddeb5fcc5cdcf	2026-04-15	server: prevent adding vm compute details when not applicable (#12637)	needs_source_review	
+2511fdffaad8e7bf08328a7363e0437bf32d355b	2026-04-15	Implement limit validations on updateBucket	reverse_apply_pass	patch-equivalent likely present
+13842a626d7e3bf1debcb62daae35ddab87c14ac	2026-04-15	Address reviews	needs_source_review	
+160876c6d7d31ed2ba2ad9233fa3b40371e070e9	2026-04-15	Fix: API Thread held forever during force deleting across MS (#12968)	documented	already present in tracker
+5013cf2af649968abb34b76ebf8059fc0b196447	2026-04-15	Fix user password reset mail template value  (#12882)	documented	already present in tracker
+0c86899cc198ee5dd75ded9cffa7eb4adc48332e	2026-04-14	Added VDDK support in VMware to KVM migrations (#12970)	exact_subject_hit	9713ecd26f7c224ae85010d888d4e54405e6be6c
+d75acb6efcc2f80b878248b7d125102612eed7b2	2026-04-14	Fix rollback disk snapshots on instance snapshot failure (#12949)	needs_source_review	
+38abe2df0bb9bb876e0fb40f1e2bcae3aea45ba0	2026-04-14	Allow list async jobs by resource type alone (#13011)	documented	already present in tracker
+feb60769305e48451877a430d2352fb3e0981429	2026-04-14	Remove unused config consoleproxy.cmd.port (#12807)	needs_source_review	
+161b4177c2d12bf3cf3bc9e70e2bf70a961e6389	2026-04-14	Add logs for storage pools reordering (#10419)	reverse_apply_pass	patch-equivalent likely present
+ed575cc0a1071e50272ed7e3d3491b9aac669432	2026-04-13	New config.json variable to set the ACS default language (#12863)	needs_source_review	
+ae455ee193ec4671c0d3fa231891f881dcaef152	2026-04-13	VPC restart cleanup for Public networks with multi-CIDR data (#12622)	documented	already present in tracker
+47c5bb8ee7a709d1ee0e4f2276da2e837137244e	2026-04-13	Support list/query async jobs by resource (#12983)	documented	already present in tracker
+5b696c0ec7ad0fdb1fc6e78ce39fafa07af498dc	2026-04-13	Create, Delete, Enable, Disable, Enter, Cancel maintenance of Primary StoragePool with ONTAP storage (#12563)	exact_subject_hit	eb4136e17c0ce78e83fec4787112d7df81b14e70
+8eb162cb996d2020447c1cdce69a43e04c0a5e69	2026-04-13	Updating pom.xml version numbers for release 4.20.4.0-SNAPSHOT	needs_source_review	
+d6f4fc3ac4026e46483d678ea30ba31bf6c98539	2026-04-13	Updating pom.xml version numbers for release 22.0.1	needs_source_review	
+19b4ef106931aa1d6a8fed06984009d86760e4de	2026-04-13	server: reserve backup, bucket resource limits during operations	needs_source_review	
+9f57a4dd19f1c97a579f74ee7d7ff535fddf2820	2026-04-10	Unhide setting `js.interpretation.enabled` (#12605)	needs_source_review	
+7c7b2ae75d1b1b27afd4d65b6f52da5c84c6777b	2026-04-11	Fix KVM incremental volume snapshot creation (#12666)	needs_source_review	
+b196e97cc36ca3e58dff188eac1ad69eb0d3af95	2026-04-10	Prevent deletion of account and domain if either of them has deleted protected instance (#12901)	needs_source_review	
+df7ff97271925151a5ca08a495280866d4af1fbd	2026-04-10	Create volume on a specified storage pool (#12966)	needs_source_review	
+273699cf566394759d8c709707ce57e3348a883f	2026-04-10	kvm: fix wrong CheckVirtualMachineAnswer when vm does not exist (#12928)	documented	already present in tracker
+8f3c6fad7a99a9184338c33d026226c31f010568	2026-04-10	set snapcpg config on copy (#12955)	reverse_apply_pass	patch-equivalent likely present
+27e4d979f1218b6a2068d5f406d358941ccd0399	2026-04-10	Clean up backup references to their schedules when the schedules are deleted (#12401)	documented	already present in tracker
+80ee7f183f7abe8528961b1bd4e71c92b9dfbe76	2026-04-10	Fix six package incompatiblity with EL10 (#12799)	needs_source_review	
+e297644ce1e8c0d37cb5fa86c71dc247df9ccd4a	2026-04-10	KVM: Enable HA heartbeat on ShareMountPoint (#12773)	exact_subject_hit	579a22856fa89a6ddcc1e01a16b9bb3abfd14e4e
+2a60305792c19911012469a1ef8e80deec960a47	2026-04-10	Fix snapshot chaining on Xen (#12597)	reverse_apply_pass	patch-equivalent likely present
+7b467496cb9e8c44a8eaeb186f93a77c4ebc6be6	2026-04-10	Do not include snapshots with Group type in snapshots resource count (#12945)	reverse_apply_pass	patch-equivalent likely present
+68bd0563061420d5fefd5de1c7827a25daeeb4ed	2026-04-10	Support timeout configuration for Create and Restore NAS backup (#12964)	needs_source_review	
+4ba4bd33c3cf7377b1b860313cc6ae6e529c96c3	2026-04-10	replace GROUP_CONCAT with JSON_ARRAYAGG to avoid errors like Row 19 was cut by GROUP_CONCAT (#12777)	documented	already present in tracker
+416679fae138093af3b5c479a85a8874c3e01fe4	2026-04-10	Fix domain parsing for GPU & add Display controller in the supported PCI class (#12981)	documented	already present in tracker
+b1bc5380a28eb214a2ba1e58800fa7fe228eea66	2026-04-09	fix: support SharedMountPoint for KVM volume import and unmanage (#12956)	reverse_apply_pass	patch-equivalent likely present
+b0b3dc91f5362964f62fd9ee1d1b037d5c8bcf7d	2026-04-09	fix: support SharedMountPoint volume checks for importVm (#12946)	needs_source_review	
+b5858029bb516329f5688662b2232c9595f67748	2026-04-09	Fix listing service offerings with different host tags (#12919)	needs_source_review	
+1ff9eec9977fc68f59e11644b9543177df403ab5	2026-04-09	Load arch data for backup from template during create instance from backup (#12801)	documented	already present in tracker
+7ba5240b311f4b66ff4d2c2ced0a14292d7cd62f	2026-04-09	Block backup deletion while create-VM-from-backup or restore jobs are in progress (#12792)	needs_source_review	
+03de62bf3890d686e58d90c1cc5972a75b65ee24	2026-04-08	Support Linstor Primary Storage for NAS BnR (#12796)	documented	already present in tracker
+abdf926219af0faa90c6515bb6ad51f0e8881890	2026-04-08	Revert "Use lateral join (introduced in MySQL 8.0.14) with subquery on user_statistics table in account_view for netstats (#12631)" (#12965)	reverse_apply_pass	patch-equivalent likely present
+30dd234b000845706c7f79f44ed498fd4eab01f2	2026-04-06	fix: NsxResource.executeRequest DeleteNsxNatRuleCommand comparison bug (#12833)	reverse_apply_pass	patch-equivalent likely present
+c8599040b4756034c7105806a53d2c99eb7ea0fe	2026-04-06	Updating pom.xml version numbers for release 4.20.3.0	needs_source_review	
+6f1aa96b4cd5e78513afeedfe2e06833ef736bda	2026-04-06	engine/schema: fix new systemvm template is not registered during upgrade if hypervisor is not KVM (#12952)	documented	already present in tracker
+470812100ea6e9b5790bbc3a9f747d7d733ee36d	2026-04-02	server: set template type to ROUTING or USER if template type is not specified when upload a template (#12768)	documented	already present in tracker
+e10c066cc14306193f4cebc63a3ec1ee07e41084	2026-04-01	Fix NPE during VM setup for pvlan (#12781)	documented	already present in tracker
+b805766f4baf322988b8628c2ac5dc655383e2b3	2026-04-01	Fix Host setup when persistent networks exist (#12751)	reverse_apply_pass	patch-equivalent likely present
+e2497cfc4df7daa13167ad2cf12e2eed782b0558	2026-04-01	backport: default system vm template update implementation (#12935)	reverse_apply_pass	patch-equivalent likely present
+4f93ba888c36d992c09af8d2486ea4ec75102f79	2026-03-31	Refactor Quota Summary API (#10505)	exact_subject_hit	d983c56298badb808a8417a8bc12434a17d1c973
+5d61ba353839efdf74ec71352a4c0ec833d9daf9	2026-03-31	[CI] Create `.codespellrc`; upgrade codespell hook; fix typos (#12824)	reverse_apply_pass	patch-equivalent likely present
+5d95bdd0eb9b4644cad0582a7859ae8abac055a4	2026-03-31	pre-commit trailing whitespace auto clean up (#12841)	reverse_apply_pass	patch-equivalent likely present
+7eea9ed4488b1df0b9cd3f00c502fea182a09aff	2026-03-31	Add API to enable/disable NICs for KVM (#12819)	exact_subject_hit	da920f25bb8e1c5a9aebe6b893c4f9bde60b3a0f
+18075ae4a96be1b545c8d8a5a73004911c6079e7	2026-03-30	Add support for Headlamp dashboard for kubernetes; deprecate legacy kubernetes dashboard (#12776)	documented	already present in tracker
+cf9bda2050205f63a1a76b99bff3cd5dfa596baa	2026-03-30	[CI] Add github-actions ecosystem to Dependabot (#12823)	reverse_apply_pass	patch-equivalent likely present
+6bcbb008b45af6e3e5ffb242d2da14fffa09335e	2026-03-30	Bump `actions/checkout` to `v6` (#12164)	needs_source_review	
+4ebe3349b77b0cfb11c21a1c25cc0fb331f4018b	2026-03-30	add user-agent header to template downloader request (#12791)	reverse_apply_pass	patch-equivalent likely present
+71bd26ff7cdabe07cc8c4344b26f156671d88fd4	2026-03-27	PowerFlex/ScaleIO storage - the MDMs validation improvements (#12893)	reverse_apply_pass	patch-equivalent likely present
+68030df10b1f3a1c203a1b8f65f56817ecb149fc	2026-03-27	VM start error handling improvements and config to expose error to users (#12894)	needs_source_review	
+6ca6aa1c3f012ede9b8342ad07adbb9f14e37f8f	2026-03-27	Fix NPE in NASBackupProvider when no running KVM host is available (#12805)	needs_source_review	
+131ea9f7aceb4c12d8cbf0fe92bcc0419f40a2bc	2026-03-27	Fix PowerFlex 4.x issues with take & revert instance snapshots (#12880)	documented	already present in tracker
+d38c1f8d1250172b535f13161028359b02fc8fb0	2026-03-27	Fix error message while creating local storage pool (#12767)	needs_source_review	
+2416db2a443932ee9ad924d7f3948c7c1d4c698e	2026-03-27	Fix NPE on external/unmanaged instance import using custom offerings (#12884)	documented	already present in tracker
+b22dbbe2d7ad128f5d4b73f9b24586ce095cc1d6	2026-03-27	Fix Revert Instance to Snapshot with custom service offering (#12885)	needs_source_review	
+c1af36f8fc9bcba6480f7f0daf2542c991f75e18	2026-03-26	[4.22] Prevent unmanaging or reinstalling a VM if it is part of a CKS cluster (#12800)	exact_subject_hit	0df62891cd5d57c365577605c80d711837b17937
+84676afd5cc7934948c2dd3b08618787e523c39e	2026-03-26	Check for null host before proceeding with VM volume operations in managed storage while restoring VM (#12879)	needs_source_review	
+4b7370a6017a6b886576790ed5f284a884abb172	2026-03-26	upgrade: skip the upgrade paths which are not needed (#12881)	needs_source_review	
+d6c39772b2177c9fde87780611f33a52902d4395	2026-03-25	Set management server id from cookies after saml login (#12858)	needs_source_review	
+7c3637a2f5803f41ccc93e5316c03058d7b538a0	2026-03-24	Fix duplicate dummy templates, and update guest os for dummy template (#12780)	exact_subject_hit	7d1012e114251df0bbe66adf849dcd1c346a644c
+7107d28db82fe656a2fba11bf76b487ae05376f3	2026-03-24	[VMware to KVM] Add guest OS for importing VM based on the source VM OS (#12802)	exact_subject_hit	b0b8f54ea857231bb54b592973cb9c641983920e
+bce55945ece8ee7453b2ee42426e823b31643d43	2026-03-24	Mark VMs in error state when expunge fails during destroy operation (#12749)	needs_source_review	
+c19630f0a4f34a82a9414b9b6d16b5ec44b86860	2026-03-19	Fix snapshot copy resource limit concurrency	exact_subject_hit	fe03ece06db3b0369b0c276875051706b9fc5cba
+b497f58022ca86afa9eb2284422d16909e7eb9ca	2026-03-19	Fix K8s scaling and deletion issue if firewall rule is for ALL ports (#12806)	exact_subject_hit	38ed1cbef4c6b69e481e9aeae92ce791f06dfe4e
+7cdcf571fac5e4a7f1e683668293d6251803f101	2026-03-19	Fix xcpng test failures (#12812)	reverse_apply_pass	patch-equivalent likely present
+8608b4edd027721df6993c41eaa2880ad4d6ea52	2026-03-18	Fix snapshot copy resource limit concurrency	exact_subject_hit	fe03ece06db3b0369b0c276875051706b9fc5cba
+f3331344566bfa21c0f135bb0bb6f1784182f336	2026-03-17	Address merge issues	needs_source_review	
+e8d57d1b0dc173ef55c6386f91f1d77b8b8c9830	2026-03-17	Implement/fix limit validation for secondary storage	needs_source_review	
+86c9f7bd941f22220261c388f700b30fe79ef1b2	2026-03-17	Fix backup list	reverse_apply_pass	patch-equivalent likely present
+24fd440ee728ff265431d470f568cf44696db978	2026-03-17	Fix create VM from backup	documented	already present in tracker
+8ce1c9876eeaee397f0334882029e78583182f90	2026-03-17	fix restore volume from backup and attach	needs_source_review	
+9db630932e0c711043c409cce4328d63bc4e7a3a	2026-03-17	Address public IP limit validations	needs_source_review	
+c6b20b8cc7f1cade0aec86978ab8ac86923ba88e	2026-03-17	Fix failing tests	reverse_apply_pass	patch-equivalent likely present
+88a12a801f8337f9bad536c606773d23d51d9b53	2026-03-17	Cleanup imported VM from disk on failure due to volume allocation + prevent duplicate volume and primary storage increment on import	exact_subject_hit	da94b79294b1418f9b32c404c011ce5b6e15426e
+e93ae1a4f455a0dff010db673b47b913220f9037	2026-03-17	New config key "allow.import.volume.with.backing.file" to skip volume backing (#12809)	needs_source_review	
+9c0c8da706ea8835d038bb9ae1f7cddbd6a2270b	2026-03-17	[22.0] Address limit checks for VM, CPU, memory, volume, and primary storage	needs_source_review	
+b744824f65813e01786d8a69ed82a4f49fe45e39	2026-03-17	Add code owners for nsx network elements plugin (#12838)	reverse_apply_pass	patch-equivalent likely present
+3bd5410f9aa404978509e21775fa006b205bd4ec	2026-03-17	Add support to clone existing offerings and update them (#12357)	exact_subject_hit	36750771df5fc8734f5d36f1beead0de82f3ad3a
+61afb4cb782a0fa1042c85ee894370eb71b5cce4	2026-03-16	fix identation	needs_source_review	
+23b19a9776ded761f5c36b5e8fb367450fb62d2f	2026-03-16	review comments	needs_source_review	
+dc7068a13517717edb37431966527d3bc1c6374e	2026-03-16	Address public IP limit validations	needs_source_review	
+e8f8aca694f7d1f46045a542c416cea135d1cf56	2026-03-16	Fix failing tests	reverse_apply_pass	patch-equivalent likely present
+497266270b9f0a238f9712e9c8cd82a99024ff76	2026-03-16	Cleanup imported VM from disk on failure due to volume allocation + prevent duplicate volume and primary storage increment on import	exact_subject_hit	da94b79294b1418f9b32c404c011ce5b6e15426e
+0a4b4c6af05c20e00a1eba8c0454780378cd6e8e	2026-03-16	[20.3] Address limit checks for VM, CPU, memory, volume, and primary storage	needs_source_review	
+360b64ce1e35623273ecbb955e6be7b8156b257c	2026-03-16	Consider infinite resources when calculating secondary storage limit for upload operations	exact_subject_hit	1edc1029461e40566c3da5925995765f5ed3d5cf
+81a8ac8e1ffa4438349eb5901e798428a6a744dd	2026-03-16	secondary storage resource limit for upload	needs_source_review	
+03dfe4d1f3e165b943346437b421ce72f87ae249	2026-03-16	secondary storage resource limit for download	needs_source_review	
+4bcd509193fcbcfdbeb88743b029584882aa7e30	2026-03-16	Fix resource limit reservation and check during StartVirtualMachine	needs_source_review	
+06ee2fea76d1b5f4fced86793e18e365bd68b7c2	2026-03-16	Implement/fix limit validation for secondary storage	needs_source_review	
+e0ef3a694723b644f1baeca138d2e2bba80244da	2026-03-16	Check resource reservation on volume snapshot creation	needs_source_review	
+3b987f21afbf02dcdd376a94835e3e277628a4e6	2026-03-16	[20.3] handle user's canned policy when a bucket is deleted	reverse_apply_pass	patch-equivalent likely present
+0edd577f4bb8a071cbc8c8bb066fa26e6b634101	2026-03-16	Fix: KVM Direct Download URL injection	documented	already present in tracker
+b025e85fc57b46f4b01b5dd3720fe2c031a2ed81	2026-03-16	Check resource reservation on volume creation	needs_source_review	
+7faa1b650b9258d9ebe2eaf7f64868dc40fc6c4d	2026-03-16	[20.3] resource allocation vpc	needs_source_review	
+1593944553fb92431a1efd3f500574f120363fa6	2026-03-16	[20.3] Implement/fix limit validation for projects	needs_source_review	
+4dd91feb277a5a529b261dd5fa78d84ac31f9edc	2026-03-16	[20.3] resource instance limits	needs_source_review	
+89df31816480d07d5cade1989929e83f7cffbbe8	2026-03-16	[20.3] resource allocation	needs_source_review	
+93239e09f198964f3b3a3155c124dac7fa3b9d89	2026-03-16	Add conserve mode for VPC offerings (#12487)	exact_subject_hit	d8646c2c1ac32e0f4d7c33c062f1b7dfbba99e1b
+09ee0927e9bb09353282864742a000d34429e740	2026-03-16	[4.22] Prevent Load Balancer rule creation when adding a VM from a different network (#12785)	documented	already present in tracker
+8c579538f97be99b4f29d7c24317c609f97c9e58	2026-03-13	CKS: Allow affinity group selection during cluster creation (#12386)	exact_subject_hit	0399cdfe22d6454c46c17ad82d80df3ad68c4f1c
+07c3dc86b2df474a26e5ba9329c005bc1d7dc8ae	2026-03-13	[22.0] Consider infinite resources when calculating secondary storage limit for upload operations	needs_source_review	
+d7224151053b29b1f267a3802f2a0511995fc34c	2026-03-13	[22.0] secondary storage resource limit for upload	exact_subject_hit	fa99e94ad73ad475afbdf725deed6d624fdf5e97
+4855d40e6e32fdc9b899675b1808e4ea783b970d	2026-03-13	[22.0] secondary storage resource limit for download	exact_subject_hit	461d51a49869a84766e05c6b4d945f39e6b5e3f0
+3b42fbf3b246ac4a88ce297e0e9f1657ba8646a8	2026-03-13	Fixing CI failures (#12789)	needs_source_review	
+2359061f663a0003dda83fd3ecb60343a440e935	2026-03-12	api: remove required flag of gatewayid in CreateStaticRouteCmd (#12786)	needs_source_review	
+71daf84c9e89924bcee239250a3bd5c6bbebaf6e	2026-03-12	Show security group selection in Basic zone VM deployment and fix SG listing for cross-domain deployments (#12775)	documented	already present in tracker
+faaf7669c59f1dc7d841e6ba0cd583009db4e288	2026-03-10	Update isolation methods description for physical network (#12759)	reverse_apply_pass	patch-equivalent likely present
+d8f748ad0e84e3b37e059177f58a464e994f209f	2026-03-10	Update .asf.yaml	exact_subject_hit	299ed0fe69e0c0c8197ba48087bc0bd9f6890c54
+7aa0558c5b9127ef1633e151baf60ce7172ceaff	2026-03-09	ui: avoid 404 after deleting template zones (#12681)	needs_source_review	
+db836229564f3a86f39d9d0d0d44530526bf3d92	2026-03-09	ui: fix create network from global create menu (#12677)	reverse_apply_pass	patch-equivalent likely present
+74af9b98757a33fa8ef64c8f25ef212efefc0150	2026-03-09	API key pair restructure (#9504)	exact_subject_hit	1a367f0dd59b3d8475d8498f5cd98ee57949aadb
+9bbd32a8ef03b61843cf71c2b97141f1450c4945	2026-03-09	Add DaanHoogland to the list of contributors	needs_source_review	
+c3d6a8cff72c47412670a914e3f4d30ad06bc46f	2026-03-09	server: fix templatetype during iso upload (#12151)	reverse_apply_pass	patch-equivalent likely present
+58916eb608036669c3fabe0239b339745b8475cf	2026-03-05	Use lateral join (introduced in MySQL 8.0.14) with subquery on user_statistics table in account_view for netstats (#12631)	needs_source_review	
+120a43648b8d765fbbfdf04ba66edfb9050a8f36	2026-03-05	set width of dropdown select items for Network Offering during add tier dialog (#11899)	reverse_apply_pass	patch-equivalent likely present
+9cc6c09b9eb9fa8f52795574c2f855aeca840f2f	2026-03-03	Remove broken ViserJS attribution link from UI README (#12724)	reverse_apply_pass	patch-equivalent likely present
+608345d165c1bd39b9666763b9d22300524b4496	2026-03-02	Update collaborators list in .asf.yaml	reverse_apply_pass	patch-equivalent likely present
+6516f7f1aa71bb2ea46e8b02663d33f9f38345e1	2026-02-27	Fix query execution in countVgpuVMs (#12713)	reverse_apply_pass	patch-equivalent likely present
+56dc11980f6081fc8ce860c102aec1f474493625	2026-02-27	test_accounts.py failure fix - keep the camelCase parameter "domainId" (#12689)	needs_source_review	
+9e386a3128b3130e35a7f31594eafecfb511f39d	2026-02-26	PowerFlex/ScaleIO client initialization, authentication and command execution improvements (#12391)	exact_subject_hit	c5ebe3d17d3bd64cd5ebd4cc7f4c965f99e83023
+17ec4fc31c4c784ade12ef9a0caa9eb6b66478b7	2026-02-26	UI: Fix duplicate quickview (for provider column) in backup repository (#11849)	exact_subject_hit	699d6cad0ff760962e95b7e728b9359aedbc3c56
+744c8afcf156ab2ada511b9d0268e2456f35b7ce	2026-02-25	fix primary storage maintenance on xcpng (#12694)	exact_subject_hit	e937f051b5db8cb4682109caa13b382140d10e64
+c748b69e70ce97a18ea8ac5c0157364c76a52b97	2026-02-23	Fix NPE during public IP listing when a removed network or VPC ID is informed for associatenetworkid parameter (#12372)	exact_subject_hit	8d816f3a790fad65ed235c1c3103e6a1eee39a53
+da7ac80dc41e050e7e1f0275a0bda1bc185d0ab8	2026-02-23	prevent user.uuid from being regenerated on each operation by reading it from the DB (#12632)	exact_subject_hit	f23046f5a5d9e68f8de4df7cacf6cb8cc5d0fb49
+95816b44e93341e63688c66da7d0673acb59c953	2026-02-22	extensions: allow reserved resource details	needs_source_review	
+d11d182c715585fc61da0c39e87e1e455e28da49	2026-02-22	[22.0] Fix resource limit reservation and check during StartVirtualMachine	needs_source_review	
+3d678e726ad3336fcd6bf4d991f34fa5de0e4fb8	2026-02-22	[22.0] resource reservation on volume snapshot creation	needs_source_review	
+7703fdacab4503526208bc019740a8df81552f48	2026-02-22	[minio] Handle user's canned policy when a bucket is deleted	reverse_apply_pass	patch-equivalent likely present
+46a6bbad270e58ac068803764f6d78a3c5f98e36	2026-02-22	Fix: KVM Direct Download URL injection (#60)	reverse_apply_pass	patch-equivalent likely present
+1f849caa0be5e4ae6941942d236fdd580d3068e9	2026-02-22	[22.0] resource reservation on volume creation	exact_subject_hit	962821ecbe98fac46b21ad93558d2b276921568d
+831ef82ff9b691c52c34d339b445ce32b7b1070a	2026-02-22	[22.0] resource allocation vpc	needs_source_review	
+8d269cf5bef1faf069264ff2e66e0124823023ad	2026-02-22	[22.0] Implement/fix limit validation for projects	needs_source_review	
+003c8408179b04af8cc05243e49bc6712729b2fa	2026-02-22	[22.0] resource instance limits	needs_source_review	
+37e3657770745d8c69c1177d63645850c17a6b26	2026-02-22	[22.0] resource allocation	needs_source_review	
+9dd93cef76056833c94487fb39c8e8997e2e03b0	2026-02-18	Support for custom SSH port for KVM hosts from the host url on add host and the configuration (#12571)	needs_source_review	
+8c12a13216e677ed1090c797c2aa7507cde3b65c	2026-02-18	Fix NPE during reset password (#12585)	exact_subject_hit	d897f2c64e53e40b0fd53710a558c6ae86e0c29f
+c79b33c1fbd4840613fa8a09cbffc9b76ea0b1a1	2026-02-16	Allow enforcing password change for a user after reset by admin (root/domain) (#12294)	exact_subject_hit	09ffd426340f71453340a4969c37939eec9877a4
+ae5308bdd2051578096ae1a0fb11412ac835d97b	2026-02-13	Fix issue when restoring backup after migration of volume (#12549)	exact_subject_hit	eae78c1c15c48f7c8ac63d23b3511bf19a9206ae
+e22f842ed8df134397b18360c70e866c4af65ba2	2026-02-13	Allow limit queries without random ordering (#12598)	exact_subject_hit	5036c091d7457cf28ed4a90d8bb285e787afddae
+b1edfb8d606611ab0e60567a58419f1a4de5313c	2026-02-12	Remove and Update collaborators list in .asf.yaml (#12627)	exact_subject_hit	2876ef0df95bbdbd311e2da15cb86665377909a6
+34f6f413a1f8808919025f20e8d45525ae32f0d7	2026-02-11	Fix injection of preset variables into the JS interpreter (#12515)	exact_subject_hit	8d079f254964b09af8108be8f5311b9faadae7ba
+b45726f7b12a34b4fee185197566ca0975892342	2026-02-11	ssvm: delete temp directory while deleting entity download url (#12562)	exact_subject_hit	9967918e849db0d222333ed44ecaccb3ff63c643
+a0f35a186d826a7acbd65041bba1c4d2db1ddbfc	2026-02-09	Fixes issue with loading Capacity dashboard when mulitple backup providers configured (#12550)	exact_subject_hit	b5896bd237cbe79759739e169d04147aaf5785db
+53c98c33e6071526535225ab8f56aa557877e3c8	2026-02-05	ui build fixes (after merge)	exact_subject_hit	d074a14308fb086a43ca6727a1a21f8ffb86ca53
+3d7d412d5bedf77c8994553562a1ba2c0c65cfbe	2026-02-05	UI: Add comprehensive domain deletion confirmation dialog (Feature Request #11497) (#12380)	exact_subject_hit	2d17d81399e20152a9ef7c2701aa32da7313da83
+e32d08e50e1296853203f2f4d0ff92b824ae2d63	2026-02-05	Create new generic method for resource UUID obtention in event's descriptions (#12502)	exact_subject_hit	5165d01845367129222005db705528a6479b9cc0
+349eea501abef9f0bced6e1f2023b77f56363a1d	2026-02-05	Mvn updates (#12575)	exact_subject_hit	ae062a3ce0c220b048245e90af998c7986ef219e
+9ae696d1c82efb6ade3a365600f909bba2660197	2026-02-03	Preserve VM settings on Instance Snapshot revert for Custom Service Offering (#12555)	exact_subject_hit	033053d122a3942795c20d43d0a7b0bcc52c7561
+ce42ce54c2d966bf5814afb7e0e4a1b973686ffa	2026-02-03	Fix template details deletion while updating template from UI (#12559)	exact_subject_hit	7746638441ad27887f80d625c54e495419d841af
+b869913529ec8e230abcb5d6b0924a36a7cdc7e3	2026-02-02	noVNC: support Spanish Latin American keyboard on VMware (#12484)	exact_subject_hit	35fcf2f332f6dfabecc0eef2cb7820323c682867
+6bed3d4e641f48822fc1b9126bd6e2c71f28ed02	2026-01-30	Update storage usage / size in backup usage response (#12539)	exact_subject_hit	60b6e688da4d8f10aaf0d3fa39190ec36040f303
+e1d512e5fd1b2893fb3d729aed7d6e2b38623c42	2026-01-30	Set CORS headers for both http/https in SSVM apache config (#9389)	exact_subject_hit	8f2117556a8ac96d4ec65e0e8bcb688d33682ae3
+d98511dddd86206c15c23b09e5180a931fd1c54e	2026-01-30	Update physical size for the snapshots of the volumes on ceph primary storage (#12465)	exact_subject_hit	46e95a6082aef7b3e94e981dafcde6f0cd1a9439
+18972caf5f1cfc90bdad59669dc7f8cb031ba64d	2026-01-30	api,server: allow cleaning up vm extraconfig (#11974)	exact_subject_hit	979767b91f60e3068896f5efccaf4653adada384
+25eacaa1ff1a1c01aa51a9ae745734961ca33956	2026-01-30	set `displayName` to `name` by default (#9719)	exact_subject_hit	39736446ef24c60ce9768beab8e28a8cd4e8a725
+81f16b626163aa8a076be21a333c8e1dea8d1dc7	2026-01-30	engine/schema: prepend algorithm to checksum during systemvm template registration (#12165)	exact_subject_hit	7223a5452740b0b14a35f993d5d7f3292faf21e1
+9d523cbbfef6c097f7dd1488c282637b3b63c256	2026-01-30	Bump org.apache.maven.plugins:maven-war-plugin from 3.4.0 to 3.5.1 (#12497)	exact_subject_hit	d91164b33ab3bacea329f101007aa8c3cfa2210b
+45d623ec0d86ef040028b7cbc8339f7d0c7456f4	2026-01-30	Update search filter size dynamically (#12552)	exact_subject_hit	9ed839ffd42e810465ef7f50f30910f63251adea
+bb8e7d39e6efc0a68f3536b607df6b5c2a01946e	2026-01-30	api,server: allow configuring repetitive alerts (#11325)	exact_subject_hit	aa360633efd70d672d5aabff6d4a294038f94fda
+a6ccde44c4bc3c2b4623aca6b55500a722144763	2026-01-29	kvm: honour disk controller for vm during attach volume (#12452)	exact_subject_hit	96b1370b8cf77df64f81f733ca034773c09f75d1
+0e94f7d7717857884bd2568bd7917faf10cd6e48	2026-01-29	UI: Show applied search filters (#9520)	exact_subject_hit	cd067567ebe63c1595ee7475167f454ecb751fbd
+7d52cd0e43a5e225f10bce251f7cd357060382cd	2026-01-29	Fix calculation of the next time that Usage will execute in `removeRawUsageRecords` (#12518)	exact_subject_hit	928acd6f6d60b678c343318fa0875165bf72a9eb
+aef3df75771ecb2eaf237b3b803b87cf332a8554	2026-01-29	server: pass network label of physical network when plug nic for private gateway on hypervisor (#11846)	exact_subject_hit	647fe01dd1004e9496c5ea6cfed189cb3b8822bb
+3ba5c2b610f1a13cae612462720ffaf624b76501	2026-01-29	Fix logs mismatch between Network GC wait and interval (#10776)	exact_subject_hit	a2cf610362cbedbf824bee357714d3a1761b823e
+26b57655ecea10d65689084a9bf7a2285b744697	2026-01-29	Deployment plan fixes for VM with last host, and last host in maintenance (#12062)	exact_subject_hit	d3a560a6eae305452fbba285d7b324a7475059c5
+664f76c7e4b61489927abb6b5e859d79c47662a4	2026-01-29	Fix KvmSshToAgentEnabled setting description and make it dynamic (#12533)	exact_subject_hit	e9eee30bf31f5db97bc4c7c1e7835e796cac588e
+9b4f16b73fabd2c53cb9884326f8442936d66bad	2026-01-29	api,server: apis return their http request type (#11382)	exact_subject_hit	b46ee182030795cdbf22a2d12db50ab4a71bdd77
+286e406e3872d7cbef26e3182ad4b764841d90e4	2026-01-29	ui: clear selected resource when no items in listview (#11946)	exact_subject_hit	5e0d3904c8e52fff46ddbb6618a2eecfbbb2fda4
+b7fc7179fca83f12f2b6ef4d215b02f79f04bcba	2026-01-29	Add batch deletion support to `removeRawUsageRecords` (#12522)	exact_subject_hit	22dd892cba193a6619695a2b900416ea667c51a4
+243872a77103494b3c030439e4ee24071a03ef2a	2026-01-29	Use infinite scroll select (#11991)	exact_subject_hit	db1577eeabc3bfac71d07fe5c5add711f3c0eb57
+98debd235f99c2e6e0f49b69f7b16b5e3b9b0853	2026-01-29	gha: fix duplicate key for stale workflow	exact_subject_hit	33287d98163210bf3d41169aa0e31ec1b871e43e
+1300fc5e91ac0c6ab57dbd35bb083944e9f94cef	2026-01-28	Fix keyword parameter filtering in listBackupOfferings API (#12540)	exact_subject_hit	8cc5870a2e61c95fb16bb76c763b7449a48a6870
+4d35d68e4ef77a6e034f2464ab92976a175bc11c	2026-01-28	Fix url in password reset email (#12078)	exact_subject_hit	24cd2cd4143488e2584ab58e2d4b1310ce6d5744
+38e30a116c1c7b7011582e4b6c14f541e5be651b	2026-01-28	Add support for vTPM for XenServer and XCP-ng 8.3/8.4 (#12263)	exact_subject_hit	f9d33273ffd0fba2444001d4e8db04b5599540b7
+83ce0067b82bc39c7c91667c6ac4d2dd144ce450	2026-01-28	Update the snapshot physical size for the primary storage resource after snapshot creation and during resource count recalculation (#12481)	exact_subject_hit	07c5b20e96b57f2ac692c0fe44660be3e4fc0322
+ff7ec0cd229fc829f3f978e3573366cd20fec5f2	2026-01-28	Update alert id for VR public and private interface (#12527)	exact_subject_hit	86f5ff9f9c7f7e46ece304068102574601b9577e
+6932cacabc187cf3d76e53c7979ed10067aff2f2	2026-01-28	Allow copy of templates from secondary storages of other zone when adding a new secondary storage (#12296)	exact_subject_hit	51b1344fc1233ac47e4ed68d7965ad8c4e7acb7a
+4761935145e100622df083dedffec612482b16d2	2026-01-28	server: add options for kvm.guest.os.machine.type (#12414)	exact_subject_hit	875c36489bff7298889736daf60afa8d01b8430a
+70d4c9d1baa5f6e7696b6311e7eeaaa2c4f0de3b	2026-01-28	Consider secondary storage selectors during cold volume migration (#10957)	exact_subject_hit	86754b356e5721f5a53f9a761208f46eb17adfaf
+5aced7325046a3c80a997370176a56bd346859d9	2026-01-27	ui: reset configuration allowed only when value not default (#11728)	exact_subject_hit	7f88a28b1e7ed464d91d45cbb96d6ff28c386127
+2056c582f1c789a37b0b417892b458e9b24f966a	2026-01-27	Fix logging of forwarded IPs in logs  (#11854)	exact_subject_hit	6d8999c6d65436a2756149d63346fcb10339be82
+af9d68630f7a5ce70ab329f8d2f96f36aa736223	2026-01-27	Initialize template status='Processing' (#11970)	exact_subject_hit	f4bb6d1ddc927a6095b872cd69cf51c4b2d9fe6b
+ca5232778da46e261529f5ce0bfb027e54656e16	2026-01-27	CKS: Use Zone MTUs when network is created at the time of CKS cluster creation (#12228)	exact_subject_hit	eb7d54cac7f81208ae696e6f0336c6b7f11c93f2
+5fd5b625700b99ec4968fc19552096bcdff8a114	2026-01-27	server: fix remove management server (#12147)	exact_subject_hit	4440135fc33027182e3aa64725ddba7aee3a9596
+ac2242ece23517b7359056779438b32131529f3c	2026-01-27	api,server,ui: support tags for domains (#11964)	exact_subject_hit	4580bf81b85cc4a78b2dc1fd7aa57a2428d77a9a
+0458c5328bf03c1a2f4d291a2e3895e158e7abd7	2026-01-27	Consider secondary storage selectors during template synchronization (#10956)	exact_subject_hit	eacccef7fa19b55891a707c3c27ed101f1762287
+cabd9a98e13f0b7b926391c52ea29730d554088c	2026-01-27	Implemented auto refresh button for VM metrics (#10900)	exact_subject_hit	6953010a063f65441797d0ea7511804780af5886
+ca076637183dc827afc052c755b489c9c985160a	2026-01-27	Show backup offerings with userDrivenBackupsAllowed=false to all users (#11889)	exact_subject_hit	c4d5f872b73832ef623baaa84b28f5e1a7046c4a
+ff0cfc9148a63d340133beb451afaa4699097f43	2026-01-27	Add ability to filter by version for listHosts and listMgmtServers APIs (#12472)	exact_subject_hit	9c2fb70167587fa1680ada5d76c1d23bf2bbc836
+f73362ae48aea35cab4e457c8364c6de3e978643	2026-01-27	Fix saml bug unable to login (#10868)	exact_subject_hit	8fac94f1bcc15a21f592f124f934c2bcce4afe10
+128dbe2c0be87c9a2986030aa40264444738cd76	2026-01-27	Refactor configuration SystemVMDefaultHypervisor (#8934)	exact_subject_hit	4093b725a46add208e3b310860a3ba81f59b6ce9
+9b0c28c16daffbfc448d86f8d3e5fbac86dfc6ac	2026-01-26	fix regression in the listBackupSchedules API (#12402)	exact_subject_hit	72e2b8a3a48cf725ca5dc934998be60d6dcac11a
+5bb5af4c480d5f8155fe52008ff49ef437891007	2026-01-26	4.20: Fix unit test failure (#12520)	exact_subject_hit	c3dd0b2e9b3ba5ebb1f9aa649c4e1bb012df45cd
+63c8b5fc5627fd0de6d05609625e826de1a6f677	2026-01-26	api/server: support deploy-as-is template as VNF template (#12499)	exact_subject_hit	42287cd9080f55cc123635de33dcd75e840e3b19
+097c3a018bae6faf6cdac2db09c56507b980fa4f	2026-01-26	ConfigDrive: use file absolute path instead of canonical path to create ISO (#11623)	exact_subject_hit	23c9288129a2520534fac5ebff27938af392ecd7
+4adb7195701f2b28b86456f739ad59ec9f369abf	2026-01-26	Allow modification of user vm details if user.vm.readonly.details is empty (#10456)	exact_subject_hit	9b59cc71b42975fdc9087f12058ca1b916c280af
+c8cadcb56e553bdbbc141365061bd3542f43612e	2026-01-26	NPE fix while deleting storage pool when pool has detached volumes (#12451)	exact_subject_hit	1e43a61973b962857870df606519653c592a55a2
+8db065a14eb41bab0fb3420e66ee96722f1ed6ad	2026-01-23	limit iso filename to have 251 chars at max (#12430)	exact_subject_hit	7431e3bd2497fa4ff312301886c8ca29cbbf730f
+1b0a036a5b7db45247d5afc425345fd60cdfd1b1	2026-01-21	Bump ads.version from 2.0.0.AM25 to 2.0.0.AM27 (#12269)	exact_subject_hit	af04ccdd11797fb50b3fc430cad65c71866e61e9
+8db7cab7ba41bded0575db09d1390b63bc1ddfb0	2026-01-20	Storage pool monitor disconnect improvements (#12398)	exact_subject_hit	506a4628ba6d0687a4f058cd0f56316180ef8c40
+496bc0329cdb6fcb6cbefb463d37ba1599192176	2026-01-20	Fix: Condition for aborting migration, resume paused VMs on destination (#12331)	exact_subject_hit	fa14921ac8fc03809fea3b9fa3deabdbfb21d004
+cf36fb00008b3f7a71e155d0e408daa907fa04e3	2026-01-20	Set nfsVersion in ssvm agent.properties only if it is not null (#12445)	exact_subject_hit	70104cba34066207ffc41d63f117cd9d78690c9b
+da518e903621187e4cb75af9f550b7c6d57666f9	2026-01-20	CKS: Add image store validation for Kubernetes version registration (#12418)	exact_subject_hit	62997491e5b421edf1689663720600d2abf1a9d7
+03d24ff851d491dbc0145014b4bd967371127c50	2026-01-20	Fix NPE on primary storage delete (#11817)	exact_subject_hit	097d4481ca8e41a26bbd1d73d10e51f63d3e43e9
+2a6ce0c8a810e908139f06d6e12d365801af4422	2026-01-20	Adds url kubernetes iso (#10862)	exact_subject_hit	61d437b26b348e7eb786d76dcf8ba8ed3b31bae9
+42f1e19362ab9030117dc3808dbf3854b6a9f92d	2026-01-19	Mask vncPasswd being logged in agent.log (#12404)	exact_subject_hit	53e1dd0c9e42c01864d9a3165b2d7bb309f9726c
+8b2f1f19c27bebf908f9cda53ec1fadd005e2520	2026-01-19	Support dedicating backup offerings to domains (#12194)	exact_subject_hit	1ec09ea38afe24781f29b59b3ff46c34fffbeb44
+a4b1a27c7d2d93a1da698a7115900b3205c1077e	2026-01-19	ui: fix 404 on login after forgot password (#12448)	exact_subject_hit	f646dc180bd217299def0d898635747bf3205723
+002d9768b2886f34ab2a572bfa462583e5dd5680	2026-01-19	Add settings to mark cryptographic algorithms in vpn customer gateways as excluded or obsolete (#12193)	exact_subject_hit	fb0cfe9b8cf7d877b2f0c48775ef7f6897243b6e
+76e6de7f90e5b741f3deb845ea722858101a7117	2026-01-16	ui: fix form data double fetch/reset form data by ownership selection (#11705)	exact_subject_hit	7a7e40e9315e06a0c77c337956b3de05a50f02eb
+b31c2f4cae1a9c4d29e9e5a745b1c77df7d93c81	2026-01-15	Revert "Review comment on pull request #12436"	reverse_apply_pass	patch-equivalent likely present
+a566af35f5c8c34f6694a60dcd76f195d7caa6d4	2026-01-15	Review comment on pull request #12436	needs_source_review	
+f1f779a08d94037baf1aad0c8107eaaf219af80e	2026-01-15	Cleanupe8d57d1b0dc173ef55c6386f91f1d77b8b8c9830 2026-03-17 Implement/fix limit validation for secondary storage	needs_source_review	
+e8f8aca694f7d1f46045a542c416cea135d1cf56	2026-03-16	Fix failing tests	reverse_apply_pass	patch-equivalent likely present
+e93ae1a4f455a0dff010db673b47b913220f9037	2026-03-17	New config key "allow.import.volume.with.backing.file" to skip volume backing (#12809)	needs_source_review	
+ed575cc0a1071e50272ed7e3d3491b9aac669432	2026-04-13	New config.json variable to set the ACS default language (#12863)	needs_source_review	
+ef1aaa0551d3d372e3ac7295b7f87dc203212a80	2026-01-09	kvm: allow skip forcing disk controller (#11750)	exact_subject_hit	dd50ca5b1cdefedd1664d14c531fb6ff8b230c69
+f1f779a08d94037baf1aad0c8107eaaf219af80e	2026-01-15	Cleanup snapshot files in datastores for Error-ed snapshots, and some code improvements (#12347)	exact_subject_hit	74bd9ed886f581add4014030a535984f677bf7e7
+f3331344566bfa21c0f135bb0bb6f1784182f336	2026-03-17	Address merge issues	needs_source_review	
+f73362ae48aea35cab4e457c8364c6de3e978643	2026-01-27	Fix saml bug unable to login (#10868)	exact_subject_hit	8fac94f1bcc15a21f592f124f934c2bcce4afe10
+f820d0125de3f34977cb55d8a388388f04586452	2026-04-17	fix end of files and codespell errors	needs_source_review	
+faaf7669c59f1dc7d841e6ba0cd583009db4e288	2026-03-10	Update isolation methods description for physical network (#12759)	reverse_apply_pass	patch-equivalent likely present
+feb60769305e48451877a430d2352fb3e0981429	2026-04-14	Remove unused config consoleproxy.cmd.port (#12807)	needs_source_review	
+ff0cfc9148a63d340133beb451afaa4699097f43	2026-01-27	Add ability to filter by version for listHosts and listMgmtServers APIs (#12472)	exact_subject_hit	9c2fb70167587fa1680ada5d76c1d23bf2bbc836
+ff7ec0cd229fc829f3f978e3573366cd20fec5f2	2026-01-28	Update alert id for VR public and private interface (#12527)	exact_subject_hit	86f5ff9f9c7f7e46ece304068102574601b9577e

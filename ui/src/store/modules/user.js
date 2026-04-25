@@ -223,6 +223,9 @@ const user = {
           const result = response.loginresponse || {}
           Cookies.set('account', result.account, { expires: 1 })
           Cookies.set('domainid', result.domainid, { expires: 1 })
+          if (result.managementserverid) {
+            Cookies.set('managementserverid', result.managementserverid, { expires: 1 })
+          }
           Cookies.set('role', result.type, { expires: 1 })
           Cookies.set('timezone', result.timezone, { expires: 1 })
           Cookies.set('timezoneoffset', result.timezoneoffset, { expires: 1 })
@@ -283,6 +286,9 @@ const user = {
           const result = response.loginresponse || {}
           Cookies.set('account', result.account, { expires: 1 })
           Cookies.set('domainid', result.domainid, { expires: 1 })
+          if (result.managementserverid) {
+            Cookies.set('managementserverid', result.managementserverid, { expires: 1 })
+          }
           Cookies.set('role', result.type, { expires: 1 })
           Cookies.set('timezone', result.timezone, { expires: 1 })
           Cookies.set('timezoneoffset', result.timezoneoffset, { expires: 1 })
@@ -339,7 +345,7 @@ const user = {
         const domainStore = vueProps.$localStorage.get(DOMAIN_STORE, {})
         const cachedShowSecurityGroups = vueProps.$localStorage.get(SHOW_SECURTIY_GROUPS, false)
         const darkMode = vueProps.$localStorage.get(DARK_MODE, false)
-        const msId = vueProps.$localStorage.get(MS_ID, false)
+        const msId = vueProps.$localStorage.get(MS_ID, false) || Cookies.get('managementserverid') || ''
         const latestVersion = vueProps.$localStorage.get(LATEST_CS_VERSION, { version: '', fetchedTs: 0 })
         const hasAuth = Object.keys(cachedApis).length > 0
 
@@ -495,6 +501,7 @@ const user = {
     Logout ({ commit, state }, payload) {
       return new Promise((resolve) => {
         var cloudianUrl = null
+        const sessionKey = state.token || vueProps.$localStorage.get(ACCESS_TOKEN) || Cookies.get('sessionkey') || ''
         if (state.cloudian.url && state.cloudian.enabled) {
           cloudianUrl = state.cloudian.url + 'logout.htm?redirect=' + encodeURIComponent(window.location.href)
         }
@@ -525,7 +532,7 @@ const user = {
 
         commit('SET_PASSWORD_CHANGE_REQUIRED', false)
 
-        logout(state.token).then(() => {
+        logout(sessionKey).then(() => {
           message.destroy()
           if (cloudianUrl) {
             window.location.href = cloudianUrl

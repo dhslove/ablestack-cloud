@@ -19,6 +19,8 @@
 
 package org.apache.cloudstack.storage.browser;
 
+import java.util.Collections;
+
 import com.cloud.agent.api.Answer;
 import com.cloud.agent.api.UnsupportedAnswer;
 import com.cloud.api.query.dao.ImageStoreJoinDao;
@@ -35,6 +37,8 @@ import com.cloud.storage.dao.VMTemplatePoolDao;
 import com.cloud.storage.dao.VolumeDao;
 import com.cloud.utils.exception.CloudRuntimeException;
 import org.apache.cloudstack.api.command.admin.storage.DownloadImageStoreObjectCmd;
+import org.apache.cloudstack.api.command.admin.storage.CreateRbdImageCmd;
+import org.apache.cloudstack.api.command.admin.storage.DeleteRbdImageCmd;
 import org.apache.cloudstack.api.command.admin.storage.ListImageStoreObjectsCmd;
 import org.apache.cloudstack.api.command.admin.storage.ListStoragePoolObjectsCmd;
 import org.apache.cloudstack.api.response.ListResponse;
@@ -178,15 +182,25 @@ public class StorageBrowserImplTest {
         Mockito.when(cmd.getPath()).thenReturn(path);
         Mockito.when(cmd.getStartIndex()).thenReturn(0L);
         Mockito.when(cmd.getPageSizeVal()).thenReturn(10L);
+        Mockito.when(cmd.getKeyword()).thenReturn(null);
 
         ImageStoreJoinVO imageStore = Mockito.mock(ImageStoreJoinVO.class);
         Mockito.when(imageStoreJoinDao.findById(imageStoreId)).thenReturn(imageStore);
 
         DataStore dataStore = Mockito.mock(DataStore.class);
+        Mockito.when(dataStore.getId()).thenReturn(imageStoreId);
+        Mockito.when(dataStore.getRole()).thenReturn(DataStoreRole.Image);
         Mockito.when(dataStoreMgr.getDataStore(imageStoreId, imageStore.getRole())).thenReturn(dataStore);
 
         ListDataStoreObjectsAnswer answer = Mockito.mock(ListDataStoreObjectsAnswer.class);
-        Mockito.doReturn(answer).when(storageBrowser).listObjectsInStore(dataStore, path, 0, 10);
+        Mockito.when(answer.getPaths()).thenReturn(Collections.emptyList());
+        Mockito.when(answer.getAbsPaths()).thenReturn(Collections.emptyList());
+        Mockito.when(answer.getNames()).thenReturn(Collections.emptyList());
+        Mockito.when(answer.getIsDirs()).thenReturn(Collections.emptyList());
+        Mockito.when(answer.getSizes()).thenReturn(Collections.emptyList());
+        Mockito.when(answer.getLastModified()).thenReturn(Collections.emptyList());
+        Mockito.when(answer.getCount()).thenReturn(0);
+        Mockito.doReturn(answer).when(storageBrowser).listObjectsInStore(dataStore, path, 0, 10, null);
 
         ListResponse<DataStoreObjectResponse> response = storageBrowser.listImageStoreObjects(cmd);
 
@@ -202,12 +216,22 @@ public class StorageBrowserImplTest {
         Mockito.when(cmd.getPath()).thenReturn(path);
         Mockito.when(cmd.getStartIndex()).thenReturn(0L);
         Mockito.when(cmd.getPageSizeVal()).thenReturn(10L);
+        Mockito.when(cmd.getkeyword()).thenReturn(null);
 
         DataStore dataStore = Mockito.mock(DataStore.class);
+        Mockito.when(dataStore.getId()).thenReturn(storeId);
+        Mockito.when(dataStore.getRole()).thenReturn(DataStoreRole.Primary);
         Mockito.when(dataStoreMgr.getDataStore(storeId, DataStoreRole.Primary)).thenReturn(dataStore);
 
         ListDataStoreObjectsAnswer answer = Mockito.mock(ListDataStoreObjectsAnswer.class);
-        Mockito.doReturn(answer).when(storageBrowser).listObjectsInStore(dataStore, path, 0, 10);
+        Mockito.when(answer.getPaths()).thenReturn(Collections.emptyList());
+        Mockito.when(answer.getAbsPaths()).thenReturn(Collections.emptyList());
+        Mockito.when(answer.getNames()).thenReturn(Collections.emptyList());
+        Mockito.when(answer.getIsDirs()).thenReturn(Collections.emptyList());
+        Mockito.when(answer.getSizes()).thenReturn(Collections.emptyList());
+        Mockito.when(answer.getLastModified()).thenReturn(Collections.emptyList());
+        Mockito.when(answer.getCount()).thenReturn(0);
+        Mockito.doReturn(answer).when(storageBrowser).listObjectsInStore(dataStore, path, 0, 10, null);
 
         ListResponse<DataStoreObjectResponse> response = storageBrowser.listPrimaryStoreObjects(cmd);
 
@@ -221,6 +245,8 @@ public class StorageBrowserImplTest {
         expectedCmdList.add(ListImageStoreObjectsCmd.class);
         expectedCmdList.add(ListStoragePoolObjectsCmd.class);
         expectedCmdList.add(DownloadImageStoreObjectCmd.class);
+        expectedCmdList.add(CreateRbdImageCmd.class);
+        expectedCmdList.add(DeleteRbdImageCmd.class);
 
         List<Class<?>> cmdList = storageBrowser.getCommands();
 

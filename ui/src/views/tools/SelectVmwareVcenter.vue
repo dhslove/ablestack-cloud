@@ -84,44 +84,44 @@
       <div v-else-if="vcenterSelectedOption === 'new'">
         <a-form-item ref="vcenter" name="vcenter">
           <template #label>
-            <tooltip-label :title="$t('label.vcenter')" :tooltip="apiParams.vcenter.description"/>
+            <tooltip-label :title="$t('label.vcenter')" :tooltip="getApiParamDescription('vcenter', 'label.vcenter')"/>
           </template>
           <a-input
             v-model:value="vcenter"
-            :placeholder="apiParams.vcenter.description"
+            :placeholder="getApiParamDescription('vcenter', 'label.vcenter')"
             @blur="onSelectExternalVmwareDatacenter"
             @pressEnter="onSelectExternalVmwareDatacenter"
           />
         </a-form-item>
         <a-form-item ref="datacenter" name="datacenter">
           <template #label>
-            <tooltip-label :title="$t('label.vcenter.datacenter')" :tooltip="apiParams.datacentername.description"/>
+            <tooltip-label :title="$t('label.vcenter.datacenter')" :tooltip="getApiParamDescription('datacentername', 'label.vcenter.datacenter')"/>
           </template>
           <a-input
             v-model:value="datacenter"
-            :placeholder="apiParams.datacentername.description"
+            :placeholder="getApiParamDescription('datacentername', 'label.vcenter.datacenter')"
             @blur="onSelectExternalVmwareDatacenter"
             @pressEnter="onSelectExternalVmwareDatacenter"
           />
         </a-form-item>
         <a-form-item ref="username" name="username">
           <template #label>
-            <tooltip-label :title="$t('label.vcenter.username')" :tooltip="apiParams.username.description"/>
+            <tooltip-label :title="$t('label.vcenter.username')" :tooltip="getApiParamDescription('username', 'label.vcenter.username')"/>
           </template>
           <a-input
             v-model:value="username"
-            :placeholder="apiParams.username.description"
+            :placeholder="getApiParamDescription('username', 'label.vcenter.username')"
             @blur="onSelectExternalVmwareDatacenter"
             @pressEnter="onSelectExternalVmwareDatacenter"
           />
         </a-form-item>
         <a-form-item ref="password" name="password">
           <template #label>
-            <tooltip-label :title="$t('label.vcenter.password')" :tooltip="apiParams.password.description"/>
+            <tooltip-label :title="$t('label.vcenter.password')" :tooltip="getApiParamDescription('password', 'label.vcenter.password')"/>
           </template>
           <a-input-password
             v-model:value="password"
-            :placeholder="apiParams.password.description"
+            :placeholder="getApiParamDescription('password', 'label.vcenter.password')"
             @blur="onSelectExternalVmwareDatacenter"
             @pressEnter="onSelectExternalVmwareDatacenter"
           />
@@ -132,7 +132,7 @@
       <div class="card-footer">
         <a-button
           v-if="vcenterSelectedOption == 'existing' || vcenterSelectedOption == 'new'"
-          :disabled="(vcenterSelectedOption === 'new' && (vcenter === '' || datacentername === '' || username === '' || password === '')) ||
+          :disabled="(vcenterSelectedOption === 'new' && (vcenter === '' || datacenter === '' || username === '' || password === '')) ||
             (vcenterSelectedOption === 'existing' && selectedExistingVcenterId === '')"
           :loading="loading"
           type="primary"
@@ -160,6 +160,7 @@ export default {
       datacenter: '',
       username: '',
       password: '',
+      apiParams: {},
       loading: false,
       zones: {},
       vcenterSelectedOption: '',
@@ -198,14 +199,15 @@ export default {
       }
     }
   },
-  beforeCreate () {
-    this.apiParams = this.$getApiParams('listVmwareDcVms')
-  },
   created () {
+    this.apiParams = this.$getApiParams('listVmwareDcVms') || {}
     this.initForm()
     this.fetchZones()
   },
   methods: {
+    getApiParamDescription (paramName, fallbackTranslationKey) {
+      return this.apiParams?.[paramName]?.description || this.$t(fallbackTranslationKey)
+    },
     initForm () {
       this.formRef = ref()
       this.form = reactive({
@@ -268,7 +270,7 @@ export default {
       })
     },
     onSelectExternalVmwareDatacenter (value) {
-      if (this.vcenterSelectedOption === 'new' && !(this.vcenter === '' || this.datacentername === '' || this.username === '' || this.password === '')) {
+      if (this.vcenterSelectedOption === 'new' && !(this.vcenter === '' || this.datacenter === '' || this.username === '' || this.password === '')) {
         this.listVmwareDatacenterVms()
       }
     },

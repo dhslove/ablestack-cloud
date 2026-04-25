@@ -17,6 +17,7 @@
 
 import { vueProps } from '@/vue-app'
 import { getAPI } from '@/api'
+import { loadLanguageAsync } from '../locales'
 
 export async function applyCustomGuiTheme (accountid, domainid) {
   await fetch('config.json').then(response => response.json()).then(config => {
@@ -69,6 +70,7 @@ async function applyDynamicCustomization (response) {
   vueProps.$config.logo = jsonConfig?.logo ?? vueProps.$config.logo
   vueProps.$config.minilogo = jsonConfig?.minilogo ?? vueProps.$config.minilogo
   vueProps.$config.banner = jsonConfig?.banner ?? vueProps.$config.banner
+  vueProps.$config.defaultLanguage = vueProps.$localStorage.get('LOCALE') ?? jsonConfig?.defaultLanguage ?? vueProps.$config.defaultLanguage
 
   if (jsonConfig?.error) {
     vueProps.$config.error[403] = jsonConfig?.error[403] ?? vueProps.$config.error[403]
@@ -82,14 +84,21 @@ async function applyDynamicCustomization (response) {
     })
   }
 
-  vueProps.$config.favicon = jsonConfig?.favicon ?? vueProps.$config.favicon
+  vueProps.$config.favicon = jsonConfig?.favicon ?? vueProps.$config.favicon ?? vueProps.$config.loginFavicon
   vueProps.$config.css = response?.css ?? null
+
+  if (vueProps.$config.defaultLanguage) {
+    vueProps.$localStorage.set('LOCALE', vueProps.$config.defaultLanguage)
+    loadLanguageAsync()
+  }
 
   await applyStaticCustomization(vueProps.$config.favicon, vueProps.$config.css)
 }
 
 async function applyStaticCustomization (favicon, css) {
-  document.getElementById('favicon').href = favicon
+  if (favicon) {
+    document.getElementById('favicon').href = favicon
+  }
 
   let style = document.getElementById('guiThemeCSS')
   if (style != null) {

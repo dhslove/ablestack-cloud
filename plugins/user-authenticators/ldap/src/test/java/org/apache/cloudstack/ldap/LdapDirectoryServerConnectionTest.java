@@ -98,6 +98,7 @@ public class LdapDirectoryServerConnectionTest {
 
     @After
     public void cleanup() throws Exception {
+        ldapTestConfigTool.resetOverrides();
         contextFactory = null;
         ldapManager = null;
     }

@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import com.cloud.api.ApiDBUtils;
 import org.apache.cloudstack.context.CallContext;
 import org.apache.cloudstack.reservation.ReservationVO;
 import org.apache.cloudstack.reservation.dao.ReservationDao;
@@ -116,6 +117,11 @@ public class CheckedReservation  implements AutoCloseable {
                               ReservationDao reservationDao, ResourceLimitService resourceLimitService) throws ResourceAllocationException {
         this.reservationDao = reservationDao;
         this.resourceLimitService = resourceLimitService;
+
+        // When allocating to a domain instead of a specific account, consider the system account as the owner for the validations here.
+        if (account == null) {
+            account = ApiDBUtils.getSystemAccount();
+        }
         this.account = account;
         this.resourceType = resourceType;
         this.amount = amount;
@@ -162,7 +168,7 @@ public class CheckedReservation  implements AutoCloseable {
     }
 
     @Override
-    public void close() throws Exception {
+    public void close() {
         removeAllReservations();
     }
 

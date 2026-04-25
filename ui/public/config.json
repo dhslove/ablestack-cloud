@@ -94,8 +94,11 @@
     ]
   },
   "plugins": [],
+  "allowMakingRouterRedundant": false,
   "apidocs": true,
   "basicZoneEnabled": true,
+  "samlLoginEnabled": false,
+  "forgotPasswordEnabled": false,
   "multipleServer": false,
   "allowSettingTheme": true,
   "displayProjectFieldOnLogin": false,
@@ -113,6 +116,7 @@
     "startDate": "2025-06-01T00:00:00Z",
     "endDate": "2025-07-16T00:00:00Z"
   },
+  "defaultLanguage": "ko_KR",
   "notifyLatestCSVersion": true,
   "showSearchFilters": true
 }

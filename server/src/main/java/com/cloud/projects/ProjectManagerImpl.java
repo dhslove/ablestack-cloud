@@ -47,6 +47,7 @@ import org.apache.cloudstack.framework.config.dao.ConfigurationDao;
 import org.apache.cloudstack.framework.messagebus.MessageBus;
 import org.apache.cloudstack.framework.messagebus.PublishScope;
 import org.apache.cloudstack.managed.context.ManagedContextRunnable;
+import org.apache.cloudstack.reservation.dao.ReservationDao;
 import org.apache.cloudstack.utils.mailing.MailAddress;
 import org.apache.cloudstack.utils.mailing.SMTPMailProperties;
 import org.apache.cloudstack.utils.mailing.SMTPMailSender;
@@ -80,6 +81,7 @@ import com.cloud.projects.ProjectAccount.Role;
 import com.cloud.projects.dao.ProjectAccountDao;
 import com.cloud.projects.dao.ProjectDao;
 import com.cloud.projects.dao.ProjectInvitationDao;
+import com.cloud.resourcelimit.CheckedReservation;
 import com.cloud.storage.VMTemplateVO;
 import com.cloud.storage.VolumeVO;
 import com.cloud.storage.dao.VMTemplateDao;
@@ -127,6 +129,8 @@ public class ProjectManagerImpl extends ManagerBase implements ProjectManager, C
     ConfigurationManager _configMgr;
     @Inject
     ResourceLimitService _resourceLimitMgr;
+    @Inject
+    private ReservationDao reservationDao;
     @Inject
     private ProjectAccountDao _projectAccountDao;
     @Inject
@@ -594,9 +598,22 @@ public class ProjectManagerImpl extends ManagerBase implements ProjectManager, C
             if (username == null) {
                 throw new InvalidParameterValueException("User information (ID) is required to add user to the project");
             }
-            if (assignUserToProject(project, user.getId(), user.getAccountId(), projectRole,
-                    Optional.ofNullable(role).map(ProjectRole::getId).orElse(null)) != null) {
-                return true;
+
+            boolean shouldIncrementResourceCount = projectRole != null && Role.Admin == projectRole;
+            try {
+                try (CheckedReservation cr = new CheckedReservation(userAccount, ResourceType.project,
+                        shouldIncrementResourceCount ? 1L : 0L, reservationDao, _resourceLimitMgr)) {
+                    if (assignUserToProject(project, user.getId(), user.getAccountId(), projectRole,
+                            Optional.ofNullable(role).map(ProjectRole::getId).orElse(null)) != null) {
+                        if (shouldIncrementResourceCount) {
+                            _resourceLimitMgr.incrementResourceCount(userAccount.getId(), ResourceType.project);
+                        }
+                        return true;
+                    }
+                }
+            } catch (ResourceAllocationException e) {
+                throw new CloudRuntimeException(String.format("Unable to reserve project resources while adding user %s to project %s",
+                        user.getUsername(), project.getUuid()), e);
             }
             logger.warn("Failed to add user to project: {}", project);
             return false;
@@ -701,20 +718,18 @@ public class ProjectManagerImpl extends ManagerBase implements ProjectManager, C
                                     " doesn't belong to the project. Add it to the project first and then change the project's ownership");
                         }
 
-                        //do resource limit check
-                        _resourceLimitMgr.checkResourceLimit(_accountMgr.getAccount(futureOwnerAccount.getId()), ResourceType.project);
+                        try (CheckedReservation checkedReservation = new CheckedReservation(futureOwnerAccount, ResourceType.project, 1L, reservationDao, _resourceLimitMgr)) {
+                            //unset the role for the old owner
+                            ProjectAccountVO currentOwner = _projectAccountDao.findByProjectIdAccountId(projectId, currentOwnerAccount.getId());
+                            currentOwner.setAccountRole(Role.Regular);
+                            _projectAccountDao.update(currentOwner.getId(), currentOwner);
+                            _resourceLimitMgr.decrementResourceCount(currentOwnerAccount.getId(), ResourceType.project);
 
-                        //unset the role for the old owner
-                        ProjectAccountVO currentOwner = _projectAccountDao.findByProjectIdAccountId(projectId, currentOwnerAccount.getId());
-                        currentOwner.setAccountRole(Role.Regular);
-                        _projectAccountDao.update(currentOwner.getId(), currentOwner);
-                        _resourceLimitMgr.decrementResourceCount(currentOwnerAccount.getId(), ResourceType.project);
-
-                        //set new owner
-                        futureOwner.setAccountRole(Role.Admin);
-                        _projectAccountDao.update(futureOwner.getId(), futureOwner);
-                        _resourceLimitMgr.incrementResourceCount(futureOwnerAccount.getId(), ResourceType.project);
-
+                            //set new owner
+                            futureOwner.setAccountRole(Role.Admin);
+                            _projectAccountDao.update(futureOwner.getId(), futureOwner);
+                            _resourceLimitMgr.incrementResourceCount(futureOwnerAccount.getId(), ResourceType.project);
+                        }
                     } else {
                         logger.trace("Future owner {}is already the owner of the project {}", newOwnerName, project);
                     }

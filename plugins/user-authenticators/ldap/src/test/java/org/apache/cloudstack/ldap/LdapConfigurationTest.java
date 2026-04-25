@@ -18,6 +18,7 @@ package org.apache.cloudstack.ldap;
 
 import org.apache.cloudstack.ldap.dao.LdapConfigurationDao;
 import org.apache.cloudstack.ldap.dao.LdapConfigurationDaoImpl;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -42,6 +43,11 @@ public class LdapConfigurationTest {
         ldapConfigurationDao = new LdapConfigurationDaoImpl();
         ldapConfiguration = new LdapConfiguration(ldapConfigurationDao);
         ;
+    }
+
+    @After
+    public void cleanup() {
+        ldapTestConfigTool.resetOverrides();
     }
 
     @Test public void getAuthenticationReturnsSimple() throws Exception {

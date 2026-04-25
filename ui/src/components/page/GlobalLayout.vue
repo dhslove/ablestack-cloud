@@ -1,3 +1,20 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
 <template>
   <div>
     <announcement-banner ref="announceRef" />
@@ -155,6 +172,7 @@
 </template>
 
 <script>
+import Cookies from 'js-cookie'
 import SideMenu from '@/components/menu/SideMenu'
 import GlobalHeader from '@/components/page/GlobalHeader'
 import GlobalFooter from '@/components/page/GlobalFooter'
@@ -208,6 +226,8 @@ export default {
     isAdmin () { return isAdmin() },
     isDevelopmentMode () { return process.env.NODE_ENV === 'development' },
     allowSettingTheme () { return this.$config.allowSettingTheme },
+    msId () { return this.$store.getters.msId || Cookies.get('managementserverid') || '' },
+    readyForShutdownEnabled () { return ('readyForShutdown' in this.$store.getters.apis) && !!this.msId },
     contentPaddingLeft () {
       if (!this.fixSidebar || this.isMobile()) return '0'
       if (this.sidebarOpened) return '256px'
@@ -220,16 +240,20 @@ export default {
     sidebarOpened (val) { this.collapsed = !val },
     mainMenu (newMenu) { this.menus = newMenu.find(item => item.path === '/').children },
     '$store.getters.countNotify' (n) { this.showClear = !!(n && n > 0) },
-    isShutdown () { this.measureShutdown() }
+    isShutdown () { this.measureShutdown() },
+    readyForShutdownEnabled (enabled) {
+      if (enabled) {
+        this.startShutdownPolling()
+      } else {
+        this.stopShutdownPolling()
+      }
+    }
   },
   provide () { return { parentToggleSetting: this.toggleSetting } },
   created () {
     this.menus = this.mainMenu.find(item => item.path === '/').children
     this.collapsed = !this.sidebarOpened
-    if ('readyForShutdown' in this.$store.getters.apis) {
-      const job = setInterval(this.checkShutdown, 5000)
-      this.$store.commit('SET_READY_FOR_SHUTDOWN_POLLING_JOB', job)
-    }
+    this.startShutdownPolling()
   },
   mounted () {
     try {
@@ -280,6 +304,7 @@ export default {
     this.showClear = !!(n && n > 0)
   },
   beforeUnmount () {
+    this.stopShutdownPolling()
     window.removeEventListener('auto-alert-banner:height', this.onAutoBannerHeight)
     window.removeEventListener('resize', this.onResize)
     window.removeEventListener('auto-alert-banner:closing', this.onAutoBannerClosing)
@@ -380,9 +405,26 @@ export default {
       this.$notification.destroy()
       this.$store.commit('SET_COUNT_NOTIFY', 0)
     },
+    startShutdownPolling () {
+      if (!this.readyForShutdownEnabled) {
+        return
+      }
+      if (this.$store.getters.readyForShutdownPollingJob) {
+        return
+      }
+      const job = setInterval(this.checkShutdown, 5000)
+      this.$store.commit('SET_READY_FOR_SHUTDOWN_POLLING_JOB', job)
+    },
+    stopShutdownPolling () {
+      const job = this.$store.getters.readyForShutdownPollingJob
+      if (job) {
+        clearInterval(job)
+        this.$store.commit('SET_READY_FOR_SHUTDOWN_POLLING_JOB', '')
+      }
+    },
     checkShutdown () {
-      if (!this.$store.getters.features.securityfeaturesenabled) {
-        getAPI('readyForShutdown', {}).then(json => {
+      if (!this.$store.getters.features.securityfeaturesenabled && this.msId) {
+        getAPI('readyForShutdown', { managementserverid: this.msId }).then(json => {
           this.$store.dispatch(
             'SetShutdownTriggered',
             json.readyforshutdownresponse.readyforshutdown.shutdowntriggered || false

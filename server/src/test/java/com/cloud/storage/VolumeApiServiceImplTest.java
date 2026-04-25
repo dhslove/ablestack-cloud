@@ -2131,7 +2131,7 @@ public class VolumeApiServiceImplTest {
         UserVmVO vm = Mockito.mock(UserVmVO.class);
         StoragePool destPrimaryStorage = Mockito.mock(StoragePool.class);
         Mockito.doReturn(destPrimaryStorage).when(volumeApiServiceImpl)
-                .getSuitablePoolForAllocatedOrUploadedVolumeForAttach(volumeToAttach, vm);
+                .getPoolForAllocatedOrUploadedVolumeForAttach(volumeToAttach, vm);
         VolumeInfo newVolumeOnPrimaryStorage = Mockito.mock(VolumeInfo.class);
         try {
             Mockito.when(volumeOrchestrationService.createVolumeOnPrimaryStorage(
@@ -2142,7 +2142,7 @@ public class VolumeApiServiceImplTest {
         }
         VolumeInfo result = volumeApiServiceImpl.createVolumeOnPrimaryForAttachIfNeeded(volumeToAttach, vm, null);
         Assert.assertSame(newVolumeOnPrimaryStorage, result);
-        verify(volumeApiServiceImpl).getSuitablePoolForAllocatedOrUploadedVolumeForAttach(volumeToAttach, vm);
+        verify(volumeApiServiceImpl).getPoolForAllocatedOrUploadedVolumeForAttach(volumeToAttach, vm);
     }
 
     @Test(expected = InvalidParameterValueException.class)
@@ -2153,7 +2153,7 @@ public class VolumeApiServiceImplTest {
         StoragePool destPrimaryStorage = Mockito.mock(StoragePool.class);
         when(destPrimaryStorage.getPoolType()).thenReturn(Storage.StoragePoolType.PowerFlex);
         Mockito.doReturn(destPrimaryStorage).when(volumeApiServiceImpl)
-                .getSuitablePoolForAllocatedOrUploadedVolumeForAttach(volumeToAttach, vm);
+                .getPoolForAllocatedOrUploadedVolumeForAttach(volumeToAttach, vm);
         volumeApiServiceImpl.createVolumeOnPrimaryForAttachIfNeeded(volumeToAttach, vm, null);
     }
 
@@ -2165,7 +2165,7 @@ public class VolumeApiServiceImplTest {
         StoragePool destPrimaryStorage = Mockito.mock(StoragePool.class);
         Mockito.when(destPrimaryStorage.getPoolType()).thenReturn(Storage.StoragePoolType.NetworkFilesystem);
         Mockito.doReturn(destPrimaryStorage).when(volumeApiServiceImpl)
-                .getSuitablePoolForAllocatedOrUploadedVolumeForAttach(volumeToAttach, vm);
+                .getPoolForAllocatedOrUploadedVolumeForAttach(volumeToAttach, vm);
         try {
             Mockito.when(volumeOrchestrationService.createVolumeOnPrimaryStorage(vm, volumeToAttach, vm.getHypervisorType(), destPrimaryStorage))
                     .thenThrow(new NoTransitionException("Mocked exception"));
@@ -2184,7 +2184,7 @@ public class VolumeApiServiceImplTest {
         Mockito.when(volumeToAttach.getState()).thenReturn(Volume.State.Uploaded);
         UserVmVO vm = Mockito.mock(UserVmVO.class);
         Mockito.doReturn(null).when(volumeApiServiceImpl)
-                .getSuitablePoolForAllocatedOrUploadedVolumeForAttach(volumeToAttach, vm);
+                .getPoolForAllocatedOrUploadedVolumeForAttach(volumeToAttach, vm);
         CloudRuntimeException exception = Assert.assertThrows(CloudRuntimeException.class, () ->
                 volumeApiServiceImpl.createVolumeOnPrimaryForAttachIfNeeded(volumeToAttach, vm, null)
         );
@@ -2198,7 +2198,7 @@ public class VolumeApiServiceImplTest {
         UserVmVO vm = Mockito.mock(UserVmVO.class);
         Mockito.when(vm.getState()).thenReturn(State.Stopped);
         Mockito.doReturn(null).when(volumeApiServiceImpl)
-                .getSuitablePoolForAllocatedOrUploadedVolumeForAttach(volumeToAttach, vm);
+                .getPoolForAllocatedOrUploadedVolumeForAttach(volumeToAttach, vm);
         VolumeInfo result = volumeApiServiceImpl.createVolumeOnPrimaryForAttachIfNeeded(volumeToAttach, vm, null);
         Assert.assertSame(volumeToAttach, result);
         try {

@@ -147,6 +147,7 @@ Group: System Environment/Libraries
 %description ui
 The CloudStack UI
 
+%if 0%{?_localfast} == 0
 %package marvin
 Summary: Apache CloudStack Marvin library
 Requires: python3-pip
@@ -164,6 +165,7 @@ Requires: %{name}-marvin = %{_ver}
 Group: System Environment/Libraries
 %description integration-tests
 Apache CloudStack Marvin integration tests
+%endif
 
 %if "%{_ossnoss}" == "noredist"
 %package mysql-ha
@@ -187,19 +189,24 @@ echo PACKAGE=%{name} >> build/replace.properties
 touch build/gitrev.txt
 echo $(git rev-parse HEAD) > build/gitrev.txt
 
-if [ "%{_ossnoss}" == "NOREDIST" -o "%{_ossnoss}" == "noredist" ] ; then
+if [ "%{?_ossnoss}" == "NOREDIST" -o "%{?_ossnoss}" == "noredist" ] ; then
    echo "Adding noredist flag to the maven build"
    FLAGS="$FLAGS -Dnoredist"
 fi
 
-if [ "%{_sim}" == "SIMULATOR" -o "%{_sim}" == "simulator" ] ; then
+if [ "%{?_sim}" == "SIMULATOR" -o "%{?_sim}" == "simulator" ] ; then
    echo "Adding simulator flag to the maven build"
    FLAGS="$FLAGS -Dsimulator"
 fi
 
-if [ \"%{_temp}\" != "" ]; then
+if [ -n "%{?_temp}" ]; then
     echo "Adding flags to package requested templates"
-    FLAGS="$FLAGS `rpm --eval %{?_temp}`"
+    FLAGS="$FLAGS $(rpm --eval '%{?_temp}')"
+fi
+
+if [ "%{?_localfast}" == "1" ]; then
+   echo "Using local-fast package build (excluding tools/apidoc and cloud-marvin)"
+   FLAGS="$FLAGS -pl !tools/apidoc,!:cloud-marvin"
 fi
 
 mvn -T 2C -Psystemvm,developer -DskipTests $FLAGS clean package
@@ -384,13 +391,15 @@ install -D packaging/systemd/cloudstack-usage.default ${RPM_BUILD_ROOT}%{_syscon
 mkdir -p ${RPM_BUILD_ROOT}%{_localstatedir}/log/%{name}/usage/
 install -D usage/target/transformed/cloudstack-usage.logrotate ${RPM_BUILD_ROOT}%{_sysconfdir}/logrotate.d/%{name}-usage
 
-# Marvin
+# Marvin and integration tests are excluded from local-fast builds.
+%if 0%{?_localfast} == 0
 mkdir -p ${RPM_BUILD_ROOT}%{_datadir}/%{name}-marvin
 cp tools/marvin/dist/Marvin-*.tar.gz ${RPM_BUILD_ROOT}%{_datadir}/%{name}-marvin/
 
 # integration-tests
 mkdir -p ${RPM_BUILD_ROOT}%{_datadir}/%{name}-integration-tests
 cp -r test/integration/* ${RPM_BUILD_ROOT}%{_datadir}/%{name}-integration-tests/
+%endif
 
 # MYSQL HA
 if [ "x%{_ossnoss}" == "xnoredist" ] ; then
@@ -409,10 +418,12 @@ install -D tools/whisker/NOTICE ${RPM_BUILD_ROOT}%{_defaultdocdir}/%{name}-usage
 install -D tools/whisker/LICENSE ${RPM_BUILD_ROOT}%{_defaultdocdir}/%{name}-usage-%{version}/LICENSE
 install -D tools/whisker/NOTICE ${RPM_BUILD_ROOT}%{_defaultdocdir}/%{name}-ui-%{version}/NOTICE
 install -D tools/whisker/LICENSE ${RPM_BUILD_ROOT}%{_defaultdocdir}/%{name}-ui-%{version}/LICENSE
+%if 0%{?_localfast} == 0
 install -D tools/whisker/NOTICE ${RPM_BUILD_ROOT}%{_defaultdocdir}/%{name}-marvin-%{version}/NOTICE
 install -D tools/whisker/LICENSE ${RPM_BUILD_ROOT}%{_defaultdocdir}/%{name}-marvin-%{version}/LICENSE
 install -D tools/whisker/NOTICE ${RPM_BUILD_ROOT}%{_defaultdocdir}/%{name}-integration-tests-%{version}/NOTICE
 install -D tools/whisker/LICENSE ${RPM_BUILD_ROOT}%{_defaultdocdir}/%{name}-integration-tests-%{version}/LICENSE
+%endif
 
 %clean
 [ ${RPM_BUILD_ROOT} != "/" ] && rm -rf ${RPM_BUILD_ROOT}
@@ -583,9 +594,11 @@ if [ -f "/usr/share/cloudstack-common/scripts/installer/cloudstack-help-text" ];
     /usr/share/cloudstack-common/scripts/installer/cloudstack-help-text usage
 fi
 
+%if 0%{?_localfast} == 0
 %post marvin
 pip3 install --upgrade https://files.pythonhosted.org/packages/08/1f/42d74bae9dd6dcfec67c9ed0f3fa482b1ae5ac5f117ca82ab589ecb3ca19/mysql_connector_python-8.0.31-py2.py3-none-any.whl
 pip3 install --upgrade /usr/share/cloudstack-marvin/Marvin-*.tar.gz
+%endif
 
 #No default permission as the permission setup is complex
 %files management
@@ -694,6 +707,7 @@ pip3 install --upgrade /usr/share/cloudstack-marvin/Marvin-*.tar.gz
 %{_defaultdocdir}/%{name}-usage-%{version}/LICENSE
 %{_defaultdocdir}/%{name}-usage-%{version}/NOTICE
 
+%if 0%{?_localfast} == 0
 %files marvin
 %attr(0644,root,root) %{_datadir}/%{name}-marvin/Marvin*.tar.gz
 %{_defaultdocdir}/%{name}-marvin-%{version}/LICENSE
@@ -703,6 +717,7 @@ pip3 install --upgrade /usr/share/cloudstack-marvin/Marvin-*.tar.gz
 %attr(0755,root,root) %{_datadir}/%{name}-integration-tests/*
 %{_defaultdocdir}/%{name}-integration-tests-%{version}/LICENSE
 %{_defaultdocdir}/%{name}-integration-tests-%{version}/NOTICE
+%endif
 
 %if "%{_ossnoss}" == "noredist"
 %files mysql-ha

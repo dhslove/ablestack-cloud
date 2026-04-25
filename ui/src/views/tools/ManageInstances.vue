@@ -250,7 +250,7 @@
                       @change="onSelectClusterId"
                     ></a-select>
                   </a-form-item>
-                  <a-form-item v-if="isDestinationKVM && isMigrateFromVmware && clusterId != undefined">
+                  <a-form-item v-if="supportsVmwareDatacenterImport && isDestinationKVM && isMigrateFromVmware && clusterId != undefined">
                     <SelectVmwareVcenter
                       @onVcenterTypeChanged="updateVmwareVcenterType"
                       @loadingVmwareUnmanagedInstances="() => this.unmanagedInstancesLoading = true"
@@ -542,6 +542,7 @@
             :tmppath="this.values?.tmppath || ''"
             :diskpath="this.values?.diskpath || ''"
             :isOpen="showUnmanageForm"
+            :loadingGuestOsMappings="loadingGuestOsMappings"
             :selectedVmwareVcenter="selectedVmwareVcenter"
             @refresh-data="fetchInstances"
             @close-action="closeImportUnmanagedInstanceForm"
@@ -776,7 +777,8 @@ export default {
       importVmTasks: [],
       selectedImportVmTask: null,
       importVmTasksFilter: 'all',
-      importVmTasksAutoRefreshTimer: null
+      importVmTasksAutoRefreshTimer: null,
+      loadingGuestOsMappings: false
     }
   },
   created () {
@@ -808,6 +810,9 @@ export default {
     },
     isMigrateFromVmware () {
       return this.selectedSourceAction === 'vmware'
+    },
+    supportsVmwareDatacenterImport () {
+      return 'listVmwareDcVms' in this.$store.getters.apis && 'listVmwareDcs' in this.$store.getters.apis
     },
     isDestinationKVM () {
       return this.destinationHypervisor === 'kvm'
@@ -1121,16 +1126,35 @@ export default {
       this.activeTabKey = 1
       this.stopImportVmTasksAutoRefresh()
     },
+    getSourceActionsForHypervisor (hypervisor) {
+      return this.AllSourceActions.filter((action) => {
+        if (!action.sourceDestHypervisors[hypervisor]) {
+          return false
+        }
+        if (action.name === 'vmware' && !this.supportsVmwareDatacenterImport) {
+          return false
+        }
+        return true
+      })
+    },
     onSelectHypervisor (value) {
       this.sourceHypervisor = value
-      this.sourceActions = this.AllSourceActions.filter(x => x.sourceDestHypervisors[value])
-      this.form.sourceAction = this.sourceActions[0].name || ''
+      this.sourceActions = this.getSourceActionsForHypervisor(value)
+      this.form.sourceAction = this.sourceActions[0]?.name || ''
       this.selectedVmwareVcenter = undefined
-      this.onSelectSourceAction(this.form.sourceAction)
+      if (this.form.sourceAction) {
+        this.onSelectSourceAction(this.form.sourceAction)
+      } else {
+        this.resetLists()
+      }
     },
     onSelectSourceAction (value) {
       this.selectedSourceAction = value
       const selectedAction = _.find(this.AllSourceActions, (option) => option.name === value)
+      if (!selectedAction) {
+        this.resetLists()
+        return
+      }
       this.destinationHypervisor = selectedAction.sourceDestHypervisors[this.sourceHypervisor]
       this.wizardTitle = selectedAction.wizardTitle
       this.wizardDescription = selectedAction.wizardDescription
@@ -1294,6 +1318,12 @@ export default {
         this.fetchExtKVMInstances(page, pageSize)
         return
       }
+      if (this.isMigrateFromVmware && !this.supportsVmwareDatacenterImport) {
+        this.unmanagedInstances = []
+        this.itemCount.unmanaged = 0
+        this.unmanagedInstancesLoading = false
+        return
+      }
       const params = {
         clusterid: this.clusterId
       }
@@ -1443,8 +1473,24 @@ export default {
         this.fetchInstances()
       }
     },
-    fetchVmwareInstanceForKVMMigration (vmname, hostname) {
+    async fetchGuestOsMappings (osIdentifier, hypervisorVersion) {
       const params = {}
+      params.hypervisor = 'VMware'
+      params.hypervisorversion = hypervisorVersion
+      params.osnameforhypervisor = osIdentifier
+      return await getAPI('listGuestOsMapping', params).then(json => {
+        return json.listguestosmappingresponse?.guestosmapping || []
+      }).catch(error => {
+        this.$notifyError(error)
+        return []
+      })
+    },
+    fetchVmwareInstanceForKVMMigration (vmname, hostname) {
+      if (!this.supportsVmwareDatacenterImport) {
+        return
+      }
+      const params = {}
+      this.loadingGuestOsMappings = true
       if (this.isMigrateFromVmware && this.selectedVmwareVcenter) {
         if (this.selectedVmwareVcenter.vcenter) {
           params.datacentername = this.selectedVmwareVcenter.datacentername
@@ -1457,15 +1503,17 @@ export default {
         params.instancename = vmname
         params.hostname = hostname
       }
-      getAPI('listVmwareDcVms', params).then(json => {
+      getAPI('listVmwareDcVms', params).then(async json => {
         const response = json.listvmwaredcvmsresponse
         this.selectedUnmanagedInstance = response.unmanagedinstance[0]
         this.selectedUnmanagedInstance.ostypename = this.selectedUnmanagedInstance.osdisplayname
         this.selectedUnmanagedInstance.state = this.selectedUnmanagedInstance.powerstate
+        this.selectedUnmanagedInstance.guestOsMappings = await this.fetchGuestOsMappings(this.selectedUnmanagedInstance.osid, this.selectedUnmanagedInstance.hypervisorversion)
       }).catch(error => {
         this.$notifyError(error)
       }).finally(() => {
         this.loading = false
+        this.loadingGuestOsMappings = false
       })
     },
     onManageInstanceAction () {
