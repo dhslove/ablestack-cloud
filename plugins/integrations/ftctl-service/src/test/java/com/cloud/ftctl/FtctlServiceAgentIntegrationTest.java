@@ -17,7 +17,6 @@
 package com.cloud.ftctl;
 
 import com.cloud.agent.AgentManager;
-import com.cloud.agent.api.Command;
 import com.cloud.agent.api.FtctlActionAnswer;
 import com.cloud.agent.api.FtctlActionCommand;
 import com.cloud.agent.api.FtctlEventsAnswer;
