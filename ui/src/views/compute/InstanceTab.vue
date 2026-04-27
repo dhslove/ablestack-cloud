@@ -27,6 +27,9 @@
       <a-tab-pane :tab="$t('label.details')" key="details">
         <DetailsTab :resource="dataResource" :loading="loading" />
       </a-tab-pane>
+      <a-tab-pane :tab="'FTCTL'" key="ftctl" v-if="'getFtctlProtection' in $store.getters.apis">
+        <FtctlTab :resource="vm" :loading="loading" />
+      </a-tab-pane>
       <a-tab-pane :tab="$t('label.metrics')" key="stats">
         <StatsTab :resource="resource"/>
       </a-tab-pane>
@@ -298,6 +301,7 @@ import DRsimulationTestModal from '@/views/compute/dr/DRsimulationTestModal'
 import DRMirroringVMAdd from '@/views/compute/dr/DRMirroringVMAdd'
 import DRMirroringVMRemove from '@/views/compute/dr/DRMirroringVMRemove'
 import GPUTab from '@/components/view/GPUTab.vue'
+import FtctlTab from '@/views/compute/FtctlTab.vue'
 
 export default {
   name: 'InstanceTab',
@@ -314,6 +318,7 @@ export default {
     DRMirroringVMAdd,
     DRMirroringVMRemove,
     GPUTab,
+    FtctlTab,
     InstanceSchedules,
     ListResourceTable,
     SecurityGroupSelection,
