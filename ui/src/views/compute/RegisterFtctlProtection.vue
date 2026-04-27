@@ -131,10 +131,10 @@ export default {
   methods: {
     initForm () {
       this.formRef = ref()
-        this.form = reactive({
-          mode: 'ha',
-          backendmode: 'shared-blockcopy',
-          targetstoragescope: 'shared',
+      this.form = reactive({
+        mode: 'ha',
+        backendmode: 'shared-blockcopy',
+        targetstoragescope: 'shared',
         fencingpolicy: 'manual-block',
         peerhostid: null,
         secondaryvmname: this.resource?.name ? `${this.resource.name}-standby` : null,
