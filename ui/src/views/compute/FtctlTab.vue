@@ -292,7 +292,7 @@ export default {
       return ['Destroyed', 'Expunging', 'Error'].includes(this.resource?.state) || this.resource?.hostcontrolstate === 'Offline'
     },
     supportedVm () {
-      return ['Admin'].includes(this.$store.getters.userInfo.roletype) &&
+      return ['Admin'].includes(this.$store.getters.userInfo?.roletype) &&
         this.resource?.hypervisor === 'KVM' &&
         this.resource?.vmtype !== 'sharedfsvm'
     },
