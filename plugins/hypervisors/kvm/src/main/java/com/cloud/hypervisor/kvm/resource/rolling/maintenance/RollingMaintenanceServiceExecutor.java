@@ -158,7 +158,7 @@ public class RollingMaintenanceServiceExecutor extends RollingMaintenanceExecuto
 
     @Override
     public boolean getStageExecutionSuccess(String stage, File scriptFile) {
-        String fileContent = readFromFile(getResultsFilePath());
+        String fileContent = readResultFileWithRetry();
         if (StringUtils.isBlank(fileContent)) {
             throw new CloudRuntimeException("Empty content in file " + getResultsFilePath());
         }
@@ -172,5 +172,22 @@ public class RollingMaintenanceServiceExecutor extends RollingMaintenanceExecuto
         }
         setAvoidMaintenance(Boolean.parseBoolean(parts[2]));
         return Boolean.parseBoolean(parts[1]);
+    }
+
+    private String readResultFileWithRetry() {
+        String fileContent = StringUtils.EMPTY;
+        for (int i = 0; i < 10; i++) {
+            fileContent = readFromFile(getResultsFilePath());
+            if (StringUtils.isNotBlank(fileContent)) {
+                return fileContent;
+            }
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return fileContent;
+            }
+        }
+        return fileContent;
     }
 }
