@@ -324,7 +324,9 @@ export default {
       return true
     },
     handleSubmit (e) {
-      e?.preventDefault?.()
+      if (e && e.preventDefault) {
+        e.preventDefault()
+      }
       if (this.loading) return
       this.formRef.value.validate().then(() => {
         const values = toRaw(this.form)
