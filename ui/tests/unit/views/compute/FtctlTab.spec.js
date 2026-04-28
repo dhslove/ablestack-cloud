@@ -56,7 +56,8 @@ const createWrapper = (apis = {}) => {
         $message: {
           success: jest.fn(),
           error: jest.fn()
-        }
+        },
+        $t: (key) => key
       },
       stubs: {
         'a-spin': { template: '<div><slot /></div>' },
