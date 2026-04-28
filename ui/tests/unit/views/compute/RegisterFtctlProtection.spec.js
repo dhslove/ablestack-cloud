@@ -110,6 +110,7 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
     expect(getAPI).toHaveBeenCalledWith('listStoragePools', {
       zoneid: 'zone-1',
       listall: true,
+      page: 1,
       pagesize: 500,
       clusterid: 'cluster-1'
     })

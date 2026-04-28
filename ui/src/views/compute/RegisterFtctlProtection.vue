@@ -243,6 +243,7 @@ export default {
       const params = {
         zoneid: this.resource.zoneid,
         listall: true,
+        page: 1,
         pagesize: 500
       }
       if (this.resource.clusterid) {
