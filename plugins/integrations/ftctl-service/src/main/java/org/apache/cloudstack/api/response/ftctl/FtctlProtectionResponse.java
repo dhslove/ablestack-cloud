@@ -42,6 +42,14 @@ public class FtctlProtectionResponse extends BaseResponse {
     @Param(description = "the FTCTL target storage scope")
     private String targetStorageScope;
 
+    @SerializedName("targetstoragepoolid")
+    @Param(description = "the FTCTL target primary storage pool ID")
+    private String targetStoragePoolId;
+
+    @SerializedName("targetstoragepoolname")
+    @Param(description = "the FTCTL target primary storage pool name")
+    private String targetStoragePoolName;
+
     @SerializedName("fencingpolicy")
     @Param(description = "the FTCTL fencing policy")
     private String fencingPolicy;
@@ -116,6 +124,14 @@ public class FtctlProtectionResponse extends BaseResponse {
 
     public void setTargetStorageScope(String targetStorageScope) {
         this.targetStorageScope = targetStorageScope;
+    }
+
+    public void setTargetStoragePoolId(String targetStoragePoolId) {
+        this.targetStoragePoolId = targetStoragePoolId;
+    }
+
+    public void setTargetStoragePoolName(String targetStoragePoolName) {
+        this.targetStoragePoolName = targetStoragePoolName;
     }
 
     public void setFencingPolicy(String fencingPolicy) {

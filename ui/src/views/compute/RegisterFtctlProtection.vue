@@ -25,36 +25,64 @@
         :rules="rules"
         layout="vertical"
         @finish="handleSubmit">
-        <a-form-item name="mode" label="Mode">
+        <a-form-item name="mode">
+          <template #label>
+            <tooltip-label :title="$t('label.mode')" :tooltip="$t('placeholder.ftctl.mode')" />
+          </template>
           <a-select v-model:value="form.mode" v-focus="true" @change="handleModeChange">
             <a-select-option value="ha">HA</a-select-option>
             <a-select-option value="dr">DR</a-select-option>
             <a-select-option value="ft">FT</a-select-option>
           </a-select>
         </a-form-item>
-        <a-form-item name="backendmode" label="Backend Mode" v-if="showBackendFields">
+        <a-form-item name="backendmode" v-if="showBackendFields">
+          <template #label>
+            <tooltip-label :title="$t('label.ftctl.backend.mode')" :tooltip="$t('placeholder.ftctl.backend.mode')" />
+          </template>
           <a-select v-model:value="form.backendmode" @change="handleBackendModeChange">
             <a-select-option value="shared-blockcopy">shared-blockcopy</a-select-option>
             <a-select-option value="remote-nbd">remote-nbd</a-select-option>
           </a-select>
         </a-form-item>
-        <a-form-item name="targetstoragescope" label="Target Storage Scope" v-if="showBackendFields">
-          <a-select v-model:value="form.targetstoragescope">
-            <a-select-option value="shared">shared</a-select-option>
-            <a-select-option value="secondary-local">secondary-local</a-select-option>
+        <a-form-item name="targetstoragepoolid" v-if="showBackendFields">
+          <template #label>
+            <tooltip-label :title="$t('label.ftctl.target.storage.scope')" :tooltip="$t('placeholder.ftctl.target.storage.scope')" />
+          </template>
+          <a-select
+            v-model:value="form.targetstoragepoolid"
+            :loading="storagePoolsLoading"
+            :placeholder="$t('placeholder.ftctl.target.storage.pool')"
+            showSearch
+            optionFilterProp="label"
+            @change="handleStoragePoolChange"
+            :filterOption="(input, option) => option.label.toLowerCase().indexOf(input.toLowerCase()) >= 0">
+            <a-select-option
+              v-for="pool in storagePools"
+              :key="pool.id"
+              :value="pool.id"
+              :label="formatStoragePoolLabel(pool)">
+              {{ formatStoragePoolLabel(pool) }}
+            </a-select-option>
           </a-select>
         </a-form-item>
-        <a-form-item name="fencingpolicy" label="Fencing Policy">
+        <a-form-item name="fencingpolicy">
+          <template #label>
+            <tooltip-label :title="$t('label.ftctl.fencing.policy')" :tooltip="$t('placeholder.ftctl.fencing.policy')" />
+          </template>
           <a-select v-model:value="form.fencingpolicy">
             <a-select-option value="manual-block">manual-block</a-select-option>
             <a-select-option value="peer-virsh-destroy">peer-virsh-destroy</a-select-option>
             <a-select-option value="ipmi">ipmi</a-select-option>
           </a-select>
         </a-form-item>
-        <a-form-item name="peerhostid" label="Peer Host ID">
+        <a-form-item name="peerhostid">
+          <template #label>
+            <tooltip-label :title="$t('label.ftctl.peer.host.id')" :tooltip="$t('placeholder.ftctl.peer.host.id')" />
+          </template>
           <a-select
             v-model:value="form.peerhostid"
             :loading="hostsLoading"
+            :placeholder="$t('placeholder.ftctl.peer.host.id')"
             showSearch
             optionFilterProp="label"
             :filterOption="(input, option) => option.label.toLowerCase().indexOf(input.toLowerCase()) >= 0">
@@ -66,22 +94,40 @@
             </a-select-option>
           </a-select>
         </a-form-item>
-        <a-form-item name="secondaryvmname" label="Secondary VM Name">
-          <a-input v-model:value="form.secondaryvmname" />
+        <a-form-item name="secondaryvmname">
+          <template #label>
+            <tooltip-label :title="$t('label.ftctl.secondary.vm.name')" :tooltip="$t('placeholder.ftctl.secondary.vm.name')" />
+          </template>
+          <a-input v-model:value="form.secondaryvmname" :placeholder="$t('placeholder.ftctl.secondary.vm.name')" />
         </a-form-item>
-        <a-form-item name="secondarytargetdir" label="Secondary Target Dir" v-if="showRemoteNbdFields">
+        <a-form-item name="secondarytargetdir" v-if="showRemoteNbdFields">
+          <template #label>
+            <tooltip-label :title="$t('label.ftctl.secondary.target.dir')" :tooltip="$t('placeholder.ftctl.secondary.target.dir')" />
+          </template>
           <a-input v-model:value="form.secondarytargetdir" placeholder="/secondary/ftctl/<vm>" />
         </a-form-item>
-        <a-form-item name="remotenbdexportaddr" label="Remote NBD Export Address" v-if="showRemoteNbdFields">
-          <a-input v-model:value="form.remotenbdexportaddr" placeholder="10.0.0.12" />
+        <a-form-item name="remotenbdexportaddr" v-if="showRemoteNbdFields">
+          <template #label>
+            <tooltip-label :title="$t('label.ftctl.remote.nbd.export.address')" :tooltip="$t('placeholder.ftctl.remote.nbd.export.address')" />
+          </template>
+          <a-input v-model:value="form.remotenbdexportaddr" placeholder="10.0.0.12:10809" />
         </a-form-item>
-        <a-form-item name="xcoloproxyendpoint" label="X-COLO Proxy Endpoint" v-if="showFtFields">
+        <a-form-item name="xcoloproxyendpoint" v-if="showFtFields">
+          <template #label>
+            <tooltip-label :title="$t('label.ftctl.xcolo.proxy.endpoint')" :tooltip="$t('placeholder.ftctl.xcolo.proxy.endpoint')" />
+          </template>
           <a-input v-model:value="form.xcoloproxyendpoint" placeholder="tcp:10.10.10.21:9000" />
         </a-form-item>
-        <a-form-item name="xcolonbdendpoint" label="X-COLO NBD Endpoint" v-if="showFtFields">
+        <a-form-item name="xcolonbdendpoint" v-if="showFtFields">
+          <template #label>
+            <tooltip-label :title="$t('label.ftctl.xcolo.nbd.endpoint')" :tooltip="$t('placeholder.ftctl.xcolo.nbd.endpoint')" />
+          </template>
           <a-input v-model:value="form.xcolonbdendpoint" placeholder="tcp:10.10.20.21:10809" />
         </a-form-item>
-        <a-form-item name="xcolomigrateuri" label="X-COLO Migrate URI" v-if="showFtFields">
+        <a-form-item name="xcolomigrateuri" v-if="showFtFields">
+          <template #label>
+            <tooltip-label :title="$t('label.ftctl.xcolo.migrate.uri')" :tooltip="$t('placeholder.ftctl.xcolo.migrate.uri')" />
+          </template>
           <a-input v-model:value="form.xcolomigrateuri" placeholder="tcp:10.10.20.21:9998" />
         </a-form-item>
       </a-form>
@@ -97,9 +143,13 @@
 import { ref, reactive, toRaw } from 'vue'
 import { getAPI, postAPI } from '@/api'
 import eventBus from '@/config/eventBus'
+import TooltipLabel from '@/components/widgets/TooltipLabel'
 
 export default {
   name: 'RegisterFtctlProtection',
+  components: {
+    TooltipLabel
+  },
   props: {
     resource: {
       type: Object,
@@ -110,7 +160,9 @@ export default {
     return {
       loading: false,
       hostsLoading: false,
-      hosts: []
+      hosts: [],
+      storagePoolsLoading: false,
+      storagePools: []
     }
   },
   computed: {
@@ -127,6 +179,7 @@ export default {
   created () {
     this.initForm()
     this.fetchHosts()
+    this.fetchStoragePools()
   },
   methods: {
     initForm () {
@@ -135,6 +188,7 @@ export default {
         mode: 'ha',
         backendmode: 'shared-blockcopy',
         targetstoragescope: 'shared',
+        targetstoragepoolid: null,
         fencingpolicy: 'manual-block',
         peerhostid: null,
         secondaryvmname: this.resource?.name ? `${this.resource.name}-standby` : null,
@@ -146,6 +200,7 @@ export default {
       })
       this.rules = reactive({
         mode: [{ required: true, message: `${this.$t('label.required')}` }],
+        targetstoragepoolid: [{ required: true, message: `${this.$t('label.required')}` }],
         peerhostid: [{ required: true, message: `${this.$t('label.required')}` }]
       })
     },
@@ -153,14 +208,18 @@ export default {
       if (mode === 'ft') {
         this.form.backendmode = null
         this.form.targetstoragescope = null
+        this.form.targetstoragepoolid = null
         this.form.secondarytargetdir = null
         this.form.remotenbdexportaddr = null
       } else {
         if (!this.form.backendmode) {
           this.form.backendmode = 'shared-blockcopy'
         }
-        if (!this.form.targetstoragescope) {
-          this.form.targetstoragescope = this.form.backendmode === 'remote-nbd' ? 'secondary-local' : 'shared'
+        if (this.form.targetstoragepoolid) {
+          this.applySelectedStoragePool(this.form.targetstoragepoolid)
+        } else if (this.storagePools.length === 1) {
+          this.form.targetstoragepoolid = this.storagePools[0].id
+          this.applySelectedStoragePool(this.storagePools[0].id)
         }
         this.form.xcoloproxyendpoint = null
         this.form.xcolonbdendpoint = null
@@ -168,13 +227,59 @@ export default {
       }
     },
     handleBackendModeChange (backendMode) {
-      if (backendMode === 'remote-nbd') {
-        this.form.targetstoragescope = 'secondary-local'
-      } else if (backendMode === 'shared-blockcopy') {
-        this.form.targetstoragescope = 'shared'
+      if (this.form.targetstoragepoolid) {
+        this.applySelectedStoragePool(this.form.targetstoragepoolid)
+      }
+      if (backendMode === 'shared-blockcopy') {
         this.form.secondarytargetdir = null
         this.form.remotenbdexportaddr = null
       }
+    },
+    fetchStoragePools () {
+      if (!this.resource?.zoneid) {
+        return
+      }
+      this.storagePoolsLoading = true
+      const params = {
+        zoneid: this.resource.zoneid,
+        listall: true,
+        pagesize: 500
+      }
+      if (this.resource.clusterid) {
+        params.clusterid = this.resource.clusterid
+      }
+      getAPI('listStoragePools', params).then((json) => {
+        const pools = json?.liststoragepoolsresponse?.storagepool || []
+        this.storagePools = pools.filter(pool => !pool.state || pool.state === 'Up')
+        if (this.storagePools.length === 1 && this.showBackendFields) {
+          this.form.targetstoragepoolid = this.storagePools[0].id
+          this.applySelectedStoragePool(this.storagePools[0].id)
+        }
+      }).catch((error) => {
+        this.$notifyError(error)
+      }).finally(() => {
+        this.storagePoolsLoading = false
+      })
+    },
+    handleStoragePoolChange (poolId) {
+      this.applySelectedStoragePool(poolId)
+    },
+    applySelectedStoragePool (poolId) {
+      const pool = this.storagePools.find(item => item.id === poolId)
+      this.form.targetstoragescope = this.deriveTargetStorageScope(pool)
+    },
+    deriveTargetStorageScope (pool) {
+      if (!pool?.scope) {
+        return 'shared'
+      }
+      return String(pool.scope).toLowerCase()
+    },
+    formatStoragePoolLabel (pool) {
+      const name = pool?.name || pool?.id
+      const scope = pool?.scope || '-'
+      const type = pool?.type || pool?.storagetype || pool?.pooltype || '-'
+      const cluster = pool?.clustername ? ` / ${pool.clustername}` : ''
+      return `${name} (${scope}${cluster}, ${type})`
     },
     fetchHosts () {
       this.hostsLoading = true
@@ -205,21 +310,21 @@ export default {
     },
     validateConditionalFields (values) {
       if (this.showRemoteNbdFields && (!values.secondarytargetdir || !values.remotenbdexportaddr)) {
-        this.$message.error('remote-nbd requires secondary target directory and export address')
+        this.$message.error(this.$t('message.ftctl.validation.remote.nbd.required'))
         return false
       }
       if (this.showFtFields && (!values.xcoloproxyendpoint || !values.xcolonbdendpoint || !values.xcolomigrateuri)) {
-        this.$message.error('FT mode requires x-colo proxy, NBD, and migrate fields')
+        this.$message.error(this.$t('message.ftctl.validation.ft.required'))
         return false
       }
-      if (this.showBackendFields && !values.targetstoragescope) {
-        this.$message.error('HA/DR mode requires target storage scope')
+      if (this.showBackendFields && (!values.targetstoragepoolid || !values.targetstoragescope)) {
+        this.$message.error(this.$t('message.ftctl.validation.target.storage.required'))
         return false
       }
       return true
     },
     handleSubmit (e) {
-      e.preventDefault()
+      e?.preventDefault?.()
       if (this.loading) return
       this.formRef.value.validate().then(() => {
         const values = toRaw(this.form)
@@ -234,6 +339,7 @@ export default {
         if (this.showBackendFields) {
           params.backendmode = values.backendmode
           params.targetstoragescope = values.targetstoragescope
+          params.targetstoragepoolid = values.targetstoragepoolid
         }
         if (values.peerhostid) {
           params.peerhostid = values.peerhostid
@@ -252,7 +358,7 @@ export default {
         }
         this.loading = true
         postAPI('registerFtctlProtection', params).then(() => {
-          this.$message.success('FTCTL protection saved')
+          this.$message.success(this.$t('message.ftctl.protection.saved'))
           this.$emit('refresh-data')
           eventBus.emit('vm-refresh-data')
           this.closeAction()

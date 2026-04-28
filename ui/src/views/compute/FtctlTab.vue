@@ -147,6 +147,7 @@
             </a-descriptions-item>
             <a-descriptions-item :label="$t('label.ftctl.backend.mode')">{{ protection.backendmode || '-' }}</a-descriptions-item>
             <a-descriptions-item :label="$t('label.ftctl.target.storage.scope')">{{ protection.targetstoragescope || '-' }}</a-descriptions-item>
+            <a-descriptions-item :label="$t('label.ftctl.target.storage.pool')">{{ protection.targetstoragepoolname || protection.targetstoragepoolid || '-' }}</a-descriptions-item>
             <a-descriptions-item :label="$t('label.ftctl.fencing.policy')">{{ protection.fencingpolicy || '-' }}</a-descriptions-item>
             <a-descriptions-item :label="$t('label.ftctl.peer.host.id')">{{ protection.peerhostid || '-' }}</a-descriptions-item>
             <a-descriptions-item :label="$t('label.ftctl.secondary.vm.name')">{{ protection.secondaryvmname || '-' }}</a-descriptions-item>

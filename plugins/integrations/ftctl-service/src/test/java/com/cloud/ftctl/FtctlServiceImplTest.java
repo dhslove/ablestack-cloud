@@ -39,11 +39,14 @@ import com.cloud.host.HostVO;
 import com.cloud.host.dao.HostDao;
 import com.cloud.host.dao.HostDetailsDao;
 import com.cloud.hypervisor.Hypervisor.HypervisorType;
+import com.cloud.storage.ScopeType;
 import com.cloud.utils.exception.CloudRuntimeException;
 import com.cloud.vm.VMInstanceDetailVO;
 import com.cloud.vm.UserVmVO;
 import com.cloud.vm.dao.UserVmDao;
 import com.cloud.vm.dao.VMInstanceDetailsDao;
+import org.apache.cloudstack.storage.datastore.db.PrimaryDataStoreDao;
+import org.apache.cloudstack.storage.datastore.db.StoragePoolVO;
 import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlCheckCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlEventsCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlHealthCmd;
@@ -82,6 +85,8 @@ public class FtctlServiceImplTest {
     private HostDetailsDao hostDetailsDao;
     @Mock
     private HostDao hostDao;
+    @Mock
+    private PrimaryDataStoreDao primaryDataStoreDao;
 
     @InjectMocks
     private FtctlServiceImpl ftctlService;
@@ -289,6 +294,8 @@ public class FtctlServiceImplTest {
         Assert.assertEquals("vm-uuid", profileCommand.getProfileName());
         Assert.assertEquals("remote-nbd", profileCommand.getBackendMode());
         Assert.assertEquals("host", profileCommand.getTargetStorageScope());
+        Assert.assertEquals("pool-uuid", profileCommand.getTargetStoragePoolId());
+        Assert.assertEquals("pool-name", profileCommand.getTargetStoragePoolName());
         Assert.assertEquals("vm-name-secondary", profileCommand.getSecondaryVmName());
         Assert.assertEquals("manual-block", profileCommand.getFencingPolicy());
         Assert.assertEquals("/data/secondary", profileCommand.getSecondaryTargetDir());
@@ -306,6 +313,8 @@ public class FtctlServiceImplTest {
         Assert.assertEquals("true", getFieldValue(response, "enabled"));
         Assert.assertEquals("dr", getFieldValue(response, "mode"));
         Assert.assertEquals("remote-nbd", getFieldValue(response, "backendMode"));
+        Assert.assertEquals("pool-uuid", getFieldValue(response, "targetStoragePoolId"));
+        Assert.assertEquals("pool-name", getFieldValue(response, "targetStoragePoolName"));
         Assert.assertEquals("202", getFieldValue(response, "peerHostId"));
         Assert.assertEquals("protected", getFieldValue(response, "protectionState"));
         Assert.assertEquals("replicating", getFieldValue(response, "transportState"));
@@ -313,6 +322,8 @@ public class FtctlServiceImplTest {
 
         Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.enabled", "true", true);
         Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.backend.mode", "remote-nbd", true);
+        Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.target.storage.pool.id", "pool-uuid", true);
+        Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.target.storage.pool.name", "pool-name", true);
         Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.peer.host.id", "202", true);
         Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.last.protection.state", "protected", true);
     }
@@ -387,12 +398,23 @@ public class FtctlServiceImplTest {
         setField(cmd, "mode", "dr");
         setField(cmd, "backendMode", "remote-nbd");
         setField(cmd, "targetStorageScope", "host");
+        setField(cmd, "targetStoragePoolId", 501L);
         setField(cmd, "fencingPolicy", "manual-block");
         setField(cmd, "peerHostId", 202L);
         setField(cmd, "secondaryVmName", "vm-name-secondary");
         setField(cmd, "secondaryTargetDir", "/data/secondary");
         setField(cmd, "remoteNbdExportAddr", "10.0.0.12:10809");
+        Mockito.lenient().when(primaryDataStoreDao.findById(501L)).thenReturn(mockStoragePool());
         return cmd;
+    }
+
+    private StoragePoolVO mockStoragePool() {
+        StoragePoolVO storagePool = Mockito.mock(StoragePoolVO.class);
+        Mockito.when(storagePool.getUuid()).thenReturn("pool-uuid");
+        Mockito.when(storagePool.getName()).thenReturn("pool-name");
+        Mockito.when(storagePool.getDataCenterId()).thenReturn(401L);
+        Mockito.when(storagePool.getScope()).thenReturn(ScopeType.HOST);
+        return storagePool;
     }
 
     private HostVO mockHost(Long id, Long clusterId, String privateIp) {

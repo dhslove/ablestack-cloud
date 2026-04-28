@@ -24,6 +24,8 @@ public class FtctlSyncProfileCommand extends Command {
     private String profileName;
     private String backendMode;
     private String targetStorageScope;
+    private String targetStoragePoolId;
+    private String targetStoragePoolName;
     private String secondaryVmName;
     private String fencingPolicy;
     private String secondaryTargetDir;
@@ -75,6 +77,22 @@ public class FtctlSyncProfileCommand extends Command {
 
     public void setTargetStorageScope(String targetStorageScope) {
         this.targetStorageScope = targetStorageScope;
+    }
+
+    public String getTargetStoragePoolId() {
+        return targetStoragePoolId;
+    }
+
+    public void setTargetStoragePoolId(String targetStoragePoolId) {
+        this.targetStoragePoolId = targetStoragePoolId;
+    }
+
+    public String getTargetStoragePoolName() {
+        return targetStoragePoolName;
+    }
+
+    public void setTargetStoragePoolName(String targetStoragePoolName) {
+        this.targetStoragePoolName = targetStoragePoolName;
     }
 
     public String getSecondaryVmName() {

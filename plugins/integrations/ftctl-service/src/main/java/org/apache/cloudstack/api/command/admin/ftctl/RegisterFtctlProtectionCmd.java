@@ -25,6 +25,7 @@ import org.apache.cloudstack.api.Parameter;
 import org.apache.cloudstack.api.ResponseObject;
 import org.apache.cloudstack.api.ServerApiException;
 import org.apache.cloudstack.api.response.HostResponse;
+import org.apache.cloudstack.api.response.StoragePoolResponse;
 import org.apache.cloudstack.api.response.UserVmResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlProtectionResponse;
 
@@ -53,6 +54,10 @@ public class RegisterFtctlProtectionCmd extends BaseCmd {
 
     @Parameter(name = "targetstoragescope", type = CommandType.STRING, description = "the FTCTL target storage scope")
     private String targetStorageScope;
+
+    @Parameter(name = "targetstoragepoolid", type = CommandType.UUID, entityType = StoragePoolResponse.class,
+            description = "the target primary storage pool ID for FTCTL HA/DR protection")
+    private Long targetStoragePoolId;
 
     @Parameter(name = "fencingpolicy", type = CommandType.STRING, description = "the FTCTL fencing policy")
     private String fencingPolicy;
@@ -94,6 +99,10 @@ public class RegisterFtctlProtectionCmd extends BaseCmd {
 
     public String getTargetStorageScope() {
         return targetStorageScope;
+    }
+
+    public Long getTargetStoragePoolId() {
+        return targetStoragePoolId;
     }
 
     public String getFencingPolicy() {
