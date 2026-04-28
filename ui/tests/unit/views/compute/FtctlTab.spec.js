@@ -37,7 +37,9 @@ const createWrapper = (apis = {}) => {
     props: {
       resource: {
         id: 'vm-1',
-        name: 'vm-name'
+        name: 'vm-name',
+        hypervisor: 'KVM',
+        vmtype: 'User'
       },
       loading: false
     },
@@ -45,7 +47,10 @@ const createWrapper = (apis = {}) => {
       mocks: {
         $store: {
           getters: {
-            apis
+            apis,
+            userInfo: {
+              roletype: 'Admin'
+            }
           }
         },
         $message: {
@@ -55,6 +60,9 @@ const createWrapper = (apis = {}) => {
       },
       stubs: {
         'a-spin': { template: '<div><slot /></div>' },
+        'a-space': { template: '<div><slot /></div>' },
+        'a-popconfirm': { template: '<div><slot /></div>' },
+        'a-modal': { template: '<div><slot /></div>' },
         'a-button': { template: '<button><slot /></button>' },
         'a-alert': { template: '<div><slot name="message" /></div>' },
         'a-card': { template: '<div><slot /></div>' },
@@ -143,7 +151,8 @@ describe('Views > compute > FtctlTab.vue', () => {
     expect(wrapper.vm.healthResult.uri).toBe('qemu+ssh://10.0.0.11/system')
     expect(wrapper.vm.events[0].event).toBe('newer')
     expect(wrapper.vm.events[1].event).toBe('older')
-    expect(wrapper.vm.showPauseAction).toBe(true)
+    expect(wrapper.vm.canRunActions).toBe(true)
+    expect(wrapper.vm.actionDefinitions.find(action => action.api === 'pauseFtctlProtection').disabled).toBe(false)
     expect(wrapper.vm.operationalSummary.type).toBe('warning')
   })
 
@@ -201,10 +210,9 @@ describe('Views > compute > FtctlTab.vue', () => {
       adminstate: 'running',
       fencingstate: 'clear'
     }
-    await wrapper.vm.runAction('failoverFtctlProtection', true)
+    await wrapper.vm.runAction('failoverFtctlProtection')
     await flushPromises()
 
-    expect(global.window.confirm).toHaveBeenCalled()
     expect(postAPI).toHaveBeenCalledWith('failoverFtctlProtection', { virtualmachineid: 'vm-1' })
     expect(wrapper.vm.protection.activeside).toBe('secondary')
     expect(wrapper.vm.lastAction.success).toBe(true)
