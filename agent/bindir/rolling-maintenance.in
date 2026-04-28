@@ -62,6 +62,8 @@ def decode(value):
 
 def read_metadata(instance_name):
     metadata_path = os.path.join(METADATA_DIR, "%s.metadata" % instance_name)
+    if not os.path.exists(metadata_path) and "/" in instance_name:
+        metadata_path = os.path.join(METADATA_DIR, "%s.metadata" % instance_name.replace("/", "-"))
     values = {}
     with open(metadata_path, "r") as metadata_file:
         for line in metadata_file:
