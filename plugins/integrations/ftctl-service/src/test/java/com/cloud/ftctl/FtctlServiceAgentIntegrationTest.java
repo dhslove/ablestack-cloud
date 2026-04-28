@@ -155,7 +155,7 @@ public class FtctlServiceAgentIntegrationTest {
             Assert.assertEquals("dr", command.getMode());
             Assert.assertEquals("vm-uuid", command.getProfileName());
             Assert.assertEquals("remote-nbd", command.getBackendMode());
-            Assert.assertEquals("host", command.getTargetStorageScope());
+            Assert.assertEquals("secondary-local", command.getTargetStorageScope());
             Assert.assertEquals("pool-uuid", command.getTargetStoragePoolId());
             Assert.assertEquals("pool-name", command.getTargetStoragePoolName());
             Assert.assertEquals("manual-block", command.getFencingPolicy());
@@ -169,7 +169,7 @@ public class FtctlServiceAgentIntegrationTest {
             Assert.assertEquals("dr", command.getMode());
             Assert.assertEquals("qemu+ssh://peer-ft/system", command.getPeerUri());
             Assert.assertEquals("remote-nbd", command.getContextParam("ftctl.backend.mode"));
-            Assert.assertEquals("host", command.getContextParam("ftctl.target.storage.scope"));
+            Assert.assertEquals("secondary-local", command.getContextParam("ftctl.target.storage.scope"));
             Assert.assertEquals("manual-block", command.getContextParam("ftctl.fencing.policy"));
             return new FtctlActionAnswer(command, true, "OK", FtctlActionCommand.Action.PROTECT, "ok", 0, "protected");
         });
@@ -381,6 +381,7 @@ public class FtctlServiceAgentIntegrationTest {
         Mockito.when(storagePool.getName()).thenReturn("pool-name");
         Mockito.when(storagePool.getDataCenterId()).thenReturn(401L);
         Mockito.when(storagePool.getScope()).thenReturn(ScopeType.HOST);
+        Mockito.when(storagePool.getPath()).thenReturn("/data/primary");
         return storagePool;
     }
 

@@ -56,7 +56,7 @@
             </a-select-option>
           </a-select>
         </a-form-item>
-        <a-form-item name="targetstoragepoolid" v-if="showBackendFields">
+        <a-form-item name="targetstoragepoolid" v-if="showStorageFields">
           <template #label>
             <tooltip-label :title="$t('label.ftctl.target.storage.scope')" :tooltip="$t('placeholder.ftctl.target.storage.scope')" />
           </template>
@@ -187,6 +187,9 @@ export default {
     showBackendFields () {
       return this.form?.mode === 'ha' || this.form?.mode === 'dr'
     },
+    showStorageFields () {
+      return this.form?.mode === 'ha' || this.form?.mode === 'dr' || this.form?.mode === 'ft'
+    },
     showRemoteNbdFields () {
       return this.showBackendFields && this.form?.backendmode === 'remote-nbd'
     },
@@ -232,10 +235,15 @@ export default {
     handleModeChange (mode) {
       if (mode === 'ft') {
         this.form.backendmode = null
-        this.form.targetstoragescope = null
-        this.form.targetstoragepoolid = null
         this.form.secondarytargetdir = null
         this.form.remotenbdexportaddr = null
+        if (this.form.targetstoragepoolid) {
+          this.applySelectedStoragePool(this.form.targetstoragepoolid)
+        } else if (this.storagePools.length === 1) {
+          this.form.targetstoragepoolid = this.storagePools[0].id
+          this.applySelectedStoragePool(this.storagePools[0].id)
+        }
+        this.fetchStoragePools(this.form.peerhostid)
         this.applyPeerHostDefaults(this.form.peerhostid)
       } else {
         if (!this.form.backendmode) {
@@ -290,10 +298,10 @@ export default {
         const selectedPool = this.storagePools.find(pool => pool.id === this.form.targetstoragepoolid)
         if (selectedPool) {
           this.applySelectedStoragePool(selectedPool.id)
-        } else if (this.storagePools.length === 1 && this.showBackendFields) {
+        } else if (this.storagePools.length === 1 && this.showStorageFields) {
           this.form.targetstoragepoolid = this.storagePools[0].id
           this.applySelectedStoragePool(this.storagePools[0].id)
-        } else if (this.showBackendFields) {
+        } else if (this.showStorageFields) {
           this.form.targetstoragepoolid = null
           this.form.targetstoragescope = 'shared'
         }
@@ -355,7 +363,7 @@ export default {
     handlePeerHostChange (peerHostId) {
       this.form.peerhostid = peerHostId
       this.applyPeerHostDefaults(peerHostId)
-      if (this.showBackendFields) {
+      if (this.showStorageFields) {
         this.fetchStoragePools(peerHostId)
       }
     },
@@ -393,7 +401,7 @@ export default {
         this.$message.error(this.$t('message.ftctl.validation.ft.required'))
         return false
       }
-      if (this.showBackendFields && (!values.targetstoragepoolid || !values.targetstoragescope)) {
+      if (this.showStorageFields && (!values.targetstoragepoolid || !values.targetstoragescope)) {
         this.$message.error(this.$t('message.ftctl.validation.target.storage.required'))
         return false
       }
@@ -416,6 +424,8 @@ export default {
         }
         if (this.showBackendFields) {
           params.backendmode = values.backendmode
+        }
+        if (this.showStorageFields) {
           params.targetstoragescope = values.targetstoragescope
           params.targetstoragepoolid = values.targetstoragepoolid
         }
@@ -460,5 +470,38 @@ export default {
 
 .ftctl-auto-fields {
   margin-bottom: 16px;
+
+  :deep(.ant-alert-message) {
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-color);
+  }
+
+  :deep(.ant-alert-description) {
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--text-color-secondary);
+  }
+
+  :deep(.ant-alert-icon) {
+    font-size: 14px;
+  }
+}
+
+:global(.dark) .ftctl-auto-fields,
+:global(.night) .ftctl-auto-fields,
+:global([data-theme='dark']) .ftctl-auto-fields,
+:global(body.dark) .ftctl-auto-fields,
+:global(body.night) .ftctl-auto-fields {
+  background: rgba(64, 169, 255, 0.1);
+  border-color: rgba(64, 169, 255, 0.24);
+
+  :deep(.ant-alert-message) {
+    color: rgba(255, 255, 255, 0.82);
+  }
+
+  :deep(.ant-alert-description) {
+    color: rgba(255, 255, 255, 0.58);
+  }
 }
 </style>

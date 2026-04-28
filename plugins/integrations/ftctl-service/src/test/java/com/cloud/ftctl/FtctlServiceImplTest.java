@@ -293,7 +293,7 @@ public class FtctlServiceImplTest {
         Assert.assertEquals("qemu+ssh://peer-ft/system", profileCommand.getPeerUri());
         Assert.assertEquals("vm-uuid", profileCommand.getProfileName());
         Assert.assertEquals("remote-nbd", profileCommand.getBackendMode());
-        Assert.assertEquals("host", profileCommand.getTargetStorageScope());
+        Assert.assertEquals("secondary-local", profileCommand.getTargetStorageScope());
         Assert.assertEquals("pool-uuid", profileCommand.getTargetStoragePoolId());
         Assert.assertEquals("pool-name", profileCommand.getTargetStoragePoolName());
         Assert.assertEquals("vm-name-secondary", profileCommand.getSecondaryVmName());
@@ -415,6 +415,7 @@ public class FtctlServiceImplTest {
         Mockito.when(storagePool.getName()).thenReturn("pool-name");
         Mockito.when(storagePool.getDataCenterId()).thenReturn(401L);
         Mockito.when(storagePool.getScope()).thenReturn(ScopeType.HOST);
+        Mockito.when(storagePool.getPath()).thenReturn("/data/primary");
         return storagePool;
     }
 

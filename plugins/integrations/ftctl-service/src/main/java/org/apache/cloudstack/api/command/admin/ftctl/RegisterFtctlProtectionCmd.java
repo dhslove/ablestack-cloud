@@ -56,7 +56,7 @@ public class RegisterFtctlProtectionCmd extends BaseCmd {
     private String targetStorageScope;
 
     @Parameter(name = "targetstoragepoolid", type = CommandType.UUID, entityType = StoragePoolResponse.class,
-            description = "the target primary storage pool ID for FTCTL HA/DR protection")
+            description = "the target primary storage pool ID for FTCTL HA/DR/FT protection")
     private Long targetStoragePoolId;
 
     @Parameter(name = "fencingpolicy", type = CommandType.STRING, description = "the FTCTL fencing policy")

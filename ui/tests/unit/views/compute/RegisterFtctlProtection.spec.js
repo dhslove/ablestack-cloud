@@ -153,10 +153,13 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
     wrapper.vm.form.mode = 'ft'
     wrapper.vm.handleModeChange('ft')
 
+    expect(wrapper.vm.form.targetstoragepoolid).toBe('pool-1')
+    expect(wrapper.vm.form.targetstoragescope).toBe('host')
     expect(wrapper.vm.form.xcoloproxyendpoint).toBe('tcp:10.0.0.12:9000')
     expect(wrapper.vm.form.xcolonbdendpoint).toBe('tcp:10.0.1.12:10809')
     expect(wrapper.vm.form.xcolomigrateuri).toBe('tcp:10.0.1.12:9998')
     expect(wrapper.vm.showBackendFields).toBe(false)
+    expect(wrapper.vm.showStorageFields).toBe(true)
   })
 
   it('updates conditional fields when mode and backend change', async () => {
@@ -169,7 +172,7 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
     wrapper.vm.form.mode = 'ft'
     wrapper.vm.handleModeChange('ft')
     expect(wrapper.vm.form.backendmode).toBe(null)
-    expect(wrapper.vm.form.targetstoragescope).toBe(null)
+    expect(wrapper.vm.form.targetstoragescope).toBe('host')
     expect(wrapper.vm.showFtFields).toBe(true)
 
     wrapper.vm.form.mode = 'dr'
@@ -223,5 +226,46 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
     expect(wrapper.emitted('refresh-data')).toBeTruthy()
     expect(wrapper.emitted('close-action')).toBeTruthy()
     expect(eventBus.emit).toHaveBeenCalledWith('vm-refresh-data')
+  })
+
+  it('submits FT registerFtctlProtection with target storage pool and endpoints', async () => {
+    mockGetApi({
+      hosts: [{ id: 'host-2', hypervisor: 'KVM', name: 'peer-host', ipaddress: '10.0.0.12' }],
+      storagePools: [{ id: 'pool-1', name: 'pool-1', scope: 'HOST', state: 'Up' }]
+    })
+    postAPI.mockResolvedValue({ registerftctlprotectionresponse: { success: true } })
+
+    const wrapper = createWrapper()
+    await flushPromises()
+
+    wrapper.vm.form.mode = 'ft'
+    wrapper.vm.handleModeChange('ft')
+    wrapper.vm.form.targetstoragepoolid = 'pool-1'
+    wrapper.vm.form.targetstoragescope = 'host'
+    wrapper.vm.form.peerhostid = 'host-2'
+    wrapper.vm.form.secondaryvmname = 'vm-name-standby'
+    wrapper.vm.form.xcoloproxyendpoint = 'tcp:10.0.0.12:9000'
+    wrapper.vm.form.xcolonbdendpoint = 'tcp:10.0.0.12:10809'
+    wrapper.vm.form.xcolomigrateuri = 'tcp:10.0.0.12:9998'
+    wrapper.vm.formRef.value = {
+      validate: jest.fn().mockResolvedValue(true),
+      scrollToField: jest.fn()
+    }
+
+    await wrapper.vm.handleSubmit({ preventDefault: jest.fn() })
+    await flushPromises()
+
+    expect(postAPI).toHaveBeenCalledWith('registerFtctlProtection', {
+      virtualmachineid: 'vm-1',
+      mode: 'ft',
+      fencingpolicy: 'manual-block',
+      targetstoragescope: 'host',
+      targetstoragepoolid: 'pool-1',
+      peerhostid: 'host-2',
+      secondaryvmname: 'vm-name-standby',
+      xcoloproxyendpoint: 'tcp:10.0.0.12:9000',
+      xcolonbdendpoint: 'tcp:10.0.0.12:10809',
+      xcolomigrateuri: 'tcp:10.0.0.12:9998'
+    })
   })
 })
