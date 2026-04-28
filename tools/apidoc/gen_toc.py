@@ -259,6 +259,8 @@ known_categories = {
     'stopDisasterRecoveryClusterVm': 'Disaster Recovery',
     'GetDisasterRecoveryClusterList': 'Disaster Recovery',
     'DisasterRecovery': 'dr',
+    'Ftctl': 'FTCTL',
+    'ftctl': 'FTCTL',
     'UnmanagedInstance': 'Virtual Machine',
     'Rolling': 'Rolling Maintenance',
     'importVsphereStoragePolicies' : 'vSphere storage policies',
