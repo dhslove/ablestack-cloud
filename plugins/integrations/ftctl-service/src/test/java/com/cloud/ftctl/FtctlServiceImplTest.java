@@ -404,7 +404,8 @@ public class FtctlServiceImplTest {
         setField(cmd, "secondaryVmName", "vm-name-secondary");
         setField(cmd, "secondaryTargetDir", "/data/secondary");
         setField(cmd, "remoteNbdExportAddr", "10.0.0.12:10809");
-        Mockito.lenient().when(primaryDataStoreDao.findById(501L)).thenReturn(mockStoragePool());
+        StoragePoolVO storagePool = mockStoragePool();
+        Mockito.lenient().when(primaryDataStoreDao.findById(501L)).thenReturn(storagePool);
         return cmd;
     }
 
