@@ -63,6 +63,8 @@ const createWrapper = () => {
         'a-select': { template: '<select><slot /></select>' },
         'a-select-option': { template: '<option><slot /></option>' },
         'a-input': { template: '<input />' },
+        'a-alert': { template: '<div />' },
+        'a-checkbox': { template: '<input type="checkbox" />' },
         'a-button': { template: '<button><slot /></button>' }
       }
     }
@@ -104,7 +106,7 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
       type: 'Routing',
       state: 'Up',
       listall: true,
-      details: 'min',
+      details: 'all',
       clusterid: 'cluster-1'
     })
     expect(getAPI).toHaveBeenCalledWith('listStoragePools', {
@@ -114,9 +116,47 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
       pagesize: 500,
       clusterid: 'cluster-1'
     })
+    expect(getAPI).toHaveBeenCalledWith('listStoragePools', {
+      zoneid: 'zone-1',
+      listall: true,
+      page: 1,
+      pagesize: 500,
+      hostid: 'host-2',
+      clusterid: 'cluster-1'
+    })
     expect(wrapper.vm.hosts).toHaveLength(1)
     expect(wrapper.vm.hosts[0].id).toBe('host-2')
     expect(wrapper.vm.form.peerhostid).toBe('host-2')
+  })
+
+  it('updates storage pools and FT endpoints when peer host changes', async () => {
+    mockGetApi({
+      hosts: [
+        {
+          id: 'host-2',
+          hypervisor: 'KVM',
+          name: 'peer-host',
+          ipaddress: '10.0.0.12',
+          migrationip: '10.0.1.12',
+          clusterid: 'cluster-1'
+        }
+      ],
+      storagePools: [{ id: 'pool-1', name: 'pool-1', scope: 'HOST', state: 'Up' }]
+    })
+
+    const wrapper = createWrapper()
+    await flushPromises()
+
+    expect(wrapper.vm.form.targetstoragepoolid).toBe('pool-1')
+    expect(wrapper.vm.form.targetstoragescope).toBe('host')
+
+    wrapper.vm.form.mode = 'ft'
+    wrapper.vm.handleModeChange('ft')
+
+    expect(wrapper.vm.form.xcoloproxyendpoint).toBe('tcp:10.0.0.12:9000')
+    expect(wrapper.vm.form.xcolonbdendpoint).toBe('tcp:10.0.1.12:10809')
+    expect(wrapper.vm.form.xcolomigrateuri).toBe('tcp:10.0.1.12:9998')
+    expect(wrapper.vm.showBackendFields).toBe(false)
   })
 
   it('updates conditional fields when mode and backend change', async () => {
