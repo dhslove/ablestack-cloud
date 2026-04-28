@@ -271,9 +271,6 @@ export default {
 
 <style lang="scss" scoped>
 .form-layout {
-  width: 80vw;
-  @media (min-width: 700px) {
-    width: 480px;
-  }
+  width: 100%;
 }
 </style>

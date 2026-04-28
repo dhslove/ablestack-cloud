@@ -19,51 +19,80 @@
 <template>
   <a-spin :spinning="loadingState">
     <div class="ftctl-tab">
-      <div class="ftctl-tab__actions">
-        <a-button @click="fetchAll" :loading="loadingState">Refresh</a-button>
-      </div>
-
-      <a-alert
-        v-if="errorMessage"
-        type="warning"
-        show-icon
-        :message="errorMessage"
-        style="margin-bottom: 12px" />
-
-      <a-alert
-        v-if="lastAction.message"
-        :type="lastAction.success ? 'success' : 'error'"
-        show-icon
-        style="margin-bottom: 12px">
-        <template #message>
-          <div>{{ lastAction.message }}</div>
-          <div v-if="lastAction.timestamp" class="ftctl-tab__meta">Updated: {{ lastAction.timestamp }}</div>
+      <a-card size="small" :bordered="true" class="ftctl-tab__section">
+        <template #title>FTCTL</template>
+        <template #extra>
+          <a-space wrap>
+            <a-button
+              v-if="canConfigureProtection"
+              type="primary"
+              @click="openProtectionModal"
+              :disabled="unsafeVmState">
+              Protection
+            </a-button>
+            <a-button @click="fetchAll" :loading="loadingState">Refresh</a-button>
+          </a-space>
         </template>
-      </a-alert>
 
-      <a-alert
-        v-if="operationalSummary.message"
-        :type="operationalSummary.type"
-        show-icon
-        style="margin-bottom: 12px">
-        <template #message>
-          <div>{{ operationalSummary.message }}</div>
-          <div class="ftctl-tab__meta">
-            Events: {{ eventStats.total }} | Warnings: {{ eventStats.warn }} | Failures: {{ eventStats.fail }}
-          </div>
-        </template>
-      </a-alert>
+        <a-alert
+          v-if="errorMessage"
+          type="warning"
+          show-icon
+          :message="errorMessage"
+          class="ftctl-tab__alert" />
 
-      <div class="ftctl-tab__actions" v-if="canRunActions">
-        <a-button v-if="showPauseAction" size="small" @click="runAction('pauseFtctlProtection')" :loading="actionLoading.pauseFtctlProtection">Pause</a-button>
-        <a-button v-if="showResumeAction" size="small" @click="runAction('resumeFtctlProtection')" :loading="actionLoading.resumeFtctlProtection">Resume</a-button>
-        <a-button v-if="showFailoverAction" size="small" @click="runAction('failoverFtctlProtection', true)" :loading="actionLoading.failoverFtctlProtection">Failover</a-button>
-        <a-button v-if="showFailbackAction" size="small" @click="runAction('failbackFtctlProtection', true)" :loading="actionLoading.failbackFtctlProtection">Failback</a-button>
-        <a-button v-if="showConfirmFenceAction" size="small" @click="runAction('confirmFtctlFence')" :loading="actionLoading.confirmFtctlFence">Confirm Fence</a-button>
-        <a-button v-if="showClearFenceAction" size="small" @click="runAction('clearFtctlFence')" :loading="actionLoading.clearFtctlFence">Clear Fence</a-button>
-      </div>
+        <a-alert
+          v-if="lastAction.message"
+          :type="lastAction.success ? 'success' : 'error'"
+          show-icon
+          class="ftctl-tab__alert">
+          <template #message>
+            <div>{{ lastAction.message }}</div>
+            <div v-if="lastAction.timestamp" class="ftctl-tab__meta">Updated: {{ lastAction.timestamp }}</div>
+          </template>
+        </a-alert>
 
-      <a-card size="small" :bordered="true" style="margin-bottom: 12px">
+        <a-alert
+          v-if="operationalSummary.message"
+          :type="operationalSummary.type"
+          show-icon
+          class="ftctl-tab__alert">
+          <template #message>
+            <div>{{ operationalSummary.message }}</div>
+            <div class="ftctl-tab__meta">
+              Events: {{ eventStats.total }} | Warnings: {{ eventStats.warn }} | Failures: {{ eventStats.fail }}
+            </div>
+          </template>
+        </a-alert>
+
+        <a-space v-if="canRunActions" wrap class="ftctl-tab__operations">
+          <template v-for="action in actionDefinitions" :key="action.api">
+            <a-popconfirm
+              v-if="action.confirm"
+              placement="topRight"
+              :title="action.confirmMessage"
+              :ok-text="$t('label.yes')"
+              :cancel-text="$t('label.no')"
+              @confirm="runAction(action.api)">
+              <a-button
+                size="small"
+                :danger="action.danger"
+                :disabled="action.disabled"
+                :loading="actionLoading[action.api]">
+                {{ action.label }}
+              </a-button>
+            </a-popconfirm>
+            <a-button
+              v-else
+              size="small"
+              :disabled="action.disabled"
+              :loading="actionLoading[action.api]"
+              @click="runAction(action.api)">
+              {{ action.label }}
+            </a-button>
+          </template>
+        </a-space>
+
         <div class="ftctl-tab__summary">
           <div class="ftctl-tab__summary-item">
             <div class="ftctl-tab__summary-label">Protection</div>
@@ -88,7 +117,8 @@
         </div>
       </a-card>
 
-      <a-descriptions bordered :column="1" size="small">
+      <a-card size="small" :bordered="true" class="ftctl-tab__section" title="Protection Details">
+      <a-descriptions bordered :column="descriptionColumn" size="small">
         <a-descriptions-item label="Enabled">
           <a-tag :color="booleanTagColor(protection.enabled)">{{ formatBoolean(protection.enabled) }}</a-tag>
         </a-descriptions-item>
@@ -128,10 +158,10 @@
         </a-descriptions-item>
         <a-descriptions-item label="Last Error">{{ protection.lasterror || '-' }}</a-descriptions-item>
       </a-descriptions>
+      </a-card>
 
-      <a-divider />
-
-      <a-descriptions bordered :column="1" size="small">
+      <a-card size="small" :bordered="true" class="ftctl-tab__section" title="Check">
+      <a-descriptions bordered :column="descriptionColumn" size="small">
         <a-descriptions-item label="Check Result">
           <a-tag v-if="checkResult.result" :color="stateTagColor(checkResult.result)">{{ checkResult.result }}</a-tag>
           <span v-else>-</span>
@@ -143,10 +173,10 @@
         <a-descriptions-item label="Primary RC">{{ formatNumber(checkResult.primaryrc) }}</a-descriptions-item>
         <a-descriptions-item label="Peer RC">{{ formatNumber(checkResult.peerrc) }}</a-descriptions-item>
       </a-descriptions>
+      </a-card>
 
-      <a-divider />
-
-      <a-descriptions bordered :column="1" size="small">
+      <a-card size="small" :bordered="true" class="ftctl-tab__section" title="Health">
+      <a-descriptions bordered :column="descriptionColumn" size="small">
         <a-descriptions-item label="Health Result">
           <a-tag v-if="healthResult.result" :color="stateTagColor(healthResult.result)">{{ healthResult.result }}</a-tag>
           <span v-else>-</span>
@@ -155,9 +185,9 @@
         <a-descriptions-item label="URI">{{ healthResult.uri || '-' }}</a-descriptions-item>
         <a-descriptions-item label="RC">{{ formatNumber(healthResult.rc) }}</a-descriptions-item>
       </a-descriptions>
+      </a-card>
 
-      <a-divider />
-
+      <a-card size="small" :bordered="true" class="ftctl-tab__section" title="Events">
       <a-table
         size="small"
         :columns="eventColumns"
@@ -184,6 +214,21 @@
           <pre class="ftctl-tab__details">{{ formatEventDetails(record.details) }}</pre>
         </template>
       </a-table>
+      </a-card>
+
+      <a-modal
+        :visible="showProtectionModal"
+        title="FTCTL Protection"
+        :maskClosable="false"
+        :closable="true"
+        :footer="null"
+        width="720px"
+        @cancel="closeProtectionModal">
+        <RegisterFtctlProtection
+          :resource="resource"
+          @close-action="closeProtectionModal"
+          @refresh-data="handleProtectionSaved" />
+      </a-modal>
     </div>
   </a-spin>
 </template>
@@ -191,9 +236,13 @@
 <script>
 import { getAPI, postAPI } from '@/api'
 import eventBus from '@/config/eventBus'
+import RegisterFtctlProtection from '@/views/compute/RegisterFtctlProtection.vue'
 
 export default {
   name: 'FtctlTab',
+  components: {
+    RegisterFtctlProtection
+  },
   props: {
     resource: {
       type: Object,
@@ -212,6 +261,7 @@ export default {
       checkResult: {},
       healthResult: {},
       events: [],
+      showProtectionModal: false,
       lastAction: {
         success: false,
         message: null,
@@ -235,9 +285,26 @@ export default {
     }
   },
   computed: {
+    descriptionColumn () {
+      return this.$store.getters.device === 'mobile' ? 1 : 2
+    },
+    unsafeVmState () {
+      return ['Destroyed', 'Expunging', 'Error'].includes(this.resource?.state) || this.resource?.hostcontrolstate === 'Offline'
+    },
+    supportedVm () {
+      return ['Admin'].includes(this.$store.getters.userInfo.roletype) &&
+        this.resource?.hypervisor === 'KVM' &&
+        this.resource?.vmtype !== 'sharedfsvm'
+    },
+    protectionEnabled () {
+      return this.protection.enabled === true || this.protection.enabled === 'true'
+    },
+    canConfigureProtection () {
+      return 'registerFtctlProtection' in this.$store.getters.apis && this.supportedVm
+    },
     canRunActions () {
       return ['pauseFtctlProtection', 'resumeFtctlProtection', 'failoverFtctlProtection', 'failbackFtctlProtection', 'confirmFtctlFence', 'clearFtctlFence']
-        .every(api => api in this.$store.getters.apis)
+        .some(api => api in this.$store.getters.apis) && this.supportedVm
     },
     canLoadEvents () {
       return 'getFtctlEvents' in this.$store.getters.apis
@@ -270,29 +337,68 @@ export default {
       }
       return { type: null, message: null }
     },
-    showPauseAction () {
-      return this.canRunActions && this.protection.enabled === 'true' && this.protection.adminstate !== 'paused'
-    },
-    showResumeAction () {
-      return this.canRunActions && this.protection.enabled === 'true' && this.protection.adminstate === 'paused'
-    },
-    showFailoverAction () {
-      return this.canRunActions && this.protection.enabled === 'true' && this.protection.activeside !== 'secondary'
-    },
-    showFailbackAction () {
-      return this.canRunActions && this.protection.enabled === 'true' && this.protection.activeside === 'secondary'
-    },
-    showConfirmFenceAction () {
-      return this.canRunActions && ['required', 'failed', 'manual-required'].includes(String(this.protection.fencingstate || '').toLowerCase())
-    },
-    showClearFenceAction () {
-      return this.canRunActions && this.protection.fencingstate && String(this.protection.fencingstate).toLowerCase() !== 'clear'
+    actionDefinitions () {
+      return [
+        {
+          api: 'pauseFtctlProtection',
+          label: 'Pause',
+          disabled: !this.actionAvailable('pauseFtctlProtection') || !this.protectionEnabled || this.protection.adminstate === 'paused'
+        },
+        {
+          api: 'resumeFtctlProtection',
+          label: 'Resume',
+          disabled: !this.actionAvailable('resumeFtctlProtection') || !this.protectionEnabled || this.protection.adminstate !== 'paused'
+        },
+        {
+          api: 'failoverFtctlProtection',
+          label: 'Failover',
+          danger: true,
+          confirm: true,
+          confirmMessage: 'Trigger FTCTL failover for this virtual machine?',
+          disabled: !this.actionAvailable('failoverFtctlProtection') || !this.protectionEnabled || this.protection.activeside === 'secondary'
+        },
+        {
+          api: 'failbackFtctlProtection',
+          label: 'Failback',
+          danger: true,
+          confirm: true,
+          confirmMessage: 'Trigger FTCTL failback for this virtual machine?',
+          disabled: !this.actionAvailable('failbackFtctlProtection') || !this.protectionEnabled || this.protection.activeside !== 'secondary'
+        },
+        {
+          api: 'confirmFtctlFence',
+          label: 'Confirm Fence',
+          confirm: true,
+          confirmMessage: 'Confirm FTCTL fence for this virtual machine?',
+          disabled: !this.actionAvailable('confirmFtctlFence') || !['required', 'failed', 'manual-required'].includes(String(this.protection.fencingstate || '').toLowerCase())
+        },
+        {
+          api: 'clearFtctlFence',
+          label: 'Clear Fence',
+          confirm: true,
+          confirmMessage: 'Clear FTCTL fence state for this virtual machine?',
+          disabled: !this.actionAvailable('clearFtctlFence') || !this.protection.fencingstate || String(this.protection.fencingstate).toLowerCase() === 'clear'
+        }
+      ]
     }
   },
   created () {
     this.fetchAll()
   },
   methods: {
+    actionAvailable (apiName) {
+      return apiName in this.$store.getters.apis && this.supportedVm && !this.unsafeVmState
+    },
+    openProtectionModal () {
+      this.showProtectionModal = true
+    },
+    closeProtectionModal () {
+      this.showProtectionModal = false
+    },
+    handleProtectionSaved () {
+      this.closeProtectionModal()
+      this.fetchAll()
+    },
     formatNumber (value) {
       return value === null || value === undefined || value === '' ? '-' : value
     },
@@ -433,11 +539,8 @@ export default {
         this.errorMessage = this.extractErrorMessage(error, 'getFtctlEvents')
       }
     },
-    async runAction (commandName, dangerous = false) {
+    async runAction (commandName) {
       if (!this.resource?.id || !(commandName in this.$store.getters.apis)) {
-        return
-      }
-      if (dangerous && !window.confirm(`Execute ${commandName} for VM ${this.resource.name || this.resource.id}?`)) {
         return
       }
       this.actionLoading[commandName] = true
@@ -523,11 +626,12 @@ export default {
 
 <style lang="scss" scoped>
 .ftctl-tab {
-  &__actions {
-    display: flex;
-    justify-content: flex-end;
-    flex-wrap: wrap;
-    gap: 8px;
+  &__section {
+    margin-bottom: 12px;
+  }
+
+  &__alert,
+  &__operations {
     margin-bottom: 12px;
   }
 
@@ -556,9 +660,11 @@ export default {
 
   &__details {
     margin: 0;
+    padding: 8px;
     white-space: pre-wrap;
     word-break: break-word;
     font-size: 12px;
+    background: transparent;
   }
 }
 </style>
