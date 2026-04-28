@@ -71,7 +71,15 @@ const createWrapper = (apis = {}) => {
         'a-descriptions': { template: '<div><slot /></div>' },
         'a-descriptions-item': { template: '<div><slot /></div>' },
         'a-divider': true,
-        'a-table': { template: '<div><slot /></div>' }
+        'a-table': { template: '<div><slot /></div>' },
+        SafetyCertificateOutlined: true,
+        SyncOutlined: true,
+        PauseCircleOutlined: true,
+        PlayCircleOutlined: true,
+        ThunderboltOutlined: true,
+        UndoOutlined: true,
+        CheckCircleOutlined: true,
+        ClearOutlined: true
       }
     }
   })
@@ -217,7 +225,7 @@ describe('Views > compute > FtctlTab.vue', () => {
     expect(postAPI).toHaveBeenCalledWith('failoverFtctlProtection', { virtualmachineid: 'vm-1' })
     expect(wrapper.vm.protection.activeside).toBe('secondary')
     expect(wrapper.vm.lastAction.success).toBe(true)
-    expect(wrapper.vm.lastAction.message).toContain('failoverFtctlProtection completed')
+    expect(wrapper.vm.lastAction.message).toContain('label.ftctl.failover label.completed')
     expect(eventBus.emit).toHaveBeenCalledWith('vm-refresh-data')
   })
 })

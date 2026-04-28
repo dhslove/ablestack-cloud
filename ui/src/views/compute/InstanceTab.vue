@@ -27,9 +27,6 @@
       <a-tab-pane :tab="$t('label.details')" key="details">
         <DetailsTab :resource="dataResource" :loading="loading" />
       </a-tab-pane>
-      <a-tab-pane :tab="'FTCTL'" key="ftctl" v-if="'getFtctlProtection' in $store.getters.apis">
-        <FtctlTab :resource="vm" :loading="loading" />
-      </a-tab-pane>
       <a-tab-pane :tab="$t('label.metrics')" key="stats">
         <StatsTab :resource="resource"/>
       </a-tab-pane>
@@ -105,6 +102,9 @@
           :columns="['name', 'status', 'size', 'virtualsize', 'type', 'intervaltype', 'created']"
           :routerlinks="(record) => { return { name: '/backup/' + record.id } }"
           :showSearch="false"/>
+      </a-tab-pane>
+      <a-tab-pane :tab="$t('label.ftctl.fault.protection')" key="ftctl" v-if="'getFtctlProtection' in $store.getters.apis">
+        <FtctlTab :resource="vm" :loading="loading" />
       </a-tab-pane>
       <a-tab-pane :tab="$t('label.securitygroups')" key="securitygroups" v-if="(dataResource.securitygroup && dataResource.securitygroup.length > 0) || ($store.getters.showSecurityGroups && securityGroupNetworkProviderUseThisVM)">
         <a-button
