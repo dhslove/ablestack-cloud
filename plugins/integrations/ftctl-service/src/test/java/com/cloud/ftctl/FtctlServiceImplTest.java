@@ -415,7 +415,6 @@ public class FtctlServiceImplTest {
         Mockito.when(storagePool.getName()).thenReturn("pool-name");
         Mockito.when(storagePool.getDataCenterId()).thenReturn(401L);
         Mockito.when(storagePool.getScope()).thenReturn(ScopeType.HOST);
-        Mockito.when(storagePool.getPath()).thenReturn("/data/primary");
         return storagePool;
     }
 
