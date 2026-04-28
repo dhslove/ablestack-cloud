@@ -69,6 +69,18 @@ const createWrapper = () => {
   })
 }
 
+const mockGetApi = ({ hosts = [], storagePools = [] } = {}) => {
+  getAPI.mockImplementation((command) => {
+    if (command === 'listHosts') {
+      return Promise.resolve({ listhostsresponse: { host: hosts } })
+    }
+    if (command === 'listStoragePools') {
+      return Promise.resolve({ liststoragepoolsresponse: { storagepool: storagePools } })
+    }
+    return Promise.resolve({})
+  })
+}
+
 describe('Views > compute > RegisterFtctlProtection.vue', () => {
   beforeEach(() => {
     jest.clearAllMocks()
@@ -76,14 +88,12 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
   })
 
   it('fetches KVM hosts and auto-selects single peer host', async () => {
-    getAPI.mockResolvedValue({
-      listhostsresponse: {
-        host: [
-          { id: 'host-1', hypervisor: 'KVM', name: 'local-host' },
-          { id: 'host-2', hypervisor: 'KVM', name: 'peer-host', ipaddress: '10.0.0.12' },
-          { id: 'host-3', hypervisor: 'XenServer', name: 'ignored-host' }
-        ]
-      }
+    mockGetApi({
+      hosts: [
+        { id: 'host-1', hypervisor: 'KVM', name: 'local-host' },
+        { id: 'host-2', hypervisor: 'KVM', name: 'peer-host', ipaddress: '10.0.0.12' },
+        { id: 'host-3', hypervisor: 'XenServer', name: 'ignored-host' }
+      ]
     })
 
     const wrapper = createWrapper()
@@ -97,13 +107,21 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
       details: 'min',
       clusterid: 'cluster-1'
     })
+    expect(getAPI).toHaveBeenCalledWith('listStoragePools', {
+      zoneid: 'zone-1',
+      listall: true,
+      pagesize: 500,
+      clusterid: 'cluster-1'
+    })
     expect(wrapper.vm.hosts).toHaveLength(1)
     expect(wrapper.vm.hosts[0].id).toBe('host-2')
     expect(wrapper.vm.form.peerhostid).toBe('host-2')
   })
 
   it('updates conditional fields when mode and backend change', async () => {
-    getAPI.mockResolvedValue({ listhostsresponse: { host: [] } })
+    mockGetApi({
+      storagePools: [{ id: 'pool-1', name: 'pool-1', scope: 'HOST', state: 'Up' }]
+    })
     const wrapper = createWrapper()
     await flushPromises()
 
@@ -117,15 +135,15 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
     wrapper.vm.handleModeChange('dr')
     wrapper.vm.form.backendmode = 'remote-nbd'
     wrapper.vm.handleBackendModeChange('remote-nbd')
-    expect(wrapper.vm.form.targetstoragescope).toBe('secondary-local')
+    expect(wrapper.vm.form.targetstoragepoolid).toBe('pool-1')
+    expect(wrapper.vm.form.targetstoragescope).toBe('host')
     expect(wrapper.vm.showRemoteNbdFields).toBe(true)
   })
 
   it('submits registerFtctlProtection and emits refresh events', async () => {
-    getAPI.mockResolvedValue({
-      listhostsresponse: {
-        host: [{ id: 'host-2', hypervisor: 'KVM', name: 'peer-host', ipaddress: '10.0.0.12' }]
-      }
+    mockGetApi({
+      hosts: [{ id: 'host-2', hypervisor: 'KVM', name: 'peer-host', ipaddress: '10.0.0.12' }],
+      storagePools: [{ id: 'pool-1', name: 'pool-1', scope: 'HOST', state: 'Up' }]
     })
     postAPI.mockResolvedValue({ registerftctlprotectionresponse: { success: true } })
 
@@ -134,7 +152,8 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
 
     wrapper.vm.form.mode = 'dr'
     wrapper.vm.form.backendmode = 'remote-nbd'
-    wrapper.vm.form.targetstoragescope = 'secondary-local'
+    wrapper.vm.form.targetstoragepoolid = 'pool-1'
+    wrapper.vm.form.targetstoragescope = 'host'
     wrapper.vm.form.fencingpolicy = 'manual-block'
     wrapper.vm.form.peerhostid = 'host-2'
     wrapper.vm.form.secondaryvmname = 'vm-name-standby'
@@ -153,7 +172,8 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
       mode: 'dr',
       fencingpolicy: 'manual-block',
       backendmode: 'remote-nbd',
-      targetstoragescope: 'secondary-local',
+      targetstoragescope: 'host',
+      targetstoragepoolid: 'pool-1',
       peerhostid: 'host-2',
       secondaryvmname: 'vm-name-standby',
       secondarytargetdir: '/data/secondary',
