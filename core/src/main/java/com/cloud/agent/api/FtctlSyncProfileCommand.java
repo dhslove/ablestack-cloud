@@ -33,6 +33,16 @@ public class FtctlSyncProfileCommand extends Command {
     private String xcoloProxyEndpoint;
     private String xcoloNbdEndpoint;
     private String xcoloMigrateUri;
+    private String fencingIpmiPrimaryHost;
+    private String fencingIpmiPrimaryPort;
+    private String fencingIpmiPrimaryUser;
+    private String fencingIpmiPrimaryPassword;
+    private String fencingIpmiPrimaryInterface;
+    private String fencingIpmiSecondaryHost;
+    private String fencingIpmiSecondaryPort;
+    private String fencingIpmiSecondaryUser;
+    private String fencingIpmiSecondaryPassword;
+    private String fencingIpmiSecondaryInterface;
 
     public FtctlSyncProfileCommand() {
     }
@@ -149,6 +159,86 @@ public class FtctlSyncProfileCommand extends Command {
 
     public void setXcoloMigrateUri(String xcoloMigrateUri) {
         this.xcoloMigrateUri = xcoloMigrateUri;
+    }
+
+    public String getFencingIpmiPrimaryHost() {
+        return fencingIpmiPrimaryHost;
+    }
+
+    public void setFencingIpmiPrimaryHost(String fencingIpmiPrimaryHost) {
+        this.fencingIpmiPrimaryHost = fencingIpmiPrimaryHost;
+    }
+
+    public String getFencingIpmiPrimaryPort() {
+        return fencingIpmiPrimaryPort;
+    }
+
+    public void setFencingIpmiPrimaryPort(String fencingIpmiPrimaryPort) {
+        this.fencingIpmiPrimaryPort = fencingIpmiPrimaryPort;
+    }
+
+    public String getFencingIpmiPrimaryUser() {
+        return fencingIpmiPrimaryUser;
+    }
+
+    public void setFencingIpmiPrimaryUser(String fencingIpmiPrimaryUser) {
+        this.fencingIpmiPrimaryUser = fencingIpmiPrimaryUser;
+    }
+
+    public String getFencingIpmiPrimaryPassword() {
+        return fencingIpmiPrimaryPassword;
+    }
+
+    public void setFencingIpmiPrimaryPassword(String fencingIpmiPrimaryPassword) {
+        this.fencingIpmiPrimaryPassword = fencingIpmiPrimaryPassword;
+    }
+
+    public String getFencingIpmiPrimaryInterface() {
+        return fencingIpmiPrimaryInterface;
+    }
+
+    public void setFencingIpmiPrimaryInterface(String fencingIpmiPrimaryInterface) {
+        this.fencingIpmiPrimaryInterface = fencingIpmiPrimaryInterface;
+    }
+
+    public String getFencingIpmiSecondaryHost() {
+        return fencingIpmiSecondaryHost;
+    }
+
+    public void setFencingIpmiSecondaryHost(String fencingIpmiSecondaryHost) {
+        this.fencingIpmiSecondaryHost = fencingIpmiSecondaryHost;
+    }
+
+    public String getFencingIpmiSecondaryPort() {
+        return fencingIpmiSecondaryPort;
+    }
+
+    public void setFencingIpmiSecondaryPort(String fencingIpmiSecondaryPort) {
+        this.fencingIpmiSecondaryPort = fencingIpmiSecondaryPort;
+    }
+
+    public String getFencingIpmiSecondaryUser() {
+        return fencingIpmiSecondaryUser;
+    }
+
+    public void setFencingIpmiSecondaryUser(String fencingIpmiSecondaryUser) {
+        this.fencingIpmiSecondaryUser = fencingIpmiSecondaryUser;
+    }
+
+    public String getFencingIpmiSecondaryPassword() {
+        return fencingIpmiSecondaryPassword;
+    }
+
+    public void setFencingIpmiSecondaryPassword(String fencingIpmiSecondaryPassword) {
+        this.fencingIpmiSecondaryPassword = fencingIpmiSecondaryPassword;
+    }
+
+    public String getFencingIpmiSecondaryInterface() {
+        return fencingIpmiSecondaryInterface;
+    }
+
+    public void setFencingIpmiSecondaryInterface(String fencingIpmiSecondaryInterface) {
+        this.fencingIpmiSecondaryInterface = fencingIpmiSecondaryInterface;
     }
 
     @Override

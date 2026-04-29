@@ -57,6 +57,8 @@ import org.apache.cloudstack.api.response.ftctl.FtctlEventResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlEventsResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlHealthResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlProtectionResponse;
+import org.apache.cloudstack.outofbandmanagement.OutOfBandManagement;
+import org.apache.cloudstack.outofbandmanagement.dao.OutOfBandManagementDao;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -87,6 +89,8 @@ public class FtctlServiceImplTest {
     private HostDao hostDao;
     @Mock
     private PrimaryDataStoreDao primaryDataStoreDao;
+    @Mock
+    private OutOfBandManagementDao outOfBandManagementDao;
 
     @InjectMocks
     private FtctlServiceImpl ftctlService;
@@ -328,6 +332,49 @@ public class FtctlServiceImplTest {
         Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.last.protection.state", "protected", true);
     }
 
+    @Test
+    public void testRegisterFtctlProtectionWithIpmiFencingSyncsOobmProfileFields() throws Exception {
+        RegisterFtctlProtectionCmd cmd = buildRegisterCmd();
+        setField(cmd, "fencingPolicy", "ipmi");
+        HostVO localHost = mockHost(201L, 301L, "10.0.0.11");
+        HostVO peerHost = mockHost(202L, 301L, "10.0.0.12");
+        Mockito.when(hostDao.findById(201L)).thenReturn(localHost);
+        Mockito.when(hostDao.findById(202L)).thenReturn(peerHost);
+        Mockito.when(outOfBandManagementDao.findByHost(201L)).thenReturn(mockOobm("10.10.10.201", "623", "admin-a", "password-a"));
+        Mockito.when(outOfBandManagementDao.findByHost(202L)).thenReturn(mockOobm("10.10.10.202", "624", "admin-b", "password-b"));
+
+        FtctlSyncAnswer clusterAnswer = new FtctlSyncAnswer(new FtctlSyncClusterCommand(), true, "OK", "ok", 0, "cluster-synced");
+        FtctlSyncAnswer profileAnswer = new FtctlSyncAnswer(new FtctlSyncProfileCommand(), true, "OK", "ok", 0, "profile-synced");
+        FtctlActionAnswer protectAnswer = new FtctlActionAnswer(new FtctlActionCommand(FtctlActionCommand.Action.PROTECT, "vm-name"), true, "OK",
+                FtctlActionCommand.Action.PROTECT, "ok", 0, "protected");
+        FtctlStatusAnswer statusAnswer = new FtctlStatusAnswer(new FtctlStatusCommand("vm-name"), true, "OK", "ok", "vm-name",
+                "dr", "protected", "replicating", "primary", "running", "clear", "",
+                "2026-04-18T18:10:00+09:00", 0, 0);
+
+        Mockito.when(agentManager.send(Mockito.eq(201L), Mockito.any(Command.class)))
+                .thenReturn(clusterAnswer)
+                .thenReturn(profileAnswer)
+                .thenReturn(protectAnswer)
+                .thenReturn(statusAnswer);
+
+        ftctlService.registerFtctlProtection(cmd);
+
+        ArgumentCaptor<Command> commandCaptor = ArgumentCaptor.forClass(Command.class);
+        Mockito.verify(agentManager, Mockito.times(4)).send(Mockito.eq(201L), commandCaptor.capture());
+        FtctlSyncProfileCommand profileCommand = (FtctlSyncProfileCommand) commandCaptor.getAllValues().get(1);
+        Assert.assertEquals("10.10.10.201", profileCommand.getFencingIpmiPrimaryHost());
+        Assert.assertEquals("623", profileCommand.getFencingIpmiPrimaryPort());
+        Assert.assertEquals("admin-a", profileCommand.getFencingIpmiPrimaryUser());
+        Assert.assertEquals("password-a", profileCommand.getFencingIpmiPrimaryPassword());
+        Assert.assertEquals("lanplus", profileCommand.getFencingIpmiPrimaryInterface());
+        Assert.assertEquals("10.10.10.202", profileCommand.getFencingIpmiSecondaryHost());
+        Assert.assertEquals("624", profileCommand.getFencingIpmiSecondaryPort());
+        Assert.assertEquals("admin-b", profileCommand.getFencingIpmiSecondaryUser());
+        Assert.assertEquals("password-b", profileCommand.getFencingIpmiSecondaryPassword());
+        Assert.assertEquals("lanplus", profileCommand.getFencingIpmiSecondaryInterface());
+        Mockito.verify(vmInstanceDetailsDao, Mockito.never()).addDetail(Mockito.eq(101L), Mockito.contains("password"), Mockito.anyString(), Mockito.anyBoolean());
+    }
+
     @Test(expected = CloudRuntimeException.class)
     public void testRegisterFtctlProtectionFailsWhenClusterSyncFails() throws Exception {
         RegisterFtctlProtectionCmd cmd = buildRegisterCmd();
@@ -426,5 +473,16 @@ public class FtctlServiceImplTest {
         Mockito.when(host.getType()).thenReturn(Host.Type.Routing);
         Mockito.when(host.getHypervisorType()).thenReturn(HypervisorType.KVM);
         return host;
+    }
+
+    private OutOfBandManagement mockOobm(String address, String port, String username, String password) {
+        OutOfBandManagement oobm = Mockito.mock(OutOfBandManagement.class);
+        Mockito.when(oobm.isEnabled()).thenReturn(true);
+        Mockito.when(oobm.getDriver()).thenReturn("ipmitool");
+        Mockito.when(oobm.getAddress()).thenReturn(address);
+        Mockito.when(oobm.getPort()).thenReturn(port);
+        Mockito.when(oobm.getUsername()).thenReturn(username);
+        Mockito.when(oobm.getPassword()).thenReturn(password);
+        return oobm;
     }
 }

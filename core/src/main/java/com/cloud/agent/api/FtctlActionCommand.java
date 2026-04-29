@@ -16,6 +16,9 @@
 // under the License.
 package com.cloud.agent.api;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class FtctlActionCommand extends Command {
 
     public enum Action {
@@ -44,6 +47,7 @@ public class FtctlActionCommand extends Command {
     private String peerUri;
     private String profileName;
     private boolean force;
+    private Map<String, String> context = new HashMap<>();
 
     public FtctlActionCommand() {
     }
@@ -91,6 +95,24 @@ public class FtctlActionCommand extends Command {
 
     public void setForce(boolean force) {
         this.force = force;
+    }
+
+    public Map<String, String> getContext() {
+        return context;
+    }
+
+    public void setContext(Map<String, String> context) {
+        this.context = context == null ? new HashMap<>() : context;
+    }
+
+    public void setContextParam(String key, String value) {
+        if (key != null && value != null) {
+            context.put(key, value);
+        }
+    }
+
+    public String getContextParam(String key) {
+        return key == null ? null : context.get(key);
     }
 
     @Override

@@ -62,6 +62,9 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.cloudstack.outofbandmanagement.OutOfBandManagement;
+import org.apache.cloudstack.outofbandmanagement.dao.OutOfBandManagementDao;
 
 import javax.inject.Inject;
 import java.util.ArrayList;
@@ -76,6 +79,14 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     public static final String DETAIL_TARGET_STORAGE_POOL_ID = "ftctl.target.storage.pool.id";
     public static final String DETAIL_TARGET_STORAGE_POOL_NAME = "ftctl.target.storage.pool.name";
     public static final String DETAIL_FENCING_POLICY = "ftctl.fencing.policy";
+    public static final String DETAIL_FENCING_IPMI_PRIMARY_HOST = "ftctl.fencing.ipmi.primary.host";
+    public static final String DETAIL_FENCING_IPMI_SECONDARY_HOST = "ftctl.fencing.ipmi.secondary.host";
+    public static final String DETAIL_FENCING_IPMI_PRIMARY_PORT = "ftctl.fencing.ipmi.primary.port";
+    public static final String DETAIL_FENCING_IPMI_SECONDARY_PORT = "ftctl.fencing.ipmi.secondary.port";
+    public static final String DETAIL_FENCING_IPMI_PRIMARY_USER = "ftctl.fencing.ipmi.primary.user";
+    public static final String DETAIL_FENCING_IPMI_SECONDARY_USER = "ftctl.fencing.ipmi.secondary.user";
+    public static final String DETAIL_FENCING_IPMI_PRIMARY_INTERFACE = "ftctl.fencing.ipmi.primary.interface";
+    public static final String DETAIL_FENCING_IPMI_SECONDARY_INTERFACE = "ftctl.fencing.ipmi.secondary.interface";
     public static final String DETAIL_PEER_HOST_ID = "ftctl.peer.host.id";
     public static final String DETAIL_SECONDARY_VM_NAME = "ftctl.secondary.vm.name";
     public static final String DETAIL_SECONDARY_TARGET_DIR = "ftctl.secondary.target.dir";
@@ -95,6 +106,9 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     public static final String HOST_DETAIL_BLOCKCOPY_IP = "ftctl.blockcopy.ip";
     public static final String HOST_DETAIL_XCOLO_CONTROL_IP = "ftctl.xcolo.control.ip";
     public static final String HOST_DETAIL_XCOLO_DATA_IP = "ftctl.xcolo.data.ip";
+    private static final String FENCING_POLICY_IPMI = "ipmi";
+    private static final String OOBM_DRIVER_IPMITOOL = "ipmitool";
+    private static final String DEFAULT_IPMI_INTERFACE = "lanplus";
 
     @Inject
     private VMInstanceDetailsDao vmInstanceDetailsDao;
@@ -108,6 +122,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     private HostDao hostDao;
     @Inject
     private PrimaryDataStoreDao primaryDataStoreDao;
+    @Inject
+    private OutOfBandManagementDao outOfBandManagementDao;
 
     @Override
     public FtctlProtectionResponse getFtctlProtection(GetFtctlProtectionCmd cmd) throws CloudRuntimeException {
@@ -128,6 +144,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         String secondaryTargetDir = resolveSecondaryTargetDir(cmd, targetStoragePool, backendMode);
         String remoteNbdExportAddr = resolveRemoteNbdExportAddr(cmd, backendMode);
         validateResolvedRegisterRequest(cmd, backendMode, secondaryTargetDir, remoteNbdExportAddr);
+        FtctlIpmiFencingConfig ipmiFencingConfig = resolveIpmiFencingConfig(userVm, cmd);
 
         vmInstanceDetailsDao.addDetail(cmd.getVirtualMachineId(), DETAIL_ENABLED, String.valueOf(true), true);
         vmInstanceDetailsDao.addDetail(cmd.getVirtualMachineId(), DETAIL_MODE, cmd.getMode(), true);
@@ -143,6 +160,9 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         }
         if (cmd.getFencingPolicy() != null) {
             vmInstanceDetailsDao.addDetail(cmd.getVirtualMachineId(), DETAIL_FENCING_POLICY, cmd.getFencingPolicy(), true);
+        }
+        if (ipmiFencingConfig != null) {
+            persistIpmiFencingDetails(cmd.getVirtualMachineId(), ipmiFencingConfig);
         }
         if (cmd.getPeerHostId() != null) {
             vmInstanceDetailsDao.addDetail(cmd.getVirtualMachineId(), DETAIL_PEER_HOST_ID, String.valueOf(cmd.getPeerHostId()), true);
@@ -168,7 +188,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
 
         Long hostId = getExecutionHostId(userVm);
         if (hostId != null) {
-            syncFtctlContext(userVm, cmd, targetStoragePool, targetStorageScope, backendMode, secondaryTargetDir, remoteNbdExportAddr);
+            syncFtctlContext(userVm, cmd, targetStoragePool, targetStorageScope, backendMode, secondaryTargetDir, remoteNbdExportAddr, ipmiFencingConfig);
             String peerUri = resolvePeerUri(cmd.getPeerHostId());
             if (peerUri == null || peerUri.isBlank()) {
                 throw new CloudRuntimeException(String.format("Missing FTCTL peer libvirt URI on host %s", cmd.getPeerHostId()));
@@ -553,7 +573,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     }
 
     private void syncFtctlContext(UserVmVO userVm, RegisterFtctlProtectionCmd cmd, StoragePoolVO targetStoragePool,
-                                  String targetStorageScope, String backendMode, String secondaryTargetDir, String remoteNbdExportAddr) {
+                                  String targetStorageScope, String backendMode, String secondaryTargetDir,
+                                  String remoteNbdExportAddr, FtctlIpmiFencingConfig ipmiFencingConfig) {
         Long localHostId = requireExecutionHostId(userVm);
         HostVO localHost = hostDao.findById(localHostId);
         HostVO peerHost = hostDao.findById(cmd.getPeerHostId());
@@ -596,6 +617,9 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         profileCommand.setXcoloProxyEndpoint(cmd.getXcoloProxyEndpoint());
         profileCommand.setXcoloNbdEndpoint(cmd.getXcoloNbdEndpoint());
         profileCommand.setXcoloMigrateUri(cmd.getXcoloMigrateUri());
+        if (ipmiFencingConfig != null) {
+            ipmiFencingConfig.applyTo(profileCommand);
+        }
 
         executeSyncCommand(localHostId, clusterCommand, "cluster");
         executeSyncCommand(localHostId, profileCommand, "profile");
@@ -644,6 +668,96 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         if (!"KVM".equalsIgnoreCase(String.valueOf(localHost.getHypervisorType())) ||
                 !"KVM".equalsIgnoreCase(String.valueOf(peerHost.getHypervisorType()))) {
             throw new CloudRuntimeException(String.format("FTCTL requires KVM hosts for VM %s", userVm.getUuid()));
+        }
+    }
+
+    private FtctlIpmiFencingConfig resolveIpmiFencingConfig(UserVmVO userVm, RegisterFtctlProtectionCmd cmd) {
+        if (!FENCING_POLICY_IPMI.equalsIgnoreCase(StringUtils.trimToEmpty(cmd.getFencingPolicy()))) {
+            return null;
+        }
+        Long localHostId = requireExecutionHostId(userVm);
+        Long peerHostId = cmd.getPeerHostId();
+        if (peerHostId == null) {
+            throw new CloudRuntimeException("FTCTL IPMI fencing requires a peer host");
+        }
+        FtctlIpmiEndpoint primary = resolveIpmiEndpoint(localHostId, "primary");
+        FtctlIpmiEndpoint secondary = resolveIpmiEndpoint(peerHostId, "peer");
+        return new FtctlIpmiFencingConfig(primary, secondary);
+    }
+
+    private FtctlIpmiEndpoint resolveIpmiEndpoint(Long hostId, String role) {
+        OutOfBandManagement oobm = hostId == null ? null : outOfBandManagementDao.findByHost(hostId);
+        if (oobm == null) {
+            throw new CloudRuntimeException(String.format("FTCTL IPMI fencing requires OOBM configuration on %s host %s", role, hostId));
+        }
+        if (!oobm.isEnabled()) {
+            throw new CloudRuntimeException(String.format("FTCTL IPMI fencing requires enabled OOBM on %s host %s", role, hostId));
+        }
+        if (!OOBM_DRIVER_IPMITOOL.equalsIgnoreCase(StringUtils.trimToEmpty(oobm.getDriver()))) {
+            throw new CloudRuntimeException(String.format("FTCTL IPMI fencing requires ipmitool OOBM driver on %s host %s", role, hostId));
+        }
+        if (StringUtils.isAnyBlank(oobm.getAddress(), oobm.getUsername(), oobm.getPassword())) {
+            throw new CloudRuntimeException(String.format("FTCTL IPMI fencing requires OOBM address, username and password on %s host %s", role, hostId));
+        }
+        return new FtctlIpmiEndpoint(
+                oobm.getAddress(),
+                StringUtils.trimToNull(oobm.getPort()),
+                oobm.getUsername(),
+                oobm.getPassword(),
+                DEFAULT_IPMI_INTERFACE);
+    }
+
+    private void persistIpmiFencingDetails(Long virtualMachineId, FtctlIpmiFencingConfig config) {
+        vmInstanceDetailsDao.addDetail(virtualMachineId, DETAIL_FENCING_IPMI_PRIMARY_HOST, config.primary.host, true);
+        vmInstanceDetailsDao.addDetail(virtualMachineId, DETAIL_FENCING_IPMI_SECONDARY_HOST, config.secondary.host, true);
+        if (config.primary.port != null) {
+            vmInstanceDetailsDao.addDetail(virtualMachineId, DETAIL_FENCING_IPMI_PRIMARY_PORT, config.primary.port, true);
+        }
+        if (config.secondary.port != null) {
+            vmInstanceDetailsDao.addDetail(virtualMachineId, DETAIL_FENCING_IPMI_SECONDARY_PORT, config.secondary.port, true);
+        }
+        vmInstanceDetailsDao.addDetail(virtualMachineId, DETAIL_FENCING_IPMI_PRIMARY_USER, config.primary.user, true);
+        vmInstanceDetailsDao.addDetail(virtualMachineId, DETAIL_FENCING_IPMI_SECONDARY_USER, config.secondary.user, true);
+        vmInstanceDetailsDao.addDetail(virtualMachineId, DETAIL_FENCING_IPMI_PRIMARY_INTERFACE, config.primary.ipmiInterface, true);
+        vmInstanceDetailsDao.addDetail(virtualMachineId, DETAIL_FENCING_IPMI_SECONDARY_INTERFACE, config.secondary.ipmiInterface, true);
+    }
+
+    private static class FtctlIpmiFencingConfig {
+        private final FtctlIpmiEndpoint primary;
+        private final FtctlIpmiEndpoint secondary;
+
+        private FtctlIpmiFencingConfig(FtctlIpmiEndpoint primary, FtctlIpmiEndpoint secondary) {
+            this.primary = primary;
+            this.secondary = secondary;
+        }
+
+        private void applyTo(FtctlSyncProfileCommand command) {
+            command.setFencingIpmiPrimaryHost(primary.host);
+            command.setFencingIpmiPrimaryPort(primary.port);
+            command.setFencingIpmiPrimaryUser(primary.user);
+            command.setFencingIpmiPrimaryPassword(primary.password);
+            command.setFencingIpmiPrimaryInterface(primary.ipmiInterface);
+            command.setFencingIpmiSecondaryHost(secondary.host);
+            command.setFencingIpmiSecondaryPort(secondary.port);
+            command.setFencingIpmiSecondaryUser(secondary.user);
+            command.setFencingIpmiSecondaryPassword(secondary.password);
+            command.setFencingIpmiSecondaryInterface(secondary.ipmiInterface);
+        }
+    }
+
+    private static class FtctlIpmiEndpoint {
+        private final String host;
+        private final String port;
+        private final String user;
+        private final String password;
+        private final String ipmiInterface;
+
+        private FtctlIpmiEndpoint(String host, String port, String user, String password, String ipmiInterface) {
+            this.host = host;
+            this.port = port;
+            this.user = user;
+            this.password = password;
+            this.ipmiInterface = ipmiInterface;
         }
     }
 

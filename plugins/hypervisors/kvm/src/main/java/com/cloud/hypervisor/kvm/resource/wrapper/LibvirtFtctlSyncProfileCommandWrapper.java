@@ -59,6 +59,36 @@ public class LibvirtFtctlSyncProfileCommandWrapper extends CommandWrapper<FtctlS
         if (StringUtils.isNotBlank(command.getFencingPolicy())) {
             script.add("--fencing-policy", command.getFencingPolicy());
         }
+        if (StringUtils.isNotBlank(command.getFencingIpmiPrimaryHost())) {
+            script.add("--fencing-ipmi-primary-host", command.getFencingIpmiPrimaryHost());
+        }
+        if (StringUtils.isNotBlank(command.getFencingIpmiPrimaryPort())) {
+            script.add("--fencing-ipmi-primary-port", command.getFencingIpmiPrimaryPort());
+        }
+        if (StringUtils.isNotBlank(command.getFencingIpmiPrimaryUser())) {
+            script.add("--fencing-ipmi-primary-user", command.getFencingIpmiPrimaryUser());
+        }
+        if (StringUtils.isNotBlank(command.getFencingIpmiPrimaryPassword())) {
+            script.add("--fencing-ipmi-primary-password", command.getFencingIpmiPrimaryPassword());
+        }
+        if (StringUtils.isNotBlank(command.getFencingIpmiPrimaryInterface())) {
+            script.add("--fencing-ipmi-primary-interface", command.getFencingIpmiPrimaryInterface());
+        }
+        if (StringUtils.isNotBlank(command.getFencingIpmiSecondaryHost())) {
+            script.add("--fencing-ipmi-secondary-host", command.getFencingIpmiSecondaryHost());
+        }
+        if (StringUtils.isNotBlank(command.getFencingIpmiSecondaryPort())) {
+            script.add("--fencing-ipmi-secondary-port", command.getFencingIpmiSecondaryPort());
+        }
+        if (StringUtils.isNotBlank(command.getFencingIpmiSecondaryUser())) {
+            script.add("--fencing-ipmi-secondary-user", command.getFencingIpmiSecondaryUser());
+        }
+        if (StringUtils.isNotBlank(command.getFencingIpmiSecondaryPassword())) {
+            script.add("--fencing-ipmi-secondary-password", command.getFencingIpmiSecondaryPassword());
+        }
+        if (StringUtils.isNotBlank(command.getFencingIpmiSecondaryInterface())) {
+            script.add("--fencing-ipmi-secondary-interface", command.getFencingIpmiSecondaryInterface());
+        }
         if (StringUtils.isNotBlank(command.getSecondaryTargetDir())) {
             script.add("--secondary-target-dir", command.getSecondaryTargetDir());
         }

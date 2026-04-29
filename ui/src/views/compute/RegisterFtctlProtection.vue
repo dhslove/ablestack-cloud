@@ -102,6 +102,13 @@
             <a-select-option value="ipmi">ipmi</a-select-option>
           </a-select>
         </a-form-item>
+        <a-alert
+          v-if="showIpmiFencingInfo"
+          class="ftctl-auto-fields"
+          :type="peerHostIpmiReady ? 'info' : 'warning'"
+          :showIcon="true"
+          :message="$t(peerHostIpmiReady ? 'message.ftctl.ipmi.oobm.ready' : 'message.ftctl.ipmi.oobm.missing')"
+          :description="ipmiFencingDescription" />
         <a-form-item name="secondarytargetdir" v-if="showRemoteNbdFields">
           <template #label>
             <tooltip-label :title="$t('label.ftctl.secondary.target.dir')" :tooltip="$t('placeholder.ftctl.secondary.target.dir')" />
@@ -201,6 +208,35 @@ export default {
         `${this.$t('label.ftctl.xcolo.proxy.endpoint')}: ${this.form.xcoloproxyendpoint || '-'}`,
         `${this.$t('label.ftctl.xcolo.nbd.endpoint')}: ${this.form.xcolonbdendpoint || '-'}`,
         `${this.$t('label.ftctl.xcolo.migrate.uri')}: ${this.form.xcolomigrateuri || '-'}`
+      ].join(' / ')
+    },
+    selectedPeerHost () {
+      return this.hosts.find(host => host.id === this.form?.peerhostid)
+    },
+    peerHostOobm () {
+      return this.selectedPeerHost?.outofbandmanagement || {}
+    },
+    showIpmiFencingInfo () {
+      return this.showBackendFields && this.form?.fencingpolicy === 'ipmi'
+    },
+    peerHostIpmiReady () {
+      const oobm = this.peerHostOobm
+      return !!this.form?.peerhostid &&
+        String(oobm?.enabled) === 'true' &&
+        String(oobm?.driver || '').toLowerCase() === 'ipmitool' &&
+        !!oobm?.address &&
+        !!oobm?.username
+    },
+    ipmiFencingDescription () {
+      if (!this.form?.peerhostid) {
+        return this.$t('message.ftctl.ipmi.oobm.select.peer')
+      }
+      const oobm = this.peerHostOobm
+      return [
+        `${this.$t('label.ftctl.ipmi.driver')}: ${oobm?.driver || '-'}`,
+        `${this.$t('label.ftctl.ipmi.address')}: ${oobm?.address || '-'}`,
+        `${this.$t('label.ftctl.ipmi.port')}: ${oobm?.port || '623'}`,
+        `${this.$t('label.username')}: ${oobm?.username || '-'}`
       ].join(' / ')
     }
   },
@@ -403,6 +439,10 @@ export default {
       }
       if (this.showStorageFields && (!values.targetstoragepoolid || !values.targetstoragescope)) {
         this.$message.error(this.$t('message.ftctl.validation.target.storage.required'))
+        return false
+      }
+      if (this.showIpmiFencingInfo && !this.peerHostIpmiReady) {
+        this.$message.error(this.$t('message.ftctl.validation.ipmi.oobm.required'))
         return false
       }
       return true

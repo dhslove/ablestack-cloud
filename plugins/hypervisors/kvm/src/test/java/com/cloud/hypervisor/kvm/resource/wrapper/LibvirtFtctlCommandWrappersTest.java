@@ -274,6 +274,16 @@ public class LibvirtFtctlCommandWrappersTest {
         command.setXcoloProxyEndpoint("10.0.10.12:7000");
         command.setXcoloNbdEndpoint("10.0.10.12:7001");
         command.setXcoloMigrateUri("tcp:10.0.10.12:4444");
+        command.setFencingIpmiPrimaryHost("10.10.10.201");
+        command.setFencingIpmiPrimaryPort("623");
+        command.setFencingIpmiPrimaryUser("admin-a");
+        command.setFencingIpmiPrimaryPassword("password-a");
+        command.setFencingIpmiPrimaryInterface("lanplus");
+        command.setFencingIpmiSecondaryHost("10.10.10.202");
+        command.setFencingIpmiSecondaryPort("624");
+        command.setFencingIpmiSecondaryUser("admin-b");
+        command.setFencingIpmiSecondaryPassword("password-b");
+        command.setFencingIpmiSecondaryInterface("lanplus");
 
         try (MockedConstruction<Script> scripts = Mockito.mockConstruction(Script.class, (mock, context) -> {
             Mockito.when(mock.execute(Mockito.any())).thenReturn("{\"result\":\"ok\"}");
@@ -298,6 +308,16 @@ public class LibvirtFtctlCommandWrappersTest {
             Mockito.verify(script).add("--target-storage-scope", "host");
             Mockito.verify(script).add("--secondary-vm-name", "vm-a-secondary");
             Mockito.verify(script).add("--fencing-policy", "manual-block");
+            Mockito.verify(script).add("--fencing-ipmi-primary-host", "10.10.10.201");
+            Mockito.verify(script).add("--fencing-ipmi-primary-port", "623");
+            Mockito.verify(script).add("--fencing-ipmi-primary-user", "admin-a");
+            Mockito.verify(script).add("--fencing-ipmi-primary-password", "password-a");
+            Mockito.verify(script).add("--fencing-ipmi-primary-interface", "lanplus");
+            Mockito.verify(script).add("--fencing-ipmi-secondary-host", "10.10.10.202");
+            Mockito.verify(script).add("--fencing-ipmi-secondary-port", "624");
+            Mockito.verify(script).add("--fencing-ipmi-secondary-user", "admin-b");
+            Mockito.verify(script).add("--fencing-ipmi-secondary-password", "password-b");
+            Mockito.verify(script).add("--fencing-ipmi-secondary-interface", "lanplus");
             Mockito.verify(script).add("--secondary-target-dir", "/data/secondary");
             Mockito.verify(script).add("--remote-nbd-export-addr", "10.0.0.12:10809");
             Mockito.verify(script).add("--xcolo-proxy-endpoint", "10.0.10.12:7000");
