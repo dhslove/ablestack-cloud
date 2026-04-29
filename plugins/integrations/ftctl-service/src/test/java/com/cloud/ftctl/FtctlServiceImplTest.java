@@ -340,8 +340,10 @@ public class FtctlServiceImplTest {
         HostVO peerHost = mockHost(202L, 301L, "10.0.0.12");
         Mockito.when(hostDao.findById(201L)).thenReturn(localHost);
         Mockito.when(hostDao.findById(202L)).thenReturn(peerHost);
-        Mockito.when(outOfBandManagementDao.findByHost(201L)).thenReturn(mockOobm("10.10.10.201", "623", "admin-a", "password-a"));
-        Mockito.when(outOfBandManagementDao.findByHost(202L)).thenReturn(mockOobm("10.10.10.202", "624", "admin-b", "password-b"));
+        OutOfBandManagement localOobm = mockOobm("10.10.10.201", "623", "admin-a", "password-a");
+        OutOfBandManagement peerOobm = mockOobm("10.10.10.202", "624", "admin-b", "password-b");
+        Mockito.when(outOfBandManagementDao.findByHost(201L)).thenReturn(localOobm);
+        Mockito.when(outOfBandManagementDao.findByHost(202L)).thenReturn(peerOobm);
 
         FtctlSyncAnswer clusterAnswer = new FtctlSyncAnswer(new FtctlSyncClusterCommand(), true, "OK", "ok", 0, "cluster-synced");
         FtctlSyncAnswer profileAnswer = new FtctlSyncAnswer(new FtctlSyncProfileCommand(), true, "OK", "ok", 0, "profile-synced");
