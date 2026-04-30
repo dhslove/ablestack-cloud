@@ -163,7 +163,6 @@
 <script>
 import { ref, reactive, toRaw } from 'vue'
 import { getAPI, postAPI } from '@/api'
-import eventBus from '@/config/eventBus'
 import TooltipLabel from '@/components/widgets/TooltipLabel'
 
 export default {
@@ -488,7 +487,6 @@ export default {
         postAPI('registerFtctlProtection', params).then(() => {
           this.$message.success(this.$t('message.ftctl.protection.saved'))
           this.$emit('refresh-data')
-          eventBus.emit('vm-refresh-data')
           this.closeAction()
         }).catch((error) => {
           this.$notifyError(error)
