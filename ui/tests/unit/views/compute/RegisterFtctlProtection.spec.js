@@ -18,18 +18,10 @@
 import { flushPromises, shallowMount } from '@vue/test-utils'
 import RegisterFtctlProtection from '@/views/compute/RegisterFtctlProtection'
 import { getAPI, postAPI } from '@/api'
-import eventBus from '@/config/eventBus'
 
 jest.mock('@/api', () => ({
   getAPI: jest.fn(),
   postAPI: jest.fn()
-}))
-
-jest.mock('@/config/eventBus', () => ({
-  __esModule: true,
-  default: {
-    emit: jest.fn()
-  }
 }))
 
 const createWrapper = () => {
@@ -184,7 +176,7 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
     expect(wrapper.vm.showRemoteNbdFields).toBe(true)
   })
 
-  it('submits registerFtctlProtection and emits refresh events', async () => {
+  it('submits registerFtctlProtection and emits local refresh events', async () => {
     mockGetApi({
       hosts: [{ id: 'host-2', hypervisor: 'KVM', name: 'peer-host', ipaddress: '10.0.0.12' }],
       storagePools: [{ id: 'pool-1', name: 'pool-1', scope: 'HOST', state: 'Up' }]
@@ -225,7 +217,6 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
     })
     expect(wrapper.emitted('refresh-data')).toBeTruthy()
     expect(wrapper.emitted('close-action')).toBeTruthy()
-    expect(eventBus.emit).toHaveBeenCalledWith('vm-refresh-data')
   })
 
   it('submits FT registerFtctlProtection with target storage pool and endpoints', async () => {
