@@ -144,7 +144,11 @@ public class LibvirtFtctlSyncProfileCommandWrapper extends CommandWrapper<FtctlS
     }
 
     private String buildDiskMapScript(FtctlSyncProfileCommand command) {
-        return String.format("FTCTL_VM=%s FTCTL_SECONDARY_VM=%s FTCTL_POOL_PATH=%s FTCTL_POOL_TYPE=%s python3 - <<'PY'\n" +
+        return "FTCTL_VM=" + shellQuote(command.getVmName()) +
+                " FTCTL_SECONDARY_VM=" + shellQuote(command.getSecondaryVmName()) +
+                " FTCTL_POOL_PATH=" + shellQuote(command.getTargetStoragePoolPath()) +
+                " FTCTL_POOL_TYPE=" + shellQuote(StringUtils.defaultString(command.getTargetStoragePoolType())) +
+                " python3 - <<'PY'\n" +
                         "import os\n" +
                         "import posixpath\n" +
                         "import subprocess\n" +
@@ -202,11 +206,7 @@ public class LibvirtFtctlSyncProfileCommandWrapper extends CommandWrapper<FtctlS
                         "if not entries:\n" +
                         "    raise SystemExit('empty_disk_map')\n" +
                         "print(';'.join(entries))\n" +
-                        "PY",
-                shellQuote(command.getVmName()),
-                shellQuote(command.getSecondaryVmName()),
-                shellQuote(command.getTargetStoragePoolPath()),
-                shellQuote(StringUtils.defaultString(command.getTargetStoragePoolType())));
+                        "PY";
     }
 
     private String shellQuote(String value) {
