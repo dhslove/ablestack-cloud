@@ -20,7 +20,7 @@
     <a-alert v-if="vm.qemuagentversion === 'Not Installed'" :message="$t('message.alert.qemuagentversion')" type="error" show-icon />
     <br/>
     <a-tabs
-      :activeKey="currentTab"
+      v-model:activeKey="currentTab"
       :tabPosition="device === 'mobile' ? 'top' : 'left'"
       :animated="false"
       @change="handleChangeTab">
@@ -343,7 +343,7 @@ export default {
     return {
       vm: {},
       totalStorage: 0,
-      currentTab: 'details',
+      currentTab: this.$route?.query?.tab || 'details',
       showUpdateSecurityGroupsModal: false,
       showAddVolumeModal: false,
       diskOfferings: [],
@@ -633,11 +633,10 @@ export default {
         await this.fetchData()
       }
 
-      if (this.currentTab !== activeKey) {
-        this.currentTab = activeKey
+      this.currentTab = activeKey
 
-        // URL 쿼리 파라미터 업데이트
-        const query = Object.assign({}, this.$route.query)
+      const query = Object.assign({}, this.$route.query)
+      if (query.tab !== activeKey) {
         query.tab = activeKey
         this.$router.replace({ path: this.$route.path, query }).catch(() => {})
       }
