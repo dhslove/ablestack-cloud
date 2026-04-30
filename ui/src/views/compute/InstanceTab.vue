@@ -104,7 +104,7 @@
           :showSearch="false"/>
       </a-tab-pane>
       <a-tab-pane :tab="$t('label.ftctl.fault.protection')" key="ftctl" v-if="'getFtctlProtection' in $store.getters.apis">
-        <FtctlTab :resource="vm" :loading="loading" />
+        <FtctlTab :resource="vm" :loading="loading" @keep-current-tab="keepCurrentTab" />
       </a-tab-pane>
       <a-tab-pane :tab="$t('label.securitygroups')" key="securitygroups" v-if="(dataResource.securitygroup && dataResource.securitygroup.length > 0) || ($store.getters.showSecurityGroups && securityGroupNetworkProviderUseThisVM)">
         <a-button
@@ -658,6 +658,21 @@ export default {
       if (query.tab !== activeKey) {
         query.tab = activeKey
         this.$router.replace({ path: this.$route.path, query }).catch(() => {})
+      }
+    },
+    keepCurrentTab (activeKey = 'ftctl') {
+      const query = Object.assign({}, this.$route.query)
+      if (query.tab !== activeKey) {
+        query.tab = activeKey
+        this.$router.replace({ path: this.$route.path, query }).catch(() => {})
+      }
+      if (this.currentTab === activeKey) {
+        this.currentTab = ''
+        this.$nextTick(() => {
+          this.currentTab = activeKey
+        })
+      } else {
+        this.currentTab = activeKey
       }
     },
     resetDeviceCache () {

@@ -432,8 +432,14 @@ export default {
       this.showProtectionModal = false
     },
     handleProtectionSaved () {
+      this.emitKeepCurrentTab()
       this.closeProtectionModal()
       this.fetchAll()
+      setTimeout(this.emitKeepCurrentTab, 250)
+      setTimeout(this.emitKeepCurrentTab, 1000)
+    },
+    emitKeepCurrentTab () {
+      this.$emit('keep-current-tab', 'ftctl')
     },
     formatNumber (value) {
       return value === null || value === undefined || value === '' ? '-' : value
