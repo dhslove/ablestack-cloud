@@ -23,10 +23,13 @@ const selectors = {
   },
   vm: {
     search: 'input[placeholder*="Search"], input[type="search"]',
-    ftctlTabText: 'FTCTL'
+    ftctlTabText: /\uC7A5\uC560\uBCF4\uD638|Fault Protection|FTCTL/
   },
   ftctl: {
-    refreshButtonText: 'Refresh',
+    refreshButtonText: /\uC5C5\uB370\uC774\uD2B8|\uC0C8\uB85C\uACE0\uCE68|Refresh/,
+    protectionButtonText: /\uBCF4\uD638\s*\uC124\uC815|Protection/,
+    cancelButtonText: /\uCDE8\uC18C|Cancel/,
+    notConfiguredText: /\uBCF4\uD638\s*\uC124\uC815\uC774\s*\uB418\uC5B4\s*\uC788\uC9C0\s*\uC54A\uC74C|Protection is not configured/,
     registerActionText: 'registerFtctlProtection',
     pauseActionText: 'pauseFtctlProtection',
     failoverActionText: 'failoverFtctlProtection',

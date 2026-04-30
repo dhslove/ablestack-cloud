@@ -53,6 +53,10 @@ public class LibvirtFtctlSyncProfileCommandWrapper extends CommandWrapper<FtctlS
         if (StringUtils.isNotBlank(command.getTargetStorageScope())) {
             script.add("--target-storage-scope", command.getTargetStorageScope());
         }
+        String diskMap = resolveDiskMap(command, timeout);
+        if (StringUtils.isNotBlank(diskMap)) {
+            script.add("--disk-map", diskMap);
+        }
         if (StringUtils.isNotBlank(command.getSecondaryVmName())) {
             script.add("--secondary-vm-name", command.getSecondaryVmName());
         }
@@ -114,5 +118,98 @@ public class LibvirtFtctlSyncProfileCommandWrapper extends CommandWrapper<FtctlS
         return new FtctlSyncAnswer(command, exitValue == 0,
                 StringUtils.defaultIfBlank(output, exitValue == 0 ? "OK" : "FTCTL profile-upsert failed"),
                 exitValue == 0 ? "ok" : "fail", exitValue, output);
+    }
+
+    private String resolveDiskMap(FtctlSyncProfileCommand command, long timeout) {
+        if (StringUtils.isNotBlank(command.getDiskMap())) {
+            return command.getDiskMap();
+        }
+        if (!StringUtils.equalsIgnoreCase(command.getBackendMode(), "shared-blockcopy")) {
+            return null;
+        }
+        if (StringUtils.isAnyBlank(command.getVmName(), command.getSecondaryVmName(), command.getTargetStoragePoolPath())) {
+            return null;
+        }
+
+        Script script = new Script("bash", timeout, logger);
+        script.add("-lc", buildDiskMapScript(command));
+        OutputInterpreter.AllLinesParser parser = new OutputInterpreter.AllLinesParser();
+        String result = script.execute(parser);
+        String output = LibvirtFtctlWrapperHelper.getOutput(result, parser);
+        if (script.getExitValue() != 0) {
+            logger.warn("Unable to build FTCTL disk map for VM [{}]: {}", command.getVmName(), output);
+            return null;
+        }
+        return StringUtils.trimToNull(output);
+    }
+
+    private String buildDiskMapScript(FtctlSyncProfileCommand command) {
+        return String.format("FTCTL_VM=%s FTCTL_SECONDARY_VM=%s FTCTL_POOL_PATH=%s FTCTL_POOL_TYPE=%s python3 - <<'PY'\n" +
+                        "import os\n" +
+                        "import posixpath\n" +
+                        "import subprocess\n" +
+                        "import sys\n" +
+                        "import xml.etree.ElementTree as ET\n" +
+                        "\n" +
+                        "vm = os.environ['FTCTL_VM']\n" +
+                        "secondary = os.environ['FTCTL_SECONDARY_VM']\n" +
+                        "pool_path = os.environ.get('FTCTL_POOL_PATH', '')\n" +
+                        "pool_type = os.environ.get('FTCTL_POOL_TYPE', '')\n" +
+                        "\n" +
+                        "def pool_name(path):\n" +
+                        "    value = (path or '').strip().rstrip('/')\n" +
+                        "    if value.startswith('rbd://'):\n" +
+                        "        value = value[len('rbd://'):]\n" +
+                        "        return value.rsplit('/', 1)[-1] if '/' in value else value\n" +
+                        "    return value.rsplit('/', 1)[-1] if '/' in value else value\n" +
+                        "\n" +
+                        "def source_name(source):\n" +
+                        "    if source is None:\n" +
+                        "        return ''\n" +
+                        "    value = source.get('dev') or source.get('file') or source.get('name') or ''\n" +
+                        "    return value.rsplit('/', 1)[-1]\n" +
+                        "\n" +
+                        "def dest_name(target, source):\n" +
+                        "    base = source_name(source)\n" +
+                        "    if base.startswith(vm + '-'):\n" +
+                        "        return secondary + base[len(vm):]\n" +
+                        "    return secondary + '-' + target\n" +
+                        "\n" +
+                        "xml = subprocess.check_output(['virsh', 'dumpxml', vm], text=True)\n" +
+                        "root = ET.fromstring(xml)\n" +
+                        "entries = []\n" +
+                        "rbd_pool = pool_name(pool_path)\n" +
+                        "for disk in root.findall('./devices/disk'):\n" +
+                        "    if disk.get('device') != 'disk':\n" +
+                        "        continue\n" +
+                        "    target = disk.find('target')\n" +
+                        "    source = disk.find('source')\n" +
+                        "    if target is None or source is None:\n" +
+                        "        continue\n" +
+                        "    dev = target.get('dev')\n" +
+                        "    if not dev:\n" +
+                        "        continue\n" +
+                        "    image = dest_name(dev, source)\n" +
+                        "    if pool_type.lower() == 'rbd' or pool_path.startswith('rbd://'):\n" +
+                        "        if not rbd_pool:\n" +
+                        "            raise SystemExit('missing_rbd_pool')\n" +
+                        "        dest = 'rbd:%s/%s' % (rbd_pool, image)\n" +
+                        "    elif pool_path.startswith('/'):\n" +
+                        "        dest = posixpath.join(pool_path, secondary, image)\n" +
+                        "    else:\n" +
+                        "        raise SystemExit('unsupported_pool_path')\n" +
+                        "    entries.append('%s=%s' % (dev, dest))\n" +
+                        "if not entries:\n" +
+                        "    raise SystemExit('empty_disk_map')\n" +
+                        "print(';'.join(entries))\n" +
+                        "PY",
+                shellQuote(command.getVmName()),
+                shellQuote(command.getSecondaryVmName()),
+                shellQuote(command.getTargetStoragePoolPath()),
+                shellQuote(StringUtils.defaultString(command.getTargetStoragePoolType())));
+    }
+
+    private String shellQuote(String value) {
+        return "'" + StringUtils.defaultString(value).replace("'", "'\"'\"'") + "'";
     }
 }

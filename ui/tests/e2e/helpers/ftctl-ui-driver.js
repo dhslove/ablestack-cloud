@@ -27,18 +27,39 @@ class FtctlUiDriver {
     await this.page.locator(selectors.login.username).first().fill(username)
     await this.page.locator(selectors.login.password).first().fill(password)
     await this.page.locator(selectors.login.submit).first().click()
+    await this.page.waitForLoadState('networkidle')
   }
 
   async openVmByText (vmText) {
     await this.page.getByText(vmText, { exact: false }).first().click()
   }
 
+  async openVmDetailById (vmId) {
+    const baseUrl = process.env.FTCTL_UI_BASE_URL || ''
+    const normalizedBaseUrl = baseUrl.replace(/\/$/, '')
+    if (normalizedBaseUrl) {
+      await this.page.goto(`${normalizedBaseUrl}/#/vm/${vmId}`)
+    } else {
+      await this.page.goto(`/#/vm/${vmId}`)
+    }
+    await this.page.waitForLoadState('networkidle')
+  }
+
   async openFtctlTab () {
     await this.page.getByText(selectors.vm.ftctlTabText, { exact: false }).first().click()
+    await this.page.waitForLoadState('networkidle')
   }
 
   async refreshFtctlTab () {
-    await this.page.getByRole('button', { name: selectors.ftctl.refreshButtonText }).click()
+    await this.page.getByRole('button', { name: selectors.ftctl.refreshButtonText }).last().click()
+  }
+
+  async openProtectionDialog () {
+    await this.page.getByRole('button', { name: selectors.ftctl.protectionButtonText }).click()
+  }
+
+  async closeProtectionDialog () {
+    await this.page.getByRole('button', { name: selectors.ftctl.cancelButtonText }).click()
   }
 }
 

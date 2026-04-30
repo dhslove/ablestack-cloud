@@ -609,6 +609,10 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         if (targetStoragePool != null) {
             profileCommand.setTargetStoragePoolId(targetStoragePool.getUuid());
             profileCommand.setTargetStoragePoolName(targetStoragePool.getName());
+            profileCommand.setTargetStoragePoolPath(targetStoragePool.getPath());
+            if (targetStoragePool.getPoolType() != null) {
+                profileCommand.setTargetStoragePoolType(targetStoragePool.getPoolType().name());
+            }
         }
         profileCommand.setSecondaryVmName(cmd.getSecondaryVmName());
         profileCommand.setFencingPolicy(cmd.getFencingPolicy());

@@ -20,11 +20,15 @@ const { requireEnv, optionalEnv } = require('../helpers/env')
 const FtctlUiDriver = require('../helpers/ftctl-ui-driver')
 
 test.describe('FTCTL UI smoke', () => {
-  test('opens FTCTL tab for a configured VM', async ({ page }) => {
+  test('opens fault protection tab and protection dialog without UI errors', async ({ page }) => {
     const username = requireEnv('FTCTL_UI_USERNAME')
     const password = requireEnv('FTCTL_UI_PASSWORD')
-    const vmName = requireEnv('FTCTL_UI_VM_NAME')
+    const vmName = optionalEnv('FTCTL_UI_VM_NAME')
+    const vmId = optionalEnv('FTCTL_UI_VM_ID')
     const skipLogin = optionalEnv('FTCTL_UI_SKIP_LOGIN', 'false') === 'true'
+    if (!vmId && !vmName) {
+      throw new Error('Either FTCTL_UI_VM_ID or FTCTL_UI_VM_NAME is required')
+    }
 
     const driver = new FtctlUiDriver(page)
     if (!skipLogin) {
@@ -33,10 +37,44 @@ test.describe('FTCTL UI smoke', () => {
       await page.goto('/')
     }
 
-    await driver.openVmByText(vmName)
+    const consoleErrors = []
+    const apiFailures = []
+    page.on('console', message => {
+      if (message.type() === 'error') {
+        const location = message.location()
+        consoleErrors.push(`${message.text()} ${location.url || ''}:${location.lineNumber || 0}`)
+      }
+    })
+    page.on('response', response => {
+      const url = response.url()
+      if (url.includes('/client/api') && response.status() >= 400) {
+        apiFailures.push(`${response.status()} ${url}`)
+      }
+    })
+
+    if (vmId) {
+      await driver.openVmDetailById(vmId)
+    } else {
+      await driver.openVmByText(vmName)
+    }
+
     await driver.openFtctlTab()
 
-    await expect(page.getByText('Protection', { exact: false })).toBeVisible()
-    await expect(page.getByText('Transport', { exact: false })).toBeVisible()
+    await expect(page.getByRole('button', { name: /\uBCF4\uD638\s*\uC124\uC815|Protection/ })).toBeVisible()
+    await expect(page.getByRole('button', { name: /\uC5C5\uB370\uC774\uD2B8|\uC0C8\uB85C\uACE0\uCE68|Refresh/ }).last()).toBeVisible()
+
+    const configuredMarker = page.getByText(/Protection State|\uBCF4\uD638\s*\uC0C1\uD0DC|Transport State|\uC804\uC1A1\s*\uC0C1\uD0DC/, { exact: false }).first()
+    const notConfiguredMarker = page.getByText(/\uBCF4\uD638\s*\uC124\uC815\uC774\s*\uB418\uC5B4\s*\uC788\uC9C0\s*\uC54A\uC74C|Protection is not configured/, { exact: false }).first()
+    await expect(configuredMarker.or(notConfiguredMarker)).toBeVisible()
+
+    await driver.openProtectionDialog()
+    await expect(page.getByRole('dialog')).toBeVisible()
+    await expect(page.getByText(/Mode|\uBAA8\uB4DC/, { exact: false }).first()).toBeVisible()
+    await expect(page.getByText(/Peer Host ID|\uD53C\uC5B4\s*\uD638\uC2A4\uD2B8\s*ID/, { exact: false }).first()).toBeVisible()
+    await driver.closeProtectionDialog()
+    await expect(page.getByRole('dialog')).toBeHidden()
+
+    expect(apiFailures, `API failures:\n${apiFailures.join('\n')}`).toEqual([])
+    expect(consoleErrors, `Console errors:\n${consoleErrors.join('\n')}`).toEqual([])
   })
 })

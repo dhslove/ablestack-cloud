@@ -26,6 +26,9 @@ public class FtctlSyncProfileCommand extends Command {
     private String targetStorageScope;
     private String targetStoragePoolId;
     private String targetStoragePoolName;
+    private String targetStoragePoolPath;
+    private String targetStoragePoolType;
+    private String diskMap;
     private String secondaryVmName;
     private String fencingPolicy;
     private String secondaryTargetDir;
@@ -103,6 +106,30 @@ public class FtctlSyncProfileCommand extends Command {
 
     public void setTargetStoragePoolName(String targetStoragePoolName) {
         this.targetStoragePoolName = targetStoragePoolName;
+    }
+
+    public String getTargetStoragePoolPath() {
+        return targetStoragePoolPath;
+    }
+
+    public void setTargetStoragePoolPath(String targetStoragePoolPath) {
+        this.targetStoragePoolPath = targetStoragePoolPath;
+    }
+
+    public String getTargetStoragePoolType() {
+        return targetStoragePoolType;
+    }
+
+    public void setTargetStoragePoolType(String targetStoragePoolType) {
+        this.targetStoragePoolType = targetStoragePoolType;
+    }
+
+    public String getDiskMap() {
+        return diskMap;
+    }
+
+    public void setDiskMap(String diskMap) {
+        this.diskMap = diskMap;
     }
 
     public String getSecondaryVmName() {
