@@ -472,6 +472,9 @@ export default {
   mounted () {
     this.setCurrentTab()
   },
+  updated () {
+    this.setCurrentTab()
+  },
   methods: {
     // 디바이스 이름을 포맷팅하여 괄호 안의 내용을 줄바꿈으로 표시
     formatDeviceName (deviceName) {
@@ -537,7 +540,10 @@ export default {
       return this.formatHostDevicesText(withoutDevice)
     },
     setCurrentTab () {
-      this.currentTab = this.$route.query.tab ? this.$route.query.tab : 'details'
+      const routeTab = this.$route.query.tab ? this.$route.query.tab : 'details'
+      if (this.currentTab !== routeTab) {
+        this.currentTab = routeTab
+      }
     },
     async fetchData () {
       this.annotations = []
