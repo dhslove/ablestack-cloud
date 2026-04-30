@@ -94,7 +94,16 @@ jobs:
       - name: Build UI assets
         run: |
           cd ui
-          npm install
+          for attempt in 1 2 3; do
+            if npm install --no-audit; then
+              break
+            fi
+            if [ "$attempt" = "3" ]; then
+              exit 1
+            fi
+            npm cache clean --force
+            sleep 10
+          done
           node build.js
           npm run build
           if [ "${{ github.event.inputs.run_checks || 'false' }}" = "true" ]; then
