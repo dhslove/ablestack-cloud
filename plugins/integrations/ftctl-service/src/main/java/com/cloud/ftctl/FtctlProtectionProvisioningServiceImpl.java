@@ -139,15 +139,16 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
         if (BACKEND_CLOUD_MANAGED.equalsIgnoreCase(provisioningBackend)) {
             FtctlProtectionVO protection = persistProtectionRecord(request, BACKEND_CLOUD_MANAGED, STATE_STANDBY_ALLOCATED, null);
             FtctlHiddenOfferings offerings = ensureFtctlHiddenOfferings();
-            VolumeVO standbyRootVolume = ensureCloudManagedStandbyRootVolume(request, protection, offerings.rootDiskOffering);
-            UserVmVO standbyVm = ensureCloudManagedStandbyVm(request, protection, offerings.computeOffering, standbyRootVolume);
+            VolumeVO primaryRootVolume = findPrimaryRootVolume(request);
+            VolumeVO standbyRootVolume = ensureCloudManagedStandbyRootVolume(request, protection, offerings.rootDiskOffering, primaryRootVolume);
+            UserVmVO standbyVm = ensureCloudManagedStandbyVm(request, protection, offerings.computeOffering, standbyRootVolume, primaryRootVolume);
             protection.setSecondaryVmId(standbyVm.getId());
             protection.setSecondaryVmName(StringUtils.defaultIfBlank(standbyVm.getDisplayName(), resolveSecondaryVmName(request)));
             protection.setProvisioningState(STATE_STANDBY_ALLOCATED);
             protection.markUpdated();
             ftctlProtectionDao.update(protection.getId(), protection);
             Map<Long, VolumeVO> standbyVolumesByPrimaryVolumeId = ensureCloudManagedStandbyDataVolumes(request, protection, offerings.dataDiskOffering, standbyVm);
-            standbyVolumesByPrimaryVolumeId.put(findPrimaryRootVolume(request).getId(), standbyRootVolume);
+            standbyVolumesByPrimaryVolumeId.put(primaryRootVolume.getId(), standbyRootVolume);
             persistVolumeRecords(protection, request, standbyVm, standbyRootVolume, standbyVolumesByPrimaryVolumeId);
             if (areStandbyVolumeDiskPathsReady(protection, request)) {
                 protection.setProvisioningState(STATE_READY);
@@ -294,14 +295,15 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
         return userVmDao.findById(vm.getId());
     }
 
-    private UserVmVO createCloudManagedStandbyVm(FtctlProtectionProvisioningRequest request, ServiceOfferingVO computeOffering, VolumeVO standbyRootVolume) {
+    private UserVmVO createCloudManagedStandbyVm(FtctlProtectionProvisioningRequest request, ServiceOfferingVO computeOffering,
+                                                 VolumeVO standbyRootVolume, VolumeVO primaryRootVolume) {
         UserVmVO primaryVm = request.getPrimaryVm();
         AccountVO owner = accountDao.findById(primaryVm.getAccountId());
         if (owner == null) {
             throw new CloudRuntimeException(String.format("Unable to find owner account for primary VM %s", primaryVm.getUuid()));
         }
         Map<String, String> standbyVmDetails = buildStandbyVmDetails(primaryVm);
-        standbyVmDetails.put(VmDetailConstants.ROOT_DISK_SIZE, String.valueOf(bytesToGiBRoundedUp(standbyRootVolume.getSize())));
+        standbyVmDetails.put(VmDetailConstants.ROOT_DISK_SIZE, String.valueOf(bytesToGiBRoundedUp(primaryRootVolume.getSize())));
         FtctlStandbyDeployVMVolumeCmd deployCmd = new FtctlStandbyDeployVMVolumeCmd(
                 owner.getId(),
                 owner.getAccountName(),
@@ -331,8 +333,8 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
         }
     }
 
-    private VolumeVO ensureCloudManagedStandbyRootVolume(FtctlProtectionProvisioningRequest request, FtctlProtectionVO protection, DiskOfferingVO rootDiskOffering) {
-        VolumeVO primaryRootVolume = findPrimaryRootVolume(request);
+    private VolumeVO ensureCloudManagedStandbyRootVolume(FtctlProtectionProvisioningRequest request, FtctlProtectionVO protection,
+                                                         DiskOfferingVO rootDiskOffering, VolumeVO primaryRootVolume) {
         FtctlProtectionVolumeVO protectionVolume = ftctlProtectionVolumeDao.findActiveByProtectionIdAndPrimaryVolumeId(protection.getId(), primaryRootVolume.getId());
         if (protectionVolume != null && protectionVolume.getSecondaryVolumeId() != null) {
             VolumeVO existingVolume = volumeDao.findById(protectionVolume.getSecondaryVolumeId());
