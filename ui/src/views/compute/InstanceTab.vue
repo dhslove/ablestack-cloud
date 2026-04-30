@@ -20,6 +20,7 @@
     <a-alert v-if="vm.qemuagentversion === 'Not Installed'" :message="$t('message.alert.qemuagentversion')" type="error" show-icon />
     <br/>
     <a-tabs
+      :key="tabsRenderKey"
       v-model:activeKey="currentTab"
       :tabPosition="device === 'mobile' ? 'top' : 'left'"
       :animated="false"
@@ -344,6 +345,7 @@ export default {
       vm: {},
       totalStorage: 0,
       currentTab: this.resolveCurrentTabFromRoute(),
+      tabsRenderKey: 0,
       showUpdateSecurityGroupsModal: false,
       showAddVolumeModal: false,
       diskOfferings: [],
@@ -667,12 +669,12 @@ export default {
         this.$router.replace({ path: this.$route.path, query }).catch(() => {})
       }
       if (this.currentTab === activeKey) {
-        this.currentTab = ''
-        this.$nextTick(() => {
-          this.currentTab = activeKey
-        })
+        this.tabsRenderKey += 1
       } else {
         this.currentTab = activeKey
+        this.$nextTick(() => {
+          this.tabsRenderKey += 1
+        })
       }
     },
     resetDeviceCache () {
