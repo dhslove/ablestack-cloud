@@ -50,6 +50,9 @@ public class LibvirtFtctlSyncProfileCommandWrapper extends CommandWrapper<FtctlS
         if (StringUtils.isNotBlank(command.getBackendMode())) {
             script.add("--backend-mode", command.getBackendMode());
         }
+        if (StringUtils.isNotBlank(command.getProvisioningBackend()) && !"libvirt-managed".equalsIgnoreCase(command.getProvisioningBackend())) {
+            script.add("--provisioning-backend", command.getProvisioningBackend());
+        }
         if (StringUtils.isNotBlank(command.getTargetStorageScope())) {
             script.add("--target-storage-scope", command.getTargetStorageScope());
         }

@@ -38,6 +38,14 @@ public class FtctlProtectionResponse extends BaseResponse {
     @Param(description = "the FTCTL backend mode")
     private String backendMode;
 
+    @SerializedName("provisioningbackend")
+    @Param(description = "the FTCTL standby VM and volume provisioning backend")
+    private String provisioningBackend;
+
+    @SerializedName("provisioningstate")
+    @Param(description = "the FTCTL standby VM and volume provisioning state")
+    private String provisioningState;
+
     @SerializedName("targetstoragescope")
     @Param(description = "the FTCTL target storage scope")
     private String targetStorageScope;
@@ -124,6 +132,14 @@ public class FtctlProtectionResponse extends BaseResponse {
 
     public void setBackendMode(String backendMode) {
         this.backendMode = backendMode;
+    }
+
+    public void setProvisioningBackend(String provisioningBackend) {
+        this.provisioningBackend = provisioningBackend;
+    }
+
+    public void setProvisioningState(String provisioningState) {
+        this.provisioningState = provisioningState;
     }
 
     public void setTargetStorageScope(String targetStorageScope) {

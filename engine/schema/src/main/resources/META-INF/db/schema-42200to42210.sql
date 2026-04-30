@@ -58,3 +58,58 @@ WHERE name = 'user.password.reset.mail.template'
   AND value IN (CONCAT_WS('\n', 'Hello {{username}}!', 'You have requested to reset your password. Please click the following link to reset your password:', 'http://{{{resetLink}}}', 'If you did not request a password reset, please ignore this email.', '', 'Regards,', 'The CloudStack Team'), CONCAT_WS('\n', 'Hello {{username}}!', 'You have requested to reset your password. Please click the following link to reset your password:', '{{{domainUrl}}}{{{resetLink}}}', 'If you did not request a password reset, please ignore this email.', '', 'Regards,', 'The CloudStack Team'));
 
 UPDATE `cloud`.`vm_template` SET guest_os_id = 99 WHERE name = 'kvm-default-vm-import-dummy-template';
+
+CREATE TABLE IF NOT EXISTS `cloud`.`ftctl_protection` (
+    `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+    `uuid` varchar(40) NOT NULL,
+    `primary_vm_id` bigint unsigned NOT NULL COMMENT 'Primary VM managed by FTCTL protection',
+    `secondary_vm_id` bigint unsigned NULL COMMENT 'Cloud-provisioned standby VM, when available',
+    `secondary_vm_name` varchar(255) NULL COMMENT 'FTCTL standby VM name',
+    `peer_host_id` bigint unsigned NULL COMMENT 'Peer KVM host used by FTCTL',
+    `target_storage_pool_id` bigint unsigned NULL COMMENT 'Target primary storage pool for standby volumes',
+    `mode` varchar(32) NOT NULL COMMENT 'FTCTL protection mode',
+    `backend_mode` varchar(64) NULL COMMENT 'FTCTL backend mode',
+    `provisioning_backend` varchar(64) NOT NULL DEFAULT 'libvirt-managed' COMMENT 'Protection resource provisioning owner',
+    `fencing_policy` varchar(64) NULL COMMENT 'FTCTL fencing policy',
+    `admin_state` varchar(64) NULL,
+    `provisioning_state` varchar(64) NULL,
+    `protection_state` varchar(64) NULL,
+    `transport_state` varchar(64) NULL,
+    `active_side` varchar(64) NULL,
+    `fencing_state` varchar(64) NULL,
+    `last_error` varchar(1024) NULL,
+    `created` datetime NOT NULL,
+    `updated` datetime NULL,
+    `removed` datetime NULL,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_ftctl_protection__uuid` (`uuid`),
+    KEY `i_ftctl_protection__primary_vm_id` (`primary_vm_id`),
+    KEY `i_ftctl_protection__secondary_vm_id` (`secondary_vm_id`),
+    KEY `i_ftctl_protection__peer_host_id` (`peer_host_id`),
+    KEY `i_ftctl_protection__target_storage_pool_id` (`target_storage_pool_id`),
+    CONSTRAINT `fk_ftctl_protection__primary_vm_id` FOREIGN KEY (`primary_vm_id`) REFERENCES `vm_instance` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_ftctl_protection__secondary_vm_id` FOREIGN KEY (`secondary_vm_id`) REFERENCES `vm_instance` (`id`) ON DELETE SET NULL,
+    CONSTRAINT `fk_ftctl_protection__peer_host_id` FOREIGN KEY (`peer_host_id`) REFERENCES `host` (`id`) ON DELETE SET NULL,
+    CONSTRAINT `fk_ftctl_protection__target_storage_pool_id` FOREIGN KEY (`target_storage_pool_id`) REFERENCES `storage_pool` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+CREATE TABLE IF NOT EXISTS `cloud`.`ftctl_protection_volume` (
+    `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+    `protection_id` bigint unsigned NOT NULL COMMENT 'FTCTL protection relationship id',
+    `primary_volume_id` bigint unsigned NOT NULL COMMENT 'Primary VM volume',
+    `secondary_volume_id` bigint unsigned NULL COMMENT 'Cloud-provisioned standby volume, when available',
+    `primary_disk_path` varchar(2048) NULL COMMENT 'Primary disk path used by FTCTL',
+    `secondary_disk_path` varchar(2048) NULL COMMENT 'Secondary disk path used by FTCTL',
+    `disk_label` varchar(255) NULL COMMENT 'Stable disk label for FTCTL disk map',
+    `replication_state` varchar(64) NULL,
+    `created` datetime NOT NULL,
+    `updated` datetime NULL,
+    `removed` datetime NULL,
+    PRIMARY KEY (`id`),
+    KEY `i_ftctl_protection_volume__protection_id` (`protection_id`),
+    KEY `i_ftctl_protection_volume__primary_volume_id` (`primary_volume_id`),
+    KEY `i_ftctl_protection_volume__secondary_volume_id` (`secondary_volume_id`),
+    CONSTRAINT `fk_ftctl_protection_volume__protection_id` FOREIGN KEY (`protection_id`) REFERENCES `ftctl_protection` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_ftctl_protection_volume__primary_volume_id` FOREIGN KEY (`primary_volume_id`) REFERENCES `volumes` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_ftctl_protection_volume__secondary_volume_id` FOREIGN KEY (`secondary_volume_id`) REFERENCES `volumes` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;

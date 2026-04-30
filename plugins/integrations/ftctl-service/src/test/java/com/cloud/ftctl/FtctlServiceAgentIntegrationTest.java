@@ -76,6 +76,8 @@ public class FtctlServiceAgentIntegrationTest {
     private HostDao hostDao;
     @Mock
     private PrimaryDataStoreDao primaryDataStoreDao;
+    @Mock
+    private FtctlProtectionProvisioningService ftctlProtectionProvisioningService;
 
     @InjectMocks
     private FtctlServiceImpl ftctlService;
@@ -127,6 +129,15 @@ public class FtctlServiceAgentIntegrationTest {
             return detail;
         });
 
+        Mockito.lenient().when(ftctlProtectionProvisioningService.prepareProtection(Mockito.any())).thenAnswer(invocation -> {
+            FtctlProtectionProvisioningRequest request = invocation.getArgument(0);
+            return new FtctlProtectionProvisioningContext(
+                    FtctlProtectionProvisioningService.BACKEND_LIBVIRT_MANAGED,
+                    FtctlProtectionProvisioningService.STATE_READY,
+                    request.getSecondaryVmName(),
+                    null);
+        });
+
         agentHelper = new FtctlAgentIntegrationTestHelper();
         agentHelper.bind(agentManager);
     }
@@ -155,6 +166,8 @@ public class FtctlServiceAgentIntegrationTest {
             Assert.assertEquals("dr", command.getMode());
             Assert.assertEquals("vm-uuid", command.getProfileName());
             Assert.assertEquals("remote-nbd", command.getBackendMode());
+            Assert.assertEquals("libvirt-managed", command.getProvisioningBackend());
+            Assert.assertEquals("Ready", command.getProvisioningState());
             Assert.assertEquals("secondary-local", command.getTargetStorageScope());
             Assert.assertEquals("pool-uuid", command.getTargetStoragePoolId());
             Assert.assertEquals("pool-name", command.getTargetStoragePoolName());
@@ -169,6 +182,7 @@ public class FtctlServiceAgentIntegrationTest {
             Assert.assertEquals("dr", command.getMode());
             Assert.assertEquals("qemu+ssh://peer-ft/system", command.getPeerUri());
             Assert.assertEquals("remote-nbd", command.getContextParam("ftctl.backend.mode"));
+            Assert.assertEquals("libvirt-managed", command.getContextParam("ftctl.provisioning.backend"));
             Assert.assertEquals("secondary-local", command.getContextParam("ftctl.target.storage.scope"));
             Assert.assertEquals("manual-block", command.getContextParam("ftctl.fencing.policy"));
             return new FtctlActionAnswer(command, true, "OK", FtctlActionCommand.Action.PROTECT, "ok", 0, "protected");
@@ -199,6 +213,8 @@ public class FtctlServiceAgentIntegrationTest {
         Assert.assertEquals("true", getFieldValue(response, "enabled"));
         Assert.assertEquals("dr", getFieldValue(response, "mode"));
         Assert.assertEquals("remote-nbd", getFieldValue(response, "backendMode"));
+        Assert.assertEquals("libvirt-managed", getFieldValue(response, "provisioningBackend"));
+        Assert.assertEquals("Ready", getFieldValue(response, "provisioningState"));
         Assert.assertEquals("pool-uuid", getFieldValue(response, "targetStoragePoolId"));
         Assert.assertEquals("pool-name", getFieldValue(response, "targetStoragePoolName"));
         Assert.assertEquals("202", getFieldValue(response, "peerHostId"));
@@ -211,6 +227,8 @@ public class FtctlServiceAgentIntegrationTest {
 
         Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.enabled", "true", true);
         Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.backend.mode", "remote-nbd", true);
+        Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.provisioning.backend", "libvirt-managed", true);
+        Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.provisioning.state", "Ready", true);
         Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.target.storage.pool.id", "pool-uuid", true);
         Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.target.storage.pool.name", "pool-name", true);
         Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.peer.host.id", "202", true);

@@ -59,6 +59,10 @@ public class RegisterFtctlProtectionCmd extends BaseCmd {
             description = "the target primary storage pool ID for FTCTL HA/DR/FT protection")
     private Long targetStoragePoolId;
 
+    @Parameter(name = "provisioningbackend", type = CommandType.STRING,
+            description = "the FTCTL standby VM and volume provisioning backend")
+    private String provisioningBackend;
+
     @Parameter(name = "fencingpolicy", type = CommandType.STRING, description = "the FTCTL fencing policy")
     private String fencingPolicy;
 
@@ -103,6 +107,10 @@ public class RegisterFtctlProtectionCmd extends BaseCmd {
 
     public Long getTargetStoragePoolId() {
         return targetStoragePoolId;
+    }
+
+    public String getProvisioningBackend() {
+        return provisioningBackend;
     }
 
     public String getFencingPolicy() {

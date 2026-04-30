@@ -23,6 +23,8 @@ public class FtctlSyncProfileCommand extends Command {
     private String peerUri;
     private String profileName;
     private String backendMode;
+    private String provisioningBackend;
+    private String provisioningState;
     private String targetStorageScope;
     private String targetStoragePoolId;
     private String targetStoragePoolName;
@@ -82,6 +84,22 @@ public class FtctlSyncProfileCommand extends Command {
 
     public void setBackendMode(String backendMode) {
         this.backendMode = backendMode;
+    }
+
+    public String getProvisioningBackend() {
+        return provisioningBackend;
+    }
+
+    public void setProvisioningBackend(String provisioningBackend) {
+        this.provisioningBackend = provisioningBackend;
+    }
+
+    public String getProvisioningState() {
+        return provisioningState;
+    }
+
+    public void setProvisioningState(String provisioningState) {
+        this.provisioningState = provisioningState;
     }
 
     public String getTargetStorageScope() {

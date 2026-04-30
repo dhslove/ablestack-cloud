@@ -75,6 +75,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     public static final String DETAIL_ENABLED = "ftctl.enabled";
     public static final String DETAIL_MODE = "ftctl.mode";
     public static final String DETAIL_BACKEND_MODE = "ftctl.backend.mode";
+    public static final String DETAIL_PROVISIONING_BACKEND = "ftctl.provisioning.backend";
+    public static final String DETAIL_PROVISIONING_STATE = "ftctl.provisioning.state";
     public static final String DETAIL_TARGET_STORAGE_SCOPE = "ftctl.target.storage.scope";
     public static final String DETAIL_TARGET_STORAGE_POOL_ID = "ftctl.target.storage.pool.id";
     public static final String DETAIL_TARGET_STORAGE_POOL_NAME = "ftctl.target.storage.pool.name";
@@ -124,6 +126,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     private PrimaryDataStoreDao primaryDataStoreDao;
     @Inject
     private OutOfBandManagementDao outOfBandManagementDao;
+    @Inject
+    private FtctlProtectionProvisioningService ftctlProtectionProvisioningService;
 
     @Override
     public FtctlProtectionResponse getFtctlProtection(GetFtctlProtectionCmd cmd) throws CloudRuntimeException {
@@ -141,16 +145,26 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         StoragePoolVO targetStoragePool = validateTargetStoragePool(cmd, userVm);
         String targetStorageScope = resolveTargetStorageScope(cmd, targetStoragePool);
         String backendMode = resolveBackendMode(cmd, targetStoragePool);
+        String provisioningBackend = resolveProvisioningBackend(cmd);
         String secondaryTargetDir = resolveSecondaryTargetDir(cmd, targetStoragePool, backendMode);
         String remoteNbdExportAddr = resolveRemoteNbdExportAddr(cmd, backendMode);
         validateResolvedRegisterRequest(cmd, backendMode, secondaryTargetDir, remoteNbdExportAddr);
         FtctlIpmiFencingConfig ipmiFencingConfig = resolveIpmiFencingConfig(userVm, cmd);
+        FtctlProtectionProvisioningContext provisioningContext;
+        try {
+            provisioningContext = prepareProtection(userVm, cmd, targetStoragePool, backendMode, provisioningBackend);
+        } catch (CloudRuntimeException e) {
+            persistProvisioningFailure(cmd.getVirtualMachineId(), provisioningBackend, e);
+            throw e;
+        }
 
         vmInstanceDetailsDao.addDetail(cmd.getVirtualMachineId(), DETAIL_ENABLED, String.valueOf(true), true);
         vmInstanceDetailsDao.addDetail(cmd.getVirtualMachineId(), DETAIL_MODE, cmd.getMode(), true);
         if (backendMode != null) {
             vmInstanceDetailsDao.addDetail(cmd.getVirtualMachineId(), DETAIL_BACKEND_MODE, backendMode, true);
         }
+        vmInstanceDetailsDao.addDetail(cmd.getVirtualMachineId(), DETAIL_PROVISIONING_BACKEND, provisioningContext.getProvisioningBackend(), true);
+        vmInstanceDetailsDao.addDetail(cmd.getVirtualMachineId(), DETAIL_PROVISIONING_STATE, provisioningContext.getProvisioningState(), true);
         if (targetStorageScope != null) {
             vmInstanceDetailsDao.addDetail(cmd.getVirtualMachineId(), DETAIL_TARGET_STORAGE_SCOPE, targetStorageScope, true);
         }
@@ -167,8 +181,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         if (cmd.getPeerHostId() != null) {
             vmInstanceDetailsDao.addDetail(cmd.getVirtualMachineId(), DETAIL_PEER_HOST_ID, String.valueOf(cmd.getPeerHostId()), true);
         }
-        if (cmd.getSecondaryVmName() != null) {
-            vmInstanceDetailsDao.addDetail(cmd.getVirtualMachineId(), DETAIL_SECONDARY_VM_NAME, cmd.getSecondaryVmName(), true);
+        if (provisioningContext.getSecondaryVmName() != null) {
+            vmInstanceDetailsDao.addDetail(cmd.getVirtualMachineId(), DETAIL_SECONDARY_VM_NAME, provisioningContext.getSecondaryVmName(), true);
         }
         if (secondaryTargetDir != null) {
             vmInstanceDetailsDao.addDetail(cmd.getVirtualMachineId(), DETAIL_SECONDARY_TARGET_DIR, secondaryTargetDir, true);
@@ -188,7 +202,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
 
         Long hostId = getExecutionHostId(userVm);
         if (hostId != null) {
-            syncFtctlContext(userVm, cmd, targetStoragePool, targetStorageScope, backendMode, secondaryTargetDir, remoteNbdExportAddr, ipmiFencingConfig);
+            syncFtctlContext(userVm, cmd, targetStoragePool, targetStorageScope, backendMode, secondaryTargetDir, remoteNbdExportAddr, ipmiFencingConfig, provisioningContext);
             String peerUri = resolvePeerUri(cmd.getPeerHostId());
             if (peerUri == null || peerUri.isBlank()) {
                 throw new CloudRuntimeException(String.format("Missing FTCTL peer libvirt URI on host %s", cmd.getPeerHostId()));
@@ -199,6 +213,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             if (backendMode != null) {
                 actionCommand.setContextParam("ftctl.backend.mode", backendMode);
             }
+            actionCommand.setContextParam("ftctl.provisioning.backend", provisioningContext.getProvisioningBackend());
             if (targetStorageScope != null) {
                 actionCommand.setContextParam("ftctl.target.storage.scope", targetStorageScope);
             }
@@ -302,6 +317,30 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
 
     private boolean isProtectionModeWithTargetStorage(String mode) {
         return "ha".equalsIgnoreCase(mode) || "dr".equalsIgnoreCase(mode) || "ft".equalsIgnoreCase(mode);
+    }
+
+    private String resolveProvisioningBackend(RegisterFtctlProtectionCmd cmd) {
+        return StringUtils.defaultIfBlank(cmd.getProvisioningBackend(), FtctlProtectionProvisioningService.BACKEND_LIBVIRT_MANAGED);
+    }
+
+    private FtctlProtectionProvisioningContext prepareProtection(UserVmVO userVm, RegisterFtctlProtectionCmd cmd, StoragePoolVO targetStoragePool,
+                                                                String backendMode, String provisioningBackend) {
+        FtctlProtectionProvisioningRequest request = new FtctlProtectionProvisioningRequest(
+                userVm,
+                cmd.getPeerHostId(),
+                targetStoragePool,
+                cmd.getMode(),
+                backendMode,
+                provisioningBackend,
+                cmd.getFencingPolicy(),
+                cmd.getSecondaryVmName());
+        return ftctlProtectionProvisioningService.prepareProtection(request);
+    }
+
+    private void persistProvisioningFailure(Long virtualMachineId, String provisioningBackend, CloudRuntimeException e) {
+        vmInstanceDetailsDao.addDetail(virtualMachineId, DETAIL_PROVISIONING_BACKEND, provisioningBackend, true);
+        vmInstanceDetailsDao.addDetail(virtualMachineId, DETAIL_PROVISIONING_STATE, FtctlProtectionProvisioningService.STATE_PROVISIONING_FAILED, true);
+        vmInstanceDetailsDao.addDetail(virtualMachineId, DETAIL_LAST_ERROR, e.getMessage(), true);
     }
 
     private StoragePoolVO validateTargetStoragePool(RegisterFtctlProtectionCmd cmd, UserVmVO userVm) {
@@ -456,6 +495,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         response.setEnabled(getDetailValue(virtualMachineId, DETAIL_ENABLED));
         response.setMode(getDetailValue(virtualMachineId, DETAIL_MODE));
         response.setBackendMode(getDetailValue(virtualMachineId, DETAIL_BACKEND_MODE));
+        response.setProvisioningBackend(getDetailValue(virtualMachineId, DETAIL_PROVISIONING_BACKEND));
+        response.setProvisioningState(getDetailValue(virtualMachineId, DETAIL_PROVISIONING_STATE));
         response.setTargetStorageScope(getDetailValue(virtualMachineId, DETAIL_TARGET_STORAGE_SCOPE));
         response.setTargetStoragePoolId(getDetailValue(virtualMachineId, DETAIL_TARGET_STORAGE_POOL_ID));
         response.setTargetStoragePoolName(getDetailValue(virtualMachineId, DETAIL_TARGET_STORAGE_POOL_NAME));
@@ -588,7 +629,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
 
     private void syncFtctlContext(UserVmVO userVm, RegisterFtctlProtectionCmd cmd, StoragePoolVO targetStoragePool,
                                   String targetStorageScope, String backendMode, String secondaryTargetDir,
-                                  String remoteNbdExportAddr, FtctlIpmiFencingConfig ipmiFencingConfig) {
+                                  String remoteNbdExportAddr, FtctlIpmiFencingConfig ipmiFencingConfig,
+                                  FtctlProtectionProvisioningContext provisioningContext) {
         Long localHostId = requireExecutionHostId(userVm);
         HostVO localHost = hostDao.findById(localHostId);
         HostVO peerHost = hostDao.findById(cmd.getPeerHostId());
@@ -619,6 +661,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         FtctlSyncProfileCommand profileCommand = new FtctlSyncProfileCommand(userVm.getInstanceName(), cmd.getMode(), clusterCommand.getPeerLibvirtUri());
         profileCommand.setProfileName(userVm.getUuid());
         profileCommand.setBackendMode(backendMode);
+        profileCommand.setProvisioningBackend(provisioningContext.getProvisioningBackend());
+        profileCommand.setProvisioningState(provisioningContext.getProvisioningState());
         profileCommand.setTargetStorageScope(targetStorageScope);
         if (targetStoragePool != null) {
             profileCommand.setTargetStoragePoolId(targetStoragePool.getUuid());
@@ -628,7 +672,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
                 profileCommand.setTargetStoragePoolType(targetStoragePool.getPoolType().name());
             }
         }
-        profileCommand.setSecondaryVmName(cmd.getSecondaryVmName());
+        profileCommand.setDiskMap(provisioningContext.getDiskMap());
+        profileCommand.setSecondaryVmName(provisioningContext.getSecondaryVmName());
         profileCommand.setFencingPolicy(cmd.getFencingPolicy());
         profileCommand.setSecondaryTargetDir(secondaryTargetDir);
         profileCommand.setRemoteNbdExportAddr(remoteNbdExportAddr);

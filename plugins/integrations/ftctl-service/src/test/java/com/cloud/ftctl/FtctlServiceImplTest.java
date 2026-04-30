@@ -91,6 +91,8 @@ public class FtctlServiceImplTest {
     private PrimaryDataStoreDao primaryDataStoreDao;
     @Mock
     private OutOfBandManagementDao outOfBandManagementDao;
+    @Mock
+    private FtctlProtectionProvisioningService ftctlProtectionProvisioningService;
 
     @InjectMocks
     private FtctlServiceImpl ftctlService;
@@ -139,6 +141,15 @@ public class FtctlServiceImplTest {
             DetailVO detail = Mockito.mock(DetailVO.class);
             Mockito.when(detail.getValue()).thenReturn(value);
             return detail;
+        });
+
+        Mockito.lenient().when(ftctlProtectionProvisioningService.prepareProtection(Mockito.any())).thenAnswer(invocation -> {
+            FtctlProtectionProvisioningRequest request = invocation.getArgument(0);
+            return new FtctlProtectionProvisioningContext(
+                    FtctlProtectionProvisioningService.BACKEND_LIBVIRT_MANAGED,
+                    FtctlProtectionProvisioningService.STATE_READY,
+                    request.getSecondaryVmName(),
+                    null);
         });
     }
 
@@ -297,6 +308,8 @@ public class FtctlServiceImplTest {
         Assert.assertEquals("qemu+ssh://peer-ft/system", profileCommand.getPeerUri());
         Assert.assertEquals("vm-uuid", profileCommand.getProfileName());
         Assert.assertEquals("remote-nbd", profileCommand.getBackendMode());
+        Assert.assertEquals("libvirt-managed", profileCommand.getProvisioningBackend());
+        Assert.assertEquals("Ready", profileCommand.getProvisioningState());
         Assert.assertEquals("secondary-local", profileCommand.getTargetStorageScope());
         Assert.assertEquals("pool-uuid", profileCommand.getTargetStoragePoolId());
         Assert.assertEquals("pool-name", profileCommand.getTargetStoragePoolName());
@@ -311,12 +324,15 @@ public class FtctlServiceImplTest {
         Assert.assertEquals("dr", capturedProtectCommand.getMode());
         Assert.assertEquals("qemu+ssh://peer-ft/system", capturedProtectCommand.getPeerUri());
         Assert.assertEquals("remote-nbd", capturedProtectCommand.getContextParam("ftctl.backend.mode"));
+        Assert.assertEquals("libvirt-managed", capturedProtectCommand.getContextParam("ftctl.provisioning.backend"));
         Assert.assertEquals("manual-block", capturedProtectCommand.getContextParam("ftctl.fencing.policy"));
 
         Assert.assertEquals(Long.valueOf(101L), getFieldValue(response, "virtualMachineId"));
         Assert.assertEquals("true", getFieldValue(response, "enabled"));
         Assert.assertEquals("dr", getFieldValue(response, "mode"));
         Assert.assertEquals("remote-nbd", getFieldValue(response, "backendMode"));
+        Assert.assertEquals("libvirt-managed", getFieldValue(response, "provisioningBackend"));
+        Assert.assertEquals("Ready", getFieldValue(response, "provisioningState"));
         Assert.assertEquals("pool-uuid", getFieldValue(response, "targetStoragePoolId"));
         Assert.assertEquals("pool-name", getFieldValue(response, "targetStoragePoolName"));
         Assert.assertEquals("202", getFieldValue(response, "peerHostId"));
@@ -327,10 +343,31 @@ public class FtctlServiceImplTest {
 
         Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.enabled", "true", true);
         Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.backend.mode", "remote-nbd", true);
+        Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.provisioning.backend", "libvirt-managed", true);
+        Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.provisioning.state", "Ready", true);
         Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.target.storage.pool.id", "pool-uuid", true);
         Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.target.storage.pool.name", "pool-name", true);
         Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.peer.host.id", "202", true);
         Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.last.protection.state", "protected", true);
+    }
+
+    @Test
+    public void testRegisterFtctlProtectionStopsCloudManagedBeforeAgentSyncWhenProvisioningIsNotReady() throws Exception {
+        RegisterFtctlProtectionCmd cmd = buildRegisterCmd();
+        setField(cmd, "provisioningBackend", "cloud-managed");
+        Mockito.when(ftctlProtectionProvisioningService.prepareProtection(Mockito.any())).thenThrow(new CloudRuntimeException("not ready"));
+
+        try {
+            ftctlService.registerFtctlProtection(cmd);
+            Assert.fail("Expected CloudRuntimeException");
+        } catch (CloudRuntimeException e) {
+            Assert.assertEquals("not ready", e.getMessage());
+        }
+
+        Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.provisioning.backend", "cloud-managed", true);
+        Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.provisioning.state", "ProvisioningFailed", true);
+        Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.last.error", "not ready", true);
+        Mockito.verify(agentManager, Mockito.never()).send(Mockito.anyLong(), Mockito.any(Command.class));
     }
 
     @Test
