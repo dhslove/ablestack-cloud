@@ -20,8 +20,7 @@
     <a-alert v-if="vm.qemuagentversion === 'Not Installed'" :message="$t('message.alert.qemuagentversion')" type="error" show-icon />
     <br/>
     <a-tabs
-      :key="tabsRenderKey"
-      v-model:activeKey="currentTab"
+      :activeKey="currentTab"
       :tabPosition="device === 'mobile' ? 'top' : 'left'"
       :animated="false"
       @change="handleChangeTab">
@@ -345,7 +344,6 @@ export default {
       vm: {},
       totalStorage: 0,
       currentTab: this.resolveCurrentTabFromRoute(),
-      tabsRenderKey: 0,
       showUpdateSecurityGroupsModal: false,
       showAddVolumeModal: false,
       diskOfferings: [],
@@ -472,9 +470,6 @@ export default {
   computed: {
   },
   mounted () {
-    this.setCurrentTab()
-  },
-  updated () {
     this.setCurrentTab()
   },
   methods: {
@@ -647,35 +642,35 @@ export default {
       this.showRemoveMirrorVMModal = true
     },
     async handleChangeTab (activeKey) {
-      // 디바이스 탭으로 변경될 때 데이터 로드
+      // Load host device data only when the device tab is selected.
       if (activeKey === 'hostdevices') {
-        // VM 상태가 변경되었을 수 있으므로 항상 캐시 초기화 후 데이터 로드
         this.resetDeviceCache()
         await this.fetchData()
       }
 
-      this.currentTab = activeKey
+      if (this.currentTab !== activeKey) {
+        this.currentTab = activeKey
 
-      const query = Object.assign({}, this.$route.query)
-      if (query.tab !== activeKey) {
+        // Keep the tab in the URL without triggering a full route update.
+        const query = Object.assign({}, this.$route.query)
         query.tab = activeKey
-        this.$router.replace({ path: this.$route.path, query }).catch(() => {})
+        const queryString = Object.keys(query).map(key => {
+          return encodeURIComponent(key) + '=' + encodeURIComponent(query[key])
+        }).join('&')
+
+        history.pushState({}, null, '#' + this.$route.path + '?' + queryString)
       }
     },
     keepCurrentTab (activeKey = 'ftctl') {
       const query = Object.assign({}, this.$route.query)
       if (query.tab !== activeKey) {
         query.tab = activeKey
-        this.$router.replace({ path: this.$route.path, query }).catch(() => {})
+        const queryString = Object.keys(query).map(key => {
+          return encodeURIComponent(key) + '=' + encodeURIComponent(query[key])
+        }).join('&')
+        history.pushState({}, null, '#' + this.$route.path + '?' + queryString)
       }
-      if (this.currentTab === activeKey) {
-        this.tabsRenderKey += 1
-      } else {
-        this.currentTab = activeKey
-        this.$nextTick(() => {
-          this.tabsRenderKey += 1
-        })
-      }
+      this.currentTab = activeKey
     },
     resetDeviceCache () {
       this.devicesLoaded = false
