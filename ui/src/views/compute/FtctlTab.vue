@@ -27,7 +27,7 @@
               v-if="canConfigureProtection"
               type="primary"
               @click="openProtectionModal"
-              :disabled="unsafeVmState">
+              :disabled="unsafeVmState || protectionConfigured">
               <template #icon><SafetyCertificateOutlined /></template>
               {{ $t('label.ftctl.protection.configure') }}
             </a-button>
@@ -691,6 +691,11 @@ export default {
     margin-bottom: 12px;
   }
 
+  &__operations {
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(127, 127, 127, 0.18);
+  }
+
   &__meta {
     margin-top: 4px;
     font-size: 12px;
@@ -701,6 +706,11 @@ export default {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     gap: 12px;
+    margin-top: 14px;
+    padding: 14px 16px;
+    border: 1px solid rgba(127, 127, 127, 0.18);
+    border-radius: 6px;
+    background: rgba(127, 127, 127, 0.035);
   }
 
   &__summary-item {
@@ -711,7 +721,8 @@ export default {
 
   &__summary-label {
     font-size: 12px;
-    opacity: 0.8;
+    font-weight: 600;
+    color: rgba(0, 0, 0, 0.62);
   }
 
   &__empty-state {
@@ -754,6 +765,22 @@ export default {
     background: rgba(127, 127, 127, 0.06);
   }
 
+  :deep(.ant-descriptions-view table) {
+    width: 100%;
+    table-layout: fixed;
+  }
+
+  :deep(.ant-descriptions-bordered .ant-descriptions-item-label) {
+    width: 28%;
+    min-width: 180px;
+    font-weight: 600;
+  }
+
+  :deep(.ant-descriptions-bordered .ant-descriptions-item-content) {
+    width: 22%;
+    word-break: break-word;
+  }
+
   :deep(.ant-descriptions-bordered .ant-descriptions-item-content),
   :deep(.ant-table-tbody > tr > td) {
     background: transparent;
@@ -766,6 +793,95 @@ export default {
   :deep(.ant-table-thead > tr > th),
   :deep(.ant-table-tbody > tr > td) {
     border-color: rgba(127, 127, 127, 0.22);
+  }
+}
+
+:global(.dark-mode) .ftctl-tab {
+  color: rgba(255, 255, 255, 0.82);
+
+  :deep(.ant-card) {
+    color: rgba(255, 255, 255, 0.82);
+  }
+
+  :deep(.ant-card-head) {
+    color: rgba(255, 255, 255, 0.88);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  :deep(.ant-card-head-title) {
+    color: rgba(255, 255, 255, 0.88);
+  }
+
+  :deep(.ant-alert-info) {
+    background: rgba(24, 144, 255, 0.12);
+    border-color: rgba(64, 169, 255, 0.32);
+  }
+
+  :deep(.ant-alert-message),
+  :deep(.ant-alert-description) {
+    color: rgba(255, 255, 255, 0.84);
+  }
+
+  :deep(.ant-btn:not(.ant-btn-primary):not(.ant-btn-dangerous):not([disabled])) {
+    color: rgba(255, 255, 255, 0.82);
+    border-color: rgba(255, 255, 255, 0.28);
+    background: rgba(255, 255, 255, 0.055);
+  }
+
+  :deep(.ant-btn:not(.ant-btn-primary):not(.ant-btn-dangerous):not([disabled]):hover) {
+    color: #69c0ff;
+    border-color: #69c0ff;
+    background: rgba(24, 144, 255, 0.12);
+  }
+
+  :deep(.ant-btn-dangerous:not([disabled])) {
+    color: #ff7875;
+    border-color: #ff7875;
+    background: rgba(255, 77, 79, 0.12);
+  }
+
+  :deep(.ant-btn[disabled]) {
+    color: rgba(255, 255, 255, 0.42);
+    border-color: rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.045);
+  }
+
+  .ftctl-tab__operations {
+    border-bottom-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .ftctl-tab__summary {
+    border-color: rgba(64, 169, 255, 0.18);
+    background: linear-gradient(180deg, rgba(64, 169, 255, 0.075), rgba(255, 255, 255, 0.035));
+  }
+
+  .ftctl-tab__summary-label {
+    color: rgba(255, 255, 255, 0.68);
+  }
+
+  :deep(.ant-descriptions-bordered .ant-descriptions-item-label),
+  :deep(.ant-table-thead > tr > th) {
+    color: rgba(255, 255, 255, 0.86);
+    background: rgba(255, 255, 255, 0.065);
+  }
+
+  :deep(.ant-descriptions-bordered .ant-descriptions-item-content),
+  :deep(.ant-table-tbody > tr > td) {
+    color: rgba(255, 255, 255, 0.78);
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  :deep(.ant-descriptions-bordered .ant-descriptions-view),
+  :deep(.ant-descriptions-bordered .ant-descriptions-row),
+  :deep(.ant-descriptions-bordered .ant-descriptions-item-label),
+  :deep(.ant-descriptions-bordered .ant-descriptions-item-content),
+  :deep(.ant-table-thead > tr > th),
+  :deep(.ant-table-tbody > tr > td) {
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  :deep(.ant-empty-description) {
+    color: rgba(255, 255, 255, 0.62);
   }
 }
 </style>
