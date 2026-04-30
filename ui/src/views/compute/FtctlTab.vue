@@ -24,10 +24,10 @@
         <template #extra>
           <a-space wrap>
             <a-button
-              v-if="canConfigureProtection"
+              v-if="canConfigureProtection && !protectionConfigured"
               type="primary"
               @click="openProtectionModal"
-              :disabled="unsafeVmState || protectionConfigured">
+              :disabled="unsafeVmState || loadingState">
               <template #icon><SafetyCertificateOutlined /></template>
               {{ $t('label.ftctl.protection.configure') }}
             </a-button>
@@ -795,52 +795,54 @@ export default {
     border-color: rgba(127, 127, 127, 0.22);
   }
 }
+</style>
 
-:global(.dark-mode) .ftctl-tab {
+<style lang="scss">
+body.dark-mode .ftctl-tab {
   color: rgba(255, 255, 255, 0.82);
 
-  :deep(.ant-card) {
+  .ant-card {
     color: rgba(255, 255, 255, 0.82);
   }
 
-  :deep(.ant-card-head) {
+  .ant-card-head {
     color: rgba(255, 255, 255, 0.88);
     border-color: rgba(255, 255, 255, 0.12);
   }
 
-  :deep(.ant-card-head-title) {
+  .ant-card-head-title {
     color: rgba(255, 255, 255, 0.88);
   }
 
-  :deep(.ant-alert-info) {
+  .ant-alert-info {
     background: rgba(24, 144, 255, 0.12);
     border-color: rgba(64, 169, 255, 0.32);
   }
 
-  :deep(.ant-alert-message),
-  :deep(.ant-alert-description) {
+  .ant-alert-message,
+  .ant-alert-description {
     color: rgba(255, 255, 255, 0.84);
   }
 
-  :deep(.ant-btn:not(.ant-btn-primary):not(.ant-btn-dangerous):not([disabled])) {
+  .ant-btn:not(.ant-btn-primary):not(.ant-btn-dangerous):not([disabled]) {
     color: rgba(255, 255, 255, 0.82);
     border-color: rgba(255, 255, 255, 0.28);
     background: rgba(255, 255, 255, 0.055);
   }
 
-  :deep(.ant-btn:not(.ant-btn-primary):not(.ant-btn-dangerous):not([disabled]):hover) {
+  .ant-btn:not(.ant-btn-primary):not(.ant-btn-dangerous):not([disabled]):hover {
     color: #69c0ff;
     border-color: #69c0ff;
     background: rgba(24, 144, 255, 0.12);
   }
 
-  :deep(.ant-btn-dangerous:not([disabled])) {
+  .ant-btn-dangerous:not([disabled]) {
     color: #ff7875;
     border-color: #ff7875;
     background: rgba(255, 77, 79, 0.12);
   }
 
-  :deep(.ant-btn[disabled]) {
+  .ant-btn[disabled] {
     color: rgba(255, 255, 255, 0.42);
     border-color: rgba(255, 255, 255, 0.16);
     background: rgba(255, 255, 255, 0.045);
@@ -859,28 +861,33 @@ export default {
     color: rgba(255, 255, 255, 0.68);
   }
 
-  :deep(.ant-descriptions-bordered .ant-descriptions-item-label),
-  :deep(.ant-table-thead > tr > th) {
+  .ftctl-tab__summary .ant-tag,
+  .ant-descriptions-item-content .ant-tag {
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+
+  .ant-descriptions-bordered .ant-descriptions-item-label,
+  .ant-table-thead > tr > th {
     color: rgba(255, 255, 255, 0.86);
     background: rgba(255, 255, 255, 0.065);
   }
 
-  :deep(.ant-descriptions-bordered .ant-descriptions-item-content),
-  :deep(.ant-table-tbody > tr > td) {
+  .ant-descriptions-bordered .ant-descriptions-item-content,
+  .ant-table-tbody > tr > td {
     color: rgba(255, 255, 255, 0.78);
     background: rgba(255, 255, 255, 0.02);
   }
 
-  :deep(.ant-descriptions-bordered .ant-descriptions-view),
-  :deep(.ant-descriptions-bordered .ant-descriptions-row),
-  :deep(.ant-descriptions-bordered .ant-descriptions-item-label),
-  :deep(.ant-descriptions-bordered .ant-descriptions-item-content),
-  :deep(.ant-table-thead > tr > th),
-  :deep(.ant-table-tbody > tr > td) {
+  .ant-descriptions-bordered .ant-descriptions-view,
+  .ant-descriptions-bordered .ant-descriptions-row,
+  .ant-descriptions-bordered .ant-descriptions-item-label,
+  .ant-descriptions-bordered .ant-descriptions-item-content,
+  .ant-table-thead > tr > th,
+  .ant-table-tbody > tr > td {
     border-color: rgba(255, 255, 255, 0.12);
   }
 
-  :deep(.ant-empty-description) {
+  .ant-empty-description {
     color: rgba(255, 255, 255, 0.62);
   }
 }
