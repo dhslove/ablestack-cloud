@@ -343,7 +343,7 @@ export default {
     return {
       vm: {},
       totalStorage: 0,
-      currentTab: this.$route?.query?.tab || 'details',
+      currentTab: this.resolveCurrentTabFromRoute(),
       showUpdateSecurityGroupsModal: false,
       showAddVolumeModal: false,
       diskOfferings: [],
@@ -540,10 +540,23 @@ export default {
       return this.formatHostDevicesText(withoutDevice)
     },
     setCurrentTab () {
-      const routeTab = this.$route.query.tab ? this.$route.query.tab : 'details'
+      const routeTab = this.resolveCurrentTabFromRoute()
       if (this.currentTab !== routeTab) {
         this.currentTab = routeTab
       }
+    },
+    resolveCurrentTabFromRoute () {
+      if (this.$route?.query?.tab) {
+        return this.$route.query.tab
+      }
+      if (typeof window !== 'undefined' && window.location?.hash) {
+        const queryString = window.location.hash.split('?')[1] || ''
+        const tab = new URLSearchParams(queryString).get('tab')
+        if (tab) {
+          return tab
+        }
+      }
+      return 'details'
     },
     async fetchData () {
       this.annotations = []
