@@ -543,7 +543,7 @@ export default {
       }
       try {
         const response = await getAPI('getFtctlProtection', { virtualmachineid: this.resource.id })
-        this.protection = response?.getftctlprotectionresponse || {}
+        this.protection = response?.getftctlprotectionresponse?.ftctlprotection || response?.getftctlprotectionresponse || {}
       } catch (error) {
         this.protection = {}
         this.errorMessage = this.extractErrorMessage(error, 'getFtctlProtection')

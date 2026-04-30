@@ -154,6 +154,7 @@ test.describe('FTCTL protection save', () => {
     expect(protection.protectionstate || '', `FTCTL protection state: ${protection.protectionstate || ''}`).not.toBe('error')
     expect(protection.transportstate || '', `FTCTL transport state: ${protection.transportstate || ''}`).not.toBe('failed')
 
+    await driver.openFtctlTab()
     await expect(page.getByText(/Protection Details|\uBCF4\uD638.*\uC0C1\uC138/, { exact: false }).first()).toBeVisible({ timeout: 30000 })
     await expect(page.getByText(/Check|\uC810\uAC80/, { exact: false }).first()).toBeVisible()
     await expect(page.getByText(/Health|\uAC74\uAC15|\uD5EC\uC2A4/, { exact: false }).first()).toBeVisible()
