@@ -355,7 +355,8 @@ public class FtctlServiceImplTest {
     public void testRegisterFtctlProtectionStopsCloudManagedBeforeAgentSyncWhenProvisioningIsNotReady() throws Exception {
         RegisterFtctlProtectionCmd cmd = buildRegisterCmd();
         setField(cmd, "provisioningBackend", "cloud-managed");
-        Mockito.when(ftctlProtectionProvisioningService.prepareProtection(Mockito.any())).thenThrow(new CloudRuntimeException("not ready"));
+        Mockito.doThrow(new CloudRuntimeException("not ready")).when(ftctlProtectionProvisioningService)
+                .prepareProtection(Mockito.any(FtctlProtectionProvisioningRequest.class));
 
         try {
             ftctlService.registerFtctlProtection(cmd);

@@ -243,7 +243,14 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
     }
 
     private String resolveDiskLabel(VolumeVO volume) {
-        String volumeType = volume.getVolumeType() != null ? volume.getVolumeType().name().toLowerCase(Locale.ROOT) : "volume";
+        String volumeType = "volume";
+        if (volume.getVolumeType() == Volume.Type.ROOT) {
+            volumeType = "root";
+        } else if (volume.getVolumeType() == Volume.Type.DATADISK) {
+            volumeType = "data";
+        } else if (volume.getVolumeType() != null) {
+            volumeType = volume.getVolumeType().name().toLowerCase(Locale.ROOT);
+        }
         String deviceId = volume.getDeviceId() != null ? String.valueOf(volume.getDeviceId()) : String.valueOf(volume.getId());
         return String.format("%s-%s", volumeType, deviceId);
     }

@@ -334,7 +334,8 @@ public class FtctlProtectionProvisioningServiceImplTest {
         Mockito.when(volumeApiService.createVolume(Mockito.any(FtctlCreateVolumeCmd.class))).thenReturn(standbyRootVolume).thenReturn(standbyDataVolume);
         Mockito.when(vmInstanceDao.findVMByHostNameInZone("vm-secondary", 401L)).thenReturn(null);
         Mockito.when(accountDao.findById(11L)).thenReturn(owner);
-        Mockito.when(nicDao.listByVmIdOrderByDeviceId(101L)).thenReturn(Collections.singletonList(mockNic(701L)));
+        NicVO nic = mockNic(701L);
+        Mockito.when(nicDao.listByVmIdOrderByDeviceId(101L)).thenReturn(Collections.singletonList(nic));
         Mockito.when(userVmService.createVirtualMachineVolume(Mockito.any(FtctlStandbyDeployVMVolumeCmd.class))).thenReturn(createdVm);
         Mockito.when(userVmDao.findById(401L)).thenReturn(standbyVm);
         Mockito.when(volumeDao.findByInstance(Mockito.anyLong())).thenAnswer(invocation -> {
