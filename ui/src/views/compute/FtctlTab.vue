@@ -149,9 +149,9 @@
             <a-descriptions-item :label="$t('label.ftctl.target.storage.scope')">{{ protection.targetstoragescope || '-' }}</a-descriptions-item>
             <a-descriptions-item :label="$t('label.ftctl.target.storage.pool')">{{ protection.targetstoragepoolname || protection.targetstoragepoolid || '-' }}</a-descriptions-item>
             <a-descriptions-item :label="$t('label.ftctl.fencing.policy')">{{ protection.fencingpolicy || '-' }}</a-descriptions-item>
-            <a-descriptions-item :label="$t('label.ftctl.peer.host.id')">{{ protection.peerhostid || '-' }}</a-descriptions-item>
+            <a-descriptions-item :label="$t('label.ftctl.peer.host')">{{ peerHostDisplay }}</a-descriptions-item>
             <a-descriptions-item :label="$t('label.ftctl.secondary.vm.name')">{{ protection.secondaryvmname || '-' }}</a-descriptions-item>
-            <a-descriptions-item :label="$t('label.ftctl.secondary.target.dir')">{{ protection.secondarytargetdir || '-' }}</a-descriptions-item>
+            <a-descriptions-item :label="$t('label.ftctl.secondary.target.disk')">{{ secondaryTargetDiskDisplay }}</a-descriptions-item>
             <a-descriptions-item :label="$t('label.ftctl.remote.nbd.export.address')">{{ protection.remotenbdexportaddr || '-' }}</a-descriptions-item>
             <a-descriptions-item :label="$t('label.ftctl.xcolo.proxy.endpoint')">{{ protection.xcoloproxyendpoint || '-' }}</a-descriptions-item>
             <a-descriptions-item :label="$t('label.ftctl.xcolo.nbd.endpoint')">{{ protection.xcolonbdendpoint || '-' }}</a-descriptions-item>
@@ -213,7 +213,7 @@
             :columns="eventColumns"
             :dataSource="events"
             :pagination="false"
-            :rowKey="record => `${record.timestamp || 'na'}-${record.event || 'na'}-${record.stage || 'na'}`"
+            :rowKey="record => `${record.timestamp || record.ts || 'na'}-${record.event || 'na'}-${record.stage || 'na'}`"
             :expandable="{ rowExpandable: (record) => hasEventDetails(record) }">
             <template #bodyCell="{ column, record }">
               <template v-if="column.key === 'result'">
@@ -221,7 +221,7 @@
                 <span v-else>-</span>
               </template>
               <template v-else-if="column.key === 'timestamp'">
-                <span>{{ record.timestamp || '-' }}</span>
+                <span>{{ record.timestamp || record.ts || '-' }}</span>
               </template>
               <template v-else-if="column.key === 'details'">
                 <span>{{ summarizeEventDetails(record.details) }}</span>
@@ -363,6 +363,24 @@ export default {
         return { type: 'info', message: this.$t('message.ftctl.status.stable') }
       }
       return { type: null, message: null }
+    },
+    peerHostDisplay () {
+      return this.protection.peerhostname || this.protection.peerhostid || '-'
+    },
+    secondaryTargetDiskDisplay () {
+      const target = this.protection.secondarytargetdisk || this.protection.secondarytargetdiskpath
+      if (target) {
+        return target
+      }
+      if (this.protection.secondarytargetdir) {
+        return this.protection.secondaryvmname
+          ? `${String(this.protection.secondarytargetdir).replace(/\/+$/, '')}/${this.protection.secondaryvmname}`
+          : this.protection.secondarytargetdir
+      }
+      if (this.protection.targetstoragepoolname && this.protection.secondaryvmname) {
+        return `${this.protection.targetstoragepoolname} / ${this.protection.secondaryvmname}`
+      }
+      return this.protection.targetstoragepoolname || this.protection.targetstoragepoolid || '-'
     },
     actionDefinitions () {
       const adminState = String(this.protection.adminstate || '').toLowerCase()
@@ -517,10 +535,13 @@ export default {
         return String(details)
       }
     },
+    extractNestedPayload (response, responseKey, objectKey) {
+      const payload = response?.[responseKey] || response || {}
+      const value = payload?.[objectKey] || payload
+      return Array.isArray(value) ? (value[0] || {}) : (value || {})
+    },
     extractProtectionPayload (response) {
-      const payload = response?.getftctlprotectionresponse || response || {}
-      const protection = payload.ftctlprotection || payload
-      return Array.isArray(protection) ? (protection[0] || {}) : (protection || {})
+      return this.extractNestedPayload(response, 'getftctlprotectionresponse', 'ftctlprotection')
     },
     async fetchAll () {
       this.loadingState = true
@@ -560,7 +581,7 @@ export default {
       }
       try {
         const response = await getAPI('getFtctlCheck', { virtualmachineid: this.resource.id })
-        this.checkResult = response?.getftctlcheckresponse || {}
+        this.checkResult = this.extractNestedPayload(response, 'getftctlcheckresponse', 'ftctlcheck')
       } catch (error) {
         this.checkResult = {}
         this.errorMessage = this.extractErrorMessage(error, 'getFtctlCheck')
@@ -572,7 +593,7 @@ export default {
       }
       try {
         const response = await getAPI('getFtctlHealth', { virtualmachineid: this.resource.id })
-        this.healthResult = response?.getftctlhealthresponse || {}
+        this.healthResult = this.extractNestedPayload(response, 'getftctlhealthresponse', 'ftctlhealth')
       } catch (error) {
         this.healthResult = {}
         this.errorMessage = this.extractErrorMessage(error, 'getFtctlHealth')
@@ -584,7 +605,12 @@ export default {
       }
       try {
         const response = await getAPI('getFtctlEvents', { virtualmachineid: this.resource.id, limit: 10 })
-        this.events = (response?.getftctleventsresponse?.events || []).slice().sort((a, b) => {
+        const payload = this.extractNestedPayload(response, 'getftctleventsresponse', 'ftctlevents')
+        this.events = (payload.events || []).map(event => {
+          return Object.assign({}, event, {
+            timestamp: event.timestamp || event.ts
+          })
+        }).sort((a, b) => {
           return String(b.timestamp || '').localeCompare(String(a.timestamp || ''))
         })
       } catch (error) {

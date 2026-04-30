@@ -320,6 +320,7 @@ public class FtctlServiceImplTest {
         Assert.assertEquals("pool-uuid", getFieldValue(response, "targetStoragePoolId"));
         Assert.assertEquals("pool-name", getFieldValue(response, "targetStoragePoolName"));
         Assert.assertEquals("202", getFieldValue(response, "peerHostId"));
+        Assert.assertEquals("host-202", getFieldValue(response, "peerHostName"));
         Assert.assertEquals("protected", getFieldValue(response, "protectionState"));
         Assert.assertEquals("replicating", getFieldValue(response, "transportState"));
         Assert.assertEquals("primary", getFieldValue(response, "activeSide"));
@@ -470,6 +471,7 @@ public class FtctlServiceImplTest {
     private HostVO mockHost(Long id, Long clusterId, String privateIp) {
         HostVO host = Mockito.mock(HostVO.class);
         Mockito.when(host.getId()).thenReturn(id);
+        Mockito.when(host.getName()).thenReturn(String.format("host-%s", id));
         Mockito.when(host.getClusterId()).thenReturn(clusterId);
         Mockito.when(host.getPrivateIpAddress()).thenReturn(privateIp);
         Mockito.when(host.getType()).thenReturn(Host.Type.Routing);

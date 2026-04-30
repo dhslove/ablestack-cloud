@@ -58,6 +58,10 @@ public class FtctlProtectionResponse extends BaseResponse {
     @Param(description = "the FTCTL peer host ID")
     private String peerHostId;
 
+    @SerializedName("peerhostname")
+    @Param(description = "the FTCTL peer host name")
+    private String peerHostName;
+
     @SerializedName("secondaryvmname")
     @Param(description = "the FTCTL secondary VM name")
     private String secondaryVmName;
@@ -140,6 +144,10 @@ public class FtctlProtectionResponse extends BaseResponse {
 
     public void setPeerHostId(String peerHostId) {
         this.peerHostId = peerHostId;
+    }
+
+    public void setPeerHostName(String peerHostName) {
+        this.peerHostName = peerHostName;
     }
 
     public void setSecondaryVmName(String secondaryVmName) {

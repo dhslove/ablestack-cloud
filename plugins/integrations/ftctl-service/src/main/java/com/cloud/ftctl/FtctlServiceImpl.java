@@ -460,7 +460,9 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         response.setTargetStoragePoolId(getDetailValue(virtualMachineId, DETAIL_TARGET_STORAGE_POOL_ID));
         response.setTargetStoragePoolName(getDetailValue(virtualMachineId, DETAIL_TARGET_STORAGE_POOL_NAME));
         response.setFencingPolicy(getDetailValue(virtualMachineId, DETAIL_FENCING_POLICY));
-        response.setPeerHostId(getDetailValue(virtualMachineId, DETAIL_PEER_HOST_ID));
+        String peerHostId = getDetailValue(virtualMachineId, DETAIL_PEER_HOST_ID);
+        response.setPeerHostId(peerHostId);
+        response.setPeerHostName(resolvePeerHostName(peerHostId));
         response.setSecondaryVmName(getDetailValue(virtualMachineId, DETAIL_SECONDARY_VM_NAME));
         response.setSecondaryTargetDir(getDetailValue(virtualMachineId, DETAIL_SECONDARY_TARGET_DIR));
         response.setRemoteNbdExportAddr(getDetailValue(virtualMachineId, DETAIL_REMOTE_NBD_EXPORT_ADDR));
@@ -474,6 +476,18 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         response.setFencingState(getDetailValue(virtualMachineId, DETAIL_LAST_FENCING_STATE));
         response.setLastError(getDetailValue(virtualMachineId, DETAIL_LAST_ERROR));
         return response;
+    }
+
+    private String resolvePeerHostName(String peerHostId) {
+        if (peerHostId == null || peerHostId.isBlank()) {
+            return null;
+        }
+        try {
+            HostVO host = hostDao.findById(Long.parseLong(peerHostId));
+            return host != null ? host.getName() : null;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     private String getDetailValue(Long virtualMachineId, String key) {

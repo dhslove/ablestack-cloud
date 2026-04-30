@@ -98,38 +98,49 @@ describe('Views > compute > FtctlTab.vue', () => {
         case 'getFtctlProtection':
           return Promise.resolve({
             getftctlprotectionresponse: {
-              enabled: 'true',
-              mode: 'dr',
-              protectionstate: 'protected',
-              adminstate: 'running',
-              fencingstate: 'clear'
+              ftctlprotection: {
+                enabled: 'true',
+                mode: 'dr',
+                peerhostname: 'ablecube22-1',
+                secondaryvmname: 'vm-name-secondary',
+                targetstoragepoolname: 'Primary Storage',
+                protectionstate: 'protected',
+                adminstate: 'running',
+                fencingstate: 'clear'
+              }
             }
           })
         case 'getFtctlCheck':
           return Promise.resolve({
             getftctlcheckresponse: {
-              result: 'ok',
-              inventoryresult: 'healthy',
-              primaryrc: 0,
-              peerrc: 1
+              ftctlcheck: {
+                result: 'ok',
+                inventoryresult: 'healthy',
+                primaryrc: 0,
+                peerrc: 1
+              }
             }
           })
         case 'getFtctlHealth':
           return Promise.resolve({
             getftctlhealthresponse: {
-              result: 'ok',
-              hostid: 201,
-              uri: 'qemu+ssh://10.0.0.11/system',
-              rc: 0
+              ftctlhealth: {
+                result: 'ok',
+                hostid: 201,
+                uri: 'qemu+ssh://10.0.0.11/system',
+                rc: 0
+              }
             }
           })
         case 'getFtctlEvents':
           return Promise.resolve({
             getftctleventsresponse: {
-              events: [
-                { timestamp: '2026-04-19T00:10:00+09:00', event: 'older', result: 'ok' },
-                { timestamp: '2026-04-19T00:20:00+09:00', event: 'newer', result: 'warn', details: '{"reason":"backoff"}' }
-              ]
+              ftctlevents: {
+                events: [
+                  { ts: '2026-04-19T00:10:00+09:00', event: 'older', result: 'ok' },
+                  { ts: '2026-04-19T00:20:00+09:00', event: 'newer', result: 'warn', details: '{"reason":"backoff"}' }
+                ]
+              }
             }
           })
         default:
@@ -156,9 +167,12 @@ describe('Views > compute > FtctlTab.vue', () => {
     expect(getAPI).toHaveBeenCalledWith('getFtctlHealth', { virtualmachineid: 'vm-1' })
     expect(getAPI).toHaveBeenCalledWith('getFtctlEvents', { virtualmachineid: 'vm-1', limit: 10 })
     expect(wrapper.vm.protection.mode).toBe('dr')
+    expect(wrapper.vm.peerHostDisplay).toBe('ablecube22-1')
+    expect(wrapper.vm.secondaryTargetDiskDisplay).toBe('Primary Storage / vm-name-secondary')
     expect(wrapper.vm.checkResult.inventoryresult).toBe('healthy')
     expect(wrapper.vm.healthResult.uri).toBe('qemu+ssh://10.0.0.11/system')
     expect(wrapper.vm.events[0].event).toBe('newer')
+    expect(wrapper.vm.events[0].timestamp).toBe('2026-04-19T00:20:00+09:00')
     expect(wrapper.vm.events[1].event).toBe('older')
     expect(wrapper.vm.canRunActions).toBe(true)
     expect(wrapper.vm.actionDefinitions.find(action => action.api === 'pauseFtctlProtection').disabled).toBe(false)
