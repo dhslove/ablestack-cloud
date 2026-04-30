@@ -272,12 +272,12 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
     }
 
     private UserVmVO ensureCloudManagedStandbyVm(FtctlProtectionProvisioningRequest request, FtctlProtectionVO protection,
-                                                 ServiceOfferingVO computeOffering, VolumeVO standbyRootVolume) {
+                                                 ServiceOfferingVO computeOffering, VolumeVO standbyRootVolume, VolumeVO primaryRootVolume) {
         UserVmVO existingStandby = findExistingStandbyVm(request, protection);
         if (existingStandby != null) {
             return existingStandby;
         }
-        return createCloudManagedStandbyVm(request, computeOffering, standbyRootVolume);
+        return createCloudManagedStandbyVm(request, computeOffering, standbyRootVolume, primaryRootVolume);
     }
 
     private UserVmVO findExistingStandbyVm(FtctlProtectionProvisioningRequest request, FtctlProtectionVO protection) {
