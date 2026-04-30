@@ -320,7 +320,7 @@ export default {
         this.resource?.vmtype !== 'sharedfsvm'
     },
     protectionConfigured () {
-      return ['mode', 'backendmode', 'protectionstate', 'transportstate', 'activeside', 'adminstate', 'fencingstate']
+      return ['enabled', 'mode', 'backendmode', 'protectionstate', 'transportstate', 'activeside', 'adminstate', 'fencingstate']
         .some(field => this.protection[field] !== undefined && this.protection[field] !== null && this.protection[field] !== '')
     },
     protectionEnabled () {
@@ -517,6 +517,11 @@ export default {
         return String(details)
       }
     },
+    extractProtectionPayload (response) {
+      const payload = response?.getftctlprotectionresponse || response || {}
+      const protection = payload.ftctlprotection || payload
+      return Array.isArray(protection) ? (protection[0] || {}) : (protection || {})
+    },
     async fetchAll () {
       this.loadingState = true
       this.errorMessage = null
@@ -543,7 +548,7 @@ export default {
       }
       try {
         const response = await getAPI('getFtctlProtection', { virtualmachineid: this.resource.id })
-        this.protection = response?.getftctlprotectionresponse?.ftctlprotection || response?.getftctlprotectionresponse || {}
+        this.protection = Object.assign({}, this.extractProtectionPayload(response))
       } catch (error) {
         this.protection = {}
         this.errorMessage = this.extractErrorMessage(error, 'getFtctlProtection')
