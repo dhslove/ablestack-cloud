@@ -153,6 +153,12 @@ jobs:
           /usr/share/${PACKAGE_NAME}-ui/*
           /usr/share/doc/${PACKAGE_NAME}-ui-${PACKAGE_VERSION}/LICENSE
           /usr/share/doc/${PACKAGE_NAME}-ui-${PACKAGE_VERSION}/NOTICE
+
+          %post
+          if [ -d /usr/share/${PACKAGE_NAME}-management/webapp ]; then
+            find /usr/share/${PACKAGE_NAME}-management/webapp -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+            cp -a /usr/share/${PACKAGE_NAME}-ui/. /usr/share/${PACKAGE_NAME}-management/webapp/
+          fi
           EOF
 
           rpmbuild \
