@@ -138,7 +138,7 @@ test.describe('FTCTL protection save', () => {
     const registerResponsePromise = page.waitForResponse(response =>
       isApiCommandResponse(response, 'registerFtctlProtection') && response.status() === 200,
     { timeout: 60000 })
-    await page.getByRole('button', { name: /\uD655\uC778|OK/ }).click()
+    await page.getByRole('dialog').getByRole('button', { name: /^\uD655\uC778$|^OK$/ }).click()
     const registerResponse = await registerResponsePromise
     const registerBody = await registerResponse.text()
     const protection = parseProtectionResponse(registerBody)
