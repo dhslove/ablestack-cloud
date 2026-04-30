@@ -78,6 +78,14 @@ public class FtctlProtectionResponse extends BaseResponse {
     @Param(description = "the FTCTL secondary target directory")
     private String secondaryTargetDir;
 
+    @SerializedName("secondarytargetdisk")
+    @Param(description = "the FTCTL secondary target disk path summary")
+    private String secondaryTargetDisk;
+
+    @SerializedName("diskmap")
+    @Param(description = "the FTCTL disk map used by the sync profile")
+    private String diskMap;
+
     @SerializedName("remotenbdexportaddr")
     @Param(description = "the FTCTL remote NBD export address")
     private String remoteNbdExportAddr;
@@ -172,6 +180,14 @@ public class FtctlProtectionResponse extends BaseResponse {
 
     public void setSecondaryTargetDir(String secondaryTargetDir) {
         this.secondaryTargetDir = secondaryTargetDir;
+    }
+
+    public void setSecondaryTargetDisk(String secondaryTargetDisk) {
+        this.secondaryTargetDisk = secondaryTargetDisk;
+    }
+
+    public void setDiskMap(String diskMap) {
+        this.diskMap = diskMap;
     }
 
     public void setRemoteNbdExportAddr(String remoteNbdExportAddr) {

@@ -1118,6 +1118,8 @@
   "label.ftctl.peer.host.id": "피어 호스트 ID",
   "label.ftctl.peer.rc": "피어 RC",
   "label.ftctl.primary.rc": "기본 RC",
+  "label.ftctl.provisioning.backend": "프로비저닝 백엔드",
+  "label.ftctl.provisioning.state": "프로비저닝 상태",
   "label.ftctl.protection.configure": "보호 설정",
   "label.ftctl.protection.details": "보호 상세",
   "label.ftctl.protection.state": "보호 상태",

@@ -33,11 +33,15 @@ import com.cloud.agent.api.FtctlSyncClusterCommand;
 import com.cloud.agent.api.FtctlSyncProfileCommand;
 import com.cloud.exception.AgentUnavailableException;
 import com.cloud.exception.OperationTimedoutException;
+import com.cloud.ftctl.dao.FtctlProtectionDao;
+import com.cloud.ftctl.dao.FtctlProtectionVolumeDao;
 import com.cloud.host.Host;
 import com.cloud.host.DetailVO;
 import com.cloud.host.HostVO;
 import com.cloud.host.dao.HostDao;
 import com.cloud.host.dao.HostDetailsDao;
+import com.cloud.storage.VolumeVO;
+import com.cloud.storage.dao.VolumeDao;
 import com.cloud.utils.component.ManagerBase;
 import com.cloud.utils.exception.CloudRuntimeException;
 import com.cloud.vm.VMInstanceDetailVO;
@@ -69,6 +73,7 @@ import org.apache.cloudstack.outofbandmanagement.dao.OutOfBandManagementDao;
 import javax.inject.Inject;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class FtctlServiceImpl extends ManagerBase implements FtctlService {
 
@@ -128,6 +133,12 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     private OutOfBandManagementDao outOfBandManagementDao;
     @Inject
     private FtctlProtectionProvisioningService ftctlProtectionProvisioningService;
+    @Inject
+    private FtctlProtectionDao ftctlProtectionDao;
+    @Inject
+    private FtctlProtectionVolumeDao ftctlProtectionVolumeDao;
+    @Inject
+    private VolumeDao volumeDao;
 
     @Override
     public FtctlProtectionResponse getFtctlProtection(GetFtctlProtectionCmd cmd) throws CloudRuntimeException {
@@ -506,6 +517,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         response.setPeerHostName(resolvePeerHostName(peerHostId));
         response.setSecondaryVmName(getDetailValue(virtualMachineId, DETAIL_SECONDARY_VM_NAME));
         response.setSecondaryTargetDir(getDetailValue(virtualMachineId, DETAIL_SECONDARY_TARGET_DIR));
+        populateCloudManagedDiskDetails(virtualMachineId, response);
         response.setRemoteNbdExportAddr(getDetailValue(virtualMachineId, DETAIL_REMOTE_NBD_EXPORT_ADDR));
         response.setXcoloProxyEndpoint(getDetailValue(virtualMachineId, DETAIL_XCOLO_PROXY_ENDPOINT));
         response.setXcoloNbdEndpoint(getDetailValue(virtualMachineId, DETAIL_XCOLO_NBD_ENDPOINT));
@@ -517,6 +529,52 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         response.setFencingState(getDetailValue(virtualMachineId, DETAIL_LAST_FENCING_STATE));
         response.setLastError(getDetailValue(virtualMachineId, DETAIL_LAST_ERROR));
         return response;
+    }
+
+    private void populateCloudManagedDiskDetails(Long virtualMachineId, FtctlProtectionResponse response) {
+        FtctlProtectionVO protection = virtualMachineId != null ? ftctlProtectionDao.findActiveByPrimaryVmId(virtualMachineId) : null;
+        if (protection == null) {
+            return;
+        }
+        List<FtctlProtectionVolumeVO> volumes = ftctlProtectionVolumeDao.listActiveByProtectionId(protection.getId());
+        if (volumes == null || volumes.isEmpty()) {
+            return;
+        }
+        List<String> secondaryDiskEntries = new ArrayList<>();
+        List<String> diskMapEntries = new ArrayList<>();
+        for (FtctlProtectionVolumeVO volume : volumes) {
+            String secondaryPath = volume.getSecondaryDiskPath();
+            if (StringUtils.isBlank(secondaryPath)) {
+                continue;
+            }
+            String label = StringUtils.defaultIfBlank(volume.getDiskLabel(), resolveVolumeDisplayName(volume.getPrimaryVolumeId()));
+            secondaryDiskEntries.add(String.format("%s=%s", label, secondaryPath));
+            diskMapEntries.add(String.format("%s=%s", resolveKvmDiskTarget(volume.getPrimaryVolumeId()), secondaryPath));
+        }
+        if (!secondaryDiskEntries.isEmpty()) {
+            response.setSecondaryTargetDisk(secondaryDiskEntries.stream().collect(Collectors.joining(";")));
+            response.setDiskMap(diskMapEntries.stream().collect(Collectors.joining(";")));
+        }
+    }
+
+    private String resolveVolumeDisplayName(long volumeId) {
+        VolumeVO volume = volumeDao.findById(volumeId);
+        if (volume == null) {
+            return String.valueOf(volumeId);
+        }
+        return StringUtils.defaultIfBlank(volume.getName(), StringUtils.defaultIfBlank(volume.getPath(), String.valueOf(volumeId)));
+    }
+
+    private String resolveKvmDiskTarget(long volumeId) {
+        VolumeVO volume = volumeDao.findById(volumeId);
+        Long deviceId = volume != null ? volume.getDeviceId() : null;
+        if (deviceId == null) {
+            return String.valueOf(volumeId);
+        }
+        if (deviceId < 0 || deviceId > 25) {
+            return String.format("vd%s", deviceId);
+        }
+        return String.format("vd%c", (char) ('a' + deviceId));
     }
 
     private String resolvePeerHostName(String peerHostId) {

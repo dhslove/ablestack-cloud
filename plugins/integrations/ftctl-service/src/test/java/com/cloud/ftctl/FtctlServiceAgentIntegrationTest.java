@@ -26,6 +26,8 @@ import com.cloud.agent.api.FtctlStatusCommand;
 import com.cloud.agent.api.FtctlSyncAnswer;
 import com.cloud.agent.api.FtctlSyncClusterCommand;
 import com.cloud.agent.api.FtctlSyncProfileCommand;
+import com.cloud.ftctl.dao.FtctlProtectionDao;
+import com.cloud.ftctl.dao.FtctlProtectionVolumeDao;
 import com.cloud.host.DetailVO;
 import com.cloud.host.Host;
 import com.cloud.host.HostVO;
@@ -33,6 +35,7 @@ import com.cloud.host.dao.HostDao;
 import com.cloud.host.dao.HostDetailsDao;
 import com.cloud.hypervisor.Hypervisor.HypervisorType;
 import com.cloud.storage.ScopeType;
+import com.cloud.storage.dao.VolumeDao;
 import com.cloud.utils.exception.CloudRuntimeException;
 import com.cloud.vm.VMInstanceDetailVO;
 import com.cloud.vm.UserVmVO;
@@ -78,6 +81,12 @@ public class FtctlServiceAgentIntegrationTest {
     private PrimaryDataStoreDao primaryDataStoreDao;
     @Mock
     private FtctlProtectionProvisioningService ftctlProtectionProvisioningService;
+    @Mock
+    private FtctlProtectionDao ftctlProtectionDao;
+    @Mock
+    private FtctlProtectionVolumeDao ftctlProtectionVolumeDao;
+    @Mock
+    private VolumeDao volumeDao;
 
     @InjectMocks
     private FtctlServiceImpl ftctlService;

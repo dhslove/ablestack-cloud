@@ -146,6 +146,11 @@
               <span v-else>-</span>
             </a-descriptions-item>
             <a-descriptions-item :label="$t('label.ftctl.backend.mode')">{{ protection.backendmode || '-' }}</a-descriptions-item>
+            <a-descriptions-item :label="$t('label.ftctl.provisioning.backend')">{{ protection.provisioningbackend || '-' }}</a-descriptions-item>
+            <a-descriptions-item :label="$t('label.ftctl.provisioning.state')">
+              <a-tag v-if="protection.provisioningstate" :color="stateTagColor(protection.provisioningstate)">{{ protection.provisioningstate }}</a-tag>
+              <span v-else>-</span>
+            </a-descriptions-item>
             <a-descriptions-item :label="$t('label.ftctl.target.storage.scope')">{{ protection.targetstoragescope || '-' }}</a-descriptions-item>
             <a-descriptions-item :label="$t('label.ftctl.target.storage.pool')">{{ protection.targetstoragepoolname || protection.targetstoragepoolid || '-' }}</a-descriptions-item>
             <a-descriptions-item :label="$t('label.ftctl.fencing.policy')">{{ protection.fencingpolicy || '-' }}</a-descriptions-item>
@@ -368,7 +373,7 @@ export default {
       return this.protection.peerhostname || this.protection.peerhostid || '-'
     },
     secondaryTargetDiskDisplay () {
-      const target = this.protection.secondarytargetdisk || this.protection.secondarytargetdiskpath
+      const target = this.protection.secondarytargetdisk || this.protection.secondarytargetdiskpath || this.protection.diskmap
       if (target) {
         return target
       }

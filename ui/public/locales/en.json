@@ -1118,6 +1118,8 @@
   "label.ftctl.peer.host.id": "Peer Host ID",
   "label.ftctl.peer.rc": "Peer RC",
   "label.ftctl.primary.rc": "Primary RC",
+  "label.ftctl.provisioning.backend": "Provisioning Backend",
+  "label.ftctl.provisioning.state": "Provisioning State",
   "label.ftctl.protection.configure": "Protection",
   "label.ftctl.protection.details": "Protection Details",
   "label.ftctl.protection.state": "Protection State",
