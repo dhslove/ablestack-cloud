@@ -459,6 +459,7 @@ export default {
         const params = {
           virtualmachineid: this.resource.id,
           mode: values.mode,
+          provisioningbackend: 'cloud-managed',
           fencingpolicy: values.fencingpolicy
         }
         if (this.showBackendFields) {

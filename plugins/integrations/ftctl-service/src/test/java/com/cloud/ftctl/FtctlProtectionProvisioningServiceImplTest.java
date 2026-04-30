@@ -272,6 +272,7 @@ public class FtctlProtectionProvisioningServiceImplTest {
         Assert.assertEquals("2", deployCmd.getDetails().get("cpuNumber"));
         Assert.assertEquals("1000", deployCmd.getDetails().get("cpuSpeed"));
         Assert.assertEquals("4096", deployCmd.getDetails().get("memory"));
+        Assert.assertEquals("10", deployCmd.getDetails().get("rootdisksize"));
         Assert.assertEquals("scsi", deployCmd.getDetails().get("rootDiskController"));
         Assert.assertEquals("scsi", deployCmd.getDetails().get("dataDiskController"));
         Assert.assertEquals("SECURE", deployCmd.getDetails().get("UEFI"));

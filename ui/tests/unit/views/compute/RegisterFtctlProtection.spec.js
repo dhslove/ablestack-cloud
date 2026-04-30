@@ -206,6 +206,7 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
     expect(postAPI).toHaveBeenCalledWith('registerFtctlProtection', {
       virtualmachineid: 'vm-1',
       mode: 'dr',
+      provisioningbackend: 'cloud-managed',
       fencingpolicy: 'manual-block',
       backendmode: 'remote-nbd',
       targetstoragescope: 'host',
@@ -249,6 +250,7 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
     expect(postAPI).toHaveBeenCalledWith('registerFtctlProtection', {
       virtualmachineid: 'vm-1',
       mode: 'ft',
+      provisioningbackend: 'cloud-managed',
       fencingpolicy: 'manual-block',
       targetstoragescope: 'host',
       targetstoragepoolid: 'pool-1',

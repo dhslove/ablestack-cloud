@@ -148,6 +148,7 @@ test.describe('FTCTL protection save', () => {
     expect(protection.enabled).toBe('true')
     expect(protection.mode).toBe('ha')
     expect(protection.backendmode).toBe('shared-blockcopy')
+    expect(protection.provisioningbackend).toBe('cloud-managed')
     expect(protection.fencingpolicy).toBe('manual-block')
     expect(protection.targetstoragepoolname).toMatch(/Primary Storage|RBD|ZONE/)
     expect(protection.lasterror || '', `FTCTL last error: ${protection.lasterror || ''}`).toBe('')

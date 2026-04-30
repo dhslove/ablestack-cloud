@@ -300,6 +300,8 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
         if (owner == null) {
             throw new CloudRuntimeException(String.format("Unable to find owner account for primary VM %s", primaryVm.getUuid()));
         }
+        Map<String, String> standbyVmDetails = buildStandbyVmDetails(primaryVm);
+        standbyVmDetails.put(VmDetailConstants.ROOT_DISK_SIZE, String.valueOf(bytesToGiBRoundedUp(standbyRootVolume.getSize())));
         FtctlStandbyDeployVMVolumeCmd deployCmd = new FtctlStandbyDeployVMVolumeCmd(
                 owner.getId(),
                 owner.getAccountName(),
@@ -312,7 +314,7 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
                 request.getPeerHostId(),
                 primaryVm.getHypervisorType(),
                 standbyRootVolume.getId(),
-                buildStandbyVmDetails(primaryVm));
+                standbyVmDetails);
         try {
             UserVm standbyVm = userVmService.createVirtualMachineVolume(deployCmd);
             if (standbyVm == null) {
