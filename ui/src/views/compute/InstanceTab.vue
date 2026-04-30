@@ -639,11 +639,7 @@ export default {
         // URL 쿼리 파라미터 업데이트
         const query = Object.assign({}, this.$route.query)
         query.tab = activeKey
-        const queryString = Object.keys(query).map(key => {
-          return encodeURIComponent(key) + '=' + encodeURIComponent(query[key])
-        }).join('&')
-
-        history.pushState({}, null, '#' + this.$route.path + '?' + queryString)
+        this.$router.replace({ path: this.$route.path, query }).catch(() => {})
       }
     },
     resetDeviceCache () {
