@@ -67,7 +67,7 @@
               {{ $t('message.ftctl.standby.view.desc') }}
               <router-link
                 v-if="protection.primaryvirtualmachineid"
-                :to="{ path: '/vm/' + protection.primaryvirtualmachineid }">
+                :to="{ path: '/vm/' + primaryVmRouteId }">
                 {{ primaryVmDisplay }}
               </router-link>
             </div>
@@ -163,7 +163,7 @@
             <a-descriptions-item :label="$t('label.ftctl.primary.vm')">
               <router-link
                 v-if="protection.primaryvirtualmachineid"
-                :to="{ path: '/vm/' + protection.primaryvirtualmachineid }">
+                :to="{ path: '/vm/' + primaryVmRouteId }">
                 {{ primaryVmDisplay }}
               </router-link>
               <span v-else>-</span>
@@ -185,8 +185,27 @@
             <a-descriptions-item :label="$t('label.ftctl.target.storage.pool')">{{ protection.targetstoragepoolname || protection.targetstoragepoolid || '-' }}</a-descriptions-item>
             <a-descriptions-item :label="$t('label.ftctl.fencing.policy')">{{ protection.fencingpolicy || '-' }}</a-descriptions-item>
             <a-descriptions-item :label="$t('label.ftctl.peer.host')">{{ peerHostDisplay }}</a-descriptions-item>
-            <a-descriptions-item :label="$t('label.ftctl.secondary.vm.name')">{{ protection.secondaryvmname || '-' }}</a-descriptions-item>
-            <a-descriptions-item :label="$t('label.ftctl.secondary.target.disk')">{{ secondaryTargetDiskDisplay }}</a-descriptions-item>
+            <a-descriptions-item :label="$t('label.ftctl.secondary.vm.name')">
+              <router-link
+                v-if="secondaryVmRouteId"
+                :to="{ path: '/vm/' + secondaryVmRouteId }">
+                {{ secondaryVmDisplay }}
+              </router-link>
+              <span v-else>{{ secondaryVmDisplay }}</span>
+            </a-descriptions-item>
+            <a-descriptions-item :label="$t('label.ftctl.secondary.target.disk')">
+              <div v-if="secondaryVolumeItems.length" class="ftctl-tab__link-list">
+                <div v-for="volume in secondaryVolumeItems" :key="volume.id || volume.name || volume.path" class="ftctl-tab__link-list-item">
+                  <router-link
+                    v-if="volume.id"
+                    :to="{ path: '/volume/' + volume.id }">
+                    {{ volume.name }}
+                  </router-link>
+                  <span v-else>{{ volume.name }}</span>
+                </div>
+              </div>
+              <span v-else>{{ secondaryTargetDiskDisplay }}</span>
+            </a-descriptions-item>
             <a-descriptions-item :label="$t('label.ftctl.remote.nbd.export.address')">{{ protection.remotenbdexportaddr || '-' }}</a-descriptions-item>
             <a-descriptions-item :label="$t('label.ftctl.xcolo.proxy.endpoint')">{{ protection.xcoloproxyendpoint || '-' }}</a-descriptions-item>
             <a-descriptions-item :label="$t('label.ftctl.xcolo.nbd.endpoint')">{{ protection.xcolonbdendpoint || '-' }}</a-descriptions-item>
@@ -218,27 +237,36 @@
         <a-card size="small" :bordered="true" class="ftctl-tab__section" :title="$t('label.ftctl.check')">
           <a-descriptions bordered :column="descriptionColumn" size="small">
             <a-descriptions-item :label="$t('label.ftctl.check.result')">
-              <a-tag v-if="checkResult.result" :color="stateTagColor(checkResult.result)">{{ checkResult.result }}</a-tag>
+              <a-tag v-if="checkResult.result" :color="stateTagColor(checkResult.result)">{{ formatStatusValue(checkResult.result) }}</a-tag>
               <span v-else>-</span>
             </a-descriptions-item>
             <a-descriptions-item :label="$t('label.ftctl.inventory.result')">
-              <a-tag v-if="checkResult.inventoryresult" :color="stateTagColor(checkResult.inventoryresult)">{{ checkResult.inventoryresult }}</a-tag>
+              <a-tag v-if="checkResult.inventoryresult" :color="stateTagColor(checkResult.inventoryresult)">{{ formatStatusValue(checkResult.inventoryresult) }}</a-tag>
               <span v-else>-</span>
             </a-descriptions-item>
-            <a-descriptions-item :label="$t('label.ftctl.primary.rc')">{{ formatNumber(checkResult.primaryrc) }}</a-descriptions-item>
-            <a-descriptions-item :label="$t('label.ftctl.peer.rc')">{{ formatNumber(checkResult.peerrc) }}</a-descriptions-item>
+            <a-descriptions-item :label="$t('label.ftctl.primary.rc')">
+              <a-tag v-if="checkResult.primaryrc !== undefined && checkResult.primaryrc !== null && checkResult.primaryrc !== ''" :color="returnCodeTagColor(checkResult.primaryrc)">{{ returnCodeStatus(checkResult.primaryrc) }}</a-tag>
+              <span v-else>-</span>
+            </a-descriptions-item>
+            <a-descriptions-item :label="$t('label.ftctl.peer.rc')">
+              <a-tag v-if="checkResult.peerrc !== undefined && checkResult.peerrc !== null && checkResult.peerrc !== ''" :color="returnCodeTagColor(checkResult.peerrc)">{{ returnCodeStatus(checkResult.peerrc) }}</a-tag>
+              <span v-else>-</span>
+            </a-descriptions-item>
           </a-descriptions>
         </a-card>
 
         <a-card size="small" :bordered="true" class="ftctl-tab__section" :title="$t('label.ftctl.health')">
           <a-descriptions bordered :column="descriptionColumn" size="small">
             <a-descriptions-item :label="$t('label.ftctl.health.result')">
-              <a-tag v-if="healthResult.result" :color="stateTagColor(healthResult.result)">{{ healthResult.result }}</a-tag>
+              <a-tag v-if="healthResult.result" :color="stateTagColor(healthResult.result)">{{ formatStatusValue(healthResult.result) }}</a-tag>
               <span v-else>-</span>
             </a-descriptions-item>
-            <a-descriptions-item :label="$t('label.ftctl.host.id')">{{ formatNumber(healthResult.hostid) }}</a-descriptions-item>
+            <a-descriptions-item :label="$t('label.ftctl.host.id')">{{ healthHostDisplay }}</a-descriptions-item>
             <a-descriptions-item :label="$t('label.ftctl.uri')">{{ healthResult.uri || '-' }}</a-descriptions-item>
-            <a-descriptions-item :label="$t('label.ftctl.rc')">{{ formatNumber(healthResult.rc) }}</a-descriptions-item>
+            <a-descriptions-item :label="$t('label.ftctl.rc')">
+              <a-tag v-if="healthResult.rc !== undefined && healthResult.rc !== null && healthResult.rc !== ''" :color="returnCodeTagColor(healthResult.rc)">{{ returnCodeStatus(healthResult.rc) }}</a-tag>
+              <span v-else>-</span>
+            </a-descriptions-item>
           </a-descriptions>
         </a-card>
 
@@ -367,6 +395,15 @@ export default {
     primaryVmDisplay () {
       return this.protection.primaryvirtualmachinename || this.protection.primaryvirtualmachineid || '-'
     },
+    primaryVmRouteId () {
+      return this.protection.primaryvirtualmachineuuid || this.protection.primaryvirtualmachineid
+    },
+    secondaryVmDisplay () {
+      return this.protection.secondaryvirtualmachinedisplayname || this.protection.secondaryvmname || '-'
+    },
+    secondaryVmRouteId () {
+      return this.protection.secondaryvirtualmachineuuid || this.protection.secondaryvirtualmachineid
+    },
     protectionRoleLabel () {
       const role = String(this.protection.protectionrole || '').toLowerCase()
       if (role === 'standby') {
@@ -421,6 +458,16 @@ export default {
     peerHostDisplay () {
       return this.protection.peerhostname || this.protection.peerhostid || '-'
     },
+    secondaryVolumeItems () {
+      return this.normalizeList(this.protection.secondaryvolumes).map(volume => {
+        return {
+          id: volume.id,
+          name: volume.name || volume.path || '-',
+          path: volume.path,
+          disklabel: volume.disklabel
+        }
+      }).filter(volume => volume.name && volume.name !== '-')
+    },
     secondaryTargetDiskDisplay () {
       const target = this.protection.secondarytargetdisk || this.protection.secondarytargetdiskpath || this.protection.diskmap
       if (target) {
@@ -435,6 +482,9 @@ export default {
         return `${this.protection.targetstoragepoolname} / ${this.protection.secondaryvmname}`
       }
       return this.protection.targetstoragepoolname || this.protection.targetstoragepoolid || '-'
+    },
+    healthHostDisplay () {
+      return this.healthResult.hostname || '-'
     },
     actionDefinitions () {
       const adminState = String(this.protection.adminstate || '').toLowerCase()
@@ -515,6 +565,57 @@ export default {
     },
     formatNumber (value) {
       return value === null || value === undefined || value === '' ? '-' : value
+    },
+    normalizeList (value) {
+      if (!value) {
+        return []
+      }
+      if (Array.isArray(value)) {
+        return value
+      }
+      if (Array.isArray(value.ftctlprotectionvolume)) {
+        return value.ftctlprotectionvolume
+      }
+      return [value]
+    },
+    formatStatusValue (value) {
+      const normalized = String(value || '').toLowerCase()
+      if (normalized === 'ok' || normalized === 'healthy') {
+        return 'OK'
+      }
+      if (normalized === 'warn' || normalized === 'warning') {
+        return 'WARN'
+      }
+      if (['fail', 'failed', 'error', 'err', 'timeout'].includes(normalized)) {
+        return 'ERR'
+      }
+      return value || '-'
+    },
+    returnCodeStatus (value) {
+      const rc = Number(value)
+      if (Number.isNaN(rc)) {
+        return '-'
+      }
+      if (rc === 0) {
+        return 'OK'
+      }
+      if (rc === 1) {
+        return 'WARN'
+      }
+      return 'ERR'
+    },
+    returnCodeTagColor (value) {
+      const status = this.returnCodeStatus(value)
+      if (status === 'OK') {
+        return 'green'
+      }
+      if (status === 'WARN') {
+        return 'orange'
+      }
+      if (status === 'ERR') {
+        return 'red'
+      }
+      return 'default'
     },
     formatBoolean (value) {
       if (value === true || value === 'true') {
@@ -838,6 +939,16 @@ export default {
     word-break: break-word;
     font-size: 12px;
     background: transparent;
+  }
+
+  &__link-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  &__link-list-item {
+    line-height: 1.45;
   }
 
   :deep(.ant-descriptions-bordered .ant-descriptions-item-label),

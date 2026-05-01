@@ -61,6 +61,7 @@ import org.apache.cloudstack.api.response.ftctl.FtctlEventResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlEventsResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlHealthResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlProtectionResponse;
+import org.apache.cloudstack.api.response.ftctl.FtctlProtectionVolumeResponse;
 import org.apache.cloudstack.framework.config.ConfigKey;
 import org.apache.cloudstack.storage.datastore.db.PrimaryDataStoreDao;
 import org.apache.cloudstack.storage.datastore.db.StoragePoolVO;
@@ -453,6 +454,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             response.setObjectName("ftctlhealth");
             response.setVirtualMachineId(userVm.getId());
             response.setHostId(hostId);
+            response.setHostName(resolveHostName(hostId));
             response.setResult(healthAnswer.getFtctlResult());
             response.setUri(healthAnswer.getUri());
             response.setRc(healthAnswer.getRc());
@@ -534,7 +536,11 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         response.setProtectionRole(standbyView ? "standby" : protection != null ? "primary" : null);
         response.setPrimaryVirtualMachineId(primaryVmId);
         response.setPrimaryVirtualMachineName(resolveVmDisplayName(primaryVmId));
-        response.setSecondaryVirtualMachineId(protection != null ? protection.getSecondaryVmId() : null);
+        response.setPrimaryVirtualMachineUuid(resolveVmUuid(primaryVmId));
+        Long secondaryVmId = protection != null ? protection.getSecondaryVmId() : null;
+        response.setSecondaryVirtualMachineId(secondaryVmId);
+        response.setSecondaryVirtualMachineUuid(resolveVmUuid(secondaryVmId));
+        response.setSecondaryVirtualMachineDisplayName(resolveVmDisplayName(secondaryVmId));
         response.setEnabled(getDetailValue(sourceVmId, DETAIL_ENABLED));
         response.setMode(getDetailValue(sourceVmId, DETAIL_MODE));
         response.setBackendMode(getDetailValue(sourceVmId, DETAIL_BACKEND_MODE));
@@ -593,6 +599,11 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         return vm != null ? StringUtils.defaultIfBlank(vm.getDisplayName(), vm.getHostName()) : null;
     }
 
+    private String resolveVmUuid(Long virtualMachineId) {
+        UserVmVO vm = virtualMachineId != null ? userVmDao.findById(virtualMachineId) : null;
+        return vm != null ? vm.getUuid() : null;
+    }
+
     private void populateCloudManagedDiskDetails(Long primaryVmId, FtctlProtectionVO protection, FtctlProtectionResponse response) {
         if (protection == null && primaryVmId != null) {
             protection = ftctlProtectionDao.findActiveByPrimaryVmId(primaryVmId);
@@ -606,18 +617,31 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         }
         List<String> secondaryDiskEntries = new ArrayList<>();
         List<String> diskMapEntries = new ArrayList<>();
+        List<FtctlProtectionVolumeResponse> secondaryVolumes = new ArrayList<>();
         for (FtctlProtectionVolumeVO volume : volumes) {
             String secondaryPath = volume.getSecondaryDiskPath();
-            if (StringUtils.isBlank(secondaryPath)) {
-                continue;
+            VolumeVO secondaryVolume = volume.getSecondaryVolumeId() != null ? volumeDao.findById(volume.getSecondaryVolumeId()) : null;
+            if (secondaryVolume != null) {
+                FtctlProtectionVolumeResponse volumeResponse = new FtctlProtectionVolumeResponse();
+                volumeResponse.setObjectName("ftctlprotectionvolume");
+                volumeResponse.setId(secondaryVolume.getUuid());
+                volumeResponse.setName(resolveVolumeDisplayName(secondaryVolume.getId()));
+                volumeResponse.setPath(secondaryVolume.getPath());
+                volumeResponse.setDiskLabel(volume.getDiskLabel());
+                secondaryVolumes.add(volumeResponse);
             }
-            String label = StringUtils.defaultIfBlank(volume.getDiskLabel(), resolveVolumeDisplayName(volume.getPrimaryVolumeId()));
-            secondaryDiskEntries.add(String.format("%s=%s", label, secondaryPath));
-            diskMapEntries.add(String.format("%s=%s", resolveKvmDiskTarget(primaryVmId, volume.getPrimaryVolumeId()), secondaryPath));
+            if (StringUtils.isNotBlank(secondaryPath)) {
+                String label = StringUtils.defaultIfBlank(volume.getDiskLabel(), resolveVolumeDisplayName(volume.getPrimaryVolumeId()));
+                secondaryDiskEntries.add(String.format("%s=%s", label, secondaryPath));
+                diskMapEntries.add(String.format("%s=%s", resolveKvmDiskTarget(primaryVmId, volume.getPrimaryVolumeId()), secondaryPath));
+            }
         }
         if (!secondaryDiskEntries.isEmpty()) {
             response.setSecondaryTargetDisk(secondaryDiskEntries.stream().collect(Collectors.joining(";")));
             response.setDiskMap(diskMapEntries.stream().collect(Collectors.joining(";")));
+        }
+        if (!secondaryVolumes.isEmpty()) {
+            response.setSecondaryVolumes(secondaryVolumes);
         }
     }
 
@@ -682,11 +706,15 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             return null;
         }
         try {
-            HostVO host = hostDao.findById(Long.parseLong(peerHostId));
-            return host != null ? host.getName() : null;
+            return resolveHostName(Long.parseLong(peerHostId));
         } catch (NumberFormatException ignored) {
             return null;
         }
+    }
+
+    private String resolveHostName(Long hostId) {
+        HostVO host = hostId != null ? hostDao.findById(hostId) : null;
+        return host != null ? host.getName() : null;
     }
 
     private String getDetailValue(Long virtualMachineId, String key) {

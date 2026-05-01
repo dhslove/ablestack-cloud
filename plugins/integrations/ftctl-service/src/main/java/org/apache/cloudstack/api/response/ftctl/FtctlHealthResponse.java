@@ -30,6 +30,10 @@ public class FtctlHealthResponse extends BaseResponse {
     @Param(description = "the execution host ID")
     private Long hostId;
 
+    @SerializedName("hostname")
+    @Param(description = "the execution host name")
+    private String hostName;
+
     @SerializedName("result")
     @Param(description = "the FTCTL health result")
     private String result;
@@ -48,6 +52,10 @@ public class FtctlHealthResponse extends BaseResponse {
 
     public void setHostId(Long hostId) {
         this.hostId = hostId;
+    }
+
+    public void setHostName(String hostName) {
+        this.hostName = hostName;
     }
 
     public void setResult(String result) {

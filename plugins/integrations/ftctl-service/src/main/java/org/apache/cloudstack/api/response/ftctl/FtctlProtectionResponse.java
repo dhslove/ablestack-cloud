@@ -20,6 +20,8 @@ import com.cloud.serializer.Param;
 import com.google.gson.annotations.SerializedName;
 import org.apache.cloudstack.api.BaseResponse;
 
+import java.util.List;
+
 public class FtctlProtectionResponse extends BaseResponse {
 
     @SerializedName("virtualmachineid")
@@ -38,9 +40,21 @@ public class FtctlProtectionResponse extends BaseResponse {
     @Param(description = "the FTCTL primary virtual machine name")
     private String primaryVirtualMachineName;
 
+    @SerializedName("primaryvirtualmachineuuid")
+    @Param(description = "the FTCTL primary virtual machine UUID")
+    private String primaryVirtualMachineUuid;
+
     @SerializedName("secondaryvirtualmachineid")
     @Param(description = "the FTCTL secondary virtual machine ID")
     private Long secondaryVirtualMachineId;
+
+    @SerializedName("secondaryvirtualmachineuuid")
+    @Param(description = "the FTCTL secondary virtual machine UUID")
+    private String secondaryVirtualMachineUuid;
+
+    @SerializedName("secondaryvirtualmachinedisplayname")
+    @Param(description = "the FTCTL secondary virtual machine display name")
+    private String secondaryVirtualMachineDisplayName;
 
     @SerializedName("enabled")
     @Param(description = "whether FTCTL protection is enabled")
@@ -102,6 +116,10 @@ public class FtctlProtectionResponse extends BaseResponse {
     @Param(description = "the FTCTL disk map used by the sync profile")
     private String diskMap;
 
+    @SerializedName("secondaryvolumes")
+    @Param(description = "the FTCTL secondary volume list", responseObject = FtctlProtectionVolumeResponse.class)
+    private List<FtctlProtectionVolumeResponse> secondaryVolumes;
+
     @SerializedName("remotenbdexportaddr")
     @Param(description = "the FTCTL remote NBD export address")
     private String remoteNbdExportAddr;
@@ -158,8 +176,20 @@ public class FtctlProtectionResponse extends BaseResponse {
         this.primaryVirtualMachineName = primaryVirtualMachineName;
     }
 
+    public void setPrimaryVirtualMachineUuid(String primaryVirtualMachineUuid) {
+        this.primaryVirtualMachineUuid = primaryVirtualMachineUuid;
+    }
+
     public void setSecondaryVirtualMachineId(Long secondaryVirtualMachineId) {
         this.secondaryVirtualMachineId = secondaryVirtualMachineId;
+    }
+
+    public void setSecondaryVirtualMachineUuid(String secondaryVirtualMachineUuid) {
+        this.secondaryVirtualMachineUuid = secondaryVirtualMachineUuid;
+    }
+
+    public void setSecondaryVirtualMachineDisplayName(String secondaryVirtualMachineDisplayName) {
+        this.secondaryVirtualMachineDisplayName = secondaryVirtualMachineDisplayName;
     }
 
     public void setEnabled(String enabled) {
@@ -220,6 +250,10 @@ public class FtctlProtectionResponse extends BaseResponse {
 
     public void setDiskMap(String diskMap) {
         this.diskMap = diskMap;
+    }
+
+    public void setSecondaryVolumes(List<FtctlProtectionVolumeResponse> secondaryVolumes) {
+        this.secondaryVolumes = secondaryVolumes;
     }
 
     public void setRemoteNbdExportAddr(String remoteNbdExportAddr) {

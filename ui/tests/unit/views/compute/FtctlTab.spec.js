@@ -102,7 +102,13 @@ describe('Views > compute > FtctlTab.vue', () => {
                 enabled: 'true',
                 mode: 'dr',
                 peerhostname: 'ablecube22-1',
-                secondaryvmname: 'vm-name-secondary',
+                secondaryvmname: 'i-2-303-VM',
+                secondaryvirtualmachineuuid: 'secondary-vm-uuid',
+                secondaryvirtualmachinedisplayname: 'vm-name-secondary',
+                secondaryvolumes: [
+                  { id: 'secondary-root-volume-uuid', name: 'vm-name-secondary-root', path: 'rbd-root-path' },
+                  { id: 'secondary-data-volume-uuid', name: 'vm-name-secondary-data', path: 'rbd-data-path' }
+                ],
                 targetstoragepoolname: 'Primary Storage',
                 protectionstate: 'protected',
                 adminstate: 'running',
@@ -127,6 +133,7 @@ describe('Views > compute > FtctlTab.vue', () => {
               ftctlhealth: {
                 result: 'ok',
                 hostid: 201,
+                hostname: 'ablecube22-3',
                 uri: 'qemu+ssh://10.0.0.11/system',
                 rc: 0
               }
@@ -168,7 +175,12 @@ describe('Views > compute > FtctlTab.vue', () => {
     expect(getAPI).toHaveBeenCalledWith('getFtctlEvents', { virtualmachineid: 'vm-1', limit: 10 })
     expect(wrapper.vm.protection.mode).toBe('dr')
     expect(wrapper.vm.peerHostDisplay).toBe('ablecube22-1')
-    expect(wrapper.vm.secondaryTargetDiskDisplay).toBe('Primary Storage / vm-name-secondary')
+    expect(wrapper.vm.secondaryVmDisplay).toBe('vm-name-secondary')
+    expect(wrapper.vm.secondaryVmRouteId).toBe('secondary-vm-uuid')
+    expect(wrapper.vm.secondaryVolumeItems.map(volume => volume.name)).toEqual(['vm-name-secondary-root', 'vm-name-secondary-data'])
+    expect(wrapper.vm.healthHostDisplay).toBe('ablecube22-3')
+    expect(wrapper.vm.returnCodeStatus(wrapper.vm.checkResult.primaryrc)).toBe('OK')
+    expect(wrapper.vm.returnCodeStatus(wrapper.vm.checkResult.peerrc)).toBe('WARN')
     expect(wrapper.vm.checkResult.inventoryresult).toBe('healthy')
     expect(wrapper.vm.healthResult.uri).toBe('qemu+ssh://10.0.0.11/system')
     expect(wrapper.vm.events[0].event).toBe('newer')
