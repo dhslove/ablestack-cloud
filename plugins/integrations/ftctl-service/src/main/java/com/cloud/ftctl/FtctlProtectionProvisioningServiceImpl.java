@@ -470,7 +470,7 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
         return primaryVolumes.stream()
                 .filter(this::isProtectedVolumeType)
                 .sorted((left, right) -> Long.compare(resolveDeviceIdForSort(left), resolveDeviceIdForSort(right)))
-                .map(volume -> buildDiskMapEntry(request.getPrimaryVm(), volume, protectionVolumesByPrimaryVolumeId.get(volume.getId())))
+                .map(volume -> buildDiskMapEntry(request, volume, protectionVolumesByPrimaryVolumeId.get(volume.getId())))
                 .filter(StringUtils::isNotBlank)
                 .reduce((left, right) -> left + ";" + right)
                 .orElse(null);
@@ -480,11 +480,48 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
         return volume != null && (volume.getVolumeType() == Volume.Type.ROOT || volume.getVolumeType() == Volume.Type.DATADISK);
     }
 
-    private String buildDiskMapEntry(UserVmVO primaryVm, VolumeVO primaryVolume, FtctlProtectionVolumeVO protectionVolume) {
+    private String buildDiskMapEntry(FtctlProtectionProvisioningRequest request, VolumeVO primaryVolume, FtctlProtectionVolumeVO protectionVolume) {
         if (protectionVolume == null || StringUtils.isBlank(protectionVolume.getSecondaryDiskPath())) {
             return null;
         }
-        return String.format("%s=%s", resolveKvmDiskTarget(primaryVm, primaryVolume), protectionVolume.getSecondaryDiskPath());
+        String secondaryDiskPath = resolveFtctlSecondaryDiskPath(request.getTargetStoragePool(), protectionVolume.getSecondaryDiskPath());
+        return String.format("%s=%s", resolveKvmDiskTarget(request.getPrimaryVm(), primaryVolume), secondaryDiskPath);
+    }
+
+    private String resolveFtctlSecondaryDiskPath(StoragePoolVO targetStoragePool, String secondaryDiskPath) {
+        String normalizedPath = StringUtils.trimToNull(secondaryDiskPath);
+        if (normalizedPath == null || StringUtils.startsWithAny(normalizedPath, "/dev/", "rbd:")) {
+            return normalizedPath;
+        }
+        if (targetStoragePool == null || !Storage.StoragePoolType.RBD.equals(targetStoragePool.getPoolType())) {
+            return normalizedPath;
+        }
+
+        String poolName = resolveRbdPoolName(targetStoragePool.getPath());
+        if (StringUtils.isBlank(poolName)) {
+            throw new CloudRuntimeException(String.format("Unable to resolve RBD pool name for FTCTL target storage pool %s", targetStoragePool.getId()));
+        }
+        String imageName = StringUtils.stripStart(normalizedPath, "/");
+        String poolPrefix = poolName + "/";
+        if (imageName.startsWith(poolPrefix)) {
+            imageName = imageName.substring(poolPrefix.length());
+        }
+        if (StringUtils.isBlank(imageName)) {
+            throw new CloudRuntimeException(String.format("Unable to resolve RBD image name for FTCTL secondary disk path %s", secondaryDiskPath));
+        }
+        return String.format("/dev/rbd/%s/%s", poolName, imageName);
+    }
+
+    private String resolveRbdPoolName(String poolPath) {
+        String normalizedPath = StringUtils.stripEnd(StringUtils.trimToEmpty(poolPath), "/");
+        if (normalizedPath.startsWith("rbd://")) {
+            normalizedPath = normalizedPath.substring("rbd://".length());
+        }
+        int lastSlash = normalizedPath.lastIndexOf('/');
+        if (lastSlash >= 0) {
+            normalizedPath = normalizedPath.substring(lastSlash + 1);
+        }
+        return normalizedPath;
     }
 
     private long resolveDeviceIdForSort(VolumeVO volume) {

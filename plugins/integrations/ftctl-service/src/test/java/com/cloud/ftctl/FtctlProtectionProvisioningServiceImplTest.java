@@ -22,6 +22,7 @@ import com.cloud.hypervisor.Hypervisor.HypervisorType;
 import com.cloud.service.ServiceOfferingVO;
 import com.cloud.service.dao.ServiceOfferingDao;
 import com.cloud.storage.DiskOfferingVO;
+import com.cloud.storage.Storage;
 import com.cloud.storage.Volume;
 import com.cloud.storage.VolumeApiService;
 import com.cloud.storage.VolumeVO;
@@ -355,7 +356,7 @@ public class FtctlProtectionProvisioningServiceImplTest {
         Assert.assertEquals(FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED, context.getProvisioningBackend());
         Assert.assertEquals(FtctlProtectionProvisioningService.STATE_READY, context.getProvisioningState());
         Assert.assertEquals("i-2-401-VM", context.getSecondaryVmName());
-        Assert.assertEquals("sda=rbd/standby-root;sdb=rbd/standby-data", context.getDiskMap());
+        Assert.assertEquals("sda=/dev/rbd/rbd/standby-root;sdb=/dev/rbd/rbd/standby-data", context.getDiskMap());
     }
 
     private UserVmVO mockPrimaryVm() {
@@ -373,7 +374,9 @@ public class FtctlProtectionProvisioningServiceImplTest {
 
     private StoragePoolVO mockTargetStoragePool() {
         StoragePoolVO targetStoragePool = Mockito.mock(StoragePoolVO.class);
-        Mockito.when(targetStoragePool.getId()).thenReturn(501L);
+        Mockito.lenient().when(targetStoragePool.getId()).thenReturn(501L);
+        Mockito.lenient().when(targetStoragePool.getPoolType()).thenReturn(Storage.StoragePoolType.RBD);
+        Mockito.lenient().when(targetStoragePool.getPath()).thenReturn("rbd");
         return targetStoragePool;
     }
 
