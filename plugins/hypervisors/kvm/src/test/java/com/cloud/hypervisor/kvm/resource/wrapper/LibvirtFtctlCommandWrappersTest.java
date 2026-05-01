@@ -308,7 +308,7 @@ public class LibvirtFtctlCommandWrappersTest {
             Mockito.verify(script).add("--profile", "vm-uuid");
             Mockito.verify(script).add("--disk-map", "vda=rbd:rbd/vm-a-secondary-disk0");
             Mockito.verify(script).add("--backend-mode", "remote-nbd");
-            Mockito.verify(script, Mockito.never()).add("--provisioning-backend", "cloud-managed");
+            Mockito.verify(script).add("--provisioning-backend", "cloud-managed");
             Mockito.verify(script).add("--target-storage-scope", "host");
             Mockito.verify(script).add("--secondary-vm-name", "vm-a-secondary");
             Mockito.verify(script).add("--fencing-policy", "manual-block");
