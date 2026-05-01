@@ -61,6 +61,9 @@ public class LibvirtFtctlCheckCommandWrapper extends CommandWrapper<FtctlCheckCo
                 LibvirtFtctlWrapperHelper.getString(payload, "inventory_result"),
                 LibvirtFtctlWrapperHelper.getString(payload, "vm"),
                 LibvirtFtctlWrapperHelper.getInteger(payload, "primary_rc"),
-                LibvirtFtctlWrapperHelper.getInteger(payload, "peer_rc"));
+                LibvirtFtctlWrapperHelper.getInteger(payload, "peer_rc"),
+                LibvirtFtctlWrapperHelper.getBoolean(payload, "peer_domain_expected"),
+                LibvirtFtctlWrapperHelper.getString(payload, "standby_domain_state"),
+                LibvirtFtctlWrapperHelper.getString(payload, "provisioning_backend"));
     }
 }

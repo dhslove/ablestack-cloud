@@ -354,7 +354,7 @@ public class FtctlProtectionProvisioningServiceImplTest {
 
         Assert.assertEquals(FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED, context.getProvisioningBackend());
         Assert.assertEquals(FtctlProtectionProvisioningService.STATE_READY, context.getProvisioningState());
-        Assert.assertEquals("vm-secondary", context.getSecondaryVmName());
+        Assert.assertEquals("i-2-401-VM", context.getSecondaryVmName());
         Assert.assertEquals("sda=rbd/standby-root;sdb=rbd/standby-data", context.getDiskMap());
     }
 
@@ -412,6 +412,7 @@ public class FtctlProtectionProvisioningServiceImplTest {
         UserVmVO standbyVm = Mockito.mock(UserVmVO.class);
         Mockito.when(standbyVm.getId()).thenReturn(401L);
         Mockito.when(standbyVm.getUuid()).thenReturn("standby-uuid");
+        Mockito.when(standbyVm.getInstanceName()).thenReturn("i-2-401-VM");
         Mockito.when(standbyVm.getDisplayName()).thenReturn("vm-secondary");
         return standbyVm;
     }

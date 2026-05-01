@@ -46,6 +46,18 @@ public class FtctlCheckResponse extends BaseResponse {
     @Param(description = "the peer inventory return code")
     private Integer peerRc;
 
+    @SerializedName("peerdomainexpected")
+    @Param(description = "whether the peer libvirt domain is expected to exist for the current protection state")
+    private Boolean peerDomainExpected;
+
+    @SerializedName("standbydomainstate")
+    @Param(description = "the interpreted standby domain state")
+    private String standbyDomainState;
+
+    @SerializedName("provisioningbackend")
+    @Param(description = "the FTCTL standby VM and volume provisioning backend")
+    private String provisioningBackend;
+
     public void setVirtualMachineId(Long virtualMachineId) {
         this.virtualMachineId = virtualMachineId;
     }
@@ -68,5 +80,17 @@ public class FtctlCheckResponse extends BaseResponse {
 
     public void setPeerRc(Integer peerRc) {
         this.peerRc = peerRc;
+    }
+
+    public void setPeerDomainExpected(Boolean peerDomainExpected) {
+        this.peerDomainExpected = peerDomainExpected;
+    }
+
+    public void setStandbyDomainState(String standbyDomainState) {
+        this.standbyDomainState = standbyDomainState;
+    }
+
+    public void setProvisioningBackend(String provisioningBackend) {
+        this.provisioningBackend = provisioningBackend;
     }
 }

@@ -143,7 +143,7 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
             VolumeVO standbyRootVolume = ensureCloudManagedStandbyRootVolume(request, protection, offerings.rootDiskOffering, primaryRootVolume);
             UserVmVO standbyVm = ensureCloudManagedStandbyVm(request, protection, offerings.computeOffering, standbyRootVolume, primaryRootVolume);
             protection.setSecondaryVmId(standbyVm.getId());
-            protection.setSecondaryVmName(StringUtils.defaultIfBlank(standbyVm.getDisplayName(), resolveSecondaryVmName(request)));
+            protection.setSecondaryVmName(resolveSecondaryVmRuntimeName(standbyVm, request));
             protection.setProvisioningState(STATE_STANDBY_ALLOCATED);
             protection.markUpdated();
             ftctlProtectionDao.update(protection.getId(), protection);
@@ -547,6 +547,14 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
             return 1L;
         }
         return Math.max(1L, (sizeInBytes + GIB_TO_BYTES - 1L) / GIB_TO_BYTES);
+    }
+
+    private String resolveSecondaryVmRuntimeName(UserVmVO standbyVm, FtctlProtectionProvisioningRequest request) {
+        if (standbyVm != null) {
+            return StringUtils.defaultIfBlank(standbyVm.getInstanceName(),
+                    StringUtils.defaultIfBlank(standbyVm.getDisplayName(), resolveSecondaryVmName(request)));
+        }
+        return resolveSecondaryVmName(request);
     }
 
     private String resolveSecondaryVmName(FtctlProtectionProvisioningRequest request) {

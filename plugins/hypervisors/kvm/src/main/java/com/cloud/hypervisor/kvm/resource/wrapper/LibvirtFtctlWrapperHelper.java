@@ -61,4 +61,15 @@ public final class LibvirtFtctlWrapperHelper {
             return null;
         }
     }
+
+    public static Boolean getBoolean(JsonObject object, String key) {
+        if (object == null || !object.has(key) || object.get(key).isJsonNull()) {
+            return null;
+        }
+        try {
+            return object.get(key).getAsBoolean();
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
 }

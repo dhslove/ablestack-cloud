@@ -23,6 +23,9 @@ public class FtctlCheckAnswer extends Answer {
     private String vmName;
     private Integer primaryRc;
     private Integer peerRc;
+    private Boolean peerDomainExpected;
+    private String standbyDomainState;
+    private String provisioningBackend;
 
     public FtctlCheckAnswer(Command command, boolean success, String details) {
         super(command, success, details);
@@ -36,6 +39,15 @@ public class FtctlCheckAnswer extends Answer {
         this.vmName = vmName;
         this.primaryRc = primaryRc;
         this.peerRc = peerRc;
+    }
+
+    public FtctlCheckAnswer(Command command, boolean success, String details, String ftctlResult,
+                            String inventoryResult, String vmName, Integer primaryRc, Integer peerRc,
+                            Boolean peerDomainExpected, String standbyDomainState, String provisioningBackend) {
+        this(command, success, details, ftctlResult, inventoryResult, vmName, primaryRc, peerRc);
+        this.peerDomainExpected = peerDomainExpected;
+        this.standbyDomainState = standbyDomainState;
+        this.provisioningBackend = provisioningBackend;
     }
 
     public String getFtctlResult() {
@@ -56,5 +68,17 @@ public class FtctlCheckAnswer extends Answer {
 
     public Integer getPeerRc() {
         return peerRc;
+    }
+
+    public Boolean getPeerDomainExpected() {
+        return peerDomainExpected;
+    }
+
+    public String getStandbyDomainState() {
+        return standbyDomainState;
+    }
+
+    public String getProvisioningBackend() {
+        return provisioningBackend;
     }
 }

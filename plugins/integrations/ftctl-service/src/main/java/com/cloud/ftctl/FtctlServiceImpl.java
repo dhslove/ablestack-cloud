@@ -275,6 +275,9 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             response.setInventoryResult(checkAnswer.getInventoryResult());
             response.setPrimaryRc(checkAnswer.getPrimaryRc());
             response.setPeerRc(checkAnswer.getPeerRc());
+            response.setPeerDomainExpected(checkAnswer.getPeerDomainExpected());
+            response.setStandbyDomainState(checkAnswer.getStandbyDomainState());
+            response.setProvisioningBackend(checkAnswer.getProvisioningBackend());
             return response;
         } catch (AgentUnavailableException | OperationTimedoutException e) {
             throw new CloudRuntimeException(String.format("Unable to get FTCTL check result for VM %s", userVm.getUuid()), e);

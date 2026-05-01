@@ -200,7 +200,8 @@ public class FtctlServiceImplTest {
         setField(cmd, "virtualMachineId", 101L);
 
         FtctlCheckCommand checkCommand = new FtctlCheckCommand("vm-name");
-        FtctlCheckAnswer answer = new FtctlCheckAnswer(checkCommand, true, "OK", "ok", "healthy", "vm-name", 0, 1);
+        FtctlCheckAnswer answer = new FtctlCheckAnswer(checkCommand, true, "OK", "ok", "healthy", "vm-name", 0, 1,
+                false, "not-defined-expected", "cloud-managed");
         Mockito.when(agentManager.send(Mockito.eq(201L), Mockito.any(Command.class))).thenReturn(answer);
 
         FtctlCheckResponse response = ftctlService.getFtctlCheck(cmd);
@@ -211,6 +212,9 @@ public class FtctlServiceImplTest {
         Assert.assertEquals("healthy", getFieldValue(response, "inventoryResult"));
         Assert.assertEquals(Integer.valueOf(0), getFieldValue(response, "primaryRc"));
         Assert.assertEquals(Integer.valueOf(1), getFieldValue(response, "peerRc"));
+        Assert.assertEquals(Boolean.FALSE, getFieldValue(response, "peerDomainExpected"));
+        Assert.assertEquals("not-defined-expected", getFieldValue(response, "standbyDomainState"));
+        Assert.assertEquals("cloud-managed", getFieldValue(response, "provisioningBackend"));
     }
 
     @Test
