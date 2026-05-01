@@ -28,6 +28,7 @@ import com.cloud.utils.db.SearchCriteria;
 public class FtctlProtectionDaoImpl extends GenericDaoBase<FtctlProtectionVO, Long> implements FtctlProtectionDao {
 
     private final SearchBuilder<FtctlProtectionVO> activeByPrimaryVmSearch;
+    private final SearchBuilder<FtctlProtectionVO> activeBySecondaryVmSearch;
     private final SearchBuilder<FtctlProtectionVO> activeByPeerHostSearch;
 
     public FtctlProtectionDaoImpl() {
@@ -35,6 +36,11 @@ public class FtctlProtectionDaoImpl extends GenericDaoBase<FtctlProtectionVO, Lo
         activeByPrimaryVmSearch.and("primaryVmId", activeByPrimaryVmSearch.entity().getPrimaryVmId(), SearchCriteria.Op.EQ);
         activeByPrimaryVmSearch.and("removed", activeByPrimaryVmSearch.entity().getRemoved(), SearchCriteria.Op.NULL);
         activeByPrimaryVmSearch.done();
+
+        activeBySecondaryVmSearch = createSearchBuilder();
+        activeBySecondaryVmSearch.and("secondaryVmId", activeBySecondaryVmSearch.entity().getSecondaryVmId(), SearchCriteria.Op.EQ);
+        activeBySecondaryVmSearch.and("removed", activeBySecondaryVmSearch.entity().getRemoved(), SearchCriteria.Op.NULL);
+        activeBySecondaryVmSearch.done();
 
         activeByPeerHostSearch = createSearchBuilder();
         activeByPeerHostSearch.and("peerHostId", activeByPeerHostSearch.entity().getPeerHostId(), SearchCriteria.Op.EQ);
@@ -46,6 +52,13 @@ public class FtctlProtectionDaoImpl extends GenericDaoBase<FtctlProtectionVO, Lo
     public FtctlProtectionVO findActiveByPrimaryVmId(long primaryVmId) {
         SearchCriteria<FtctlProtectionVO> sc = activeByPrimaryVmSearch.create();
         sc.setParameters("primaryVmId", primaryVmId);
+        return findOneBy(sc);
+    }
+
+    @Override
+    public FtctlProtectionVO findActiveBySecondaryVmId(long secondaryVmId) {
+        SearchCriteria<FtctlProtectionVO> sc = activeBySecondaryVmSearch.create();
+        sc.setParameters("secondaryVmId", secondaryVmId);
         return findOneBy(sc);
     }
 

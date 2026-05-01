@@ -25,5 +25,7 @@ public interface FtctlProtectionDao extends GenericDao<FtctlProtectionVO, Long> 
 
     FtctlProtectionVO findActiveByPrimaryVmId(long primaryVmId);
 
+    FtctlProtectionVO findActiveBySecondaryVmId(long secondaryVmId);
+
     List<FtctlProtectionVO> listActiveByPeerHostId(long peerHostId);
 }

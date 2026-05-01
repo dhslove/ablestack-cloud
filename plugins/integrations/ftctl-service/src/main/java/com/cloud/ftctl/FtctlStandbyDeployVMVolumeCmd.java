@@ -117,12 +117,12 @@ public class FtctlStandbyDeployVMVolumeCmd extends DeployVMVolumeCmdByAdmin {
 
     @Override
     public Boolean isDisplayVm() {
-        return false;
+        return true;
     }
 
     @Override
     public boolean isDisplay() {
-        return false;
+        return true;
     }
 
     @Override

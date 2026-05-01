@@ -56,6 +56,24 @@
           </template>
         </a-alert>
 
+        <a-alert
+          v-if="standbyProtectionView"
+          type="info"
+          show-icon
+          class="ftctl-tab__alert">
+          <template #message>
+            <div>{{ $t('message.ftctl.standby.view') }}</div>
+            <div class="ftctl-tab__meta">
+              {{ $t('message.ftctl.standby.view.desc') }}
+              <router-link
+                v-if="protection.primaryvirtualmachineid"
+                :to="{ path: '/vm/' + protection.primaryvirtualmachineid }">
+                {{ primaryVmDisplay }}
+              </router-link>
+            </div>
+          </template>
+        </a-alert>
+
         <template v-if="protectionConfigured">
           <a-alert
             v-if="operationalSummary.message"
@@ -138,6 +156,18 @@
       <template v-if="protectionConfigured">
         <a-card size="small" :bordered="true" class="ftctl-tab__section" :title="$t('label.ftctl.protection.details')">
           <a-descriptions bordered :column="descriptionColumn" size="small">
+            <a-descriptions-item :label="$t('label.ftctl.protection.role')">
+              <a-tag v-if="protection.protectionrole" :color="protectionRoleColor">{{ protectionRoleLabel }}</a-tag>
+              <span v-else>-</span>
+            </a-descriptions-item>
+            <a-descriptions-item :label="$t('label.ftctl.primary.vm')">
+              <router-link
+                v-if="protection.primaryvirtualmachineid"
+                :to="{ path: '/vm/' + protection.primaryvirtualmachineid }">
+                {{ primaryVmDisplay }}
+              </router-link>
+              <span v-else>-</span>
+            </a-descriptions-item>
             <a-descriptions-item :label="$t('label.enabled')">
               <a-tag :color="booleanTagColor(protection.enabled)">{{ formatBoolean(protection.enabled) }}</a-tag>
             </a-descriptions-item>
@@ -331,12 +361,31 @@ export default {
     protectionEnabled () {
       return this.protection.enabled === true || this.protection.enabled === 'true'
     },
+    standbyProtectionView () {
+      return String(this.protection.protectionrole || '').toLowerCase() === 'standby'
+    },
+    primaryVmDisplay () {
+      return this.protection.primaryvirtualmachinename || this.protection.primaryvirtualmachineid || '-'
+    },
+    protectionRoleLabel () {
+      const role = String(this.protection.protectionrole || '').toLowerCase()
+      if (role === 'standby') {
+        return this.$t('label.ftctl.standby.vm')
+      }
+      if (role === 'primary') {
+        return this.$t('label.ftctl.primary.vm')
+      }
+      return this.protection.protectionrole || '-'
+    },
+    protectionRoleColor () {
+      return this.standbyProtectionView ? 'purple' : 'blue'
+    },
     canConfigureProtection () {
-      return 'registerFtctlProtection' in this.$store.getters.apis && this.supportedVm
+      return 'registerFtctlProtection' in this.$store.getters.apis && this.supportedVm && !this.standbyProtectionView
     },
     canRunActions () {
       return ['pauseFtctlProtection', 'resumeFtctlProtection', 'failoverFtctlProtection', 'failbackFtctlProtection', 'confirmFtctlFence', 'clearFtctlFence']
-        .some(api => api in this.$store.getters.apis) && this.supportedVm
+        .some(api => api in this.$store.getters.apis) && this.supportedVm && !this.standbyProtectionView
     },
     canLoadEvents () {
       return 'getFtctlEvents' in this.$store.getters.apis
@@ -446,7 +495,7 @@ export default {
   },
   methods: {
     actionAvailable (apiName) {
-      return apiName in this.$store.getters.apis && this.supportedVm && !this.unsafeVmState && this.protectionConfigured
+      return apiName in this.$store.getters.apis && this.supportedVm && !this.standbyProtectionView && !this.unsafeVmState && this.protectionConfigured
     },
     openProtectionModal () {
       this.showProtectionModal = true
@@ -553,7 +602,7 @@ export default {
       this.errorMessage = null
       try {
         await this.fetchProtection()
-        if (this.protectionConfigured) {
+        if (this.protectionConfigured && !this.standbyProtectionView) {
           await Promise.all([
             this.fetchCheck(),
             this.fetchHealth(),

@@ -53,6 +53,7 @@ import org.apache.cloudstack.storage.datastore.db.StoragePoolVO;
 import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlCheckCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlEventsCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlHealthCmd;
+import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlProtectionCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.RegisterFtctlProtectionCmd;
 import org.apache.cloudstack.api.response.ftctl.FtctlActionResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlCheckResponse;
@@ -116,6 +117,8 @@ public class FtctlServiceImplTest {
         Mockito.when(userVm.getId()).thenReturn(101L);
         Mockito.when(userVm.getUuid()).thenReturn("vm-uuid");
         Mockito.when(userVm.getInstanceName()).thenReturn("vm-name");
+        Mockito.lenient().when(userVm.getDisplayName()).thenReturn("Primary VM");
+        Mockito.lenient().when(userVm.getHostName()).thenReturn("vm-name");
         Mockito.when(userVm.getHostId()).thenReturn(201L);
         Mockito.lenient().when(userVm.getDataCenterId()).thenReturn(401L);
         Mockito.when(userVmDao.findById(101L)).thenReturn(userVm);
@@ -263,6 +266,69 @@ public class FtctlServiceImplTest {
         Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.last.admin.state", "paused", true);
         Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.last.fencing.state", "clear", true);
         Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.mode", "ft", true);
+    }
+
+    @Test
+    public void testGetFtctlProtectionForStandbyVmReturnsPrimaryManagedView() throws Exception {
+        UserVmVO standbyVm = Mockito.mock(UserVmVO.class);
+        Mockito.when(standbyVm.getId()).thenReturn(401L);
+        Mockito.when(standbyVm.getUuid()).thenReturn("standby-vm-uuid");
+        Mockito.lenient().when(standbyVm.getDisplayName()).thenReturn("Standby VM");
+        Mockito.when(userVmDao.findById(401L)).thenReturn(standbyVm);
+
+        FtctlProtectionVO protection = new FtctlProtectionVO(101L);
+        protection.setSecondaryVmId(401L);
+        protection.setSecondaryVmName("Standby VM");
+        Mockito.when(ftctlProtectionDao.findActiveBySecondaryVmId(401L)).thenReturn(protection);
+        Mockito.when(ftctlProtectionDao.findActiveByPrimaryVmId(101L)).thenReturn(protection);
+
+        vmDetails.put("101:ftctl.enabled", "true");
+        vmDetails.put("101:ftctl.mode", "ha");
+        vmDetails.put("101:ftctl.backend.mode", "shared-blockcopy");
+
+        FtctlStatusAnswer statusAnswer = new FtctlStatusAnswer(new FtctlStatusCommand("vm-name"), true, "OK", "ok", "vm-name",
+                "ha", "protected", "mirroring", "primary", "active", "clear", "",
+                "2026-05-01T17:10:00+09:00", 0, 0);
+        Mockito.when(agentManager.send(Mockito.eq(201L), Mockito.any(Command.class))).thenReturn(statusAnswer);
+
+        GetFtctlProtectionCmd cmd = new GetFtctlProtectionCmd();
+        setField(cmd, "virtualMachineId", 401L);
+
+        FtctlProtectionResponse response = ftctlService.getFtctlProtection(cmd);
+
+        Assert.assertEquals(Long.valueOf(401L), getFieldValue(response, "virtualMachineId"));
+        Assert.assertEquals("standby", getFieldValue(response, "protectionRole"));
+        Assert.assertEquals(Long.valueOf(101L), getFieldValue(response, "primaryVirtualMachineId"));
+        Assert.assertEquals("Primary VM", getFieldValue(response, "primaryVirtualMachineName"));
+        Assert.assertEquals(Long.valueOf(401L), getFieldValue(response, "secondaryVirtualMachineId"));
+        Assert.assertEquals("Standby VM", getFieldValue(response, "secondaryVmName"));
+        Assert.assertEquals("protected", getFieldValue(response, "protectionState"));
+        Assert.assertEquals("mirroring", getFieldValue(response, "transportState"));
+        Mockito.verify(agentManager).send(Mockito.eq(201L), Mockito.any(Command.class));
+    }
+
+    @Test
+    public void testExecuteFtctlActionRejectsStandbyVm() {
+        UserVmVO standbyVm = Mockito.mock(UserVmVO.class);
+        Mockito.when(standbyVm.getId()).thenReturn(401L);
+        Mockito.when(standbyVm.getUuid()).thenReturn("standby-vm-uuid");
+        Mockito.when(userVmDao.findById(401L)).thenReturn(standbyVm);
+
+        FtctlProtectionVO protection = new FtctlProtectionVO(101L);
+        protection.setSecondaryVmId(401L);
+        Mockito.when(ftctlProtectionDao.findActiveBySecondaryVmId(401L)).thenReturn(protection);
+
+        try {
+            ftctlService.executeFtctlAction(401L, FtctlActionCommand.Action.PAUSE_PROTECTION, false);
+            Assert.fail("Expected CloudRuntimeException");
+        } catch (CloudRuntimeException e) {
+            Assert.assertTrue(e.getMessage().contains("managed from primary VM"));
+        }
+        try {
+            Mockito.verify(agentManager, Mockito.never()).send(Mockito.anyLong(), Mockito.any(Command.class));
+        } catch (AgentUnavailableException | OperationTimedoutException e) {
+            throw new AssertionError(e);
+        }
     }
 
     @Test

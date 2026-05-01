@@ -40,12 +40,14 @@ import com.cloud.host.DetailVO;
 import com.cloud.host.HostVO;
 import com.cloud.host.dao.HostDao;
 import com.cloud.host.dao.HostDetailsDao;
+import com.cloud.storage.Volume;
 import com.cloud.storage.VolumeVO;
 import com.cloud.storage.dao.VolumeDao;
 import com.cloud.utils.component.ManagerBase;
 import com.cloud.utils.exception.CloudRuntimeException;
 import com.cloud.vm.VMInstanceDetailVO;
 import com.cloud.vm.UserVmVO;
+import com.cloud.vm.VmDetailConstants;
 import com.cloud.vm.dao.UserVmDao;
 import com.cloud.vm.dao.VMInstanceDetailsDao;
 import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlCheckCmd;
@@ -73,6 +75,8 @@ import org.apache.cloudstack.outofbandmanagement.dao.OutOfBandManagementDao;
 import javax.inject.Inject;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 public class FtctlServiceImpl extends ManagerBase implements FtctlService {
@@ -143,8 +147,11 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     @Override
     public FtctlProtectionResponse getFtctlProtection(GetFtctlProtectionCmd cmd) throws CloudRuntimeException {
         UserVmVO userVm = validateVirtualMachineExists(cmd.getVirtualMachineId());
-        FtctlProtectionResponse response = buildProtectionResponse(userVm.getId());
-        populateRuntimeStateFromAgent(userVm, response);
+        FtctlProtectionResponse response = buildProtectionResponse(userVm);
+        UserVmVO runtimeVm = resolveRuntimeVmForProtectionView(userVm);
+        if (runtimeVm != null) {
+            populateRuntimeStateFromAgent(runtimeVm, response);
+        }
         response.setObjectName("ftctlprotection");
         return response;
     }
@@ -152,6 +159,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     @Override
     public FtctlProtectionResponse registerFtctlProtection(RegisterFtctlProtectionCmd cmd) throws CloudRuntimeException {
         UserVmVO userVm = validateVirtualMachineExists(cmd.getVirtualMachineId());
+        validatePrimaryProtectionTarget(userVm);
         validateRegisterRequest(cmd);
         StoragePoolVO targetStoragePool = validateTargetStoragePool(cmd, userVm);
         String targetStorageScope = resolveTargetStorageScope(cmd, targetStoragePool);
@@ -243,7 +251,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             }
         }
 
-        FtctlProtectionResponse response = buildProtectionResponse(userVm.getId());
+        FtctlProtectionResponse response = buildProtectionResponse(userVm);
         populateRuntimeStateFromAgent(userVm, response);
         response.setObjectName("ftctlprotection");
         return response;
@@ -454,6 +462,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     @Override
     public FtctlActionResponse executeFtctlAction(Long virtualMachineId, FtctlActionCommand.Action action, boolean force) throws CloudRuntimeException {
         UserVmVO userVm = validateVirtualMachineExists(virtualMachineId);
+        validatePrimaryProtectionTarget(userVm);
         Long hostId = requireExecutionHostId(userVm);
         try {
             FtctlActionCommand actionCommand = new FtctlActionCommand(action, userVm.getInstanceName());
@@ -500,39 +509,91 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         return userVm;
     }
 
-    private FtctlProtectionResponse buildProtectionResponse(Long virtualMachineId) {
+    private void validatePrimaryProtectionTarget(UserVmVO userVm) {
+        if (userVm == null) {
+            return;
+        }
+        FtctlProtectionVO protection = ftctlProtectionDao.findActiveBySecondaryVmId(userVm.getId());
+        if (protection != null) {
+            throw new CloudRuntimeException(String.format("FTCTL standby VM %s is managed from primary VM %s",
+                    userVm.getUuid(), protection.getPrimaryVmId()));
+        }
+    }
+
+    private FtctlProtectionResponse buildProtectionResponse(UserVmVO requestedVm) {
+        Long requestedVmId = requestedVm != null ? requestedVm.getId() : null;
+        FtctlProtectionVO protection = findActiveProtectionForVm(requestedVmId);
+        boolean standbyView = isStandbyProtectionVm(requestedVmId, protection);
+        Long primaryVmId = protection != null ? protection.getPrimaryVmId() : requestedVmId;
+        Long sourceVmId = primaryVmId;
         FtctlProtectionResponse response = new FtctlProtectionResponse();
-        response.setVirtualMachineId(virtualMachineId);
-        response.setEnabled(getDetailValue(virtualMachineId, DETAIL_ENABLED));
-        response.setMode(getDetailValue(virtualMachineId, DETAIL_MODE));
-        response.setBackendMode(getDetailValue(virtualMachineId, DETAIL_BACKEND_MODE));
-        response.setProvisioningBackend(getDetailValue(virtualMachineId, DETAIL_PROVISIONING_BACKEND));
-        response.setProvisioningState(getDetailValue(virtualMachineId, DETAIL_PROVISIONING_STATE));
-        response.setTargetStorageScope(getDetailValue(virtualMachineId, DETAIL_TARGET_STORAGE_SCOPE));
-        response.setTargetStoragePoolId(getDetailValue(virtualMachineId, DETAIL_TARGET_STORAGE_POOL_ID));
-        response.setTargetStoragePoolName(getDetailValue(virtualMachineId, DETAIL_TARGET_STORAGE_POOL_NAME));
-        response.setFencingPolicy(getDetailValue(virtualMachineId, DETAIL_FENCING_POLICY));
-        String peerHostId = getDetailValue(virtualMachineId, DETAIL_PEER_HOST_ID);
+        response.setVirtualMachineId(requestedVmId);
+        response.setProtectionRole(standbyView ? "standby" : protection != null ? "primary" : null);
+        response.setPrimaryVirtualMachineId(primaryVmId);
+        response.setPrimaryVirtualMachineName(resolveVmDisplayName(primaryVmId));
+        response.setSecondaryVirtualMachineId(protection != null ? protection.getSecondaryVmId() : null);
+        response.setEnabled(getDetailValue(sourceVmId, DETAIL_ENABLED));
+        response.setMode(getDetailValue(sourceVmId, DETAIL_MODE));
+        response.setBackendMode(getDetailValue(sourceVmId, DETAIL_BACKEND_MODE));
+        response.setProvisioningBackend(getDetailValue(sourceVmId, DETAIL_PROVISIONING_BACKEND));
+        response.setProvisioningState(getDetailValue(sourceVmId, DETAIL_PROVISIONING_STATE));
+        response.setTargetStorageScope(getDetailValue(sourceVmId, DETAIL_TARGET_STORAGE_SCOPE));
+        response.setTargetStoragePoolId(getDetailValue(sourceVmId, DETAIL_TARGET_STORAGE_POOL_ID));
+        response.setTargetStoragePoolName(getDetailValue(sourceVmId, DETAIL_TARGET_STORAGE_POOL_NAME));
+        response.setFencingPolicy(getDetailValue(sourceVmId, DETAIL_FENCING_POLICY));
+        String peerHostId = getDetailValue(sourceVmId, DETAIL_PEER_HOST_ID);
         response.setPeerHostId(peerHostId);
         response.setPeerHostName(resolvePeerHostName(peerHostId));
-        response.setSecondaryVmName(getDetailValue(virtualMachineId, DETAIL_SECONDARY_VM_NAME));
-        response.setSecondaryTargetDir(getDetailValue(virtualMachineId, DETAIL_SECONDARY_TARGET_DIR));
-        populateCloudManagedDiskDetails(virtualMachineId, response);
-        response.setRemoteNbdExportAddr(getDetailValue(virtualMachineId, DETAIL_REMOTE_NBD_EXPORT_ADDR));
-        response.setXcoloProxyEndpoint(getDetailValue(virtualMachineId, DETAIL_XCOLO_PROXY_ENDPOINT));
-        response.setXcoloNbdEndpoint(getDetailValue(virtualMachineId, DETAIL_XCOLO_NBD_ENDPOINT));
-        response.setXcoloMigrateUri(getDetailValue(virtualMachineId, DETAIL_XCOLO_MIGRATE_URI));
-        response.setProtectionState(getDetailValue(virtualMachineId, DETAIL_LAST_PROTECTION_STATE));
-        response.setTransportState(getDetailValue(virtualMachineId, DETAIL_LAST_TRANSPORT_STATE));
-        response.setActiveSide(getDetailValue(virtualMachineId, DETAIL_LAST_ACTIVE_SIDE));
-        response.setAdminState(getDetailValue(virtualMachineId, DETAIL_LAST_ADMIN_STATE));
-        response.setFencingState(getDetailValue(virtualMachineId, DETAIL_LAST_FENCING_STATE));
-        response.setLastError(getDetailValue(virtualMachineId, DETAIL_LAST_ERROR));
+        response.setSecondaryVmName(StringUtils.defaultIfBlank(protection != null ? protection.getSecondaryVmName() : null,
+                getDetailValue(sourceVmId, DETAIL_SECONDARY_VM_NAME)));
+        response.setSecondaryTargetDir(getDetailValue(sourceVmId, DETAIL_SECONDARY_TARGET_DIR));
+        populateCloudManagedDiskDetails(sourceVmId, protection, response);
+        response.setRemoteNbdExportAddr(getDetailValue(sourceVmId, DETAIL_REMOTE_NBD_EXPORT_ADDR));
+        response.setXcoloProxyEndpoint(getDetailValue(sourceVmId, DETAIL_XCOLO_PROXY_ENDPOINT));
+        response.setXcoloNbdEndpoint(getDetailValue(sourceVmId, DETAIL_XCOLO_NBD_ENDPOINT));
+        response.setXcoloMigrateUri(getDetailValue(sourceVmId, DETAIL_XCOLO_MIGRATE_URI));
+        response.setProtectionState(getDetailValue(sourceVmId, DETAIL_LAST_PROTECTION_STATE));
+        response.setTransportState(getDetailValue(sourceVmId, DETAIL_LAST_TRANSPORT_STATE));
+        response.setActiveSide(getDetailValue(sourceVmId, DETAIL_LAST_ACTIVE_SIDE));
+        response.setAdminState(getDetailValue(sourceVmId, DETAIL_LAST_ADMIN_STATE));
+        response.setFencingState(getDetailValue(sourceVmId, DETAIL_LAST_FENCING_STATE));
+        response.setLastError(getDetailValue(sourceVmId, DETAIL_LAST_ERROR));
         return response;
     }
 
-    private void populateCloudManagedDiskDetails(Long virtualMachineId, FtctlProtectionResponse response) {
-        FtctlProtectionVO protection = virtualMachineId != null ? ftctlProtectionDao.findActiveByPrimaryVmId(virtualMachineId) : null;
+    private FtctlProtectionVO findActiveProtectionForVm(Long virtualMachineId) {
+        if (virtualMachineId == null) {
+            return null;
+        }
+        FtctlProtectionVO protection = ftctlProtectionDao.findActiveByPrimaryVmId(virtualMachineId);
+        return protection != null ? protection : ftctlProtectionDao.findActiveBySecondaryVmId(virtualMachineId);
+    }
+
+    private boolean isStandbyProtectionVm(Long virtualMachineId, FtctlProtectionVO protection) {
+        return virtualMachineId != null && protection != null && protection.getSecondaryVmId() != null &&
+                protection.getSecondaryVmId().equals(virtualMachineId);
+    }
+
+    private UserVmVO resolveRuntimeVmForProtectionView(UserVmVO requestedVm) {
+        if (requestedVm == null) {
+            return null;
+        }
+        FtctlProtectionVO protection = findActiveProtectionForVm(requestedVm.getId());
+        if (isStandbyProtectionVm(requestedVm.getId(), protection)) {
+            return userVmDao.findById(protection.getPrimaryVmId());
+        }
+        return requestedVm;
+    }
+
+    private String resolveVmDisplayName(Long virtualMachineId) {
+        UserVmVO vm = virtualMachineId != null ? userVmDao.findById(virtualMachineId) : null;
+        return vm != null ? StringUtils.defaultIfBlank(vm.getDisplayName(), vm.getHostName()) : null;
+    }
+
+    private void populateCloudManagedDiskDetails(Long primaryVmId, FtctlProtectionVO protection, FtctlProtectionResponse response) {
+        if (protection == null && primaryVmId != null) {
+            protection = ftctlProtectionDao.findActiveByPrimaryVmId(primaryVmId);
+        }
         if (protection == null) {
             return;
         }
@@ -549,7 +610,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             }
             String label = StringUtils.defaultIfBlank(volume.getDiskLabel(), resolveVolumeDisplayName(volume.getPrimaryVolumeId()));
             secondaryDiskEntries.add(String.format("%s=%s", label, secondaryPath));
-            diskMapEntries.add(String.format("%s=%s", resolveKvmDiskTarget(volume.getPrimaryVolumeId()), secondaryPath));
+            diskMapEntries.add(String.format("%s=%s", resolveKvmDiskTarget(primaryVmId, volume.getPrimaryVolumeId()), secondaryPath));
         }
         if (!secondaryDiskEntries.isEmpty()) {
             response.setSecondaryTargetDisk(secondaryDiskEntries.stream().collect(Collectors.joining(";")));
@@ -565,16 +626,52 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         return StringUtils.defaultIfBlank(volume.getName(), StringUtils.defaultIfBlank(volume.getPath(), String.valueOf(volumeId)));
     }
 
-    private String resolveKvmDiskTarget(long volumeId) {
+    private String resolveKvmDiskTarget(Long virtualMachineId, long volumeId) {
         VolumeVO volume = volumeDao.findById(volumeId);
         Long deviceId = volume != null ? volume.getDeviceId() : null;
         if (deviceId == null) {
             return String.valueOf(volumeId);
         }
+        String prefix = resolveKvmDiskPrefix(virtualMachineId, volume);
         if (deviceId < 0 || deviceId > 25) {
-            return String.format("vd%s", deviceId);
+            return String.format("%s%s", prefix, deviceId);
         }
-        return String.format("vd%c", (char) ('a' + deviceId));
+        return String.format("%s%c", prefix, (char) ('a' + deviceId));
+    }
+
+    private String resolveKvmDiskPrefix(Long virtualMachineId, VolumeVO volume) {
+        String controller = resolveDiskController(virtualMachineId, volume);
+        String normalizedController = StringUtils.defaultString(controller).toLowerCase(Locale.ROOT);
+        if (normalizedController.contains("scsi") || normalizedController.contains("sata")) {
+            return "sd";
+        }
+        if (normalizedController.contains("ide")) {
+            return "hd";
+        }
+        return "vd";
+    }
+
+    private String resolveDiskController(Long virtualMachineId, VolumeVO volume) {
+        if (virtualMachineId == null || volume == null) {
+            return null;
+        }
+        UserVmVO primaryVm = userVmDao.findById(virtualMachineId);
+        if (primaryVm == null) {
+            return null;
+        }
+        userVmDao.loadDetails(primaryVm);
+        Map<String, String> details = primaryVm.getDetails();
+        if (details == null || details.isEmpty()) {
+            return null;
+        }
+        if (volume.getVolumeType() == Volume.Type.ROOT) {
+            return details.get(VmDetailConstants.ROOT_DISK_CONTROLLER);
+        }
+        if (volume.getVolumeType() == Volume.Type.DATADISK) {
+            return details.get(VmDetailConstants.DATA_DISK_CONTROLLER);
+        }
+        return StringUtils.defaultIfBlank(details.get(VmDetailConstants.DATA_DISK_CONTROLLER),
+                details.get(VmDetailConstants.ROOT_DISK_CONTROLLER));
     }
 
     private String resolvePeerHostName(String peerHostId) {

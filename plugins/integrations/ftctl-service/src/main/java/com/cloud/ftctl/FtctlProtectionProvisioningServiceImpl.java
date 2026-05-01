@@ -418,7 +418,7 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
                 primaryVolume.getMaxIops(),
                 request.getPrimaryVm().getDataCenterId(),
                 targetStoragePool.getId(),
-                false);
+                true);
         try {
             Volume allocatedVolume = volumeApiService.allocVolume(createVolumeCmd);
             if (allocatedVolume == null) {
@@ -470,7 +470,7 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
         return primaryVolumes.stream()
                 .filter(this::isProtectedVolumeType)
                 .sorted((left, right) -> Long.compare(resolveDeviceIdForSort(left), resolveDeviceIdForSort(right)))
-                .map(volume -> buildDiskMapEntry(volume, protectionVolumesByPrimaryVolumeId.get(volume.getId())))
+                .map(volume -> buildDiskMapEntry(request.getPrimaryVm(), volume, protectionVolumesByPrimaryVolumeId.get(volume.getId())))
                 .filter(StringUtils::isNotBlank)
                 .reduce((left, right) -> left + ";" + right)
                 .orElse(null);
@@ -480,23 +480,54 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
         return volume != null && (volume.getVolumeType() == Volume.Type.ROOT || volume.getVolumeType() == Volume.Type.DATADISK);
     }
 
-    private String buildDiskMapEntry(VolumeVO primaryVolume, FtctlProtectionVolumeVO protectionVolume) {
+    private String buildDiskMapEntry(UserVmVO primaryVm, VolumeVO primaryVolume, FtctlProtectionVolumeVO protectionVolume) {
         if (protectionVolume == null || StringUtils.isBlank(protectionVolume.getSecondaryDiskPath())) {
             return null;
         }
-        return String.format("%s=%s", resolveKvmDiskTarget(primaryVolume), protectionVolume.getSecondaryDiskPath());
+        return String.format("%s=%s", resolveKvmDiskTarget(primaryVm, primaryVolume), protectionVolume.getSecondaryDiskPath());
     }
 
     private long resolveDeviceIdForSort(VolumeVO volume) {
         return volume.getDeviceId() != null ? volume.getDeviceId() : Long.MAX_VALUE;
     }
 
-    private String resolveKvmDiskTarget(VolumeVO volume) {
+    private String resolveKvmDiskTarget(UserVmVO primaryVm, VolumeVO volume) {
         long deviceId = resolveDeviceIdForSort(volume);
         if (deviceId < 0 || deviceId > 25) {
-            return String.format("vd%s", deviceId);
+            return String.format("%s%s", resolveKvmDiskPrefix(primaryVm, volume), deviceId);
         }
-        return String.format("vd%c", (char) ('a' + deviceId));
+        return String.format("%s%c", resolveKvmDiskPrefix(primaryVm, volume), (char) ('a' + deviceId));
+    }
+
+    private String resolveKvmDiskPrefix(UserVmVO primaryVm, VolumeVO volume) {
+        String controller = resolveDiskController(primaryVm, volume);
+        String normalizedController = StringUtils.defaultString(controller).toLowerCase(Locale.ROOT);
+        if (normalizedController.contains("scsi") || normalizedController.contains("sata")) {
+            return "sd";
+        }
+        if (normalizedController.contains("ide")) {
+            return "hd";
+        }
+        return "vd";
+    }
+
+    private String resolveDiskController(UserVmVO primaryVm, VolumeVO volume) {
+        if (primaryVm == null || volume == null) {
+            return null;
+        }
+        userVmDao.loadDetails(primaryVm);
+        Map<String, String> details = primaryVm.getDetails();
+        if (details == null || details.isEmpty()) {
+            return null;
+        }
+        if (volume.getVolumeType() == Volume.Type.ROOT) {
+            return details.get(VmDetailConstants.ROOT_DISK_CONTROLLER);
+        }
+        if (volume.getVolumeType() == Volume.Type.DATADISK) {
+            return details.get(VmDetailConstants.DATA_DISK_CONTROLLER);
+        }
+        return StringUtils.defaultIfBlank(details.get(VmDetailConstants.DATA_DISK_CONTROLLER),
+                details.get(VmDetailConstants.ROOT_DISK_CONTROLLER));
     }
 
     private VolumeVO findPrimaryRootVolume(FtctlProtectionProvisioningRequest request) {

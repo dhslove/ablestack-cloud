@@ -26,6 +26,22 @@ public class FtctlProtectionResponse extends BaseResponse {
     @Param(description = "the virtual machine ID")
     private Long virtualMachineId;
 
+    @SerializedName("protectionrole")
+    @Param(description = "the FTCTL protection role of the requested VM")
+    private String protectionRole;
+
+    @SerializedName("primaryvirtualmachineid")
+    @Param(description = "the FTCTL primary virtual machine ID")
+    private Long primaryVirtualMachineId;
+
+    @SerializedName("primaryvirtualmachinename")
+    @Param(description = "the FTCTL primary virtual machine name")
+    private String primaryVirtualMachineName;
+
+    @SerializedName("secondaryvirtualmachineid")
+    @Param(description = "the FTCTL secondary virtual machine ID")
+    private Long secondaryVirtualMachineId;
+
     @SerializedName("enabled")
     @Param(description = "whether FTCTL protection is enabled")
     private String enabled;
@@ -128,6 +144,22 @@ public class FtctlProtectionResponse extends BaseResponse {
 
     public void setVirtualMachineId(Long virtualMachineId) {
         this.virtualMachineId = virtualMachineId;
+    }
+
+    public void setProtectionRole(String protectionRole) {
+        this.protectionRole = protectionRole;
+    }
+
+    public void setPrimaryVirtualMachineId(Long primaryVirtualMachineId) {
+        this.primaryVirtualMachineId = primaryVirtualMachineId;
+    }
+
+    public void setPrimaryVirtualMachineName(String primaryVirtualMachineName) {
+        this.primaryVirtualMachineName = primaryVirtualMachineName;
+    }
+
+    public void setSecondaryVirtualMachineId(Long secondaryVirtualMachineId) {
+        this.secondaryVirtualMachineId = secondaryVirtualMachineId;
     }
 
     public void setEnabled(String enabled) {

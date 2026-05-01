@@ -242,7 +242,7 @@ public class FtctlProtectionProvisioningServiceImplTest {
         Assert.assertEquals(Long.valueOf(10L), createRootVolumeCmd.getSize());
         Assert.assertEquals(Long.valueOf(401L), createRootVolumeCmd.getZoneId());
         Assert.assertEquals(Long.valueOf(501L), createRootVolumeCmd.getStorageId());
-        Assert.assertFalse(createRootVolumeCmd.isDisplay());
+        Assert.assertTrue(createRootVolumeCmd.isDisplay());
         FtctlCreateVolumeCmd createDataVolumeCmd = createVolumeCommands.get(1);
         Assert.assertEquals(Long.valueOf(902L), createDataVolumeCmd.getDiskOfferingId());
         Assert.assertEquals("vm-secondary-data-1", createDataVolumeCmd.getVolumeName());
@@ -250,7 +250,7 @@ public class FtctlProtectionProvisioningServiceImplTest {
         Assert.assertEquals(Long.valueOf(100L), createDataVolumeCmd.getMinIops());
         Assert.assertEquals(Long.valueOf(1000L), createDataVolumeCmd.getMaxIops());
         Assert.assertEquals(Long.valueOf(501L), createDataVolumeCmd.getStorageId());
-        Assert.assertFalse(createDataVolumeCmd.isDisplay());
+        Assert.assertTrue(createDataVolumeCmd.isDisplay());
 
         ArgumentCaptor<FtctlStandbyDeployVMVolumeCmd> deployCaptor = ArgumentCaptor.forClass(FtctlStandbyDeployVMVolumeCmd.class);
         Mockito.verify(userVmService).createVirtualMachineVolume(deployCaptor.capture());
@@ -267,8 +267,8 @@ public class FtctlProtectionProvisioningServiceImplTest {
         Assert.assertEquals(HypervisorType.KVM, deployCmd.getHypervisor());
         Assert.assertEquals(Long.valueOf(501L), deployCmd.getVolumeId());
         Assert.assertFalse(deployCmd.getStartVm());
-        Assert.assertFalse(deployCmd.isDisplayVm());
-        Assert.assertFalse(deployCmd.isDisplay());
+        Assert.assertTrue(deployCmd.isDisplayVm());
+        Assert.assertTrue(deployCmd.isDisplay());
         Assert.assertEquals("2", deployCmd.getDetails().get("cpuNumber"));
         Assert.assertEquals("1000", deployCmd.getDetails().get("cpuSpeed"));
         Assert.assertEquals("4096", deployCmd.getDetails().get("memory"));
@@ -355,7 +355,7 @@ public class FtctlProtectionProvisioningServiceImplTest {
         Assert.assertEquals(FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED, context.getProvisioningBackend());
         Assert.assertEquals(FtctlProtectionProvisioningService.STATE_READY, context.getProvisioningState());
         Assert.assertEquals("vm-secondary", context.getSecondaryVmName());
-        Assert.assertEquals("vda=rbd/standby-root;vdb=rbd/standby-data", context.getDiskMap());
+        Assert.assertEquals("sda=rbd/standby-root;sdb=rbd/standby-data", context.getDiskMap());
     }
 
     private UserVmVO mockPrimaryVm() {
