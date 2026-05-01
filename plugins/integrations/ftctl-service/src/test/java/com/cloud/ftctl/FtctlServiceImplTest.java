@@ -276,7 +276,6 @@ public class FtctlServiceImplTest {
     public void testGetFtctlProtectionForStandbyVmReturnsPrimaryManagedView() throws Exception {
         UserVmVO standbyVm = Mockito.mock(UserVmVO.class);
         Mockito.when(standbyVm.getId()).thenReturn(401L);
-        Mockito.when(standbyVm.getUuid()).thenReturn("standby-vm-uuid");
         Mockito.lenient().when(standbyVm.getDisplayName()).thenReturn("Standby VM");
         Mockito.when(userVmDao.findById(401L)).thenReturn(standbyVm);
 
@@ -284,7 +283,6 @@ public class FtctlServiceImplTest {
         protection.setSecondaryVmId(401L);
         protection.setSecondaryVmName("Standby VM");
         Mockito.when(ftctlProtectionDao.findActiveBySecondaryVmId(401L)).thenReturn(protection);
-        Mockito.when(ftctlProtectionDao.findActiveByPrimaryVmId(101L)).thenReturn(protection);
 
         vmDetails.put("101:ftctl.enabled", "true");
         vmDetails.put("101:ftctl.mode", "ha");
