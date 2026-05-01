@@ -131,6 +131,13 @@ public class FtctlServiceImplTest {
             return null;
         }).when(vmInstanceDetailsDao).addDetail(Mockito.anyLong(), Mockito.anyString(), Mockito.anyString(), Mockito.anyBoolean());
 
+        Mockito.lenient().doAnswer(invocation -> {
+            Long vmId = invocation.getArgument(0);
+            String key = invocation.getArgument(1);
+            vmDetails.remove(vmId + ":" + key);
+            return null;
+        }).when(vmInstanceDetailsDao).removeDetail(Mockito.anyLong(), Mockito.anyString());
+
         Mockito.lenient().when(vmInstanceDetailsDao.findDetail(Mockito.anyLong(), Mockito.anyString())).thenAnswer(invocation -> {
             Long vmId = invocation.getArgument(0);
             String key = invocation.getArgument(1);
@@ -307,6 +314,8 @@ public class FtctlServiceImplTest {
         Assert.assertEquals("protected", getFieldValue(response, "protectionState"));
         Assert.assertEquals("mirroring", getFieldValue(response, "transportState"));
         Mockito.verify(agentManager).send(Mockito.eq(201L), Mockito.any(Command.class));
+        Mockito.verify(vmInstanceDetailsDao, Mockito.never()).addDetail(Mockito.anyLong(), Mockito.anyString(), Mockito.anyString(), Mockito.anyBoolean());
+        Mockito.verify(vmInstanceDetailsDao, Mockito.never()).removeDetail(Mockito.anyLong(), Mockito.anyString());
     }
 
     @Test

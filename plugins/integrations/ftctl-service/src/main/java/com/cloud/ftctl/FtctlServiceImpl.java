@@ -78,6 +78,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 
 public class FtctlServiceImpl extends ManagerBase implements FtctlService {
@@ -121,6 +123,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     private static final String FENCING_POLICY_IPMI = "ipmi";
     private static final String OOBM_DRIVER_IPMITOOL = "ipmitool";
     private static final String DEFAULT_IPMI_INTERFACE = "lanplus";
+    private static final ConcurrentMap<String, Object> VM_DETAIL_LOCKS = new ConcurrentHashMap<>();
 
     @Inject
     private VMInstanceDetailsDao vmInstanceDetailsDao;
@@ -151,7 +154,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         FtctlProtectionResponse response = buildProtectionResponse(userVm);
         UserVmVO runtimeVm = resolveRuntimeVmForProtectionView(userVm);
         if (runtimeVm != null) {
-            populateRuntimeStateFromAgent(runtimeVm, response);
+            populateRuntimeStateFromAgent(runtimeVm, response, false);
         }
         response.setObjectName("ftctlprotection");
         return response;
@@ -178,46 +181,46 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             throw e;
         }
 
-        vmInstanceDetailsDao.addDetail(cmd.getVirtualMachineId(), DETAIL_ENABLED, String.valueOf(true), true);
-        vmInstanceDetailsDao.addDetail(cmd.getVirtualMachineId(), DETAIL_MODE, cmd.getMode(), true);
+        putVmDetail(cmd.getVirtualMachineId(), DETAIL_ENABLED, String.valueOf(true));
+        putVmDetail(cmd.getVirtualMachineId(), DETAIL_MODE, cmd.getMode());
         if (backendMode != null) {
-            vmInstanceDetailsDao.addDetail(cmd.getVirtualMachineId(), DETAIL_BACKEND_MODE, backendMode, true);
+            putVmDetail(cmd.getVirtualMachineId(), DETAIL_BACKEND_MODE, backendMode);
         }
-        vmInstanceDetailsDao.addDetail(cmd.getVirtualMachineId(), DETAIL_PROVISIONING_BACKEND, provisioningContext.getProvisioningBackend(), true);
-        vmInstanceDetailsDao.addDetail(cmd.getVirtualMachineId(), DETAIL_PROVISIONING_STATE, provisioningContext.getProvisioningState(), true);
+        putVmDetail(cmd.getVirtualMachineId(), DETAIL_PROVISIONING_BACKEND, provisioningContext.getProvisioningBackend());
+        putVmDetail(cmd.getVirtualMachineId(), DETAIL_PROVISIONING_STATE, provisioningContext.getProvisioningState());
         if (targetStorageScope != null) {
-            vmInstanceDetailsDao.addDetail(cmd.getVirtualMachineId(), DETAIL_TARGET_STORAGE_SCOPE, targetStorageScope, true);
+            putVmDetail(cmd.getVirtualMachineId(), DETAIL_TARGET_STORAGE_SCOPE, targetStorageScope);
         }
         if (targetStoragePool != null) {
-            vmInstanceDetailsDao.addDetail(cmd.getVirtualMachineId(), DETAIL_TARGET_STORAGE_POOL_ID, targetStoragePool.getUuid(), true);
-            vmInstanceDetailsDao.addDetail(cmd.getVirtualMachineId(), DETAIL_TARGET_STORAGE_POOL_NAME, targetStoragePool.getName(), true);
+            putVmDetail(cmd.getVirtualMachineId(), DETAIL_TARGET_STORAGE_POOL_ID, targetStoragePool.getUuid());
+            putVmDetail(cmd.getVirtualMachineId(), DETAIL_TARGET_STORAGE_POOL_NAME, targetStoragePool.getName());
         }
         if (cmd.getFencingPolicy() != null) {
-            vmInstanceDetailsDao.addDetail(cmd.getVirtualMachineId(), DETAIL_FENCING_POLICY, cmd.getFencingPolicy(), true);
+            putVmDetail(cmd.getVirtualMachineId(), DETAIL_FENCING_POLICY, cmd.getFencingPolicy());
         }
         if (ipmiFencingConfig != null) {
             persistIpmiFencingDetails(cmd.getVirtualMachineId(), ipmiFencingConfig);
         }
         if (cmd.getPeerHostId() != null) {
-            vmInstanceDetailsDao.addDetail(cmd.getVirtualMachineId(), DETAIL_PEER_HOST_ID, String.valueOf(cmd.getPeerHostId()), true);
+            putVmDetail(cmd.getVirtualMachineId(), DETAIL_PEER_HOST_ID, String.valueOf(cmd.getPeerHostId()));
         }
         if (provisioningContext.getSecondaryVmName() != null) {
-            vmInstanceDetailsDao.addDetail(cmd.getVirtualMachineId(), DETAIL_SECONDARY_VM_NAME, provisioningContext.getSecondaryVmName(), true);
+            putVmDetail(cmd.getVirtualMachineId(), DETAIL_SECONDARY_VM_NAME, provisioningContext.getSecondaryVmName());
         }
         if (secondaryTargetDir != null) {
-            vmInstanceDetailsDao.addDetail(cmd.getVirtualMachineId(), DETAIL_SECONDARY_TARGET_DIR, secondaryTargetDir, true);
+            putVmDetail(cmd.getVirtualMachineId(), DETAIL_SECONDARY_TARGET_DIR, secondaryTargetDir);
         }
         if (remoteNbdExportAddr != null) {
-            vmInstanceDetailsDao.addDetail(cmd.getVirtualMachineId(), DETAIL_REMOTE_NBD_EXPORT_ADDR, remoteNbdExportAddr, true);
+            putVmDetail(cmd.getVirtualMachineId(), DETAIL_REMOTE_NBD_EXPORT_ADDR, remoteNbdExportAddr);
         }
         if (cmd.getXcoloProxyEndpoint() != null) {
-            vmInstanceDetailsDao.addDetail(cmd.getVirtualMachineId(), DETAIL_XCOLO_PROXY_ENDPOINT, cmd.getXcoloProxyEndpoint(), true);
+            putVmDetail(cmd.getVirtualMachineId(), DETAIL_XCOLO_PROXY_ENDPOINT, cmd.getXcoloProxyEndpoint());
         }
         if (cmd.getXcoloNbdEndpoint() != null) {
-            vmInstanceDetailsDao.addDetail(cmd.getVirtualMachineId(), DETAIL_XCOLO_NBD_ENDPOINT, cmd.getXcoloNbdEndpoint(), true);
+            putVmDetail(cmd.getVirtualMachineId(), DETAIL_XCOLO_NBD_ENDPOINT, cmd.getXcoloNbdEndpoint());
         }
         if (cmd.getXcoloMigrateUri() != null) {
-            vmInstanceDetailsDao.addDetail(cmd.getVirtualMachineId(), DETAIL_XCOLO_MIGRATE_URI, cmd.getXcoloMigrateUri(), true);
+            putVmDetail(cmd.getVirtualMachineId(), DETAIL_XCOLO_MIGRATE_URI, cmd.getXcoloMigrateUri());
         }
 
         Long hostId = getExecutionHostId(userVm);
@@ -253,7 +256,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         }
 
         FtctlProtectionResponse response = buildProtectionResponse(userVm);
-        populateRuntimeStateFromAgent(userVm, response);
+        populateRuntimeStateFromAgent(userVm, response, true);
         response.setObjectName("ftctlprotection");
         return response;
     }
@@ -361,9 +364,9 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     }
 
     private void persistProvisioningFailure(Long virtualMachineId, String provisioningBackend, CloudRuntimeException e) {
-        vmInstanceDetailsDao.addDetail(virtualMachineId, DETAIL_PROVISIONING_BACKEND, provisioningBackend, true);
-        vmInstanceDetailsDao.addDetail(virtualMachineId, DETAIL_PROVISIONING_STATE, FtctlProtectionProvisioningService.STATE_PROVISIONING_FAILED, true);
-        vmInstanceDetailsDao.addDetail(virtualMachineId, DETAIL_LAST_ERROR, e.getMessage(), true);
+        putVmDetail(virtualMachineId, DETAIL_PROVISIONING_BACKEND, provisioningBackend);
+        putVmDetail(virtualMachineId, DETAIL_PROVISIONING_STATE, FtctlProtectionProvisioningService.STATE_PROVISIONING_FAILED);
+        putVmDetail(virtualMachineId, DETAIL_LAST_ERROR, e.getMessage());
     }
 
     private StoragePoolVO validateTargetStoragePool(RegisterFtctlProtectionCmd cmd, UserVmVO userVm) {
@@ -722,6 +725,17 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         return detail != null ? detail.getValue() : null;
     }
 
+    private void putVmDetail(Long virtualMachineId, String key, String value) {
+        if (virtualMachineId == null || StringUtils.isBlank(key)) {
+            return;
+        }
+        Object lock = VM_DETAIL_LOCKS.computeIfAbsent(String.format("%s:%s", virtualMachineId, key), ignored -> new Object());
+        synchronized (lock) {
+            vmInstanceDetailsDao.removeDetail(virtualMachineId, key);
+            vmInstanceDetailsDao.addDetail(virtualMachineId, key, value, true);
+        }
+    }
+
     private Long getExecutionHostId(UserVmVO userVm) {
         if (userVm == null) {
             return null;
@@ -752,7 +766,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         return String.format("qemu+ssh://%s/system", host.getPrivateIpAddress());
     }
 
-    private void populateRuntimeStateFromAgent(UserVmVO userVm, FtctlProtectionResponse response) {
+    private void populateRuntimeStateFromAgent(UserVmVO userVm, FtctlProtectionResponse response, boolean persistState) {
         FtctlStatusAnswer statusAnswer = fetchRuntimeStatus(userVm);
         if (statusAnswer == null) {
             return;
@@ -767,7 +781,9 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             response.setAdminState(statusAnswer.getAdminState());
             response.setFencingState(statusAnswer.getFencingState());
             response.setLastError(statusAnswer.getLastError());
-            persistRuntimeState(userVm.getId(), statusAnswer);
+            if (persistState) {
+                persistRuntimeState(userVm.getId(), statusAnswer);
+            }
         }
 
     private FtctlStatusAnswer fetchRuntimeStatus(UserVmVO userVm) {
@@ -791,25 +807,25 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             return;
         }
         if (statusAnswer.getProtectionState() != null) {
-            vmInstanceDetailsDao.addDetail(virtualMachineId, DETAIL_LAST_PROTECTION_STATE, statusAnswer.getProtectionState(), true);
+            putVmDetail(virtualMachineId, DETAIL_LAST_PROTECTION_STATE, statusAnswer.getProtectionState());
         }
         if (statusAnswer.getTransportState() != null) {
-            vmInstanceDetailsDao.addDetail(virtualMachineId, DETAIL_LAST_TRANSPORT_STATE, statusAnswer.getTransportState(), true);
+            putVmDetail(virtualMachineId, DETAIL_LAST_TRANSPORT_STATE, statusAnswer.getTransportState());
         }
         if (statusAnswer.getActiveSide() != null) {
-            vmInstanceDetailsDao.addDetail(virtualMachineId, DETAIL_LAST_ACTIVE_SIDE, statusAnswer.getActiveSide(), true);
+            putVmDetail(virtualMachineId, DETAIL_LAST_ACTIVE_SIDE, statusAnswer.getActiveSide());
         }
         if (statusAnswer.getAdminState() != null) {
-            vmInstanceDetailsDao.addDetail(virtualMachineId, DETAIL_LAST_ADMIN_STATE, statusAnswer.getAdminState(), true);
+            putVmDetail(virtualMachineId, DETAIL_LAST_ADMIN_STATE, statusAnswer.getAdminState());
         }
         if (statusAnswer.getFencingState() != null) {
-            vmInstanceDetailsDao.addDetail(virtualMachineId, DETAIL_LAST_FENCING_STATE, statusAnswer.getFencingState(), true);
+            putVmDetail(virtualMachineId, DETAIL_LAST_FENCING_STATE, statusAnswer.getFencingState());
         }
         if (statusAnswer.getLastError() != null) {
-            vmInstanceDetailsDao.addDetail(virtualMachineId, DETAIL_LAST_ERROR, statusAnswer.getLastError(), true);
+            putVmDetail(virtualMachineId, DETAIL_LAST_ERROR, statusAnswer.getLastError());
         }
         if (statusAnswer.getMode() != null) {
-            vmInstanceDetailsDao.addDetail(virtualMachineId, DETAIL_MODE, statusAnswer.getMode(), true);
+            putVmDetail(virtualMachineId, DETAIL_MODE, statusAnswer.getMode());
         }
     }
 
@@ -957,18 +973,18 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     }
 
     private void persistIpmiFencingDetails(Long virtualMachineId, FtctlIpmiFencingConfig config) {
-        vmInstanceDetailsDao.addDetail(virtualMachineId, DETAIL_FENCING_IPMI_PRIMARY_HOST, config.primary.host, true);
-        vmInstanceDetailsDao.addDetail(virtualMachineId, DETAIL_FENCING_IPMI_SECONDARY_HOST, config.secondary.host, true);
+        putVmDetail(virtualMachineId, DETAIL_FENCING_IPMI_PRIMARY_HOST, config.primary.host);
+        putVmDetail(virtualMachineId, DETAIL_FENCING_IPMI_SECONDARY_HOST, config.secondary.host);
         if (config.primary.port != null) {
-            vmInstanceDetailsDao.addDetail(virtualMachineId, DETAIL_FENCING_IPMI_PRIMARY_PORT, config.primary.port, true);
+            putVmDetail(virtualMachineId, DETAIL_FENCING_IPMI_PRIMARY_PORT, config.primary.port);
         }
         if (config.secondary.port != null) {
-            vmInstanceDetailsDao.addDetail(virtualMachineId, DETAIL_FENCING_IPMI_SECONDARY_PORT, config.secondary.port, true);
+            putVmDetail(virtualMachineId, DETAIL_FENCING_IPMI_SECONDARY_PORT, config.secondary.port);
         }
-        vmInstanceDetailsDao.addDetail(virtualMachineId, DETAIL_FENCING_IPMI_PRIMARY_USER, config.primary.user, true);
-        vmInstanceDetailsDao.addDetail(virtualMachineId, DETAIL_FENCING_IPMI_SECONDARY_USER, config.secondary.user, true);
-        vmInstanceDetailsDao.addDetail(virtualMachineId, DETAIL_FENCING_IPMI_PRIMARY_INTERFACE, config.primary.ipmiInterface, true);
-        vmInstanceDetailsDao.addDetail(virtualMachineId, DETAIL_FENCING_IPMI_SECONDARY_INTERFACE, config.secondary.ipmiInterface, true);
+        putVmDetail(virtualMachineId, DETAIL_FENCING_IPMI_PRIMARY_USER, config.primary.user);
+        putVmDetail(virtualMachineId, DETAIL_FENCING_IPMI_SECONDARY_USER, config.secondary.user);
+        putVmDetail(virtualMachineId, DETAIL_FENCING_IPMI_PRIMARY_INTERFACE, config.primary.ipmiInterface);
+        putVmDetail(virtualMachineId, DETAIL_FENCING_IPMI_SECONDARY_INTERFACE, config.secondary.ipmiInterface);
     }
 
     private static class FtctlIpmiFencingConfig {
