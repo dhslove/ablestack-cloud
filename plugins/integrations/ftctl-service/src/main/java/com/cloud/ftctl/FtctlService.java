@@ -51,4 +51,6 @@ public interface FtctlService extends PluggableService, Configurable {
     FtctlHealthResponse getFtctlHealth(GetFtctlHealthCmd cmd) throws CloudRuntimeException;
 
     FtctlActionResponse executeFtctlAction(Long virtualMachineId, FtctlActionCommand.Action action, boolean force) throws CloudRuntimeException;
+
+    FtctlActionResponse confirmFtctlFence(Long virtualMachineId) throws CloudRuntimeException;
 }

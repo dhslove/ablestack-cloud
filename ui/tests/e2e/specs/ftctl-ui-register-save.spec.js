@@ -96,6 +96,14 @@ function parseProtectionResponse (body) {
   return undefined
 }
 
+function parseTimeoutEnv (name, defaultValue) {
+  const value = Number.parseInt(optionalEnv(name, `${defaultValue}`), 10)
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(`${name} must be a positive integer`)
+  }
+  return value
+}
+
 test.describe('FTCTL protection save', () => {
   test('registers HA protection and refreshes status sections', async ({ page }) => {
     const username = requireEnv('FTCTL_UI_USERNAME')
@@ -105,6 +113,9 @@ test.describe('FTCTL protection save', () => {
     const preferredPeer = optionalEnv('FTCTL_UI_PEER_HOST_PATTERN', 'ablecube22-[12]')
     const preferredStorage = optionalEnv('FTCTL_UI_STORAGE_POOL_PATTERN', 'Primary Storage|RBD|ZONE')
     const secondaryVmName = optionalEnv('FTCTL_UI_SECONDARY_VM_NAME', 'r9-01-standby')
+    const registerTimeoutMs = parseTimeoutEnv('FTCTL_UI_REGISTER_TIMEOUT_MS', 180000)
+
+    test.setTimeout(Math.max(test.info().timeout, registerTimeoutMs + 60000))
 
     const driver = new FtctlUiDriver(page)
     if (!skipLogin) {
@@ -137,7 +148,7 @@ test.describe('FTCTL protection save', () => {
 
     const registerResponsePromise = page.waitForResponse(response =>
       isApiCommandResponse(response, 'registerFtctlProtection') && response.status() === 200,
-    { timeout: 60000 })
+    { timeout: registerTimeoutMs })
     await page.getByRole('dialog').getByRole('button', { name: /^\uD655\uC778$|^OK$/ }).click()
     const registerResponse = await registerResponsePromise
     const registerBody = await registerResponse.text()

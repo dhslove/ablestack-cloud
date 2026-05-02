@@ -31,8 +31,15 @@ import com.cloud.agent.api.FtctlStatusCommand;
 import com.cloud.agent.api.FtctlSyncAnswer;
 import com.cloud.agent.api.FtctlSyncClusterCommand;
 import com.cloud.agent.api.FtctlSyncProfileCommand;
+import com.cloud.event.ActionEventUtils;
+import com.cloud.event.EventTypes;
+import com.cloud.event.EventVO;
 import com.cloud.exception.AgentUnavailableException;
+import com.cloud.exception.ConcurrentOperationException;
+import com.cloud.exception.InsufficientCapacityException;
 import com.cloud.exception.OperationTimedoutException;
+import com.cloud.exception.ResourceAllocationException;
+import com.cloud.exception.ResourceUnavailableException;
 import com.cloud.ftctl.dao.FtctlProtectionDao;
 import com.cloud.ftctl.dao.FtctlProtectionVolumeDao;
 import com.cloud.host.Host;
@@ -43,13 +50,18 @@ import com.cloud.host.dao.HostDetailsDao;
 import com.cloud.storage.Volume;
 import com.cloud.storage.VolumeVO;
 import com.cloud.storage.dao.VolumeDao;
+import com.cloud.user.User;
 import com.cloud.utils.component.ManagerBase;
 import com.cloud.utils.exception.CloudRuntimeException;
+import com.cloud.vm.UserVmManager;
 import com.cloud.vm.VMInstanceDetailVO;
 import com.cloud.vm.UserVmVO;
+import com.cloud.vm.VirtualMachine;
+import com.cloud.vm.VirtualMachineProfile;
 import com.cloud.vm.VmDetailConstants;
 import com.cloud.vm.dao.UserVmDao;
 import com.cloud.vm.dao.VMInstanceDetailsDao;
+import org.apache.cloudstack.api.ApiCommandResourceType;
 import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlCheckCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlEventsCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlHealthCmd;
@@ -75,6 +87,7 @@ import org.apache.cloudstack.outofbandmanagement.dao.OutOfBandManagementDao;
 
 import javax.inject.Inject;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -130,6 +143,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     @Inject
     private UserVmDao userVmDao;
     @Inject
+    private UserVmManager userVmManager;
+    @Inject
     private AgentManager agentManager;
     @Inject
     private HostDetailsDao hostDetailsDao;
@@ -154,7 +169,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         FtctlProtectionResponse response = buildProtectionResponse(userVm);
         UserVmVO runtimeVm = resolveRuntimeVmForProtectionView(userVm);
         if (runtimeVm != null) {
-            populateRuntimeStateFromAgent(runtimeVm, response, false);
+            populateRuntimeStateFromAgent(runtimeVm, response, true);
         }
         response.setObjectName("ftctlprotection");
         return response;
@@ -257,6 +272,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
 
         FtctlProtectionResponse response = buildProtectionResponse(userVm);
         populateRuntimeStateFromAgent(userVm, response, true);
+        publishFtctlEvent(userVm, EventTypes.EVENT_FTCTL_PROTECTION_REGISTER,
+                String.format("Registered FTCTL protection for VM %s", userVm.getUuid()));
         response.setObjectName("ftctlprotection");
         return response;
     }
@@ -501,11 +518,75 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
                 response.setAdminState(statusAnswer.getAdminState());
                 response.setFencingState(statusAnswer.getFencingState());
                 response.setLastError(statusAnswer.getLastError());
-                persistRuntimeState(userVm.getId(), statusAnswer);
+                persistRuntimeState(userVm, statusAnswer);
             }
+            publishFtctlEvent(userVm, resolveFtctlActionEventType(action),
+                    String.format("Executed FTCTL action %s for VM %s", action.name(), userVm.getUuid()));
             return response;
         } catch (AgentUnavailableException | OperationTimedoutException e) {
             throw new CloudRuntimeException(String.format("Unable to execute FTCTL action %s for VM %s", action, userVm.getUuid()), e);
+        }
+    }
+
+    @Override
+    public FtctlActionResponse confirmFtctlFence(Long virtualMachineId) throws CloudRuntimeException {
+        UserVmVO primaryVm = validateVirtualMachineExists(virtualMachineId);
+        validatePrimaryProtectionTarget(primaryVm);
+        FtctlProtectionVO protection = ftctlProtectionDao.findActiveByPrimaryVmId(primaryVm.getId());
+        if (protection == null) {
+            throw new CloudRuntimeException(String.format("Unable to find active FTCTL protection for VM %s", primaryVm.getUuid()));
+        }
+        validatePrimaryVmStoppedForManualFence(primaryVm);
+
+        executeFtctlAction(primaryVm.getId(), FtctlActionCommand.Action.FENCE_CONFIRM, false);
+        startSecondaryVmForManualFailover(primaryVm, protection);
+        FtctlActionResponse response = executeFtctlAction(primaryVm.getId(), FtctlActionCommand.Action.FAILOVER, true);
+        response.setAction(FtctlActionCommand.Action.FENCE_CONFIRM.name());
+        return response;
+    }
+
+    private void validatePrimaryVmStoppedForManualFence(UserVmVO primaryVm) {
+        VirtualMachine.State state = primaryVm.getState();
+        if (state != VirtualMachine.State.Stopped) {
+            throw new CloudRuntimeException(String.format("FTCTL manual fence confirmation requires primary VM %s to be Stopped, current state is %s",
+                    primaryVm.getUuid(), state));
+        }
+    }
+
+    private void startSecondaryVmForManualFailover(UserVmVO primaryVm, FtctlProtectionVO protection) {
+        Long secondaryVmId = protection.getSecondaryVmId();
+        if (secondaryVmId == null) {
+            throw new CloudRuntimeException(String.format("FTCTL protection for VM %s does not have a secondary VM", primaryVm.getUuid()));
+        }
+        UserVmVO secondaryVm = userVmDao.findById(secondaryVmId);
+        if (secondaryVm == null) {
+            throw new CloudRuntimeException(String.format("Unable to find FTCTL secondary VM %s for primary VM %s", secondaryVmId, primaryVm.getUuid()));
+        }
+        if (secondaryVm.getState() == VirtualMachine.State.Running) {
+            logger.info(String.format("FTCTL secondary VM %s is already running for primary VM %s", secondaryVm.getUuid(), primaryVm.getUuid()));
+            return;
+        }
+        Long peerHostId = resolvePeerHostId(primaryVm.getId());
+        try {
+            userVmManager.startVirtualMachine(secondaryVmId, peerHostId, new HashMap<VirtualMachineProfile.Param, Object>(), null);
+            publishFtctlEvent(primaryVm, EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE,
+                    String.format("Started FTCTL secondary VM %s for primary VM %s after manual fence confirmation",
+                            secondaryVm.getUuid(), primaryVm.getUuid()));
+        } catch (ConcurrentOperationException | ResourceUnavailableException | InsufficientCapacityException | ResourceAllocationException e) {
+            throw new CloudRuntimeException(String.format("Unable to start FTCTL secondary VM %s for primary VM %s",
+                    secondaryVm.getUuid(), primaryVm.getUuid()), e);
+        }
+    }
+
+    private Long resolvePeerHostId(Long primaryVmId) {
+        String peerHostId = getDetailValue(primaryVmId, DETAIL_PEER_HOST_ID);
+        if (StringUtils.isBlank(peerHostId)) {
+            return null;
+        }
+        try {
+            return Long.parseLong(peerHostId);
+        } catch (NumberFormatException e) {
+            throw new CloudRuntimeException(String.format("Invalid FTCTL peer host id %s for VM %s", peerHostId, primaryVmId), e);
         }
     }
 
@@ -771,20 +852,20 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         if (statusAnswer == null) {
             return;
         }
-            response.setEnabled("true");
-            if (statusAnswer.getMode() != null && !statusAnswer.getMode().isBlank()) {
-                response.setMode(statusAnswer.getMode());
-            }
-            response.setProtectionState(statusAnswer.getProtectionState());
-            response.setTransportState(statusAnswer.getTransportState());
-            response.setActiveSide(statusAnswer.getActiveSide());
-            response.setAdminState(statusAnswer.getAdminState());
-            response.setFencingState(statusAnswer.getFencingState());
-            response.setLastError(statusAnswer.getLastError());
-            if (persistState) {
-                persistRuntimeState(userVm.getId(), statusAnswer);
-            }
+        response.setEnabled("true");
+        if (statusAnswer.getMode() != null && !statusAnswer.getMode().isBlank()) {
+            response.setMode(statusAnswer.getMode());
         }
+        response.setProtectionState(statusAnswer.getProtectionState());
+        response.setTransportState(statusAnswer.getTransportState());
+        response.setActiveSide(statusAnswer.getActiveSide());
+        response.setAdminState(statusAnswer.getAdminState());
+        response.setFencingState(statusAnswer.getFencingState());
+        response.setLastError(statusAnswer.getLastError());
+        if (persistState) {
+            persistRuntimeState(userVm, statusAnswer);
+        }
+    }
 
     private FtctlStatusAnswer fetchRuntimeStatus(UserVmVO userVm) {
         Long hostId = getExecutionHostId(userVm);
@@ -802,10 +883,11 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         }
     }
 
-    private void persistRuntimeState(Long virtualMachineId, FtctlStatusAnswer statusAnswer) {
-        if (virtualMachineId == null || statusAnswer == null) {
-            return;
+    private boolean persistRuntimeState(UserVmVO userVm, FtctlStatusAnswer statusAnswer) {
+        if (userVm == null || statusAnswer == null) {
+            return false;
         }
+        Long virtualMachineId = userVm.getId();
         if (statusAnswer.getProtectionState() != null) {
             putVmDetail(virtualMachineId, DETAIL_LAST_PROTECTION_STATE, statusAnswer.getProtectionState());
         }
@@ -826,6 +908,102 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         }
         if (statusAnswer.getMode() != null) {
             putVmDetail(virtualMachineId, DETAIL_MODE, statusAnswer.getMode());
+        }
+        boolean changed = persistProtectionRuntimeState(userVm, statusAnswer);
+        if (changed) {
+            publishFtctlEvent(userVm, EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE,
+                    String.format("Updated FTCTL runtime state for VM %s: protection=%s, transport=%s, activeSide=%s, admin=%s, fencing=%s",
+                            userVm.getUuid(), statusAnswer.getProtectionState(), statusAnswer.getTransportState(),
+                            statusAnswer.getActiveSide(), statusAnswer.getAdminState(), statusAnswer.getFencingState()));
+        }
+        return changed;
+    }
+
+    private boolean persistProtectionRuntimeState(UserVmVO userVm, FtctlStatusAnswer statusAnswer) {
+        FtctlProtectionVO protection = findActiveProtectionForVm(userVm.getId());
+        if (protection == null) {
+            return false;
+        }
+        boolean changed = isProtectionRuntimeStateChanged(protection, statusAnswer);
+        if (!changed) {
+            return false;
+        }
+        if (statusAnswer.getMode() != null) {
+            protection.setMode(statusAnswer.getMode());
+        }
+        if (statusAnswer.getAdminState() != null) {
+            protection.setAdminState(statusAnswer.getAdminState());
+        }
+        if (statusAnswer.getProtectionState() != null) {
+            protection.setProtectionState(statusAnswer.getProtectionState());
+        }
+        if (statusAnswer.getTransportState() != null) {
+            protection.setTransportState(statusAnswer.getTransportState());
+        }
+        if (statusAnswer.getActiveSide() != null) {
+            protection.setActiveSide(statusAnswer.getActiveSide());
+        }
+        if (statusAnswer.getFencingState() != null) {
+            protection.setFencingState(statusAnswer.getFencingState());
+        }
+        if (statusAnswer.getLastError() != null) {
+            protection.setLastError(statusAnswer.getLastError());
+        }
+        protection.markUpdated();
+        ftctlProtectionDao.update(protection.getId(), protection);
+        return true;
+    }
+
+    private boolean isProtectionRuntimeStateChanged(FtctlProtectionVO protection, FtctlStatusAnswer statusAnswer) {
+        if (protection == null || statusAnswer == null) {
+            return false;
+        }
+        return isChanged(protection.getMode(), statusAnswer.getMode()) ||
+                isChanged(protection.getAdminState(), statusAnswer.getAdminState()) ||
+                isChanged(protection.getProtectionState(), statusAnswer.getProtectionState()) ||
+                isChanged(protection.getTransportState(), statusAnswer.getTransportState()) ||
+                isChanged(protection.getActiveSide(), statusAnswer.getActiveSide()) ||
+                isChanged(protection.getFencingState(), statusAnswer.getFencingState()) ||
+                isChanged(protection.getLastError(), statusAnswer.getLastError());
+    }
+
+    private boolean isChanged(String existing, String incoming) {
+        return incoming != null && !StringUtils.equals(existing, incoming);
+    }
+
+    private String resolveFtctlActionEventType(FtctlActionCommand.Action action) {
+        if (action == null) {
+            return EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE;
+        }
+        switch (action) {
+            case PROTECT:
+                return EventTypes.EVENT_FTCTL_PROTECTION_REGISTER;
+            case PAUSE_PROTECTION:
+                return EventTypes.EVENT_FTCTL_PROTECTION_PAUSE;
+            case RESUME_PROTECTION:
+                return EventTypes.EVENT_FTCTL_PROTECTION_RESUME;
+            case FAILOVER:
+                return EventTypes.EVENT_FTCTL_PROTECTION_FAILOVER;
+            case FAILBACK:
+                return EventTypes.EVENT_FTCTL_PROTECTION_FAILBACK;
+            case FENCE_CONFIRM:
+                return EventTypes.EVENT_FTCTL_PROTECTION_FENCE_CONFIRM;
+            case FENCE_CLEAR:
+                return EventTypes.EVENT_FTCTL_PROTECTION_FENCE_CLEAR;
+            default:
+                return EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE;
+        }
+    }
+
+    private void publishFtctlEvent(UserVmVO userVm, String eventType, String description) {
+        if (userVm == null || StringUtils.isBlank(eventType)) {
+            return;
+        }
+        try {
+            ActionEventUtils.onCompletedActionEvent(User.UID_SYSTEM, userVm.getAccountId(), EventVO.LEVEL_INFO, eventType,
+                    description, userVm.getId(), ApiCommandResourceType.VirtualMachine.toString(), 0);
+        } catch (RuntimeException e) {
+            logger.warn(String.format("Unable to publish FTCTL event %s for VM %s", eventType, userVm.getUuid()), e);
         }
     }
 

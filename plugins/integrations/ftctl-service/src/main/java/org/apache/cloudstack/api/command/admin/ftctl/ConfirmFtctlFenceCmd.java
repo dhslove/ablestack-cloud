@@ -20,6 +20,7 @@ import com.cloud.agent.api.FtctlActionCommand;
 import org.apache.cloudstack.acl.RoleType;
 import org.apache.cloudstack.api.APICommand;
 import org.apache.cloudstack.api.ResponseObject;
+import org.apache.cloudstack.api.ServerApiException;
 import org.apache.cloudstack.api.response.ftctl.FtctlActionResponse;
 
 @APICommand(name = ConfirmFtctlFenceCmd.APINAME,
@@ -33,5 +34,12 @@ public class ConfirmFtctlFenceCmd extends AbstractFtctlVmActionCmd {
     @Override
     protected FtctlActionCommand.Action getAction() {
         return FtctlActionCommand.Action.FENCE_CONFIRM;
+    }
+
+    @Override
+    public void execute() throws ServerApiException {
+        FtctlActionResponse response = ftctlService.confirmFtctlFence(getVirtualMachineId());
+        response.setResponseName(getCommandName());
+        setResponseObject(response);
     }
 }
