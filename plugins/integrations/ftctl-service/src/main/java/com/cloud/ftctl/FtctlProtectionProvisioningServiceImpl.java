@@ -339,14 +339,35 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
         if (protectionVolume != null && protectionVolume.getSecondaryVolumeId() != null) {
             VolumeVO existingVolume = volumeDao.findById(protectionVolume.getSecondaryVolumeId());
             if (existingVolume != null) {
-                return existingVolume;
+                return ensureStandbyRootVolumeMetadata(existingVolume);
             }
         }
         StoragePoolVO targetStoragePool = request.getTargetStoragePool();
         if (targetStoragePool == null) {
             throw new CloudRuntimeException("FTCTL cloud-managed provisioning requires a target storage pool for standby root volume");
         }
-        return createCloudManagedStandbyVolume(request, rootDiskOffering, String.format("%s-root", resolveSecondaryVmName(request)), primaryRootVolume);
+        VolumeVO standbyRootVolume = createCloudManagedStandbyVolume(request, rootDiskOffering, String.format("%s-root", resolveSecondaryVmName(request)), primaryRootVolume);
+        return ensureStandbyRootVolumeMetadata(standbyRootVolume);
+    }
+
+    private VolumeVO ensureStandbyRootVolumeMetadata(VolumeVO standbyRootVolume) {
+        if (standbyRootVolume == null) {
+            throw new CloudRuntimeException("FTCTL cloud-managed provisioning requires a standby root volume");
+        }
+        if (standbyRootVolume.getVolumeType() == Volume.Type.ROOT && Long.valueOf(0L).equals(standbyRootVolume.getDeviceId())) {
+            return standbyRootVolume;
+        }
+        standbyRootVolume.setVolumeType(Volume.Type.ROOT);
+        standbyRootVolume.setDeviceId(0L);
+        volumeDao.update(standbyRootVolume.getId(), standbyRootVolume);
+        VolumeVO reloadedVolume = volumeDao.findById(standbyRootVolume.getId());
+        if (reloadedVolume == null) {
+            throw new CloudRuntimeException(String.format("Unable to reload FTCTL standby root volume %s after metadata update", standbyRootVolume.getUuid()));
+        }
+        if (reloadedVolume.getVolumeType() != Volume.Type.ROOT) {
+            throw new CloudRuntimeException(String.format("FTCTL standby root volume %s is not marked as ROOT", reloadedVolume.getUuid()));
+        }
+        return reloadedVolume;
     }
 
     private Map<Long, VolumeVO> ensureCloudManagedStandbyDataVolumes(FtctlProtectionProvisioningRequest request, FtctlProtectionVO protection,

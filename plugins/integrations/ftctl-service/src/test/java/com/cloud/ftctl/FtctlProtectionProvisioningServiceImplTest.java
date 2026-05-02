@@ -194,7 +194,8 @@ public class FtctlProtectionProvisioningServiceImplTest {
         Mockito.when(primaryDataVolume.getSize()).thenReturn(20L * 1024L * 1024L * 1024L);
         Mockito.when(primaryDataVolume.getMinIops()).thenReturn(100L);
         Mockito.when(primaryDataVolume.getMaxIops()).thenReturn(1000L);
-        VolumeVO standbyRootVolume = mockVolume(501L, Volume.Type.ROOT, 0L, "rbd/standby-root");
+        VolumeVO standbyRootVolume = mockVolume(501L, Volume.Type.DATADISK, 0L, "rbd/standby-root");
+        Mockito.when(standbyRootVolume.getVolumeType()).thenReturn(Volume.Type.DATADISK, Volume.Type.ROOT);
         Mockito.when(standbyRootVolume.getUuid()).thenReturn("standby-root-uuid");
         VolumeVO standbyDataVolume = mockVolume(502L, Volume.Type.DATADISK, 1L, "rbd/standby-data");
         Mockito.when(standbyDataVolume.getUuid()).thenReturn("standby-data-uuid");
@@ -252,6 +253,10 @@ public class FtctlProtectionProvisioningServiceImplTest {
         Assert.assertEquals(Long.valueOf(1000L), createDataVolumeCmd.getMaxIops());
         Assert.assertEquals(Long.valueOf(501L), createDataVolumeCmd.getStorageId());
         Assert.assertTrue(createDataVolumeCmd.isDisplay());
+
+        Mockito.verify(standbyRootVolume).setVolumeType(Volume.Type.ROOT);
+        Mockito.verify(standbyRootVolume).setDeviceId(0L);
+        Mockito.verify(volumeDao).update(501L, standbyRootVolume);
 
         ArgumentCaptor<FtctlStandbyDeployVMVolumeCmd> deployCaptor = ArgumentCaptor.forClass(FtctlStandbyDeployVMVolumeCmd.class);
         Mockito.verify(userVmService).createVirtualMachineVolume(deployCaptor.capture());
