@@ -70,6 +70,7 @@ import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlEventsCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlHealthCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlProtectionCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.RegisterFtctlProtectionCmd;
+import org.apache.cloudstack.api.command.admin.ftctl.ReleaseFtctlProtectionCmd;
 import org.apache.cloudstack.api.response.ftctl.FtctlActionResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlCheckResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlEventResponse;
@@ -541,12 +542,100 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         return executeFtctlAgentAction(userVm, action, force);
     }
 
+    @Override
+    public FtctlActionResponse releaseFtctlProtection(Long virtualMachineId, boolean force) throws CloudRuntimeException {
+        UserVmVO primaryVm = validateVirtualMachineExists(virtualMachineId);
+        validatePrimaryProtectionTarget(primaryVm);
+        FtctlProtectionVO protection = ftctlProtectionDao.findActiveByPrimaryVmId(primaryVm.getId());
+        if (protection == null) {
+            throw new CloudRuntimeException(String.format("Unable to find active FTCTL protection for VM %s", primaryVm.getUuid()));
+        }
+        validateReleaseProtectionState(primaryVm, protection, force);
+
+        FtctlActionResponse response = executeFtctlAgentAction(primaryVm, FtctlActionCommand.Action.UNPROTECT, true);
+        releaseCloudManagedStandbyResources(primaryVm, protection);
+        markProtectionRowsRemoved(protection);
+        vmInstanceDetailsDao.removeDetailsWithPrefix(primaryVm.getId(), "ftctl.");
+        response.setAction(FtctlActionCommand.Action.UNPROTECT.name());
+        response.setProtectionState("disabled");
+        response.setTransportState("stopped");
+        response.setActiveSide("primary");
+        response.setAdminState("inactive");
+        response.setFencingState("clear");
+        response.setLastError(null);
+        publishFtctlEvent(primaryVm, EventTypes.EVENT_FTCTL_PROTECTION_RELEASE,
+                String.format("Released FTCTL protection for VM %s", primaryVm.getUuid()));
+        return response;
+    }
+
+    private void validateReleaseProtectionState(UserVmVO primaryVm, FtctlProtectionVO protection, boolean force) {
+        String activeSide = StringUtils.trimToEmpty(protection.getActiveSide()).toLowerCase(Locale.ROOT);
+        if (!force && StringUtils.isNotBlank(activeSide) && !"primary".equals(activeSide)) {
+            throw new CloudRuntimeException(String.format("FTCTL protection release for VM %s requires active side primary, current active side is %s. Fail back first.",
+                    primaryVm.getUuid(), protection.getActiveSide()));
+        }
+    }
+
+    private void releaseCloudManagedStandbyResources(UserVmVO primaryVm, FtctlProtectionVO protection) {
+        if (!isCloudManagedProvisioning(protection) || protection.getSecondaryVmId() == null) {
+            return;
+        }
+        UserVmVO secondaryVm = userVmDao.findById(protection.getSecondaryVmId());
+        if (secondaryVm == null || secondaryVm.getRemoved() != null) {
+            return;
+        }
+        if (secondaryVm.getState() == VirtualMachine.State.Running) {
+            stopSecondaryVmForProtectionRelease(primaryVm, secondaryVm);
+            secondaryVm = validateVirtualMachineExists(secondaryVm.getId());
+        }
+        try {
+            userVmService.destroyVm(secondaryVm.getId(), true);
+            publishFtctlEvent(primaryVm, EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE,
+                    String.format("Destroyed and expunged FTCTL secondary VM %s during protection release for primary VM %s",
+                            secondaryVm.getUuid(), primaryVm.getUuid()));
+        } catch (ResourceUnavailableException | ConcurrentOperationException e) {
+            throw new CloudRuntimeException(String.format("Unable to destroy FTCTL secondary VM %s for primary VM %s during protection release",
+                    secondaryVm.getUuid(), primaryVm.getUuid()), e);
+        }
+    }
+
+    private void stopSecondaryVmForProtectionRelease(UserVmVO primaryVm, UserVmVO secondaryVm) {
+        try {
+            userVmService.stopVirtualMachine(secondaryVm.getId(), true);
+            publishFtctlEvent(primaryVm, EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE,
+                    String.format("Stopped FTCTL secondary VM %s during protection release for primary VM %s",
+                            secondaryVm.getUuid(), primaryVm.getUuid()));
+        } catch (ConcurrentOperationException e) {
+            throw new CloudRuntimeException(String.format("Unable to stop FTCTL secondary VM %s for primary VM %s during protection release",
+                    secondaryVm.getUuid(), primaryVm.getUuid()), e);
+        }
+    }
+
+    private void markProtectionRowsRemoved(FtctlProtectionVO protection) {
+        List<FtctlProtectionVolumeVO> volumes = ftctlProtectionVolumeDao.listActiveByProtectionId(protection.getId());
+        if (volumes != null) {
+            for (FtctlProtectionVolumeVO volume : volumes) {
+                volume.markRemoved();
+                ftctlProtectionVolumeDao.update(volume.getId(), volume);
+            }
+        }
+        protection.setProtectionState("disabled");
+        protection.setTransportState("stopped");
+        protection.setActiveSide("primary");
+        protection.setAdminState("inactive");
+        protection.setFencingState("clear");
+        protection.setLastError(null);
+        protection.markRemoved();
+        ftctlProtectionDao.update(protection.getId(), protection);
+    }
+
     private FtctlActionResponse executeFtctlAgentAction(UserVmVO userVm, FtctlActionCommand.Action action, boolean force) throws CloudRuntimeException {
         Long hostId = requireExecutionHostId(userVm);
         try {
             FtctlActionCommand actionCommand = new FtctlActionCommand(action, userVm.getInstanceName());
             actionCommand.setForce(force || action == FtctlActionCommand.Action.FAILOVER || action == FtctlActionCommand.Action.FAILBACK ||
-                    action == FtctlActionCommand.Action.FAILBACK_SYNC || action == FtctlActionCommand.Action.FAILBACK_REPROTECT);
+                    action == FtctlActionCommand.Action.FAILBACK_SYNC || action == FtctlActionCommand.Action.FAILBACK_REPROTECT ||
+                    action == FtctlActionCommand.Action.UNPROTECT);
             if (action == FtctlActionCommand.Action.FAILBACK || action == FtctlActionCommand.Action.FAILBACK_SYNC ||
                     action == FtctlActionCommand.Action.FAILBACK_REPROTECT) {
                 actionCommand.setWait(FAILBACK_ACTION_WAIT_SECONDS);
@@ -1402,6 +1491,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             case FAILBACK_SYNC:
             case FAILBACK_REPROTECT:
                 return EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE;
+            case UNPROTECT:
+                return EventTypes.EVENT_FTCTL_PROTECTION_RELEASE;
             case FENCE_CONFIRM:
                 return EventTypes.EVENT_FTCTL_PROTECTION_FENCE_CONFIRM;
             case FENCE_CLEAR:
@@ -1690,6 +1781,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         cmdList.add(org.apache.cloudstack.api.command.admin.ftctl.FailbackFtctlProtectionCmd.class);
         cmdList.add(org.apache.cloudstack.api.command.admin.ftctl.ConfirmFtctlFenceCmd.class);
         cmdList.add(org.apache.cloudstack.api.command.admin.ftctl.ClearFtctlFenceCmd.class);
+        cmdList.add(ReleaseFtctlProtectionCmd.class);
         return cmdList;
     }
 

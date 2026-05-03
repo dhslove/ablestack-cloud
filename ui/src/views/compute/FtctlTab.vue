@@ -357,7 +357,8 @@ export default {
         failoverFtctlProtection: false,
         failbackFtctlProtection: false,
         confirmFtctlFence: false,
-        clearFtctlFence: false
+        clearFtctlFence: false,
+        releaseFtctlProtection: false
       }
     }
   },
@@ -421,7 +422,7 @@ export default {
       return 'registerFtctlProtection' in this.$store.getters.apis && this.supportedVm && !this.standbyProtectionView
     },
     canRunActions () {
-      return ['pauseFtctlProtection', 'resumeFtctlProtection', 'failoverFtctlProtection', 'failbackFtctlProtection', 'confirmFtctlFence', 'clearFtctlFence']
+      return ['pauseFtctlProtection', 'resumeFtctlProtection', 'failoverFtctlProtection', 'failbackFtctlProtection', 'confirmFtctlFence', 'clearFtctlFence', 'releaseFtctlProtection']
         .some(api => api in this.$store.getters.apis) && this.supportedVm && !this.standbyProtectionView
     },
     canLoadEvents () {
@@ -536,6 +537,15 @@ export default {
           confirm: true,
           confirmMessage: this.$t('message.ftctl.clear.fence'),
           disabled: !this.actionAvailable('clearFtctlFence') || !fencingState || ['clear', 'cleared'].includes(fencingState)
+        },
+        {
+          api: 'releaseFtctlProtection',
+          label: this.$t('label.ftctl.release.protection'),
+          icon: 'DeleteOutlined',
+          danger: true,
+          confirm: true,
+          confirmMessage: this.$t('message.ftctl.confirm.release'),
+          disabled: !this.actionAvailable('releaseFtctlProtection') || !this.protectionEnabled || activeSide === 'secondary'
         }
       ]
     }

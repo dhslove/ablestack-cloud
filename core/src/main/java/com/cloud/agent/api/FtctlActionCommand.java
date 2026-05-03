@@ -29,6 +29,7 @@ public class FtctlActionCommand extends Command {
         FAILBACK("failback"),
         FAILBACK_SYNC("failback-sync"),
         FAILBACK_REPROTECT("failback-reprotect"),
+        UNPROTECT("unprotect"),
         FENCE_CONFIRM("fence-confirm"),
         FENCE_CLEAR("fence-clear");
 

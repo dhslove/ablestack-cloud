@@ -257,4 +257,9 @@ public class FtctlProtectionVO implements InternalIdentity {
     public void markUpdated() {
         updated = new Date();
     }
+
+    public void markRemoved() {
+        removed = new Date();
+        markUpdated();
+    }
 }
