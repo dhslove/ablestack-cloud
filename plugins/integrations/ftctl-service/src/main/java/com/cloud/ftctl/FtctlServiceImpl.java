@@ -539,10 +539,34 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         validatePrimaryVmStoppedForManualFence(primaryVm);
 
         executeFtctlAction(primaryVm.getId(), FtctlActionCommand.Action.FENCE_CONFIRM, false);
+        protection = validateManualFailoverTransportReady(primaryVm);
         startSecondaryVmForManualFailover(primaryVm, protection);
         FtctlActionResponse response = executeFtctlAction(primaryVm.getId(), FtctlActionCommand.Action.FAILOVER, true);
         response.setAction(FtctlActionCommand.Action.FENCE_CONFIRM.name());
         return response;
+    }
+
+    private FtctlProtectionVO validateManualFailoverTransportReady(UserVmVO primaryVm) {
+        FtctlProtectionVO protection = ftctlProtectionDao.findActiveByPrimaryVmId(primaryVm.getId());
+        if (protection == null) {
+            throw new CloudRuntimeException(String.format("Unable to find active FTCTL protection for VM %s", primaryVm.getUuid()));
+        }
+        if (!requiresManualFailoverTransportReady(protection)) {
+            return protection;
+        }
+        String transportState = StringUtils.trimToEmpty(protection.getTransportState()).toLowerCase(Locale.ROOT);
+        if (!"mirroring".equals(transportState) && !"failed_over".equals(transportState)) {
+            throw new CloudRuntimeException(String.format(
+                    "FTCTL manual fence confirmation requires transport state mirroring or failed_over before starting secondary VM for primary VM %s, current state is %s",
+                    primaryVm.getUuid(), StringUtils.defaultIfBlank(protection.getTransportState(), "unknown")));
+        }
+        return protection;
+    }
+
+    private boolean requiresManualFailoverTransportReady(FtctlProtectionVO protection) {
+        String mode = StringUtils.trimToEmpty(protection.getMode()).toLowerCase(Locale.ROOT);
+        String backendMode = StringUtils.trimToEmpty(protection.getBackendMode()).toLowerCase(Locale.ROOT);
+        return "ha".equals(mode) && ("shared-blockcopy".equals(backendMode) || "remote-nbd".equals(backendMode));
     }
 
     private void validatePrimaryVmStoppedForManualFence(UserVmVO primaryVm) {
