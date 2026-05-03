@@ -54,6 +54,7 @@ import com.cloud.user.User;
 import com.cloud.utils.component.ManagerBase;
 import com.cloud.utils.exception.CloudRuntimeException;
 import com.cloud.vm.UserVmManager;
+import com.cloud.vm.UserVmService;
 import com.cloud.vm.VMInstanceDetailVO;
 import com.cloud.vm.NicVO;
 import com.cloud.vm.UserVmVO;
@@ -150,6 +151,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     private NicDao nicDao;
     @Inject
     private UserVmManager userVmManager;
+    @Inject
+    private UserVmService userVmService;
     @Inject
     private AgentManager agentManager;
     @Inject
@@ -525,11 +528,23 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     public FtctlActionResponse executeFtctlAction(Long virtualMachineId, FtctlActionCommand.Action action, boolean force) throws CloudRuntimeException {
         UserVmVO userVm = validateVirtualMachineExists(virtualMachineId);
         validatePrimaryProtectionTarget(userVm);
+        if (action == FtctlActionCommand.Action.FAILBACK) {
+            FtctlProtectionVO protection = ftctlProtectionDao.findActiveByPrimaryVmId(userVm.getId());
+            if (isCloudManagedProvisioning(protection)) {
+                return executeCloudManagedFailback(userVm, protection);
+            }
+        }
+        return executeFtctlAgentAction(userVm, action, force);
+    }
+
+    private FtctlActionResponse executeFtctlAgentAction(UserVmVO userVm, FtctlActionCommand.Action action, boolean force) throws CloudRuntimeException {
         Long hostId = requireExecutionHostId(userVm);
         try {
             FtctlActionCommand actionCommand = new FtctlActionCommand(action, userVm.getInstanceName());
-            actionCommand.setForce(force || action == FtctlActionCommand.Action.FAILOVER || action == FtctlActionCommand.Action.FAILBACK);
-            if (action == FtctlActionCommand.Action.FAILBACK) {
+            actionCommand.setForce(force || action == FtctlActionCommand.Action.FAILOVER || action == FtctlActionCommand.Action.FAILBACK ||
+                    action == FtctlActionCommand.Action.FAILBACK_SYNC || action == FtctlActionCommand.Action.FAILBACK_REPROTECT);
+            if (action == FtctlActionCommand.Action.FAILBACK || action == FtctlActionCommand.Action.FAILBACK_SYNC ||
+                    action == FtctlActionCommand.Action.FAILBACK_REPROTECT) {
                 actionCommand.setWait(FAILBACK_ACTION_WAIT_SECONDS);
             }
             Answer answer = agentManager.send(hostId, actionCommand);
@@ -565,6 +580,72 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             return response;
         } catch (AgentUnavailableException | OperationTimedoutException e) {
             throw new CloudRuntimeException(String.format("Unable to execute FTCTL action %s for VM %s", action, userVm.getUuid()), e);
+        }
+    }
+
+    private boolean isCloudManagedProvisioning(FtctlProtectionVO protection) {
+        return protection != null &&
+                FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED.equalsIgnoreCase(StringUtils.trimToEmpty(protection.getProvisioningBackend()));
+    }
+
+    private FtctlActionResponse executeCloudManagedFailback(UserVmVO primaryVm, FtctlProtectionVO protection) {
+        UserVmVO secondaryVm = resolveSecondaryVmForManualFailover(primaryVm, protection);
+        Long primaryHostId = requireExecutionHostId(primaryVm);
+
+        executeFtctlAgentAction(primaryVm, FtctlActionCommand.Action.FAILBACK_SYNC, true);
+        stopSecondaryVmForCloudManagedFailback(primaryVm, secondaryVm);
+        protection = refreshProtection(primaryVm);
+        secondaryVm = validateVirtualMachineExists(secondaryVm.getId());
+        handoffNicIdentityToPrimary(primaryVm, secondaryVm, protection);
+        startPrimaryVmForCloudManagedFailback(primaryVm, primaryHostId);
+
+        UserVmVO refreshedPrimaryVm = validateVirtualMachineExists(primaryVm.getId());
+        FtctlActionResponse response = executeFtctlAgentAction(refreshedPrimaryVm, FtctlActionCommand.Action.FAILBACK_REPROTECT, true);
+        response.setAction(FtctlActionCommand.Action.FAILBACK.name());
+        publishFtctlEvent(refreshedPrimaryVm, EventTypes.EVENT_FTCTL_PROTECTION_FAILBACK,
+                String.format("Executed cloud-managed FTCTL failback for VM %s", refreshedPrimaryVm.getUuid()));
+        return response;
+    }
+
+    private FtctlProtectionVO refreshProtection(UserVmVO primaryVm) {
+        FtctlProtectionVO protection = ftctlProtectionDao.findActiveByPrimaryVmId(primaryVm.getId());
+        if (protection == null) {
+            throw new CloudRuntimeException(String.format("Unable to find active FTCTL protection for VM %s", primaryVm.getUuid()));
+        }
+        return protection;
+    }
+
+    private void stopSecondaryVmForCloudManagedFailback(UserVmVO primaryVm, UserVmVO secondaryVm) {
+        UserVmVO currentSecondaryVm = validateVirtualMachineExists(secondaryVm.getId());
+        if (currentSecondaryVm.getState() == VirtualMachine.State.Stopped) {
+            logger.info(String.format("FTCTL secondary VM %s is already stopped for failback to primary VM %s",
+                    currentSecondaryVm.getUuid(), primaryVm.getUuid()));
+            return;
+        }
+        try {
+            userVmService.stopVirtualMachine(currentSecondaryVm.getId(), true);
+            publishFtctlEvent(primaryVm, EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE,
+                    String.format("Stopped FTCTL secondary VM %s during cloud-managed failback for primary VM %s",
+                            currentSecondaryVm.getUuid(), primaryVm.getUuid()));
+        } catch (ConcurrentOperationException e) {
+            throw new CloudRuntimeException(String.format("Unable to stop FTCTL secondary VM %s for primary VM %s during cloud-managed failback",
+                    currentSecondaryVm.getUuid(), primaryVm.getUuid()), e);
+        }
+    }
+
+    private void startPrimaryVmForCloudManagedFailback(UserVmVO primaryVm, Long primaryHostId) {
+        UserVmVO currentPrimaryVm = validateVirtualMachineExists(primaryVm.getId());
+        if (currentPrimaryVm.getState() == VirtualMachine.State.Running) {
+            logger.info(String.format("FTCTL primary VM %s is already running during cloud-managed failback", currentPrimaryVm.getUuid()));
+            return;
+        }
+        try {
+            userVmManager.startVirtualMachine(currentPrimaryVm.getId(), primaryHostId, new HashMap<VirtualMachineProfile.Param, Object>(), null);
+            publishFtctlEvent(currentPrimaryVm, EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE,
+                    String.format("Started FTCTL primary VM %s during cloud-managed failback", currentPrimaryVm.getUuid()));
+        } catch (ConcurrentOperationException | ResourceUnavailableException | InsufficientCapacityException | ResourceAllocationException e) {
+            throw new CloudRuntimeException(String.format("Unable to start FTCTL primary VM %s on host %s during cloud-managed failback",
+                    currentPrimaryVm.getUuid(), primaryHostId), e);
         }
     }
 
@@ -684,6 +765,57 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         publishFtctlEvent(primaryVm, EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE,
                 String.format("Handed off FTCTL NIC identity from primary VM %s to secondary VM %s for %s NIC(s)",
                         primaryVm.getUuid(), secondaryVm.getUuid(), handoffCount));
+    }
+
+    private void handoffNicIdentityToPrimary(UserVmVO primaryVm, UserVmVO secondaryVm, FtctlProtectionVO protection) {
+        if (!isCloudManagedProvisioning(protection)) {
+            return;
+        }
+        String nicIdentityState = StringUtils.trimToEmpty(getDetailValue(primaryVm.getId(), DETAIL_NIC_IDENTITY_STATE));
+        if (!"secondary-owned".equalsIgnoreCase(nicIdentityState)) {
+            logger.info(String.format("FTCTL NIC identity for primary VM %s is already primary-owned or unset: %s",
+                    primaryVm.getUuid(), nicIdentityState));
+            return;
+        }
+
+        UserVmVO currentPrimaryVm = validateVirtualMachineExists(primaryVm.getId());
+        UserVmVO currentSecondaryVm = validateVirtualMachineExists(secondaryVm.getId());
+        if (currentPrimaryVm.getState() != VirtualMachine.State.Stopped) {
+            failNicIdentityHandoff(currentPrimaryVm, protection, String.format("primary VM %s must be Stopped before NIC identity failback, current state is %s",
+                    currentPrimaryVm.getUuid(), currentPrimaryVm.getState()));
+        }
+        if (currentSecondaryVm.getState() != VirtualMachine.State.Stopped) {
+            failNicIdentityHandoff(currentPrimaryVm, protection, String.format("secondary VM %s must be Stopped before NIC identity failback, current state is %s",
+                    currentSecondaryVm.getUuid(), currentSecondaryVm.getState()));
+        }
+
+        List<NicVO> primaryNics = nicDao.listByVmIdOrderByDeviceId(currentPrimaryVm.getId());
+        List<NicVO> secondaryNics = nicDao.listByVmIdOrderByDeviceId(currentSecondaryVm.getId());
+        if (primaryNics == null || primaryNics.isEmpty()) {
+            failNicIdentityHandoff(currentPrimaryVm, protection, String.format("primary VM %s has no NICs to restore", currentPrimaryVm.getUuid()));
+        }
+        if (secondaryNics == null || secondaryNics.isEmpty()) {
+            failNicIdentityHandoff(currentPrimaryVm, protection, String.format("secondary VM %s has no NICs to return identity", currentSecondaryVm.getUuid()));
+        }
+
+        int handoffCount = 0;
+        for (NicVO primaryNic : primaryNics) {
+            NicVO secondaryNic = findMatchingSecondaryNic(primaryNic, secondaryNics);
+            if (secondaryNic == null) {
+                failNicIdentityHandoff(currentPrimaryVm, protection, String.format(
+                        "secondary VM %s does not have a matching NIC for primary network %s device %s",
+                        currentSecondaryVm.getUuid(), primaryNic.getNetworkId(), primaryNic.getDeviceId()));
+            }
+            swapNicIdentity(primaryNic, secondaryNic);
+            nicDao.update(primaryNic.getId(), primaryNic);
+            nicDao.update(secondaryNic.getId(), secondaryNic);
+            handoffCount++;
+        }
+
+        putVmDetail(currentPrimaryVm.getId(), DETAIL_NIC_IDENTITY_STATE, "primary-owned");
+        publishFtctlEvent(currentPrimaryVm, EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE,
+                String.format("Returned FTCTL NIC identity from secondary VM %s to primary VM %s for %s NIC(s)",
+                        currentSecondaryVm.getUuid(), currentPrimaryVm.getUuid(), handoffCount));
     }
 
     private NicVO findMatchingSecondaryNic(NicVO primaryNic, List<NicVO> secondaryNics) {
@@ -1149,6 +1281,9 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
                 return EventTypes.EVENT_FTCTL_PROTECTION_FAILOVER;
             case FAILBACK:
                 return EventTypes.EVENT_FTCTL_PROTECTION_FAILBACK;
+            case FAILBACK_SYNC:
+            case FAILBACK_REPROTECT:
+                return EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE;
             case FENCE_CONFIRM:
                 return EventTypes.EVENT_FTCTL_PROTECTION_FENCE_CONFIRM;
             case FENCE_CLEAR:
