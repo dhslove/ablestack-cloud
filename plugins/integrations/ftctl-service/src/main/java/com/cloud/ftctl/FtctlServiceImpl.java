@@ -98,6 +98,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 
 public class FtctlServiceImpl extends ManagerBase implements FtctlService {
+    private static final int FAILBACK_ACTION_WAIT_SECONDS = 900;
 
     public static final String DETAIL_ENABLED = "ftctl.enabled";
     public static final String DETAIL_MODE = "ftctl.mode";
@@ -528,6 +529,9 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         try {
             FtctlActionCommand actionCommand = new FtctlActionCommand(action, userVm.getInstanceName());
             actionCommand.setForce(force || action == FtctlActionCommand.Action.FAILOVER || action == FtctlActionCommand.Action.FAILBACK);
+            if (action == FtctlActionCommand.Action.FAILBACK) {
+                actionCommand.setWait(FAILBACK_ACTION_WAIT_SECONDS);
+            }
             Answer answer = agentManager.send(hostId, actionCommand);
             if (!(answer instanceof FtctlActionAnswer)) {
                 throw new CloudRuntimeException(String.format("Unexpected FTCTL action answer type for VM %s", userVm.getUuid()));
