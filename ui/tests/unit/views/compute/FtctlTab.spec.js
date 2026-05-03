@@ -191,6 +191,98 @@ describe('Views > compute > FtctlTab.vue', () => {
     expect(wrapper.vm.operationalSummary.type).toBe('warning')
   })
 
+  it('loads read-only runtime data for standby protection view', async () => {
+    getAPI.mockImplementation((command) => {
+      switch (command) {
+        case 'getFtctlProtection':
+          return Promise.resolve({
+            getftctlprotectionresponse: {
+              ftctlprotection: {
+                enabled: 'true',
+                mode: 'ha',
+                protectionrole: 'standby',
+                primaryvirtualmachineid: 101,
+                primaryvirtualmachineuuid: 'primary-vm-uuid',
+                primaryvirtualmachinename: 'r9-01',
+                secondaryvirtualmachineid: 308,
+                secondaryvirtualmachineuuid: 'standby-vm-uuid',
+                secondaryvirtualmachinedisplayname: 'r9-01-standby',
+                protectionstate: 'failed_over',
+                transportstate: 'failed_over',
+                activeside: 'secondary',
+                adminstate: 'active',
+                fencingstate: 'manual-fenced'
+              }
+            }
+          })
+        case 'getFtctlCheck':
+          return Promise.resolve({
+            getftctlcheckresponse: {
+              ftctlcheck: {
+                virtualmachineid: 308,
+                vmname: 'r9-01',
+                result: 'ok',
+                inventoryresult: 'healthy',
+                primaryrc: 0,
+                peerrc: 0
+              }
+            }
+          })
+        case 'getFtctlHealth':
+          return Promise.resolve({
+            getftctlhealthresponse: {
+              ftctlhealth: {
+                virtualmachineid: 308,
+                result: 'ok',
+                hostname: 'ablecube22-3',
+                uri: 'qemu:///system',
+                rc: 0
+              }
+            }
+          })
+        case 'getFtctlEvents':
+          return Promise.resolve({
+            getftctleventsresponse: {
+              ftctlevents: {
+                virtualmachineid: 308,
+                vmname: 'r9-01',
+                count: 1,
+                events: [
+                  { ts: '2026-05-03T13:47:10+09:00', stage: 'failover', event: 'failover.precheck', result: 'ok' }
+                ]
+              }
+            }
+          })
+        default:
+          return Promise.resolve({})
+      }
+    })
+
+    const wrapper = createWrapper({
+      getFtctlCheck: true,
+      getFtctlHealth: true,
+      getFtctlEvents: true,
+      pauseFtctlProtection: true,
+      resumeFtctlProtection: true,
+      failoverFtctlProtection: true
+    })
+
+    await flushPromises()
+
+    expect(getAPI).toHaveBeenCalledWith('getFtctlProtection', { virtualmachineid: 'vm-1' })
+    expect(getAPI).toHaveBeenCalledWith('getFtctlCheck', { virtualmachineid: 'vm-1' })
+    expect(getAPI).toHaveBeenCalledWith('getFtctlHealth', { virtualmachineid: 'vm-1' })
+    expect(getAPI).toHaveBeenCalledWith('getFtctlEvents', { virtualmachineid: 'vm-1', limit: 10 })
+    expect(wrapper.vm.standbyProtectionView).toBe(true)
+    expect(wrapper.vm.canRunActions).toBe(false)
+    expect(wrapper.vm.checkResult.vmname).toBe('r9-01')
+    expect(wrapper.vm.healthHostDisplay).toBe('ablecube22-3')
+    expect(wrapper.vm.events).toHaveLength(1)
+    expect(wrapper.vm.events[0].event).toBe('failover.precheck')
+    expect(wrapper.vm.operationalSummary.type).toBe('info')
+    expect(wrapper.vm.stateTagColor('failed_over')).toBe('blue')
+  })
+
   it('runs action, applies payload and emits refresh event', async () => {
     let protectionState = {
       enabled: 'true',

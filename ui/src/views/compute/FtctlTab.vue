@@ -444,7 +444,7 @@ export default {
       const transport = String(this.protection.transportstate || '').toLowerCase()
       const fencing = String(this.protection.fencingstate || '').toLowerCase()
 
-      if (this.eventStats.fail > 0 || ['error', 'failed_over', 'rearm_exhausted'].includes(protection)) {
+      if (this.eventStats.fail > 0 || ['error', 'rearm_exhausted'].includes(protection)) {
         return { type: 'error', message: this.$t('message.ftctl.status.failure') }
       }
       if (this.eventStats.warn > 0 || ['degraded', 'transient_loss', 'peer_unreachable', 'rearm_pending', 'rearm_backoff'].includes(transport) || ['required', 'failed', 'manual-required'].includes(fencing)) {
@@ -643,7 +643,10 @@ export default {
       if (['warn', 'degraded', 'transient_loss', 'peer_unreachable', 'rearm_pending', 'rearm_backoff', 'failing_over', 'failing_back', 'paused', 'required'].includes(normalized)) {
         return 'orange'
       }
-      if (['fail', 'error', 'failed_over', 'rearm_exhausted', 'timeout', 'locked'].includes(normalized)) {
+      if (normalized === 'failed_over') {
+        return 'blue'
+      }
+      if (['fail', 'error', 'rearm_exhausted', 'timeout', 'locked'].includes(normalized)) {
         return 'red'
       }
       if (['clear', 'cleared', 'active'].includes(normalized)) {
@@ -703,7 +706,7 @@ export default {
       this.errorMessage = null
       try {
         await this.fetchProtection()
-        if (this.protectionConfigured && !this.standbyProtectionView) {
+        if (this.protectionConfigured) {
           await Promise.all([
             this.fetchCheck(),
             this.fetchHealth(),

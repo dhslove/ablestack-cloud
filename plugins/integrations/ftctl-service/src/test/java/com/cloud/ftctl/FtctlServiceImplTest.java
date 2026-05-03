@@ -455,6 +455,66 @@ public class FtctlServiceImplTest {
     }
 
     @Test
+    public void testReadOnlyRuntimeApisForStandbyVmUsePrimaryRuntimeProfile() throws Exception {
+        UserVmVO standbyVm = Mockito.mock(UserVmVO.class);
+        Mockito.when(standbyVm.getId()).thenReturn(401L);
+        Mockito.when(userVmDao.findById(401L)).thenReturn(standbyVm);
+
+        FtctlProtectionVO protection = new FtctlProtectionVO(101L);
+        protection.setSecondaryVmId(401L);
+        Mockito.when(ftctlProtectionDao.findActiveBySecondaryVmId(401L)).thenReturn(protection);
+
+        String itemsJson = "[" +
+                "{\"ts\":\"2026-05-03T13:47:10+09:00\",\"vm\":\"vm-name\",\"stage\":\"failover\",\"event\":\"failover.precheck\",\"result\":\"ok\"}" +
+                "]";
+        Mockito.when(agentManager.send(Mockito.eq(201L), Mockito.any(Command.class))).thenAnswer(invocation -> {
+            Command command = invocation.getArgument(1);
+            if (command instanceof FtctlCheckCommand) {
+                return new FtctlCheckAnswer((FtctlCheckCommand) command, true, "OK", "ok", "healthy", "vm-name", 0, 0,
+                        false, "running", "cloud-managed");
+            }
+            if (command instanceof FtctlHealthCommand) {
+                return new FtctlHealthAnswer((FtctlHealthCommand) command, true, "OK", "ok", "qemu:///system", 0);
+            }
+            if (command instanceof FtctlEventsCommand) {
+                return new FtctlEventsAnswer((FtctlEventsCommand) command, true, "OK", "ok", "vm-name", 1, itemsJson);
+            }
+            return null;
+        });
+
+        GetFtctlCheckCmd checkCmd = new GetFtctlCheckCmd();
+        setField(checkCmd, "virtualMachineId", 401L);
+        FtctlCheckResponse checkResponse = ftctlService.getFtctlCheck(checkCmd);
+
+        GetFtctlHealthCmd healthCmd = new GetFtctlHealthCmd();
+        setField(healthCmd, "virtualMachineId", 401L);
+        FtctlHealthResponse healthResponse = ftctlService.getFtctlHealth(healthCmd);
+
+        GetFtctlEventsCmd eventsCmd = new GetFtctlEventsCmd();
+        setField(eventsCmd, "virtualMachineId", 401L);
+        setField(eventsCmd, "limit", 20);
+        FtctlEventsResponse eventsResponse = ftctlService.getFtctlEvents(eventsCmd);
+
+        Assert.assertEquals(Long.valueOf(401L), getFieldValue(checkResponse, "virtualMachineId"));
+        Assert.assertEquals("vm-name", getFieldValue(checkResponse, "vmName"));
+        Assert.assertEquals("ok", getFieldValue(checkResponse, "result"));
+        Assert.assertEquals(Long.valueOf(401L), getFieldValue(healthResponse, "virtualMachineId"));
+        Assert.assertEquals(Long.valueOf(201L), getFieldValue(healthResponse, "hostId"));
+        Assert.assertEquals("ok", getFieldValue(healthResponse, "result"));
+        Assert.assertEquals(Long.valueOf(401L), eventsResponse.getVirtualMachineId());
+        Assert.assertEquals("vm-name", eventsResponse.getVmName());
+        Assert.assertEquals(Integer.valueOf(1), eventsResponse.getCount());
+        Assert.assertEquals("failover.precheck", eventsResponse.getEvents().get(0).getEvent());
+
+        ArgumentCaptor<Command> commandCaptor = ArgumentCaptor.forClass(Command.class);
+        Mockito.verify(agentManager, Mockito.times(3)).send(Mockito.eq(201L), commandCaptor.capture());
+        Assert.assertEquals("vm-name", ((FtctlCheckCommand) commandCaptor.getAllValues().get(0)).getVmName());
+        Assert.assertTrue(commandCaptor.getAllValues().get(1) instanceof FtctlHealthCommand);
+        Assert.assertEquals("vm-name", ((FtctlEventsCommand) commandCaptor.getAllValues().get(2)).getVmName());
+        Assert.assertEquals(Integer.valueOf(20), ((FtctlEventsCommand) commandCaptor.getAllValues().get(2)).getLimit());
+    }
+
+    @Test
     public void testExecuteFtctlActionRejectsStandbyVm() {
         UserVmVO standbyVm = Mockito.mock(UserVmVO.class);
         Mockito.when(standbyVm.getId()).thenReturn(401L);

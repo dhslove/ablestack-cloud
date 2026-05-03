@@ -280,17 +280,18 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
 
     @Override
     public FtctlCheckResponse getFtctlCheck(GetFtctlCheckCmd cmd) throws CloudRuntimeException {
-        UserVmVO userVm = validateVirtualMachineExists(cmd.getVirtualMachineId());
-        Long hostId = requireExecutionHostId(userVm);
+        UserVmVO requestedVm = validateVirtualMachineExists(cmd.getVirtualMachineId());
+        UserVmVO runtimeVm = resolveRuntimeVmForProtectionView(requestedVm);
+        Long hostId = requireExecutionHostId(runtimeVm);
         try {
-            Answer answer = agentManager.send(hostId, new FtctlCheckCommand(userVm.getInstanceName()));
+            Answer answer = agentManager.send(hostId, new FtctlCheckCommand(runtimeVm.getInstanceName()));
             if (!(answer instanceof FtctlCheckAnswer)) {
-                throw new CloudRuntimeException(String.format("Unexpected FTCTL check answer type for VM %s", userVm.getUuid()));
+                throw new CloudRuntimeException(String.format("Unexpected FTCTL check answer type for VM %s", requestedVm.getUuid()));
             }
             FtctlCheckAnswer checkAnswer = (FtctlCheckAnswer) answer;
             FtctlCheckResponse response = new FtctlCheckResponse();
             response.setObjectName("ftctlcheck");
-            response.setVirtualMachineId(userVm.getId());
+            response.setVirtualMachineId(requestedVm.getId());
             response.setVmName(checkAnswer.getVmName());
             response.setResult(checkAnswer.getFtctlResult());
             response.setInventoryResult(checkAnswer.getInventoryResult());
@@ -301,30 +302,31 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             response.setProvisioningBackend(checkAnswer.getProvisioningBackend());
             return response;
         } catch (AgentUnavailableException | OperationTimedoutException e) {
-            throw new CloudRuntimeException(String.format("Unable to get FTCTL check result for VM %s", userVm.getUuid()), e);
+            throw new CloudRuntimeException(String.format("Unable to get FTCTL check result for VM %s", requestedVm.getUuid()), e);
         }
     }
 
     @Override
     public FtctlEventsResponse getFtctlEvents(GetFtctlEventsCmd cmd) throws CloudRuntimeException {
-        UserVmVO userVm = validateVirtualMachineExists(cmd.getVirtualMachineId());
-        Long hostId = requireExecutionHostId(userVm);
+        UserVmVO requestedVm = validateVirtualMachineExists(cmd.getVirtualMachineId());
+        UserVmVO runtimeVm = resolveRuntimeVmForProtectionView(requestedVm);
+        Long hostId = requireExecutionHostId(runtimeVm);
         try {
-            Answer answer = agentManager.send(hostId, new FtctlEventsCommand(userVm.getInstanceName(), cmd.getLimit()));
+            Answer answer = agentManager.send(hostId, new FtctlEventsCommand(runtimeVm.getInstanceName(), cmd.getLimit()));
             if (!(answer instanceof FtctlEventsAnswer)) {
-                throw new CloudRuntimeException(String.format("Unexpected FTCTL events answer type for VM %s", userVm.getUuid()));
+                throw new CloudRuntimeException(String.format("Unexpected FTCTL events answer type for VM %s", requestedVm.getUuid()));
             }
             FtctlEventsAnswer eventsAnswer = (FtctlEventsAnswer) answer;
             FtctlEventsResponse response = new FtctlEventsResponse();
             response.setObjectName("ftctlevents");
-            response.setVirtualMachineId(userVm.getId());
+            response.setVirtualMachineId(requestedVm.getId());
             response.setVmName(eventsAnswer.getVmName());
             response.setResult(eventsAnswer.getFtctlResult());
             response.setCount(eventsAnswer.getCount());
             response.setEvents(parseEvents(eventsAnswer.getItemsJson()));
             return response;
         } catch (AgentUnavailableException | OperationTimedoutException e) {
-            throw new CloudRuntimeException(String.format("Unable to get FTCTL events for VM %s", userVm.getUuid()), e);
+            throw new CloudRuntimeException(String.format("Unable to get FTCTL events for VM %s", requestedVm.getUuid()), e);
         }
     }
 
@@ -462,17 +464,18 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
 
     @Override
     public FtctlHealthResponse getFtctlHealth(GetFtctlHealthCmd cmd) throws CloudRuntimeException {
-        UserVmVO userVm = validateVirtualMachineExists(cmd.getVirtualMachineId());
-        Long hostId = requireExecutionHostId(userVm);
+        UserVmVO requestedVm = validateVirtualMachineExists(cmd.getVirtualMachineId());
+        UserVmVO runtimeVm = resolveRuntimeVmForProtectionView(requestedVm);
+        Long hostId = requireExecutionHostId(runtimeVm);
         try {
             Answer answer = agentManager.send(hostId, new FtctlHealthCommand());
             if (!(answer instanceof FtctlHealthAnswer)) {
-                throw new CloudRuntimeException(String.format("Unexpected FTCTL health answer type for VM %s", userVm.getUuid()));
+                throw new CloudRuntimeException(String.format("Unexpected FTCTL health answer type for VM %s", requestedVm.getUuid()));
             }
             FtctlHealthAnswer healthAnswer = (FtctlHealthAnswer) answer;
             FtctlHealthResponse response = new FtctlHealthResponse();
             response.setObjectName("ftctlhealth");
-            response.setVirtualMachineId(userVm.getId());
+            response.setVirtualMachineId(requestedVm.getId());
             response.setHostId(hostId);
             response.setHostName(resolveHostName(hostId));
             response.setResult(healthAnswer.getFtctlResult());
@@ -480,7 +483,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             response.setRc(healthAnswer.getRc());
             return response;
         } catch (AgentUnavailableException | OperationTimedoutException e) {
-            throw new CloudRuntimeException(String.format("Unable to get FTCTL health result for VM %s", userVm.getUuid()), e);
+            throw new CloudRuntimeException(String.format("Unable to get FTCTL health result for VM %s", requestedVm.getUuid()), e);
         }
     }
 
