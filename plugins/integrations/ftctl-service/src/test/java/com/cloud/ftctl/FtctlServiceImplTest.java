@@ -218,6 +218,12 @@ public class FtctlServiceImplTest {
         GetFtctlCheckCmd cmd = new GetFtctlCheckCmd();
         setField(cmd, "virtualMachineId", 101L);
 
+        FtctlProtectionVO protection = new FtctlProtectionVO(101L);
+        protection.setSecondaryVmName("i-2-309-VM");
+        protection.setActiveSide("secondary");
+        protection.setProvisioningBackend(FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED);
+        Mockito.when(ftctlProtectionDao.findActiveByPrimaryVmId(101L)).thenReturn(protection);
+
         FtctlCheckCommand checkCommand = new FtctlCheckCommand("vm-name");
         FtctlCheckAnswer answer = new FtctlCheckAnswer(checkCommand, true, "OK", "ok", "healthy", "vm-name", 0, 1,
                 false, "not-defined-expected", "cloud-managed");
@@ -234,6 +240,14 @@ public class FtctlServiceImplTest {
         Assert.assertEquals(Boolean.FALSE, getFieldValue(response, "peerDomainExpected"));
         Assert.assertEquals("not-defined-expected", getFieldValue(response, "standbyDomainState"));
         Assert.assertEquals("cloud-managed", getFieldValue(response, "provisioningBackend"));
+
+        ArgumentCaptor<Command> commandCaptor = ArgumentCaptor.forClass(Command.class);
+        Mockito.verify(agentManager).send(Mockito.eq(201L), commandCaptor.capture());
+        FtctlCheckCommand sentCommand = (FtctlCheckCommand) commandCaptor.getValue();
+        Assert.assertEquals("vm-name", sentCommand.getVmName());
+        Assert.assertEquals("i-2-309-VM", sentCommand.getSecondaryVmName());
+        Assert.assertEquals("secondary", sentCommand.getActiveSide());
+        Assert.assertEquals("cloud-managed", sentCommand.getProvisioningBackend());
     }
 
     @Test
@@ -529,6 +543,9 @@ public class FtctlServiceImplTest {
 
         FtctlProtectionVO protection = new FtctlProtectionVO(101L);
         protection.setSecondaryVmId(401L);
+        protection.setSecondaryVmName("i-2-401-VM");
+        protection.setActiveSide("secondary");
+        protection.setProvisioningBackend(FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED);
         Mockito.when(ftctlProtectionDao.findActiveBySecondaryVmId(401L)).thenReturn(protection);
 
         String itemsJson = "[" +
@@ -575,7 +592,11 @@ public class FtctlServiceImplTest {
 
         ArgumentCaptor<Command> commandCaptor = ArgumentCaptor.forClass(Command.class);
         Mockito.verify(agentManager, Mockito.times(3)).send(Mockito.eq(201L), commandCaptor.capture());
-        Assert.assertEquals("vm-name", ((FtctlCheckCommand) commandCaptor.getAllValues().get(0)).getVmName());
+        FtctlCheckCommand checkCommand = (FtctlCheckCommand) commandCaptor.getAllValues().get(0);
+        Assert.assertEquals("vm-name", checkCommand.getVmName());
+        Assert.assertEquals("i-2-401-VM", checkCommand.getSecondaryVmName());
+        Assert.assertEquals("secondary", checkCommand.getActiveSide());
+        Assert.assertEquals("cloud-managed", checkCommand.getProvisioningBackend());
         Assert.assertTrue(commandCaptor.getAllValues().get(1) instanceof FtctlHealthCommand);
         Assert.assertEquals("vm-name", ((FtctlEventsCommand) commandCaptor.getAllValues().get(2)).getVmName());
         Assert.assertEquals(Integer.valueOf(20), ((FtctlEventsCommand) commandCaptor.getAllValues().get(2)).getLimit());

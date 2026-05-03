@@ -19,6 +19,9 @@ package com.cloud.agent.api;
 public class FtctlCheckCommand extends Command {
 
     private String vmName;
+    private String secondaryVmName;
+    private String activeSide;
+    private String provisioningBackend;
 
     public FtctlCheckCommand() {
     }
@@ -27,8 +30,27 @@ public class FtctlCheckCommand extends Command {
         this.vmName = vmName;
     }
 
+    public FtctlCheckCommand(String vmName, String secondaryVmName, String activeSide, String provisioningBackend) {
+        this.vmName = vmName;
+        this.secondaryVmName = secondaryVmName;
+        this.activeSide = activeSide;
+        this.provisioningBackend = provisioningBackend;
+    }
+
     public String getVmName() {
         return vmName;
+    }
+
+    public String getSecondaryVmName() {
+        return secondaryVmName;
+    }
+
+    public String getActiveSide() {
+        return activeSide;
+    }
+
+    public String getProvisioningBackend() {
+        return provisioningBackend;
     }
 
     @Override

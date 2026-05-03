@@ -286,10 +286,16 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     @Override
     public FtctlCheckResponse getFtctlCheck(GetFtctlCheckCmd cmd) throws CloudRuntimeException {
         UserVmVO requestedVm = validateVirtualMachineExists(cmd.getVirtualMachineId());
+        FtctlProtectionVO protection = findActiveProtectionForVm(requestedVm.getId());
         UserVmVO runtimeVm = resolveRuntimeVmForProtectionView(requestedVm);
+        Long sourceVmId = protection != null ? protection.getPrimaryVmId() : runtimeVm.getId();
         Long hostId = requireExecutionHostId(runtimeVm);
         try {
-            Answer answer = agentManager.send(hostId, new FtctlCheckCommand(runtimeVm.getInstanceName()));
+            FtctlCheckCommand checkCommand = new FtctlCheckCommand(runtimeVm.getInstanceName(),
+                    resolveFtctlCheckSecondaryVmName(protection, sourceVmId),
+                    resolveFtctlCheckActiveSide(protection, sourceVmId),
+                    resolveFtctlCheckProvisioningBackend(protection, sourceVmId));
+            Answer answer = agentManager.send(hostId, checkCommand);
             if (!(answer instanceof FtctlCheckAnswer)) {
                 throw new CloudRuntimeException(String.format("Unexpected FTCTL check answer type for VM %s", requestedVm.getUuid()));
             }
@@ -309,6 +315,28 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         } catch (AgentUnavailableException | OperationTimedoutException e) {
             throw new CloudRuntimeException(String.format("Unable to get FTCTL check result for VM %s", requestedVm.getUuid()), e);
         }
+    }
+
+    private String resolveFtctlCheckSecondaryVmName(FtctlProtectionVO protection, Long sourceVmId) {
+        if (protection == null) {
+            return getDetailValue(sourceVmId, DETAIL_SECONDARY_VM_NAME);
+        }
+        String secondaryVmName = protection.getSecondaryVmName();
+        if (StringUtils.isBlank(secondaryVmName) && protection.getSecondaryVmId() != null) {
+            UserVmVO secondaryVm = userVmDao.findById(protection.getSecondaryVmId());
+            secondaryVmName = secondaryVm != null ? secondaryVm.getInstanceName() : null;
+        }
+        return StringUtils.defaultIfBlank(secondaryVmName, getDetailValue(sourceVmId, DETAIL_SECONDARY_VM_NAME));
+    }
+
+    private String resolveFtctlCheckActiveSide(FtctlProtectionVO protection, Long sourceVmId) {
+        return StringUtils.defaultIfBlank(protection != null ? protection.getActiveSide() : null,
+                getDetailValue(sourceVmId, DETAIL_LAST_ACTIVE_SIDE));
+    }
+
+    private String resolveFtctlCheckProvisioningBackend(FtctlProtectionVO protection, Long sourceVmId) {
+        return StringUtils.defaultIfBlank(protection != null ? protection.getProvisioningBackend() : null,
+                getDetailValue(sourceVmId, DETAIL_PROVISIONING_BACKEND));
     }
 
     @Override

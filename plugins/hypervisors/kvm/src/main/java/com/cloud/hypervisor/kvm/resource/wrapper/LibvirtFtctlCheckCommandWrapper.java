@@ -42,6 +42,15 @@ public class LibvirtFtctlCheckCommandWrapper extends CommandWrapper<FtctlCheckCo
         Script script = new Script("ablestack_vm_ftctl", timeout, logger);
         script.add("check");
         script.add("--vm", command.getVmName());
+        if (StringUtils.isNotBlank(command.getSecondaryVmName())) {
+            script.add("--secondary-vm-name", command.getSecondaryVmName());
+        }
+        if (StringUtils.isNotBlank(command.getActiveSide())) {
+            script.add("--active-side", command.getActiveSide());
+        }
+        if (StringUtils.isNotBlank(command.getProvisioningBackend())) {
+            script.add("--provisioning-backend", command.getProvisioningBackend());
+        }
         script.add("--json");
 
         OutputInterpreter.AllLinesParser parser = new OutputInterpreter.AllLinesParser();

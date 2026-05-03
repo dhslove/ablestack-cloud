@@ -118,10 +118,10 @@ public class LibvirtFtctlCommandWrappersTest {
     @Test
     public void testCheckWrapperBuildsCommandAndParsesJson() {
         LibvirtFtctlCheckCommandWrapper wrapper = new LibvirtFtctlCheckCommandWrapper();
-        FtctlCheckCommand command = new FtctlCheckCommand("vm-a");
+        FtctlCheckCommand command = new FtctlCheckCommand("vm-a", "i-2-309-VM", "secondary", "cloud-managed");
 
         try (MockedConstruction<Script> scripts = Mockito.mockConstruction(Script.class, (mock, context) -> {
-            Mockito.when(mock.execute(Mockito.any())).thenReturn("{\"result\":\"ok\",\"inventory_result\":\"healthy\",\"vm\":\"vm-a\",\"primary_rc\":0,\"peer_rc\":1}");
+            Mockito.when(mock.execute(Mockito.any())).thenReturn("{\"result\":\"ok\",\"inventory_result\":\"healthy\",\"vm\":\"vm-a\",\"primary_rc\":1,\"peer_rc\":0,\"peer_domain_expected\":true,\"standby_domain_state\":\"running\",\"provisioning_backend\":\"cloud-managed\"}");
             Mockito.when(mock.getExitValue()).thenReturn(0);
         })) {
             Answer answer = wrapper.execute(command, resource);
@@ -132,12 +132,18 @@ public class LibvirtFtctlCommandWrappersTest {
             Assert.assertEquals("ok", checkAnswer.getFtctlResult());
             Assert.assertEquals("healthy", checkAnswer.getInventoryResult());
             Assert.assertEquals("vm-a", checkAnswer.getVmName());
-            Assert.assertEquals(Integer.valueOf(0), checkAnswer.getPrimaryRc());
-            Assert.assertEquals(Integer.valueOf(1), checkAnswer.getPeerRc());
+            Assert.assertEquals(Integer.valueOf(1), checkAnswer.getPrimaryRc());
+            Assert.assertEquals(Integer.valueOf(0), checkAnswer.getPeerRc());
+            Assert.assertEquals(Boolean.TRUE, checkAnswer.getPeerDomainExpected());
+            Assert.assertEquals("running", checkAnswer.getStandbyDomainState());
+            Assert.assertEquals("cloud-managed", checkAnswer.getProvisioningBackend());
 
             Script script = scripts.constructed().get(0);
             Mockito.verify(script).add("check");
             Mockito.verify(script).add("--vm", "vm-a");
+            Mockito.verify(script).add("--secondary-vm-name", "i-2-309-VM");
+            Mockito.verify(script).add("--active-side", "secondary");
+            Mockito.verify(script).add("--provisioning-backend", "cloud-managed");
             Mockito.verify(script).add("--json");
         }
     }
