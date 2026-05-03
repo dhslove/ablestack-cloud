@@ -94,6 +94,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
@@ -132,6 +133,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     public static final String DETAIL_LAST_FENCING_STATE = "ftctl.last.fencing.state";
     public static final String DETAIL_LAST_ERROR = "ftctl.last.error";
     public static final String DETAIL_NIC_IDENTITY_STATE = "ftctl.nic.identity.state";
+    public static final String DETAIL_NIC_IDENTITY_PRIMARY_PREFIX = "ftctl.nic.identity.primary.";
+    public static final String DETAIL_NIC_IDENTITY_SECONDARY_PREFIX = "ftctl.nic.identity.secondary.";
     public static final String HOST_DETAIL_ENABLED = "ftctl.enabled";
     public static final String HOST_DETAIL_MANAGEMENT_IP = "ftctl.management.ip";
     public static final String HOST_DETAIL_LIBVIRT_URI = "ftctl.libvirt.uri";
@@ -246,6 +249,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         if (cmd.getXcoloMigrateUri() != null) {
             putVmDetail(cmd.getVirtualMachineId(), DETAIL_XCOLO_MIGRATE_URI, cmd.getXcoloMigrateUri());
         }
+        persistCloudManagedNicIdentities(userVm);
 
         Long hostId = getExecutionHostId(userVm);
         if (hostId != null) {
@@ -746,6 +750,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         if (secondaryNics == null || secondaryNics.isEmpty()) {
             failNicIdentityHandoff(primaryVm, protection, String.format("secondary VM %s has no NICs to receive identity", secondaryVm.getUuid()));
         }
+        persistCanonicalNicIdentities(primaryVm, secondaryVm, protection, false);
 
         int handoffCount = 0;
         for (NicVO primaryNic : primaryNics) {
@@ -755,7 +760,10 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
                         "secondary VM %s does not have a matching NIC for primary network %s device %s",
                         secondaryVm.getUuid(), primaryNic.getNetworkId(), primaryNic.getDeviceId()));
             }
-            swapNicIdentity(primaryNic, secondaryNic);
+            NicIdentity primaryIdentity = requireStoredNicIdentity(primaryVm, protection, DETAIL_NIC_IDENTITY_PRIMARY_PREFIX, primaryNic);
+            NicIdentity secondaryIdentity = requireStoredNicIdentity(primaryVm, protection, DETAIL_NIC_IDENTITY_SECONDARY_PREFIX, primaryNic);
+            secondaryIdentity.applyTo(primaryNic);
+            primaryIdentity.applyTo(secondaryNic);
             nicDao.update(primaryNic.getId(), primaryNic);
             nicDao.update(secondaryNic.getId(), secondaryNic);
             handoffCount++;
@@ -806,7 +814,10 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
                         "secondary VM %s does not have a matching NIC for primary network %s device %s",
                         currentSecondaryVm.getUuid(), primaryNic.getNetworkId(), primaryNic.getDeviceId()));
             }
-            swapNicIdentity(primaryNic, secondaryNic);
+            NicIdentity primaryIdentity = requireStoredNicIdentity(currentPrimaryVm, protection, DETAIL_NIC_IDENTITY_PRIMARY_PREFIX, primaryNic);
+            NicIdentity secondaryIdentity = requireStoredNicIdentity(currentPrimaryVm, protection, DETAIL_NIC_IDENTITY_SECONDARY_PREFIX, primaryNic);
+            primaryIdentity.applyTo(primaryNic);
+            secondaryIdentity.applyTo(secondaryNic);
             nicDao.update(primaryNic.getId(), primaryNic);
             nicDao.update(secondaryNic.getId(), secondaryNic);
             handoffCount++;
@@ -820,18 +831,83 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
 
     private NicVO findMatchingSecondaryNic(NicVO primaryNic, List<NicVO> secondaryNics) {
         for (NicVO secondaryNic : secondaryNics) {
-            if (secondaryNic.getNetworkId() == primaryNic.getNetworkId() && secondaryNic.getDeviceId() == primaryNic.getDeviceId()) {
+            if (Objects.equals(secondaryNic.getNetworkId(), primaryNic.getNetworkId()) &&
+                    Objects.equals(secondaryNic.getDeviceId(), primaryNic.getDeviceId())) {
                 return secondaryNic;
             }
         }
         return null;
     }
 
-    private void swapNicIdentity(NicVO primaryNic, NicVO secondaryNic) {
-        NicIdentity primaryIdentity = new NicIdentity(primaryNic);
-        NicIdentity secondaryIdentity = new NicIdentity(secondaryNic);
-        primaryIdentity.applyTo(secondaryNic);
-        secondaryIdentity.applyTo(primaryNic);
+    private void persistCloudManagedNicIdentities(UserVmVO primaryVm) {
+        FtctlProtectionVO protection = ftctlProtectionDao.findActiveByPrimaryVmId(primaryVm.getId());
+        if (!isCloudManagedProvisioning(protection) || protection.getSecondaryVmId() == null) {
+            return;
+        }
+        UserVmVO secondaryVm = userVmDao.findById(protection.getSecondaryVmId());
+        if (secondaryVm == null) {
+            throw new CloudRuntimeException(String.format("Unable to find FTCTL secondary VM %s for primary VM %s",
+                    protection.getSecondaryVmId(), primaryVm.getUuid()));
+        }
+        persistCanonicalNicIdentities(primaryVm, secondaryVm, protection, true);
+        String nicIdentityState = StringUtils.trimToEmpty(getDetailValue(primaryVm.getId(), DETAIL_NIC_IDENTITY_STATE));
+        if (StringUtils.isBlank(nicIdentityState)) {
+            putVmDetail(primaryVm.getId(), DETAIL_NIC_IDENTITY_STATE, "primary-owned");
+        }
+    }
+
+    private void persistCanonicalNicIdentities(UserVmVO primaryVm, UserVmVO secondaryVm, FtctlProtectionVO protection, boolean overwriteSecondary) {
+        List<NicVO> primaryNics = nicDao.listByVmIdOrderByDeviceId(primaryVm.getId());
+        List<NicVO> secondaryNics = nicDao.listByVmIdOrderByDeviceId(secondaryVm.getId());
+        if (primaryNics == null || primaryNics.isEmpty()) {
+            failNicIdentityHandoff(primaryVm, protection, String.format("primary VM %s has no NICs to persist identity", primaryVm.getUuid()));
+        }
+        if (secondaryNics == null || secondaryNics.isEmpty()) {
+            failNicIdentityHandoff(primaryVm, protection, String.format("secondary VM %s has no NICs to persist identity", secondaryVm.getUuid()));
+        }
+
+        for (NicVO primaryNic : primaryNics) {
+            NicVO secondaryNic = findMatchingSecondaryNic(primaryNic, secondaryNics);
+            if (secondaryNic == null) {
+                failNicIdentityHandoff(primaryVm, protection, String.format(
+                        "secondary VM %s does not have a matching NIC for primary network %s device %s",
+                        secondaryVm.getUuid(), primaryNic.getNetworkId(), primaryNic.getDeviceId()));
+            }
+            persistNicIdentityIfMissing(primaryVm.getId(), DETAIL_NIC_IDENTITY_PRIMARY_PREFIX, primaryNic, false);
+            persistNicIdentityIfMissing(primaryVm.getId(), DETAIL_NIC_IDENTITY_SECONDARY_PREFIX, primaryNic, secondaryNic, overwriteSecondary);
+        }
+    }
+
+    private void persistNicIdentityIfMissing(Long primaryVmId, String prefix, NicVO keyNic, boolean overwrite) {
+        persistNicIdentityIfMissing(primaryVmId, prefix, keyNic, keyNic, overwrite);
+    }
+
+    private void persistNicIdentityIfMissing(Long primaryVmId, String prefix, NicVO keyNic, NicVO sourceNic, boolean overwrite) {
+        String key = buildNicIdentityDetailKey(prefix, keyNic);
+        if (!overwrite && StringUtils.isNotBlank(getDetailValue(primaryVmId, key))) {
+            return;
+        }
+        putVmDetail(primaryVmId, key, new NicIdentity(sourceNic).toJson());
+    }
+
+    private NicIdentity requireStoredNicIdentity(UserVmVO primaryVm, FtctlProtectionVO protection, String prefix, NicVO keyNic) {
+        String key = buildNicIdentityDetailKey(prefix, keyNic);
+        String value = getDetailValue(primaryVm.getId(), key);
+        if (StringUtils.isBlank(value)) {
+            failNicIdentityHandoff(primaryVm, protection, String.format("missing stored NIC identity %s for network %s device %s",
+                    key, keyNic.getNetworkId(), keyNic.getDeviceId()));
+        }
+        try {
+            return NicIdentity.fromJson(value);
+        } catch (RuntimeException e) {
+            failNicIdentityHandoff(primaryVm, protection, String.format("invalid stored NIC identity %s for network %s device %s",
+                    key, keyNic.getNetworkId(), keyNic.getDeviceId()));
+            return null;
+        }
+    }
+
+    private String buildNicIdentityDetailKey(String prefix, NicVO nic) {
+        return String.format(Locale.ROOT, "%s%s.%s", prefix, nic.getNetworkId(), nic.getDeviceId());
     }
 
     private void failNicIdentityHandoff(UserVmVO primaryVm, FtctlProtectionVO protection, String reason) {
@@ -860,6 +936,48 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             ipv6Gateway = nic.getIPv6Gateway();
             ipv6Cidr = nic.getIPv6Cidr();
             macAddress = nic.getMacAddress();
+        }
+
+        private NicIdentity(String ipv4Address, String ipv4Gateway, String ipv4Netmask, String ipv6Address,
+                            String ipv6Gateway, String ipv6Cidr, String macAddress) {
+            this.ipv4Address = ipv4Address;
+            this.ipv4Gateway = ipv4Gateway;
+            this.ipv4Netmask = ipv4Netmask;
+            this.ipv6Address = ipv6Address;
+            this.ipv6Gateway = ipv6Gateway;
+            this.ipv6Cidr = ipv6Cidr;
+            this.macAddress = macAddress;
+        }
+
+        private static NicIdentity fromJson(String value) {
+            JsonObject object = JsonParser.parseString(value).getAsJsonObject();
+            return new NicIdentity(
+                    getNullableJsonString(object, "ipv4Address"),
+                    getNullableJsonString(object, "ipv4Gateway"),
+                    getNullableJsonString(object, "ipv4Netmask"),
+                    getNullableJsonString(object, "ipv6Address"),
+                    getNullableJsonString(object, "ipv6Gateway"),
+                    getNullableJsonString(object, "ipv6Cidr"),
+                    getNullableJsonString(object, "macAddress"));
+        }
+
+        private String toJson() {
+            JsonObject object = new JsonObject();
+            object.addProperty("ipv4Address", ipv4Address);
+            object.addProperty("ipv4Gateway", ipv4Gateway);
+            object.addProperty("ipv4Netmask", ipv4Netmask);
+            object.addProperty("ipv6Address", ipv6Address);
+            object.addProperty("ipv6Gateway", ipv6Gateway);
+            object.addProperty("ipv6Cidr", ipv6Cidr);
+            object.addProperty("macAddress", macAddress);
+            return object.toString();
+        }
+
+        private static String getNullableJsonString(JsonObject object, String key) {
+            if (object == null || !object.has(key) || object.get(key).isJsonNull()) {
+                return null;
+            }
+            return object.get(key).getAsString();
         }
 
         private void applyTo(NicVO nic) {
