@@ -44,11 +44,13 @@ import com.cloud.hypervisor.Hypervisor.HypervisorType;
 import com.cloud.storage.ScopeType;
 import com.cloud.storage.dao.VolumeDao;
 import com.cloud.utils.exception.CloudRuntimeException;
+import com.cloud.vm.NicVO;
 import com.cloud.vm.VMInstanceDetailVO;
 import com.cloud.vm.UserVmManager;
 import com.cloud.vm.UserVmVO;
 import com.cloud.vm.VirtualMachine;
 import com.cloud.vm.VirtualMachineProfile;
+import com.cloud.vm.dao.NicDao;
 import com.cloud.vm.dao.UserVmDao;
 import com.cloud.vm.dao.VMInstanceDetailsDao;
 import com.cloud.utils.Pair;
@@ -72,6 +74,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.InjectMocks;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.ArgumentCaptor;
@@ -89,6 +92,8 @@ public class FtctlServiceImplTest {
     private VMInstanceDetailsDao vmInstanceDetailsDao;
     @Mock
     private UserVmDao userVmDao;
+    @Mock
+    private NicDao nicDao;
     @Mock
     private UserVmManager userVmManager;
     @Mock
@@ -301,6 +306,7 @@ public class FtctlServiceImplTest {
         vmDetails.put("101:ftctl.peer.host.id", "202");
 
         UserVmVO secondaryVm = Mockito.mock(UserVmVO.class);
+        Mockito.when(secondaryVm.getId()).thenReturn(401L);
         Mockito.when(secondaryVm.getUuid()).thenReturn("secondary-vm-uuid");
         Mockito.when(secondaryVm.getState()).thenReturn(VirtualMachine.State.Stopped);
         Mockito.when(userVmDao.findById(401L)).thenReturn(secondaryVm);
@@ -349,6 +355,67 @@ public class FtctlServiceImplTest {
         Assert.assertEquals(FtctlActionCommand.Action.FAILOVER, ((FtctlActionCommand) commands.get(2)).getAction());
         Assert.assertTrue(((FtctlActionCommand) commands.get(2)).isForce());
         Assert.assertTrue(commands.get(3) instanceof FtctlStatusCommand);
+    }
+
+    @Test
+    public void testConfirmFtctlFenceHandsOffCloudManagedNicIdentityBeforeStartingSecondary() throws Exception {
+        Mockito.when(userVm.getState()).thenReturn(VirtualMachine.State.Stopped);
+        vmDetails.put("101:ftctl.peer.host.id", "202");
+
+        UserVmVO secondaryVm = Mockito.mock(UserVmVO.class);
+        Mockito.when(secondaryVm.getId()).thenReturn(401L);
+        Mockito.when(secondaryVm.getUuid()).thenReturn("secondary-vm-uuid");
+        Mockito.when(secondaryVm.getState()).thenReturn(VirtualMachine.State.Stopped);
+        Mockito.when(userVmDao.findById(401L)).thenReturn(secondaryVm);
+
+        FtctlProtectionVO protection = new FtctlProtectionVO(101L);
+        protection.setSecondaryVmId(401L);
+        protection.setMode("ha");
+        protection.setBackendMode("shared-blockcopy");
+        protection.setProvisioningBackend(FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED);
+        Mockito.when(ftctlProtectionDao.findActiveByPrimaryVmId(101L)).thenReturn(protection);
+
+        NicVO primaryNic = nic(425L, 101L, 204L, 0, "00:50:56:b5:5c:28", "10.10.254.90");
+        primaryNic.setIPv4Gateway("10.10.0.1");
+        primaryNic.setIPv4Netmask("255.255.0.0");
+        NicVO secondaryNic = nic(453L, 401L, 204L, 0, "02:01:00:cc:00:64", "10.10.254.242");
+        secondaryNic.setIPv4Gateway("10.10.0.1");
+        secondaryNic.setIPv4Netmask("255.255.0.0");
+        Mockito.when(nicDao.listByVmIdOrderByDeviceId(101L)).thenReturn(List.of(primaryNic));
+        Mockito.when(nicDao.listByVmIdOrderByDeviceId(401L)).thenReturn(List.of(secondaryNic));
+
+        FtctlActionAnswer confirmAnswer = new FtctlActionAnswer(new FtctlActionCommand(FtctlActionCommand.Action.FENCE_CONFIRM, "vm-name"), true, "OK",
+                FtctlActionCommand.Action.FENCE_CONFIRM, "ok", 0, "manual-fenced");
+        FtctlStatusAnswer confirmStatus = new FtctlStatusAnswer(new FtctlStatusCommand("vm-name"), true, "OK", "ok", "vm-name",
+                "ha", "failing_over", "mirroring", "primary", "active", "manual-fenced", "manual_fencing_required",
+                "2026-05-03T00:55:00+09:00", 0, 1);
+        FtctlActionAnswer failoverAnswer = new FtctlActionAnswer(new FtctlActionCommand(FtctlActionCommand.Action.FAILOVER, "vm-name"), true, "OK",
+                FtctlActionCommand.Action.FAILOVER, "ok", 0, "failed-over");
+        FtctlStatusAnswer failoverStatus = new FtctlStatusAnswer(new FtctlStatusCommand("vm-name"), true, "OK", "ok", "vm-name",
+                "ha", "failed_over", "failed_over", "secondary", "active", "manual-fenced", "",
+                "2026-05-03T00:56:00+09:00", 0, 2);
+        Mockito.when(agentManager.send(Mockito.eq(201L), Mockito.any(Command.class)))
+                .thenReturn(confirmAnswer)
+                .thenReturn(confirmStatus)
+                .thenReturn(failoverAnswer)
+                .thenReturn(failoverStatus);
+        Mockito.when(userVmManager.startVirtualMachine(Mockito.eq(401L), Mockito.eq(202L),
+                        Mockito.<Map<VirtualMachineProfile.Param, Object>>any(), Mockito.isNull()))
+                .thenReturn(new Pair<>(secondaryVm, new HashMap<>()));
+
+        ftctlService.confirmFtctlFence(101L);
+
+        Assert.assertEquals("02:01:00:cc:00:64", primaryNic.getMacAddress());
+        Assert.assertEquals("10.10.254.242", primaryNic.getIPv4Address());
+        Assert.assertEquals("00:50:56:b5:5c:28", secondaryNic.getMacAddress());
+        Assert.assertEquals("10.10.254.90", secondaryNic.getIPv4Address());
+        Assert.assertEquals("secondary-owned", vmDetails.get("101:ftctl.nic.identity.state"));
+
+        InOrder inOrder = Mockito.inOrder(nicDao, userVmManager);
+        inOrder.verify(nicDao).update(425L, primaryNic);
+        inOrder.verify(nicDao).update(453L, secondaryNic);
+        inOrder.verify(userVmManager).startVirtualMachine(Mockito.eq(401L), Mockito.eq(202L),
+                Mockito.<Map<VirtualMachineProfile.Param, Object>>any(), Mockito.isNull());
     }
 
     @Test
@@ -793,6 +860,15 @@ public class FtctlServiceImplTest {
         Mockito.when(storagePool.getDataCenterId()).thenReturn(401L);
         Mockito.when(storagePool.getScope()).thenReturn(ScopeType.HOST);
         return storagePool;
+    }
+
+    private NicVO nic(long id, long instanceId, long networkId, int deviceId, String macAddress, String ip4Address) {
+        NicVO nic = new NicVO("DirectNetworkGuru", instanceId, networkId, VirtualMachine.Type.User);
+        setField(nic, "id", id);
+        nic.setDeviceId(deviceId);
+        nic.setMacAddress(macAddress);
+        nic.setIPv4Address(ip4Address);
+        return nic;
     }
 
     private HostVO mockHost(Long id, Long clusterId, String privateIp) {

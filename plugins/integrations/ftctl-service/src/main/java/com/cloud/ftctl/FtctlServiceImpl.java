@@ -55,10 +55,12 @@ import com.cloud.utils.component.ManagerBase;
 import com.cloud.utils.exception.CloudRuntimeException;
 import com.cloud.vm.UserVmManager;
 import com.cloud.vm.VMInstanceDetailVO;
+import com.cloud.vm.NicVO;
 import com.cloud.vm.UserVmVO;
 import com.cloud.vm.VirtualMachine;
 import com.cloud.vm.VirtualMachineProfile;
 import com.cloud.vm.VmDetailConstants;
+import com.cloud.vm.dao.NicDao;
 import com.cloud.vm.dao.UserVmDao;
 import com.cloud.vm.dao.VMInstanceDetailsDao;
 import org.apache.cloudstack.api.ApiCommandResourceType;
@@ -127,6 +129,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     public static final String DETAIL_LAST_ADMIN_STATE = "ftctl.last.admin.state";
     public static final String DETAIL_LAST_FENCING_STATE = "ftctl.last.fencing.state";
     public static final String DETAIL_LAST_ERROR = "ftctl.last.error";
+    public static final String DETAIL_NIC_IDENTITY_STATE = "ftctl.nic.identity.state";
     public static final String HOST_DETAIL_ENABLED = "ftctl.enabled";
     public static final String HOST_DETAIL_MANAGEMENT_IP = "ftctl.management.ip";
     public static final String HOST_DETAIL_LIBVIRT_URI = "ftctl.libvirt.uri";
@@ -142,6 +145,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     private VMInstanceDetailsDao vmInstanceDetailsDao;
     @Inject
     private UserVmDao userVmDao;
+    @Inject
+    private NicDao nicDao;
     @Inject
     private UserVmManager userVmManager;
     @Inject
@@ -543,7 +548,9 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
 
         executeFtctlAction(primaryVm.getId(), FtctlActionCommand.Action.FENCE_CONFIRM, false);
         protection = validateManualFailoverTransportReady(primaryVm);
-        startSecondaryVmForManualFailover(primaryVm, protection);
+        UserVmVO secondaryVm = resolveSecondaryVmForManualFailover(primaryVm, protection);
+        handoffNicIdentityToSecondary(primaryVm, secondaryVm, protection);
+        startSecondaryVmForManualFailover(primaryVm, secondaryVm);
         FtctlActionResponse response = executeFtctlAction(primaryVm.getId(), FtctlActionCommand.Action.FAILOVER, true);
         response.setAction(FtctlActionCommand.Action.FENCE_CONFIRM.name());
         return response;
@@ -580,7 +587,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         }
     }
 
-    private void startSecondaryVmForManualFailover(UserVmVO primaryVm, FtctlProtectionVO protection) {
+    private UserVmVO resolveSecondaryVmForManualFailover(UserVmVO primaryVm, FtctlProtectionVO protection) {
         Long secondaryVmId = protection.getSecondaryVmId();
         if (secondaryVmId == null) {
             throw new CloudRuntimeException(String.format("FTCTL protection for VM %s does not have a secondary VM", primaryVm.getUuid()));
@@ -589,19 +596,116 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         if (secondaryVm == null) {
             throw new CloudRuntimeException(String.format("Unable to find FTCTL secondary VM %s for primary VM %s", secondaryVmId, primaryVm.getUuid()));
         }
+        return secondaryVm;
+    }
+
+    private void startSecondaryVmForManualFailover(UserVmVO primaryVm, UserVmVO secondaryVm) {
         if (secondaryVm.getState() == VirtualMachine.State.Running) {
             logger.info(String.format("FTCTL secondary VM %s is already running for primary VM %s", secondaryVm.getUuid(), primaryVm.getUuid()));
             return;
         }
         Long peerHostId = resolvePeerHostId(primaryVm.getId());
         try {
-            userVmManager.startVirtualMachine(secondaryVmId, peerHostId, new HashMap<VirtualMachineProfile.Param, Object>(), null);
+            userVmManager.startVirtualMachine(secondaryVm.getId(), peerHostId, new HashMap<VirtualMachineProfile.Param, Object>(), null);
             publishFtctlEvent(primaryVm, EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE,
                     String.format("Started FTCTL secondary VM %s for primary VM %s after manual fence confirmation",
                             secondaryVm.getUuid(), primaryVm.getUuid()));
         } catch (ConcurrentOperationException | ResourceUnavailableException | InsufficientCapacityException | ResourceAllocationException e) {
             throw new CloudRuntimeException(String.format("Unable to start FTCTL secondary VM %s for primary VM %s",
                     secondaryVm.getUuid(), primaryVm.getUuid()), e);
+        }
+    }
+
+    private void handoffNicIdentityToSecondary(UserVmVO primaryVm, UserVmVO secondaryVm, FtctlProtectionVO protection) {
+        if (!FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED.equalsIgnoreCase(StringUtils.trimToEmpty(protection.getProvisioningBackend()))) {
+            return;
+        }
+        if (secondaryVm.getState() != VirtualMachine.State.Stopped) {
+            failNicIdentityHandoff(primaryVm, protection, String.format("secondary VM %s must be Stopped before NIC identity handoff, current state is %s",
+                    secondaryVm.getUuid(), secondaryVm.getState()));
+        }
+
+        List<NicVO> primaryNics = nicDao.listByVmIdOrderByDeviceId(primaryVm.getId());
+        List<NicVO> secondaryNics = nicDao.listByVmIdOrderByDeviceId(secondaryVm.getId());
+        if (primaryNics == null || primaryNics.isEmpty()) {
+            failNicIdentityHandoff(primaryVm, protection, String.format("primary VM %s has no NICs to hand off", primaryVm.getUuid()));
+        }
+        if (secondaryNics == null || secondaryNics.isEmpty()) {
+            failNicIdentityHandoff(primaryVm, protection, String.format("secondary VM %s has no NICs to receive identity", secondaryVm.getUuid()));
+        }
+
+        int handoffCount = 0;
+        for (NicVO primaryNic : primaryNics) {
+            NicVO secondaryNic = findMatchingSecondaryNic(primaryNic, secondaryNics);
+            if (secondaryNic == null) {
+                failNicIdentityHandoff(primaryVm, protection, String.format(
+                        "secondary VM %s does not have a matching NIC for primary network %s device %s",
+                        secondaryVm.getUuid(), primaryNic.getNetworkId(), primaryNic.getDeviceId()));
+            }
+            swapNicIdentity(primaryNic, secondaryNic);
+            nicDao.update(primaryNic.getId(), primaryNic);
+            nicDao.update(secondaryNic.getId(), secondaryNic);
+            handoffCount++;
+        }
+
+        putVmDetail(primaryVm.getId(), DETAIL_NIC_IDENTITY_STATE, "secondary-owned");
+        publishFtctlEvent(primaryVm, EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE,
+                String.format("Handed off FTCTL NIC identity from primary VM %s to secondary VM %s for %s NIC(s)",
+                        primaryVm.getUuid(), secondaryVm.getUuid(), handoffCount));
+    }
+
+    private NicVO findMatchingSecondaryNic(NicVO primaryNic, List<NicVO> secondaryNics) {
+        for (NicVO secondaryNic : secondaryNics) {
+            if (secondaryNic.getNetworkId() == primaryNic.getNetworkId() && secondaryNic.getDeviceId() == primaryNic.getDeviceId()) {
+                return secondaryNic;
+            }
+        }
+        return null;
+    }
+
+    private void swapNicIdentity(NicVO primaryNic, NicVO secondaryNic) {
+        NicIdentity primaryIdentity = new NicIdentity(primaryNic);
+        NicIdentity secondaryIdentity = new NicIdentity(secondaryNic);
+        primaryIdentity.applyTo(secondaryNic);
+        secondaryIdentity.applyTo(primaryNic);
+    }
+
+    private void failNicIdentityHandoff(UserVmVO primaryVm, FtctlProtectionVO protection, String reason) {
+        String lastError = String.format("nic_identity_handoff_failed: %s", reason);
+        protection.setLastError(lastError);
+        protection.markUpdated();
+        ftctlProtectionDao.update(protection.getId(), protection);
+        putVmDetail(primaryVm.getId(), DETAIL_LAST_ERROR, lastError);
+        throw new CloudRuntimeException(String.format("FTCTL NIC identity handoff failed for VM %s: %s", primaryVm.getUuid(), reason));
+    }
+
+    private static final class NicIdentity {
+        private final String ipv4Address;
+        private final String ipv4Gateway;
+        private final String ipv4Netmask;
+        private final String ipv6Address;
+        private final String ipv6Gateway;
+        private final String ipv6Cidr;
+        private final String macAddress;
+
+        private NicIdentity(NicVO nic) {
+            ipv4Address = nic.getIPv4Address();
+            ipv4Gateway = nic.getIPv4Gateway();
+            ipv4Netmask = nic.getIPv4Netmask();
+            ipv6Address = nic.getIPv6Address();
+            ipv6Gateway = nic.getIPv6Gateway();
+            ipv6Cidr = nic.getIPv6Cidr();
+            macAddress = nic.getMacAddress();
+        }
+
+        private void applyTo(NicVO nic) {
+            nic.setIPv4Address(ipv4Address);
+            nic.setIPv4Gateway(ipv4Gateway);
+            nic.setIPv4Netmask(ipv4Netmask);
+            nic.setIPv6Address(ipv6Address);
+            nic.setIPv6Gateway(ipv6Gateway);
+            nic.setIPv6Cidr(ipv6Cidr);
+            nic.setMacAddress(macAddress);
         }
     }
 
