@@ -514,8 +514,14 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
         if (normalizedPath == null || StringUtils.startsWithAny(normalizedPath, "/dev/", "rbd:")) {
             return normalizedPath;
         }
-        if (targetStoragePool == null || !Storage.StoragePoolType.RBD.equals(targetStoragePool.getPoolType())) {
+        if (targetStoragePool == null) {
             return normalizedPath;
+        }
+        if (!Storage.StoragePoolType.RBD.equals(targetStoragePool.getPoolType())) {
+            if (StringUtils.startsWith(normalizedPath, "/") || StringUtils.isBlank(targetStoragePool.getPath())) {
+                return normalizedPath;
+            }
+            return String.format("%s/%s", StringUtils.removeEnd(targetStoragePool.getPath(), "/"), StringUtils.removeStart(normalizedPath, "/"));
         }
 
         String poolName = resolveRbdPoolName(targetStoragePool.getPath());

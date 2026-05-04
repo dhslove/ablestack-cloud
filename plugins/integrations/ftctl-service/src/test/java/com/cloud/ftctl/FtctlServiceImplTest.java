@@ -830,6 +830,89 @@ public class FtctlServiceImplTest {
     }
 
     @Test
+    public void testRegisterFtctlProtectionNormalizesHostStorageToRemoteNbd() throws Exception {
+        RegisterFtctlProtectionCmd cmd = buildRegisterCmd();
+        setField(cmd, "mode", "ha");
+        setField(cmd, "backendMode", "shared-blockcopy");
+        setField(cmd, "secondaryTargetDir", null);
+        setField(cmd, "remoteNbdExportAddr", null);
+        HostVO localHost = mockHost(201L, 301L, "10.0.0.11");
+        HostVO peerHost = mockHost(202L, 301L, "10.0.0.12");
+        Mockito.when(hostDao.findById(201L)).thenReturn(localHost);
+        Mockito.when(hostDao.findById(202L)).thenReturn(peerHost);
+
+        FtctlSyncAnswer clusterAnswer = new FtctlSyncAnswer(new FtctlSyncClusterCommand(), true, "OK", "ok", 0, "cluster-synced");
+        FtctlSyncAnswer profileAnswer = new FtctlSyncAnswer(new FtctlSyncProfileCommand(), true, "OK", "ok", 0, "profile-synced");
+        FtctlActionCommand protectCommand = new FtctlActionCommand(FtctlActionCommand.Action.PROTECT, "vm-name");
+        FtctlActionAnswer protectAnswer = new FtctlActionAnswer(protectCommand, true, "OK",
+                FtctlActionCommand.Action.PROTECT, "ok", 0, "protected");
+        FtctlStatusAnswer statusAnswer = new FtctlStatusAnswer(new FtctlStatusCommand("vm-name"), true, "OK", "ok", "vm-name",
+                "ha", "protected", "replicating", "primary", "running", "clear", "",
+                "2026-04-18T18:10:00+09:00", 0, 0);
+        Mockito.when(agentManager.send(Mockito.eq(201L), Mockito.any(Command.class)))
+                .thenReturn(clusterAnswer)
+                .thenReturn(profileAnswer)
+                .thenReturn(protectAnswer)
+                .thenReturn(statusAnswer);
+
+        ftctlService.registerFtctlProtection(cmd);
+
+        ArgumentCaptor<Command> commandCaptor = ArgumentCaptor.forClass(Command.class);
+        Mockito.verify(agentManager, Mockito.times(4)).send(Mockito.eq(201L), commandCaptor.capture());
+        FtctlSyncProfileCommand profileCommand = (FtctlSyncProfileCommand) commandCaptor.getAllValues().get(1);
+        Assert.assertEquals("remote-nbd", profileCommand.getBackendMode());
+        Assert.assertEquals("secondary-local", profileCommand.getTargetStorageScope());
+        Assert.assertEquals("/var/lib/libvirt/images", profileCommand.getSecondaryTargetDir());
+        Assert.assertEquals("10.0.0.12:10809", profileCommand.getRemoteNbdExportAddr());
+
+        FtctlActionCommand capturedProtectCommand = (FtctlActionCommand) commandCaptor.getAllValues().get(2);
+        Assert.assertEquals("remote-nbd", capturedProtectCommand.getContextParam("ftctl.backend.mode"));
+        Assert.assertEquals("secondary-local", capturedProtectCommand.getContextParam("ftctl.target.storage.scope"));
+
+        ArgumentCaptor<FtctlProtectionProvisioningRequest> requestCaptor = ArgumentCaptor.forClass(FtctlProtectionProvisioningRequest.class);
+        Mockito.verify(ftctlProtectionProvisioningService).prepareProtection(requestCaptor.capture());
+        Assert.assertEquals("remote-nbd", requestCaptor.getValue().getBackendMode());
+        Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.backend.mode", "remote-nbd", true);
+        Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.secondary.target.dir", "/var/lib/libvirt/images", true);
+        Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.remote.nbd.export.addr", "10.0.0.12:10809", true);
+    }
+
+    @Test
+    public void testRegisterFtctlProtectionPersistsFailureWhenProfileSyncFails() throws Exception {
+        RegisterFtctlProtectionCmd cmd = buildRegisterCmd();
+        HostVO localHost = mockHost(201L, 301L, "10.0.0.11");
+        HostVO peerHost = mockHost(202L, 301L, "10.0.0.12");
+        Mockito.when(hostDao.findById(201L)).thenReturn(localHost);
+        Mockito.when(hostDao.findById(202L)).thenReturn(peerHost);
+        FtctlProtectionVO protection = new FtctlProtectionVO(101L);
+        Mockito.when(ftctlProtectionDao.findActiveByPrimaryVmId(101L)).thenReturn(protection);
+
+        FtctlSyncAnswer clusterAnswer = new FtctlSyncAnswer(new FtctlSyncClusterCommand(), true, "OK", "ok", 0, "cluster-synced");
+        FtctlSyncAnswer profileAnswer = new FtctlSyncAnswer(new FtctlSyncProfileCommand(), false, "ERROR", "profile failed", 2, "profile failed");
+        Mockito.when(agentManager.send(Mockito.eq(201L), Mockito.any(Command.class)))
+                .thenReturn(clusterAnswer)
+                .thenReturn(profileAnswer);
+
+        try {
+            ftctlService.registerFtctlProtection(cmd);
+            Assert.fail("Expected CloudRuntimeException");
+        } catch (CloudRuntimeException e) {
+            Assert.assertTrue(e.getMessage().contains("FTCTL profile sync failed"));
+        }
+
+        Assert.assertEquals("error", protection.getProtectionState());
+        Assert.assertEquals("failed", protection.getTransportState());
+        Assert.assertEquals("primary", protection.getActiveSide());
+        Assert.assertEquals("active", protection.getAdminState());
+        Assert.assertEquals("clear", protection.getFencingState());
+        Assert.assertTrue(protection.getLastError().contains("FTCTL profile sync failed"));
+        Assert.assertEquals("error", vmDetails.get("101:ftctl.last.protection.state"));
+        Assert.assertEquals("failed", vmDetails.get("101:ftctl.last.transport.state"));
+        Assert.assertTrue(vmDetails.get("101:ftctl.last.error").contains("FTCTL profile sync failed"));
+        Mockito.verify(ftctlProtectionDao).update(Mockito.eq(0L), Mockito.eq(protection));
+    }
+
+    @Test
     public void testRegisterFtctlProtectionStopsCloudManagedBeforeAgentSyncWhenProvisioningIsNotReady() throws Exception {
         RegisterFtctlProtectionCmd cmd = buildRegisterCmd();
         setField(cmd, "provisioningBackend", "cloud-managed");
@@ -981,6 +1064,7 @@ public class FtctlServiceImplTest {
         Mockito.when(storagePool.getName()).thenReturn("pool-name");
         Mockito.when(storagePool.getDataCenterId()).thenReturn(401L);
         Mockito.when(storagePool.getScope()).thenReturn(ScopeType.HOST);
+        Mockito.when(storagePool.getPath()).thenReturn("/var/lib/libvirt/images");
         return storagePool;
     }
 

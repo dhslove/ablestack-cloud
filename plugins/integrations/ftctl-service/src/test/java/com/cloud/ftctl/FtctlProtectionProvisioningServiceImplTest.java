@@ -364,6 +364,72 @@ public class FtctlProtectionProvisioningServiceImplTest {
         Assert.assertEquals("sda=/dev/rbd/rbd/standby-root;sdb=/dev/rbd/rbd/standby-data", context.getDiskMap());
     }
 
+    @Test
+    public void prepareProtectionBuildsAbsoluteDiskMapForFilesystemStorage() throws Exception {
+        UserVmVO primaryVm = mockPrimaryVm();
+        Mockito.when(primaryVm.getDetails()).thenReturn(Map.of(
+                "rootDiskController", "scsi",
+                "dataDiskController", "scsi"));
+        AccountVO owner = mockAccount();
+        ServiceOfferingVO primaryOffering = mockPrimaryServiceOffering();
+        ServiceOfferingVO ftctlComputeOffering = mockServiceOffering(801L);
+        DiskOfferingVO ftctlRootDiskOffering = mockDiskOffering(901L);
+        DiskOfferingVO ftctlDataDiskOffering = mockDiskOffering(902L);
+        StoragePoolVO targetStoragePool = mockLocalTargetStoragePool();
+        VolumeVO primaryRootVolume = mockVolume(301L, Volume.Type.ROOT, 0L, "rbd/primary-root");
+        Mockito.when(primaryRootVolume.getSize()).thenReturn(10L * 1024L * 1024L * 1024L);
+        VolumeVO primaryDataVolume = mockVolume(302L, Volume.Type.DATADISK, 1L, "rbd/primary-data");
+        Mockito.when(primaryDataVolume.getSize()).thenReturn(20L * 1024L * 1024L * 1024L);
+        VolumeVO standbyRootVolume = mockVolume(501L, Volume.Type.ROOT, 0L, "standby-root-file");
+        Mockito.when(standbyRootVolume.getUuid()).thenReturn("standby-root-uuid");
+        VolumeVO standbyDataVolume = mockVolume(502L, Volume.Type.DATADISK, 1L, "standby-data-file");
+        Mockito.when(standbyDataVolume.getUuid()).thenReturn("standby-data-uuid");
+        UserVm createdVm = mockCreatedUserVm(401L, "standby-created-uuid");
+        UserVmVO standbyVm = mockStandbyVm();
+        FtctlProtectionVolumeVO rootProtectionVolume = new FtctlProtectionVolumeVO(0L, 301L);
+        FtctlProtectionVolumeVO dataProtectionVolume = new FtctlProtectionVolumeVO(0L, 302L);
+        FtctlProtectionProvisioningRequest request = new FtctlProtectionProvisioningRequest(
+                primaryVm, 202L, targetStoragePool, "ha", "remote-nbd",
+                FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED, "manual-block", "vm-secondary");
+
+        Mockito.when(ftctlProtectionDao.findActiveByPrimaryVmId(101L)).thenReturn(null);
+        Mockito.when(ftctlProtectionDao.persist(Mockito.any(FtctlProtectionVO.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        Mockito.when(diskOfferingDao.findByUniqueName("ABLESTACK.FTCTL.RootDisk.Custom")).thenReturn(ftctlRootDiskOffering);
+        Mockito.when(diskOfferingDao.findByUniqueName("ABLESTACK.FTCTL.DataDisk.Custom")).thenReturn(ftctlDataDiskOffering);
+        Mockito.when(serviceOfferingDao.findByName("ABLESTACK.FTCTL.Compute.Custom")).thenReturn(ftctlComputeOffering);
+        Mockito.when(serviceOfferingDao.findById(301L)).thenReturn(primaryOffering);
+        Mockito.when(ftctlProtectionVolumeDao.findActiveByProtectionIdAndPrimaryVolumeId(0L, 301L))
+                .thenReturn(null)
+                .thenReturn(rootProtectionVolume)
+                .thenReturn(rootProtectionVolume);
+        Mockito.when(ftctlProtectionVolumeDao.findActiveByProtectionIdAndPrimaryVolumeId(0L, 302L))
+                .thenReturn(null)
+                .thenReturn(dataProtectionVolume)
+                .thenReturn(dataProtectionVolume);
+        Mockito.when(volumeApiService.allocVolume(Mockito.any(FtctlCreateVolumeCmd.class))).thenReturn(standbyRootVolume).thenReturn(standbyDataVolume);
+        Mockito.when(volumeApiService.createVolume(Mockito.any(FtctlCreateVolumeCmd.class))).thenReturn(standbyRootVolume).thenReturn(standbyDataVolume);
+        Mockito.when(vmInstanceDao.findVMByHostNameInZone("vm-secondary", 401L)).thenReturn(null);
+        Mockito.when(accountDao.findById(11L)).thenReturn(owner);
+        NicVO nic = mockNic(701L);
+        Mockito.when(nicDao.listByVmIdOrderByDeviceId(101L)).thenReturn(Collections.singletonList(nic));
+        Mockito.when(userVmService.createVirtualMachineVolume(Mockito.any(FtctlStandbyDeployVMVolumeCmd.class))).thenReturn(createdVm);
+        Mockito.when(userVmDao.findById(401L)).thenReturn(standbyVm);
+        Mockito.when(volumeDao.findByInstance(Mockito.anyLong())).thenAnswer(invocation -> {
+            Long vmId = invocation.getArgument(0);
+            if (vmId == 101L) {
+                return List.of(primaryRootVolume, primaryDataVolume);
+            }
+            return Collections.emptyList();
+        });
+        Mockito.when(volumeDao.findById(501L)).thenReturn(standbyRootVolume);
+        Mockito.when(volumeDao.findById(502L)).thenReturn(standbyDataVolume);
+        Mockito.when(ftctlProtectionVolumeDao.listActiveByProtectionId(0L)).thenReturn(List.of(rootProtectionVolume, dataProtectionVolume));
+
+        FtctlProtectionProvisioningContext context = service.prepareProtection(request);
+
+        Assert.assertEquals("sda=/var/lib/libvirt/images/standby-root-file;sdb=/var/lib/libvirt/images/standby-data-file", context.getDiskMap());
+    }
+
     private UserVmVO mockPrimaryVm() {
         UserVmVO primaryVm = Mockito.mock(UserVmVO.class);
         Mockito.lenient().when(primaryVm.getId()).thenReturn(101L);
@@ -382,6 +448,14 @@ public class FtctlProtectionProvisioningServiceImplTest {
         Mockito.lenient().when(targetStoragePool.getId()).thenReturn(501L);
         Mockito.lenient().when(targetStoragePool.getPoolType()).thenReturn(Storage.StoragePoolType.RBD);
         Mockito.lenient().when(targetStoragePool.getPath()).thenReturn("rbd");
+        return targetStoragePool;
+    }
+
+    private StoragePoolVO mockLocalTargetStoragePool() {
+        StoragePoolVO targetStoragePool = Mockito.mock(StoragePoolVO.class);
+        Mockito.lenient().when(targetStoragePool.getId()).thenReturn(501L);
+        Mockito.lenient().when(targetStoragePool.getPoolType()).thenReturn(Storage.StoragePoolType.Filesystem);
+        Mockito.lenient().when(targetStoragePool.getPath()).thenReturn("/var/lib/libvirt/images");
         return targetStoragePool;
     }
 

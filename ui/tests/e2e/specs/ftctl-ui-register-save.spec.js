@@ -112,6 +112,8 @@ test.describe('FTCTL protection save', () => {
     const skipLogin = optionalEnv('FTCTL_UI_SKIP_LOGIN', 'false') === 'true'
     const preferredPeer = optionalEnv('FTCTL_UI_PEER_HOST_PATTERN', 'ablecube22-[12]')
     const preferredStorage = optionalEnv('FTCTL_UI_STORAGE_POOL_PATTERN', 'Primary Storage|RBD|ZONE')
+    const expectedStorage = optionalEnv('FTCTL_UI_EXPECT_STORAGE_PATTERN', preferredStorage)
+    const expectedBackendMode = optionalEnv('FTCTL_UI_EXPECT_BACKEND_MODE', 'shared-blockcopy')
     const secondaryVmName = optionalEnv('FTCTL_UI_SECONDARY_VM_NAME', 'r9-01-standby')
     const registerTimeoutMs = parseTimeoutEnv('FTCTL_UI_REGISTER_TIMEOUT_MS', 180000)
 
@@ -158,10 +160,10 @@ test.describe('FTCTL protection save', () => {
     expect(protection, `Register response did not contain ftctlprotection: ${registerBody}`).toBeTruthy()
     expect(protection.enabled).toBe('true')
     expect(protection.mode).toBe('ha')
-    expect(protection.backendmode).toBe('shared-blockcopy')
+    expect(protection.backendmode).toBe(expectedBackendMode)
     expect(protection.provisioningbackend).toBe('cloud-managed')
     expect(protection.fencingpolicy).toBe('manual-block')
-    expect(protection.targetstoragepoolname).toMatch(/Primary Storage|RBD|ZONE/)
+    expect(protection.targetstoragepoolname).toMatch(new RegExp(expectedStorage))
     expect(protection.lasterror || '', `FTCTL last error: ${protection.lasterror || ''}`).toBe('')
     expect(protection.protectionstate || '', `FTCTL protection state: ${protection.protectionstate || ''}`).not.toBe('error')
     expect(protection.transportstate || '', `FTCTL transport state: ${protection.transportstate || ''}`).not.toBe('failed')

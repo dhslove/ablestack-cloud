@@ -259,33 +259,38 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
 
         Long hostId = getExecutionHostId(userVm);
         if (hostId != null) {
-            syncFtctlContext(userVm, cmd, targetStoragePool, targetStorageScope, backendMode, secondaryTargetDir, remoteNbdExportAddr, ipmiFencingConfig, provisioningContext);
-            String peerUri = resolvePeerUri(cmd.getPeerHostId());
-            if (peerUri == null || peerUri.isBlank()) {
-                throw new CloudRuntimeException(String.format("Missing FTCTL peer libvirt URI on host %s", cmd.getPeerHostId()));
-            }
-            FtctlActionCommand actionCommand = new FtctlActionCommand(FtctlActionCommand.Action.PROTECT, userVm.getInstanceName());
-            actionCommand.setMode(cmd.getMode());
-            actionCommand.setPeerUri(peerUri);
-            if (backendMode != null) {
-                actionCommand.setContextParam("ftctl.backend.mode", backendMode);
-            }
-            actionCommand.setContextParam("ftctl.provisioning.backend", provisioningContext.getProvisioningBackend());
-            if (targetStorageScope != null) {
-                actionCommand.setContextParam("ftctl.target.storage.scope", targetStorageScope);
-            }
-            if (cmd.getFencingPolicy() != null) {
-                actionCommand.setContextParam("ftctl.fencing.policy", cmd.getFencingPolicy());
-            }
             try {
+                syncFtctlContext(userVm, cmd, targetStoragePool, targetStorageScope, backendMode, secondaryTargetDir, remoteNbdExportAddr, ipmiFencingConfig, provisioningContext);
+                String peerUri = resolvePeerUri(cmd.getPeerHostId());
+                if (peerUri == null || peerUri.isBlank()) {
+                    throw new CloudRuntimeException(String.format("Missing FTCTL peer libvirt URI on host %s", cmd.getPeerHostId()));
+                }
+                FtctlActionCommand actionCommand = new FtctlActionCommand(FtctlActionCommand.Action.PROTECT, userVm.getInstanceName());
+                actionCommand.setMode(cmd.getMode());
+                actionCommand.setPeerUri(peerUri);
+                if (backendMode != null) {
+                    actionCommand.setContextParam("ftctl.backend.mode", backendMode);
+                }
+                actionCommand.setContextParam("ftctl.provisioning.backend", provisioningContext.getProvisioningBackend());
+                if (targetStorageScope != null) {
+                    actionCommand.setContextParam("ftctl.target.storage.scope", targetStorageScope);
+                }
+                if (cmd.getFencingPolicy() != null) {
+                    actionCommand.setContextParam("ftctl.fencing.policy", cmd.getFencingPolicy());
+                }
                 Answer answer = agentManager.send(hostId, actionCommand);
                 if (!(answer instanceof FtctlActionAnswer) || !answer.getResult()) {
                     throw new CloudRuntimeException(String.format("Unable to register FTCTL protection for VM %s: %s",
                             userVm.getUuid(), answer != null ? answer.getDetails() : "no answer"));
                 }
+            } catch (CloudRuntimeException e) {
+                persistRegistrationFailure(userVm, e);
+                throw e;
             } catch (AgentUnavailableException | OperationTimedoutException e) {
-                throw new CloudRuntimeException(String.format("Unable to execute FTCTL protection on host %s for VM %s",
+                CloudRuntimeException failure = new CloudRuntimeException(String.format("Unable to execute FTCTL protection on host %s for VM %s",
                         hostId, userVm.getUuid()), e);
+                persistRegistrationFailure(userVm, failure);
+                throw failure;
             }
         }
 
@@ -381,10 +386,6 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         if (cmd.getMode() == null || cmd.getMode().isBlank()) {
             throw new CloudRuntimeException("FTCTL mode is required");
         }
-        if (("ha".equalsIgnoreCase(cmd.getMode()) || "dr".equalsIgnoreCase(cmd.getMode())) &&
-                (cmd.getBackendMode() == null || cmd.getBackendMode().isBlank())) {
-            throw new CloudRuntimeException("FTCTL backend mode is required for HA/DR");
-        }
         if (isProtectionModeWithTargetStorage(cmd.getMode()) && cmd.getTargetStoragePoolId() == null) {
             throw new CloudRuntimeException("FTCTL target primary storage pool is required for HA/DR/FT");
         }
@@ -435,6 +436,34 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         putVmDetail(virtualMachineId, DETAIL_LAST_ERROR, e.getMessage());
     }
 
+    private void persistRegistrationFailure(UserVmVO userVm, CloudRuntimeException e) {
+        if (userVm == null) {
+            return;
+        }
+        String message = StringUtils.defaultIfBlank(e != null ? e.getMessage() : null, "FTCTL registration failed");
+        Long virtualMachineId = userVm.getId();
+        putVmDetail(virtualMachineId, DETAIL_LAST_PROTECTION_STATE, "error");
+        putVmDetail(virtualMachineId, DETAIL_LAST_TRANSPORT_STATE, "failed");
+        putVmDetail(virtualMachineId, DETAIL_LAST_ACTIVE_SIDE, "primary");
+        putVmDetail(virtualMachineId, DETAIL_LAST_ADMIN_STATE, "active");
+        putVmDetail(virtualMachineId, DETAIL_LAST_FENCING_STATE, "clear");
+        putVmDetail(virtualMachineId, DETAIL_LAST_ERROR, message);
+
+        FtctlProtectionVO protection = ftctlProtectionDao.findActiveByPrimaryVmId(virtualMachineId);
+        if (protection != null) {
+            protection.setProtectionState("error");
+            protection.setTransportState("failed");
+            protection.setActiveSide("primary");
+            protection.setAdminState("active");
+            protection.setFencingState("clear");
+            protection.setLastError(message);
+            protection.markUpdated();
+            ftctlProtectionDao.update(protection.getId(), protection);
+        }
+        publishFtctlEvent(userVm, EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE,
+                String.format("FTCTL protection registration failed for VM %s: %s", userVm.getUuid(), message));
+    }
+
     private StoragePoolVO validateTargetStoragePool(RegisterFtctlProtectionCmd cmd, UserVmVO userVm) {
         if (!isProtectionModeWithTargetStorage(cmd.getMode())) {
             return null;
@@ -466,36 +495,33 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     }
 
     private String resolveBackendMode(RegisterFtctlProtectionCmd cmd, StoragePoolVO storagePool) {
+        if (isHostScopedStoragePool(storagePool)) {
+            return "remote-nbd";
+        }
         if (!isBlank(cmd.getBackendMode())) {
             return cmd.getBackendMode();
         }
-        if ("ft".equalsIgnoreCase(cmd.getMode())) {
-            if (storagePool != null && storagePool.getScope() != null && "HOST".equalsIgnoreCase(storagePool.getScope().name())) {
-                return "remote-nbd";
-            }
-            return "shared-blockcopy";
-        }
-        return cmd.getBackendMode();
+        return "shared-blockcopy";
     }
 
     private String resolveSecondaryTargetDir(RegisterFtctlProtectionCmd cmd, StoragePoolVO storagePool, String backendMode) {
         if (!isBlank(cmd.getSecondaryTargetDir())) {
             return cmd.getSecondaryTargetDir();
         }
-        if (!"ft".equalsIgnoreCase(cmd.getMode()) || !"remote-nbd".equalsIgnoreCase(backendMode)) {
+        if (!"remote-nbd".equalsIgnoreCase(backendMode)) {
             return cmd.getSecondaryTargetDir();
         }
         if (storagePool == null || isBlank(storagePool.getPath())) {
-            throw new CloudRuntimeException("FTCTL FT remote-nbd target storage pool path is required");
+            throw new CloudRuntimeException("FTCTL remote-nbd target storage pool path is required");
         }
-        return String.format("%s/ftctl", storagePool.getPath().replaceAll("/+$", ""));
+        return storagePool.getPath().replaceAll("/+$", "");
     }
 
     private String resolveRemoteNbdExportAddr(RegisterFtctlProtectionCmd cmd, String backendMode) {
         if (!isBlank(cmd.getRemoteNbdExportAddr())) {
             return cmd.getRemoteNbdExportAddr();
         }
-        if (!"ft".equalsIgnoreCase(cmd.getMode()) || !"remote-nbd".equalsIgnoreCase(backendMode)) {
+        if (!"remote-nbd".equalsIgnoreCase(backendMode)) {
             return cmd.getRemoteNbdExportAddr();
         }
         HostVO peerHost = hostDao.findById(cmd.getPeerHostId());
@@ -507,6 +533,10 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             throw new CloudRuntimeException(String.format("Unable to resolve FTCTL remote-nbd export address for peer host %s", cmd.getPeerHostId()));
         }
         return String.format("%s:10809", exportAddress);
+    }
+
+    private boolean isHostScopedStoragePool(StoragePoolVO storagePool) {
+        return storagePool != null && storagePool.getScope() != null && "HOST".equalsIgnoreCase(storagePool.getScope().name());
     }
 
     @Override
