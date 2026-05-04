@@ -399,6 +399,17 @@ public class FtctlServiceImplTest {
             Mockito.verify(ftctlProtectionVolumeDao).remove(901L);
             Mockito.verify(ftctlProtectionVolumeDao).remove(902L);
             Mockito.verify(ftctlProtectionDao).remove(801L);
+            ArgumentCaptor<Command> commandCaptor = ArgumentCaptor.forClass(Command.class);
+            Mockito.verify(agentManager, Mockito.atLeastOnce()).send(Mockito.eq(201L), commandCaptor.capture());
+            FtctlActionCommand capturedAction = null;
+            for (Command command : commandCaptor.getAllValues()) {
+                if (command instanceof FtctlActionCommand) {
+                    capturedAction = (FtctlActionCommand) command;
+                    break;
+                }
+            }
+            Assert.assertNotNull(capturedAction);
+            Assert.assertEquals(240, capturedAction.getWait());
         } finally {
             CallContext.unregister();
         }

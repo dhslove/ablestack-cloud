@@ -104,6 +104,7 @@ import java.util.stream.Collectors;
 
 public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     private static final int FAILBACK_ACTION_WAIT_SECONDS = 900;
+    private static final int UNPROTECT_ACTION_WAIT_SECONDS = 240;
 
     public static final String DETAIL_ENABLED = "ftctl.enabled";
     public static final String DETAIL_MODE = "ftctl.mode";
@@ -699,6 +700,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             if (action == FtctlActionCommand.Action.FAILBACK || action == FtctlActionCommand.Action.FAILBACK_SYNC ||
                     action == FtctlActionCommand.Action.FAILBACK_REPROTECT) {
                 actionCommand.setWait(FAILBACK_ACTION_WAIT_SECONDS);
+            } else if (action == FtctlActionCommand.Action.UNPROTECT) {
+                actionCommand.setWait(UNPROTECT_ACTION_WAIT_SECONDS);
             }
             Answer answer = agentManager.send(hostId, actionCommand);
             if (!(answer instanceof FtctlActionAnswer)) {
