@@ -42,11 +42,18 @@ import com.cloud.host.dao.HostDao;
 import com.cloud.host.dao.HostDetailsDao;
 import com.cloud.hypervisor.Hypervisor.HypervisorType;
 import com.cloud.storage.ScopeType;
+import com.cloud.storage.Volume;
+import com.cloud.storage.VolumeApiService;
+import com.cloud.storage.VolumeVO;
 import com.cloud.storage.dao.VolumeDao;
+import com.cloud.user.Account;
+import com.cloud.user.AccountVO;
+import com.cloud.user.UserVO;
 import com.cloud.utils.exception.CloudRuntimeException;
 import com.cloud.vm.NicVO;
 import com.cloud.vm.VMInstanceDetailVO;
 import com.cloud.vm.UserVmManager;
+import com.cloud.vm.UserVmService;
 import com.cloud.vm.UserVmVO;
 import com.cloud.vm.VirtualMachine;
 import com.cloud.vm.VirtualMachineProfile;
@@ -67,6 +74,7 @@ import org.apache.cloudstack.api.response.ftctl.FtctlEventResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlEventsResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlHealthResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlProtectionResponse;
+import org.apache.cloudstack.context.CallContext;
 import org.apache.cloudstack.outofbandmanagement.OutOfBandManagement;
 import org.apache.cloudstack.outofbandmanagement.dao.OutOfBandManagementDao;
 import org.junit.Assert;
@@ -97,6 +105,8 @@ public class FtctlServiceImplTest {
     @Mock
     private UserVmManager userVmManager;
     @Mock
+    private UserVmService userVmService;
+    @Mock
     private AgentManager agentManager;
     @Mock
     private HostDetailsDao hostDetailsDao;
@@ -114,6 +124,8 @@ public class FtctlServiceImplTest {
     private FtctlProtectionVolumeDao ftctlProtectionVolumeDao;
     @Mock
     private VolumeDao volumeDao;
+    @Mock
+    private VolumeApiService volumeApiService;
 
     @InjectMocks
     private FtctlServiceImpl ftctlService;
@@ -312,6 +324,84 @@ public class FtctlServiceImplTest {
         Assert.assertEquals("primary", protection.getActiveSide());
         Assert.assertEquals("paused", protection.getAdminState());
         Assert.assertEquals("clear", protection.getFencingState());
+    }
+
+    @Test
+    public void testReleaseFtctlProtectionExpungesStandbyVolumesAndRemovesRows() throws Exception {
+        UserVO caller = new UserVO();
+        AccountVO account = new AccountVO("admin", 1L, "ROOT", Account.Type.ADMIN, "account-uuid");
+        CallContext.register(caller, account);
+        try {
+            UserVmVO secondaryVm = Mockito.mock(UserVmVO.class);
+            Mockito.when(secondaryVm.getId()).thenReturn(202L);
+            Mockito.when(secondaryVm.getUuid()).thenReturn("secondary-uuid");
+            Mockito.when(secondaryVm.getState()).thenReturn(VirtualMachine.State.Stopped);
+            Mockito.when(secondaryVm.getRemoved()).thenReturn(null);
+            Mockito.when(userVmDao.findById(202L)).thenReturn(secondaryVm);
+
+            FtctlProtectionVO protection = new FtctlProtectionVO(101L);
+            setField(protection, "id", 801L);
+            protection.setSecondaryVmId(202L);
+            protection.setProvisioningBackend(FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED);
+            protection.setActiveSide("primary");
+            Mockito.when(ftctlProtectionDao.findActiveByPrimaryVmId(101L)).thenReturn(protection);
+
+            FtctlProtectionVolumeVO rootMapping = new FtctlProtectionVolumeVO(801L, 301L);
+            setField(rootMapping, "id", 901L);
+            rootMapping.setSecondaryVolumeId(401L);
+            rootMapping.setDiskLabel("root-0");
+            FtctlProtectionVolumeVO dataMapping = new FtctlProtectionVolumeVO(801L, 302L);
+            setField(dataMapping, "id", 902L);
+            dataMapping.setSecondaryVolumeId(402L);
+            dataMapping.setDiskLabel("data-1");
+            Mockito.when(ftctlProtectionVolumeDao.listActiveByProtectionId(801L)).thenReturn(List.of(rootMapping, dataMapping));
+
+            VolumeVO rootVolume = Mockito.mock(VolumeVO.class);
+            Mockito.when(rootVolume.getId()).thenReturn(401L);
+            Mockito.when(rootVolume.getInstanceId()).thenReturn(202L);
+            Mockito.when(rootVolume.getState()).thenReturn(Volume.State.Ready);
+            Mockito.when(rootVolume.getRemoved()).thenReturn(null);
+
+            VolumeVO dataVolume = Mockito.mock(VolumeVO.class);
+            Mockito.when(dataVolume.getId()).thenReturn(402L);
+            Mockito.when(dataVolume.getInstanceId()).thenReturn(202L);
+            Mockito.when(dataVolume.getState()).thenReturn(Volume.State.Ready);
+            Mockito.when(dataVolume.getRemoved()).thenReturn(null);
+
+            Mockito.when(volumeDao.findByInstance(202L)).thenReturn(List.of(rootVolume, dataVolume));
+            Mockito.when(volumeDao.findById(401L)).thenReturn(rootVolume);
+            Mockito.when(volumeDao.findById(402L)).thenReturn(dataVolume);
+            Mockito.when(volumeApiService.destroyVolume(Mockito.anyLong(), Mockito.eq(account), Mockito.eq(true), Mockito.eq(true)))
+                    .thenReturn(rootVolume);
+            Mockito.when(userVmManager.expunge(secondaryVm)).thenReturn(true);
+
+            FtctlActionCommand actionCommand = new FtctlActionCommand(FtctlActionCommand.Action.UNPROTECT, "vm-name");
+            FtctlActionAnswer actionAnswer = new FtctlActionAnswer(actionCommand, true, "OK",
+                    FtctlActionCommand.Action.UNPROTECT, "ok", 0, "{\"result\":\"ok\"}");
+            FtctlStatusCommand statusCommand = new FtctlStatusCommand("vm-name");
+            FtctlStatusAnswer statusAnswer = new FtctlStatusAnswer(statusCommand, true, "OK", "ok", "vm-name",
+                    "ha", "disabled", "stopped", "primary", "inactive", "clear", "",
+                    "2026-05-04T09:30:00+09:00", 0, 0);
+            Mockito.when(agentManager.send(Mockito.eq(201L), Mockito.any(Command.class)))
+                    .thenReturn(actionAnswer)
+                    .thenReturn(statusAnswer);
+
+            FtctlActionResponse response = ftctlService.releaseFtctlProtection(101L, true);
+
+            Assert.assertEquals("UNPROTECT", getFieldValue(response, "action"));
+            Assert.assertEquals("disabled", getFieldValue(response, "protectionState"));
+            Mockito.verify(userVmService).destroyVm(202L, true);
+            Mockito.verify(userVmManager).expunge(secondaryVm);
+            Mockito.verify(volumeDao).detachVolume(401L);
+            Mockito.verify(volumeDao).detachVolume(402L);
+            Mockito.verify(volumeApiService).destroyVolume(401L, account, true, true);
+            Mockito.verify(volumeApiService).destroyVolume(402L, account, true, true);
+            Mockito.verify(ftctlProtectionVolumeDao).remove(901L);
+            Mockito.verify(ftctlProtectionVolumeDao).remove(902L);
+            Mockito.verify(ftctlProtectionDao).remove(801L);
+        } finally {
+            CallContext.unregister();
+        }
     }
 
     @Test

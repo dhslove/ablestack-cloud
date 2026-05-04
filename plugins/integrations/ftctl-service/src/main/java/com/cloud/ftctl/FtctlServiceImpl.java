@@ -48,6 +48,7 @@ import com.cloud.host.HostVO;
 import com.cloud.host.dao.HostDao;
 import com.cloud.host.dao.HostDetailsDao;
 import com.cloud.storage.Volume;
+import com.cloud.storage.VolumeApiService;
 import com.cloud.storage.VolumeVO;
 import com.cloud.storage.dao.VolumeDao;
 import com.cloud.user.User;
@@ -78,6 +79,7 @@ import org.apache.cloudstack.api.response.ftctl.FtctlEventsResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlHealthResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlProtectionResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlProtectionVolumeResponse;
+import org.apache.cloudstack.context.CallContext;
 import org.apache.cloudstack.framework.config.ConfigKey;
 import org.apache.cloudstack.storage.datastore.db.PrimaryDataStoreDao;
 import org.apache.cloudstack.storage.datastore.db.StoragePoolVO;
@@ -175,6 +177,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     private FtctlProtectionVolumeDao ftctlProtectionVolumeDao;
     @Inject
     private VolumeDao volumeDao;
+    @Inject
+    private VolumeApiService volumeApiService;
 
     @Override
     public FtctlProtectionResponse getFtctlProtection(GetFtctlProtectionCmd cmd) throws CloudRuntimeException {
@@ -580,8 +584,10 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         if (!isCloudManagedProvisioning(protection) || protection.getSecondaryVmId() == null) {
             return;
         }
+        List<Long> secondaryVolumeIds = collectSecondaryVolumeIdsForProtection(protection);
         UserVmVO secondaryVm = userVmDao.findById(protection.getSecondaryVmId());
         if (secondaryVm == null || secondaryVm.getRemoved() != null) {
+            destroySecondaryVolumes(primaryVm, secondaryVolumeIds);
             return;
         }
         if (secondaryVm.getState() == VirtualMachine.State.Running) {
@@ -590,12 +596,64 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         }
         try {
             userVmService.destroyVm(secondaryVm.getId(), true);
+            UserVmVO destroyedSecondaryVm = userVmDao.findById(secondaryVm.getId());
+            if (destroyedSecondaryVm != null && destroyedSecondaryVm.getRemoved() == null) {
+                boolean expunged = userVmManager.expunge(destroyedSecondaryVm);
+                if (!expunged) {
+                    throw new CloudRuntimeException(String.format("Cloud-managed expunge returned false for FTCTL secondary VM %s", secondaryVm.getUuid()));
+                }
+            }
+            destroySecondaryVolumes(primaryVm, secondaryVolumeIds);
             publishFtctlEvent(primaryVm, EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE,
                     String.format("Destroyed and expunged FTCTL secondary VM %s during protection release for primary VM %s",
                             secondaryVm.getUuid(), primaryVm.getUuid()));
         } catch (ResourceUnavailableException | ConcurrentOperationException e) {
             throw new CloudRuntimeException(String.format("Unable to destroy FTCTL secondary VM %s for primary VM %s during protection release",
                     secondaryVm.getUuid(), primaryVm.getUuid()), e);
+        }
+    }
+
+    private List<Long> collectSecondaryVolumeIdsForProtection(FtctlProtectionVO protection) {
+        List<Long> secondaryVolumeIds = new ArrayList<>();
+        List<FtctlProtectionVolumeVO> volumes = ftctlProtectionVolumeDao.listActiveByProtectionId(protection.getId());
+        if (volumes != null) {
+            for (FtctlProtectionVolumeVO volume : volumes) {
+                if (volume.getSecondaryVolumeId() != null && !secondaryVolumeIds.contains(volume.getSecondaryVolumeId())) {
+                    secondaryVolumeIds.add(volume.getSecondaryVolumeId());
+                }
+            }
+        }
+        if (protection.getSecondaryVmId() != null) {
+            List<VolumeVO> attachedVolumes = volumeDao.findByInstance(protection.getSecondaryVmId());
+            if (attachedVolumes != null) {
+                for (VolumeVO volume : attachedVolumes) {
+                    if (volume != null && !secondaryVolumeIds.contains(volume.getId())) {
+                        secondaryVolumeIds.add(volume.getId());
+                    }
+                }
+            }
+        }
+        return secondaryVolumeIds;
+    }
+
+    private void destroySecondaryVolumes(UserVmVO primaryVm, List<Long> secondaryVolumeIds) {
+        if (secondaryVolumeIds == null || secondaryVolumeIds.isEmpty()) {
+            return;
+        }
+        for (Long volumeId : secondaryVolumeIds) {
+            VolumeVO volume = volumeId != null ? volumeDao.findById(volumeId) : null;
+            if (volume == null || volume.getRemoved() != null || volume.getState() == Volume.State.Expunged) {
+                continue;
+            }
+            if (volume.getInstanceId() != null) {
+                volumeDao.detachVolume(volume.getId());
+            }
+            try {
+                volumeApiService.destroyVolume(volume.getId(), CallContext.current().getCallingAccount(), true, true);
+            } catch (RuntimeException e) {
+                throw new CloudRuntimeException(String.format("Unable to destroy FTCTL secondary volume %s for primary VM %s during protection release",
+                        volume.getUuid(), primaryVm.getUuid()), e);
+            }
         }
     }
 
@@ -617,6 +675,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             for (FtctlProtectionVolumeVO volume : volumes) {
                 volume.markRemoved();
                 ftctlProtectionVolumeDao.update(volume.getId(), volume);
+                ftctlProtectionVolumeDao.remove(volume.getId());
             }
         }
         protection.setProtectionState("disabled");
@@ -627,6 +686,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         protection.setLastError(null);
         protection.markRemoved();
         ftctlProtectionDao.update(protection.getId(), protection);
+        ftctlProtectionDao.remove(protection.getId());
     }
 
     private FtctlActionResponse executeFtctlAgentAction(UserVmVO userVm, FtctlActionCommand.Action action, boolean force) throws CloudRuntimeException {
