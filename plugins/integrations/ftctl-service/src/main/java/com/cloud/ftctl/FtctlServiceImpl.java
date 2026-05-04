@@ -1374,7 +1374,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             return details.get(VmDetailConstants.ROOT_DISK_CONTROLLER);
         }
         if (volume.getVolumeType() == Volume.Type.DATADISK) {
-            return details.get(VmDetailConstants.DATA_DISK_CONTROLLER);
+            return StringUtils.defaultIfBlank(details.get(VmDetailConstants.DATA_DISK_CONTROLLER),
+                    details.get(VmDetailConstants.ROOT_DISK_CONTROLLER));
         }
         return StringUtils.defaultIfBlank(details.get(VmDetailConstants.DATA_DISK_CONTROLLER),
                 details.get(VmDetailConstants.ROOT_DISK_CONTROLLER));
