@@ -179,8 +179,8 @@ describe('Views > compute > FtctlTab.vue', () => {
     expect(wrapper.vm.secondaryVmRouteId).toBe('secondary-vm-uuid')
     expect(wrapper.vm.secondaryVolumeItems.map(volume => volume.name)).toEqual(['vm-name-secondary-root', 'vm-name-secondary-data'])
     expect(wrapper.vm.healthHostDisplay).toBe('ablecube22-3')
-    expect(wrapper.vm.returnCodeStatus(wrapper.vm.checkResult.primaryrc)).toBe('OK')
-    expect(wrapper.vm.returnCodeStatus(wrapper.vm.checkResult.peerrc)).toBe('WARN')
+    expect(wrapper.vm.primaryExecutionState).toBe('Started')
+    expect(wrapper.vm.peerExecutionState).toBe('Error')
     expect(wrapper.vm.checkResult.inventoryresult).toBe('healthy')
     expect(wrapper.vm.healthResult.uri).toBe('qemu+ssh://10.0.0.11/system')
     expect(wrapper.vm.events[0].event).toBe('newer')
@@ -345,5 +345,96 @@ describe('Views > compute > FtctlTab.vue', () => {
     expect(wrapper.vm.lastAction.success).toBe(true)
     expect(wrapper.vm.lastAction.message).toContain('label.ftctl.failover label.completed')
     expect(eventBus.emit).toHaveBeenCalledWith('vm-refresh-data')
+  })
+
+  it('updates sync progress silently without full tab loading', async () => {
+    let protectionCallCount = 0
+    getAPI.mockImplementation((command) => {
+      if (command === 'getFtctlProtection') {
+        protectionCallCount += 1
+        return Promise.resolve({
+          getftctlprotectionresponse: {
+            ftctlprotection: {
+              enabled: 'true',
+              mode: 'ha',
+              protectionstate: 'syncing',
+              transportstate: 'copying',
+              activeside: 'primary',
+              adminstate: 'active',
+              fencingstate: 'clear',
+              syncprogresspercent: protectionCallCount === 1 ? 10 : 25,
+              syncready: false
+            }
+          }
+        })
+      }
+      return Promise.resolve({})
+    })
+
+    const wrapper = createWrapper({
+      getFtctlCheck: true,
+      getFtctlHealth: true,
+      getFtctlEvents: true
+    })
+    await flushPromises()
+    wrapper.vm.loadingState = false
+
+    await wrapper.vm.fetchSyncProgress()
+    await flushPromises()
+
+    expect(wrapper.vm.loadingState).toBe(false)
+    expect(wrapper.vm.refreshingProgress).toBe(false)
+    expect(wrapper.vm.syncProgressPercent).toBe(25)
+    expect(getAPI).toHaveBeenLastCalledWith('getFtctlProtection', { virtualmachineid: 'vm-1' })
+    wrapper.unmount()
+  })
+
+  it('keeps pause and resume actions local without parent VM refresh', async () => {
+    let protectionCallCount = 0
+    getAPI.mockImplementation((command) => {
+      if (command === 'getFtctlProtection') {
+        protectionCallCount += 1
+        return Promise.resolve({
+          getftctlprotectionresponse: {
+            ftctlprotection: {
+              enabled: 'true',
+              mode: 'ha',
+              protectionstate: 'protected',
+              transportstate: 'mirroring',
+              activeside: 'primary',
+              adminstate: protectionCallCount > 1 ? 'paused' : 'active',
+              fencingstate: 'clear'
+            }
+          }
+        })
+      }
+      return Promise.resolve({})
+    })
+    postAPI.mockResolvedValue({
+      pauseftctlprotectionresponse: {
+        result: 'ok',
+        protectionstate: 'protected',
+        transportstate: 'mirroring',
+        activeside: 'primary',
+        adminstate: 'paused',
+        fencingstate: 'clear'
+      }
+    })
+
+    const wrapper = createWrapper({
+      getFtctlCheck: true,
+      getFtctlHealth: true,
+      getFtctlEvents: true,
+      pauseFtctlProtection: true
+    })
+    await flushPromises()
+
+    await wrapper.vm.runAction('pauseFtctlProtection')
+    await flushPromises()
+
+    expect(postAPI).toHaveBeenCalledWith('pauseFtctlProtection', { virtualmachineid: 'vm-1' })
+    expect(wrapper.vm.protection.adminstate).toBe('paused')
+    expect(eventBus.emit).not.toHaveBeenCalledWith('vm-refresh-data')
+    wrapper.unmount()
   })
 })

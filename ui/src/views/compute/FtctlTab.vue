@@ -150,6 +150,9 @@
                 <div class="ftctl-tab__progress-meta">
                   {{ syncProgressDirection }} | {{ formatBytes(syncCopiedBytes) }} / {{ formatBytes(syncTotalBytes) }}
                   <span v-if="syncProgressUpdated"> | {{ syncProgressUpdated }}</span>
+                  <span v-if="refreshingProgress" class="ftctl-tab__progress-refreshing">
+                    <SyncOutlined spin />
+                  </span>
                 </div>
               </div>
               <a-tag :color="syncReady ? 'green' : 'blue'">{{ syncReady ? 'ready' : 'copying' }}</a-tag>
@@ -385,6 +388,8 @@ export default {
         timestamp: null
       },
       syncRefreshTimer: null,
+      refreshingProgress: false,
+      syncRefreshCount: 0,
       actionLoading: {
         pauseFtctlProtection: false,
         resumeFtctlProtection: false,
@@ -866,28 +871,36 @@ export default {
     extractProtectionPayload (response) {
       return this.extractNestedPayload(response, 'getftctlprotectionresponse', 'ftctlprotection')
     },
-    async fetchAll () {
-      this.loadingState = true
+    async fetchAll (options = {}) {
+      const silent = options?.silent === true
+      if (!silent) {
+        this.loadingState = true
+      }
       this.errorMessage = null
       try {
-        await this.fetchProtection()
+        await this.fetchProtection({ silent })
         if (this.protectionConfigured) {
-          await Promise.all([
-            this.fetchCheck(),
-            this.fetchHealth(),
-            this.fetchEvents()
-          ])
+          await this.fetchRuntimeData({ silent })
         } else {
           this.checkResult = {}
           this.healthResult = {}
           this.events = []
         }
       } finally {
-        this.loadingState = false
+        if (!silent) {
+          this.loadingState = false
+        }
         this.updateSyncAutoRefresh()
       }
     },
-    async fetchProtection () {
+    async fetchRuntimeData (options = {}) {
+      await Promise.all([
+        this.fetchCheck(options),
+        this.fetchHealth(options),
+        this.fetchEvents(options)
+      ])
+    },
+    async fetchProtection (options = {}) {
       if (!this.resource?.id) {
         return
       }
@@ -895,11 +908,13 @@ export default {
         const response = await getAPI('getFtctlProtection', { virtualmachineid: this.resource.id })
         this.protection = Object.assign({}, this.extractProtectionPayload(response))
       } catch (error) {
-        this.protection = {}
-        this.errorMessage = this.extractErrorMessage(error, 'getFtctlProtection')
+        if (!options.silent) {
+          this.protection = {}
+          this.errorMessage = this.extractErrorMessage(error, 'getFtctlProtection')
+        }
       }
     },
-    async fetchCheck () {
+    async fetchCheck (options = {}) {
       if (!this.resource?.id || !('getFtctlCheck' in this.$store.getters.apis)) {
         return
       }
@@ -907,11 +922,13 @@ export default {
         const response = await getAPI('getFtctlCheck', { virtualmachineid: this.resource.id })
         this.checkResult = this.extractNestedPayload(response, 'getftctlcheckresponse', 'ftctlcheck')
       } catch (error) {
-        this.checkResult = {}
-        this.errorMessage = this.extractErrorMessage(error, 'getFtctlCheck')
+        if (!options.silent) {
+          this.checkResult = {}
+          this.errorMessage = this.extractErrorMessage(error, 'getFtctlCheck')
+        }
       }
     },
-    async fetchHealth () {
+    async fetchHealth (options = {}) {
       if (!this.resource?.id || !('getFtctlHealth' in this.$store.getters.apis)) {
         return
       }
@@ -919,11 +936,13 @@ export default {
         const response = await getAPI('getFtctlHealth', { virtualmachineid: this.resource.id })
         this.healthResult = this.extractNestedPayload(response, 'getftctlhealthresponse', 'ftctlhealth')
       } catch (error) {
-        this.healthResult = {}
-        this.errorMessage = this.extractErrorMessage(error, 'getFtctlHealth')
+        if (!options.silent) {
+          this.healthResult = {}
+          this.errorMessage = this.extractErrorMessage(error, 'getFtctlHealth')
+        }
       }
     },
-    async fetchEvents () {
+    async fetchEvents (options = {}) {
       if (!this.resource?.id || !this.canLoadEvents) {
         return
       }
@@ -938,8 +957,10 @@ export default {
           return String(b.timestamp || '').localeCompare(String(a.timestamp || ''))
         })
       } catch (error) {
-        this.events = []
-        this.errorMessage = this.extractErrorMessage(error, 'getFtctlEvents')
+        if (!options.silent) {
+          this.events = []
+          this.errorMessage = this.extractErrorMessage(error, 'getFtctlEvents')
+        }
       }
     },
     async runAction (commandName) {
@@ -964,7 +985,9 @@ export default {
           message: this.buildActionMessage(commandName, payload),
           timestamp: new Date().toLocaleString()
         }
-        eventBus.emit('vm-refresh-data')
+        if (this.shouldRefreshParentVm(commandName)) {
+          eventBus.emit('vm-refresh-data')
+        }
         await this.fetchAll()
       } catch (error) {
         this.errorMessage = this.extractErrorMessage(error, commandName)
@@ -1016,6 +1039,9 @@ export default {
       if (payload.syncupdated !== undefined) this.protection.syncupdated = payload.syncupdated
       if (payload.syncprogressjson !== undefined) this.protection.syncprogressjson = payload.syncprogressjson
     },
+    shouldRefreshParentVm (commandName) {
+      return ['failoverFtctlProtection', 'failbackFtctlProtection', 'confirmFtctlFence', 'releaseFtctlProtection'].includes(commandName)
+    },
     updateSyncAutoRefresh () {
       const transport = String(this.protection.transportstate || '').toLowerCase()
       if (['copying', 'reverse_syncing'].includes(transport)) {
@@ -1029,10 +1055,26 @@ export default {
         return
       }
       this.syncRefreshTimer = setInterval(() => {
-        if (!this.loadingState && this.resource?.id) {
-          this.fetchAll()
+        if (!this.loadingState && !this.refreshingProgress && this.resource?.id) {
+          this.fetchSyncProgress()
         }
       }, 10000)
+    },
+    async fetchSyncProgress () {
+      if (!this.resource?.id || this.refreshingProgress) {
+        return
+      }
+      this.refreshingProgress = true
+      try {
+        await this.fetchProtection({ silent: true })
+        this.syncRefreshCount += 1
+        if (this.protectionConfigured && this.syncRefreshCount % 3 === 0) {
+          await this.fetchRuntimeData({ silent: true })
+        }
+      } finally {
+        this.refreshingProgress = false
+        this.updateSyncAutoRefresh()
+      }
     },
     stopSyncAutoRefresh () {
       if (!this.syncRefreshTimer) {
@@ -1127,6 +1169,13 @@ export default {
     margin-top: 3px;
     font-size: 12px;
     color: rgba(0, 0, 0, 0.62);
+  }
+
+  &__progress-refreshing {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 6px;
+    color: #1890ff;
   }
 
   &__progress-disks {
@@ -1323,6 +1372,7 @@ body.dark-mode .ftctl-tab {
   }
 
   .ftctl-tab__progress-meta,
+  .ftctl-tab__progress-refreshing,
   .ftctl-tab__progress-disk-label,
   .ftctl-tab__progress-disk-runtime-key {
     color: rgba(255, 255, 255, 0.68);
