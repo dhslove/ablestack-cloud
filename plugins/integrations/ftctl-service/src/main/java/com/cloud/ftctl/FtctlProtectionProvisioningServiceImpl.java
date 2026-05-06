@@ -16,6 +16,7 @@
 // under the License.
 package com.cloud.ftctl;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -488,13 +489,17 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
                 protectionVolumesByPrimaryVolumeId.put(protectionVolume.getPrimaryVolumeId(), protectionVolume);
             }
         }
-        return primaryVolumes.stream()
+        List<String> entries = new ArrayList<>();
+        for (VolumeVO volume : primaryVolumes.stream()
                 .filter(this::isProtectedVolumeType)
                 .sorted((left, right) -> Long.compare(resolveDeviceIdForSort(left), resolveDeviceIdForSort(right)))
-                .map(volume -> buildDiskMapEntry(request, volume, protectionVolumesByPrimaryVolumeId.get(volume.getId())))
-                .filter(StringUtils::isNotBlank)
-                .reduce((left, right) -> left + ";" + right)
-                .orElse(null);
+                .collect(java.util.stream.Collectors.toList())) {
+            entries.add(buildDiskMapEntry(request, volume, protectionVolumesByPrimaryVolumeId.get(volume.getId())));
+        }
+        if (entries.isEmpty()) {
+            throw new CloudRuntimeException(String.format("FTCTL cloud-managed provisioning did not build a disk map for primary VM %s", request.getPrimaryVm().getUuid()));
+        }
+        return StringUtils.join(entries, ";");
     }
 
     private boolean isProtectedVolumeType(VolumeVO volume) {
@@ -503,9 +508,12 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
 
     private String buildDiskMapEntry(FtctlProtectionProvisioningRequest request, VolumeVO primaryVolume, FtctlProtectionVolumeVO protectionVolume) {
         if (protectionVolume == null || StringUtils.isBlank(protectionVolume.getSecondaryDiskPath())) {
-            return null;
+            throw new CloudRuntimeException(String.format("FTCTL cloud-managed provisioning is missing a standby volume path for primary volume %s", primaryVolume.getUuid()));
         }
         String secondaryDiskPath = resolveFtctlSecondaryDiskPath(request.getTargetStoragePool(), protectionVolume.getSecondaryDiskPath());
+        if (StringUtils.isBlank(secondaryDiskPath)) {
+            throw new CloudRuntimeException(String.format("FTCTL cloud-managed provisioning resolved an empty standby path for primary volume %s", primaryVolume.getUuid()));
+        }
         return String.format("%s=%s", resolveKvmDiskTarget(request.getPrimaryVm(), primaryVolume), secondaryDiskPath);
     }
 

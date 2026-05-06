@@ -47,6 +47,7 @@ import com.cloud.host.DetailVO;
 import com.cloud.host.HostVO;
 import com.cloud.host.dao.HostDao;
 import com.cloud.host.dao.HostDetailsDao;
+import com.cloud.storage.Storage;
 import com.cloud.storage.Volume;
 import com.cloud.storage.VolumeApiService;
 import com.cloud.storage.VolumeVO;
@@ -1423,18 +1424,19 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         if (volumes == null || volumes.isEmpty()) {
             return;
         }
+        StoragePoolVO targetStoragePool = protection.getTargetStoragePoolId() != null ? primaryDataStoreDao.findById(protection.getTargetStoragePoolId()) : null;
         List<String> secondaryDiskEntries = new ArrayList<>();
         List<String> diskMapEntries = new ArrayList<>();
         List<FtctlProtectionVolumeResponse> secondaryVolumes = new ArrayList<>();
         for (FtctlProtectionVolumeVO volume : volumes) {
-            String secondaryPath = volume.getSecondaryDiskPath();
+            String secondaryPath = resolveFtctlSecondaryDiskPath(targetStoragePool, volume.getSecondaryDiskPath());
             VolumeVO secondaryVolume = volume.getSecondaryVolumeId() != null ? volumeDao.findById(volume.getSecondaryVolumeId()) : null;
             if (secondaryVolume != null) {
                 FtctlProtectionVolumeResponse volumeResponse = new FtctlProtectionVolumeResponse();
                 volumeResponse.setObjectName("ftctlprotectionvolume");
                 volumeResponse.setId(secondaryVolume.getUuid());
                 volumeResponse.setName(resolveVolumeDisplayName(secondaryVolume.getId()));
-                volumeResponse.setPath(secondaryVolume.getPath());
+                volumeResponse.setPath(StringUtils.defaultIfBlank(secondaryPath, secondaryVolume.getPath()));
                 volumeResponse.setDiskLabel(volume.getDiskLabel());
                 secondaryVolumes.add(volumeResponse);
             }
@@ -1451,6 +1453,45 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         if (!secondaryVolumes.isEmpty()) {
             response.setSecondaryVolumes(secondaryVolumes);
         }
+    }
+
+    private String resolveFtctlSecondaryDiskPath(StoragePoolVO targetStoragePool, String secondaryDiskPath) {
+        String normalizedPath = StringUtils.trimToNull(secondaryDiskPath);
+        if (normalizedPath == null || StringUtils.startsWithAny(normalizedPath, "/dev/", "rbd:")) {
+            return normalizedPath;
+        }
+        if (targetStoragePool == null) {
+            return normalizedPath;
+        }
+        if (!Storage.StoragePoolType.RBD.equals(targetStoragePool.getPoolType())) {
+            if (StringUtils.startsWith(normalizedPath, "/") || StringUtils.isBlank(targetStoragePool.getPath())) {
+                return normalizedPath;
+            }
+            return String.format("%s/%s", StringUtils.removeEnd(targetStoragePool.getPath(), "/"), StringUtils.removeStart(normalizedPath, "/"));
+        }
+
+        String poolName = resolveRbdPoolName(targetStoragePool.getPath());
+        if (StringUtils.isBlank(poolName)) {
+            return normalizedPath;
+        }
+        String imageName = StringUtils.stripStart(normalizedPath, "/");
+        String poolPrefix = poolName + "/";
+        if (imageName.startsWith(poolPrefix)) {
+            imageName = imageName.substring(poolPrefix.length());
+        }
+        return StringUtils.isNotBlank(imageName) ? String.format("/dev/rbd/%s/%s", poolName, imageName) : normalizedPath;
+    }
+
+    private String resolveRbdPoolName(String poolPath) {
+        String normalizedPath = StringUtils.stripEnd(StringUtils.trimToEmpty(poolPath), "/");
+        if (normalizedPath.startsWith("rbd://")) {
+            normalizedPath = normalizedPath.substring("rbd://".length());
+        }
+        int lastSlash = normalizedPath.lastIndexOf('/');
+        if (lastSlash >= 0) {
+            normalizedPath = normalizedPath.substring(lastSlash + 1);
+        }
+        return normalizedPath;
     }
 
     private String resolveVolumeDisplayName(long volumeId) {
@@ -1897,7 +1938,9 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
                 profileCommand.setTargetStoragePoolType(targetStoragePool.getPoolType().name());
             }
         }
-        profileCommand.setDiskMap(provisioningContext.getDiskMap());
+        String diskMap = provisioningContext.getDiskMap();
+        validateCloudManagedDiskMap(provisioningContext, backendMode, diskMap);
+        profileCommand.setDiskMap(diskMap);
         profileCommand.setSecondaryVmName(provisioningContext.getSecondaryVmName());
         profileCommand.setFencingPolicy(cmd.getFencingPolicy());
         profileCommand.setSecondaryTargetDir(secondaryTargetDir);
@@ -1911,6 +1954,29 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
 
         executeSyncCommand(localHostId, clusterCommand, "cluster");
         executeSyncCommand(localHostId, profileCommand, "profile");
+    }
+
+    private void validateCloudManagedDiskMap(FtctlProtectionProvisioningContext provisioningContext, String backendMode, String diskMap) {
+        if (provisioningContext == null ||
+                !FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED.equalsIgnoreCase(provisioningContext.getProvisioningBackend())) {
+            return;
+        }
+        if (StringUtils.isBlank(diskMap) || "auto".equalsIgnoreCase(StringUtils.trim(diskMap))) {
+            throw new CloudRuntimeException("FTCTL cloud-managed provisioning requires an explicit disk map");
+        }
+        String[] entries = StringUtils.split(diskMap, ';');
+        if (entries == null || entries.length == 0) {
+            throw new CloudRuntimeException("FTCTL cloud-managed provisioning resolved an empty disk map");
+        }
+        for (String entry : entries) {
+            String[] parts = StringUtils.split(entry, "=", 2);
+            if (parts == null || parts.length != 2 || StringUtils.isAnyBlank(parts[0], parts[1])) {
+                throw new CloudRuntimeException(String.format("FTCTL cloud-managed provisioning resolved an invalid disk map entry: %s", entry));
+            }
+            if ("remote-nbd".equalsIgnoreCase(backendMode) && !StringUtils.startsWith(parts[1], "/")) {
+                throw new CloudRuntimeException(String.format("FTCTL cloud-managed remote-nbd target %s must use an absolute Cloud-managed path: %s", parts[0], parts[1]));
+            }
+        }
     }
 
     private void executeSyncCommand(Long hostId, com.cloud.agent.api.Command command, String syncType) {

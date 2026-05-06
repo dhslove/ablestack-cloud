@@ -918,6 +918,29 @@ public class FtctlServiceImplTest {
     }
 
     @Test
+    public void testRegisterCloudManagedRemoteNbdRejectsRelativeDiskMap() throws Exception {
+        RegisterFtctlProtectionCmd cmd = buildRegisterCmd();
+        HostVO localHost = mockHost(201L, 301L, "10.0.0.11");
+        HostVO peerHost = mockHost(202L, 301L, "10.0.0.12");
+        Mockito.when(hostDao.findById(201L)).thenReturn(localHost);
+        Mockito.when(hostDao.findById(202L)).thenReturn(peerHost);
+        Mockito.doReturn(new FtctlProtectionProvisioningContext(
+                FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED,
+                FtctlProtectionProvisioningService.STATE_READY,
+                "i-2-401-VM",
+                "sda=relative-target.qcow2"))
+                .when(ftctlProtectionProvisioningService).prepareProtection(Mockito.any());
+
+        try {
+            ftctlService.registerFtctlProtection(cmd);
+            Assert.fail("Expected CloudRuntimeException");
+        } catch (CloudRuntimeException e) {
+            Assert.assertTrue(e.getMessage().contains("absolute Cloud-managed path"));
+        }
+        Mockito.verify(agentManager, Mockito.never()).send(Mockito.anyLong(), Mockito.any(Command.class));
+    }
+
+    @Test
     public void testRegisterFtctlProtectionNormalizesHostStorageToRemoteNbd() throws Exception {
         RegisterFtctlProtectionCmd cmd = buildRegisterCmd();
         setField(cmd, "mode", "ha");
