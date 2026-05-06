@@ -56,6 +56,7 @@ public class LibvirtFtctlStatusCommandWrapper extends CommandWrapper<FtctlStatus
         }
 
         boolean success = exitValue == 0;
+        JsonObject syncProgress = LibvirtFtctlWrapperHelper.getObject(payload, "sync_progress");
         return new FtctlStatusAnswer(command, success, StringUtils.defaultIfBlank(output, success ? "OK" : "ftctl status failed"),
                 LibvirtFtctlWrapperHelper.getString(payload, "result"),
                 LibvirtFtctlWrapperHelper.getString(payload, "vm"),
@@ -68,6 +69,13 @@ public class LibvirtFtctlStatusCommandWrapper extends CommandWrapper<FtctlStatus
                 LibvirtFtctlWrapperHelper.getString(payload, "last_error"),
                 LibvirtFtctlWrapperHelper.getString(payload, "last_reconcile_ts"),
                 LibvirtFtctlWrapperHelper.getInteger(payload, "rearm_count"),
-                LibvirtFtctlWrapperHelper.getInteger(payload, "failover_count"));
+                LibvirtFtctlWrapperHelper.getInteger(payload, "failover_count"),
+                LibvirtFtctlWrapperHelper.getDouble(syncProgress, "percent"),
+                LibvirtFtctlWrapperHelper.getLong(syncProgress, "copied_bytes"),
+                LibvirtFtctlWrapperHelper.getLong(syncProgress, "total_bytes"),
+                LibvirtFtctlWrapperHelper.getBoolean(syncProgress, "ready"),
+                LibvirtFtctlWrapperHelper.getString(syncProgress, "direction"),
+                LibvirtFtctlWrapperHelper.getString(syncProgress, "updated"),
+                syncProgress != null ? syncProgress.toString() : null);
     }
 }

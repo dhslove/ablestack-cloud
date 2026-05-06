@@ -142,6 +142,35 @@
               <span v-else>-</span>
             </div>
           </div>
+
+          <div v-if="syncProgressVisible" class="ftctl-tab__progress">
+            <div class="ftctl-tab__progress-head">
+              <div>
+                <div class="ftctl-tab__summary-label">Block Copy Progress</div>
+                <div class="ftctl-tab__progress-meta">
+                  {{ syncProgressDirection }} | {{ formatBytes(syncCopiedBytes) }} / {{ formatBytes(syncTotalBytes) }}
+                  <span v-if="syncProgressUpdated"> | {{ syncProgressUpdated }}</span>
+                </div>
+              </div>
+              <a-tag :color="syncReady ? 'green' : 'blue'">{{ syncReady ? 'ready' : 'copying' }}</a-tag>
+            </div>
+            <a-progress :percent="syncProgressPercent" :status="syncProgressStatus" />
+            <div v-if="syncProgressDisks.length" class="ftctl-tab__progress-disks">
+              <div v-for="disk in syncProgressDisks" :key="disk.device || disk.target" class="ftctl-tab__progress-disk">
+                <div class="ftctl-tab__progress-disk-label">
+                  <span>{{ disk.target || disk.device }}</span>
+                  <span>{{ formatPercent(disk.percent) }}%</span>
+                </div>
+                <a-progress :percent="normalizePercent(disk.percent)" :show-info="false" size="small" />
+                <div v-if="diskRuntimeDetails(disk).length" class="ftctl-tab__progress-disk-runtime">
+                  <div v-for="detail in diskRuntimeDetails(disk)" :key="detail.key" class="ftctl-tab__progress-disk-runtime-row">
+                    <span class="ftctl-tab__progress-disk-runtime-key">{{ detail.label }}</span>
+                    <span class="ftctl-tab__progress-disk-runtime-value">{{ detail.value }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </template>
 
         <div v-else class="ftctl-tab__empty-state">
@@ -218,6 +247,10 @@
               <a-tag v-if="protection.transportstate" :color="stateTagColor(protection.transportstate)">{{ protection.transportstate }}</a-tag>
               <span v-else>-</span>
             </a-descriptions-item>
+            <a-descriptions-item label="Block Copy Progress">
+              <span v-if="syncProgressVisible">{{ syncProgressPercent }}% ({{ formatBytes(syncCopiedBytes) }} / {{ formatBytes(syncTotalBytes) }})</span>
+              <span v-else>-</span>
+            </a-descriptions-item>
             <a-descriptions-item :label="$t('label.ftctl.active.side')">
               <a-tag v-if="protection.activeside" :color="sideTagColor(protection.activeside)">{{ protection.activeside }}</a-tag>
               <span v-else>-</span>
@@ -245,11 +278,11 @@
               <span v-else>-</span>
             </a-descriptions-item>
             <a-descriptions-item :label="$t('label.ftctl.primary.rc')">
-              <a-tag v-if="checkResult.primaryrc !== undefined && checkResult.primaryrc !== null && checkResult.primaryrc !== ''" :color="returnCodeTagColor(checkResult.primaryrc)">{{ returnCodeStatus(checkResult.primaryrc) }}</a-tag>
+              <a-tag v-if="checkResult.primaryrc !== undefined && checkResult.primaryrc !== null && checkResult.primaryrc !== ''" :color="executionStateTagColor(primaryExecutionState)">{{ primaryExecutionState }}</a-tag>
               <span v-else>-</span>
             </a-descriptions-item>
             <a-descriptions-item :label="$t('label.ftctl.peer.rc')">
-              <a-tag v-if="checkResult.peerrc !== undefined && checkResult.peerrc !== null && checkResult.peerrc !== ''" :color="returnCodeTagColor(checkResult.peerrc)">{{ returnCodeStatus(checkResult.peerrc) }}</a-tag>
+              <a-tag v-if="checkResult.peerrc !== undefined && checkResult.peerrc !== null && checkResult.peerrc !== ''" :color="executionStateTagColor(peerExecutionState)">{{ peerExecutionState }}</a-tag>
               <span v-else>-</span>
             </a-descriptions-item>
           </a-descriptions>
@@ -264,7 +297,7 @@
             <a-descriptions-item :label="$t('label.ftctl.host.id')">{{ healthHostDisplay }}</a-descriptions-item>
             <a-descriptions-item :label="$t('label.ftctl.uri')">{{ healthResult.uri || '-' }}</a-descriptions-item>
             <a-descriptions-item :label="$t('label.ftctl.rc')">
-              <a-tag v-if="healthResult.rc !== undefined && healthResult.rc !== null && healthResult.rc !== ''" :color="returnCodeTagColor(healthResult.rc)">{{ returnCodeStatus(healthResult.rc) }}</a-tag>
+              <a-tag v-if="healthResult.rc !== undefined && healthResult.rc !== null && healthResult.rc !== ''" :color="executionStateTagColor(healthExecutionState)">{{ healthExecutionState }}</a-tag>
               <span v-else>-</span>
             </a-descriptions-item>
           </a-descriptions>
@@ -351,6 +384,7 @@ export default {
         message: null,
         timestamp: null
       },
+      syncRefreshTimer: null,
       actionLoading: {
         pauseFtctlProtection: false,
         resumeFtctlProtection: false,
@@ -456,6 +490,62 @@ export default {
       }
       return { type: null, message: null }
     },
+    syncProgressObject () {
+      const raw = this.protection.syncprogressjson
+      if (!raw) {
+        return {}
+      }
+      if (typeof raw === 'object') {
+        return raw
+      }
+      try {
+        return JSON.parse(raw)
+      } catch (e) {
+        return {}
+      }
+    },
+    syncProgressVisible () {
+      return this.protection.syncprogresspercent !== undefined ||
+        this.syncProgressObject.percent !== undefined
+    },
+    syncProgressPercent () {
+      return this.normalizePercent(this.protection.syncprogresspercent ?? this.syncProgressObject.percent)
+    },
+    syncCopiedBytes () {
+      return this.protection.synccopiedbytes ?? this.syncProgressObject.copied_bytes
+    },
+    syncTotalBytes () {
+      return this.protection.synctotalbytes ?? this.syncProgressObject.total_bytes
+    },
+    syncReady () {
+      const ready = this.protection.syncready ?? this.syncProgressObject.ready
+      return ready === true || ready === 'true'
+    },
+    syncProgressDirection () {
+      return this.protection.syncdirection || this.syncProgressObject.direction || 'forward'
+    },
+    syncProgressUpdated () {
+      return this.protection.syncupdated || this.syncProgressObject.updated || ''
+    },
+    syncProgressStatus () {
+      const transport = String(this.protection.transportstate || '').toLowerCase()
+      if (['failed', 'lost'].includes(transport) || String(this.protection.protectionstate || '').toLowerCase() === 'error') {
+        return 'exception'
+      }
+      return this.syncReady || this.syncProgressPercent >= 100 ? 'success' : 'active'
+    },
+    syncProgressDisks () {
+      return Array.isArray(this.syncProgressObject.disks) ? this.syncProgressObject.disks : []
+    },
+    primaryExecutionState () {
+      return this.executionStateFromReturnCode(this.checkResult.primaryrc, 'primary')
+    },
+    peerExecutionState () {
+      return this.executionStateFromReturnCode(this.checkResult.peerrc, 'peer')
+    },
+    healthExecutionState () {
+      return this.executionStateFromReturnCode(this.healthResult.rc, 'health')
+    },
     peerHostDisplay () {
       return this.protection.peerhostname || this.protection.peerhostid || '-'
     },
@@ -553,6 +643,9 @@ export default {
   created () {
     this.fetchAll()
   },
+  beforeUnmount () {
+    this.stopSyncAutoRefresh()
+  },
   methods: {
     actionAvailable (apiName) {
       return apiName in this.$store.getters.apis && this.supportedVm && !this.standbyProtectionView && !this.unsafeVmState && this.protectionConfigured
@@ -575,6 +668,65 @@ export default {
     },
     formatNumber (value) {
       return value === null || value === undefined || value === '' ? '-' : value
+    },
+    normalizePercent (value) {
+      const percent = Number(value)
+      if (Number.isNaN(percent)) {
+        return 0
+      }
+      return Math.max(0, Math.min(100, Number(percent.toFixed(1))))
+    },
+    formatPercent (value) {
+      return this.normalizePercent(value).toFixed(1)
+    },
+    formatBytes (value) {
+      const bytes = Number(value)
+      if (Number.isNaN(bytes) || bytes < 0) {
+        return '-'
+      }
+      const gib = bytes / 1024 / 1024 / 1024
+      return `${gib.toFixed(1)} GiB`
+    },
+    formatNbdEndpoint (disk) {
+      if (disk.nbd_endpoint) {
+        return disk.nbd_endpoint
+      }
+      if (disk.nbd_host && disk.nbd_port) {
+        return disk.nbd_export_name
+          ? `${disk.nbd_host}:${disk.nbd_port}/${disk.nbd_export_name}`
+          : `${disk.nbd_host}:${disk.nbd_port}`
+      }
+      if (disk.nbd_uri) {
+        return String(disk.nbd_uri).replace(/^nbd:\/\//, '')
+      }
+      return ''
+    },
+    diskRuntimeDetails (disk) {
+      const details = []
+      const endpoint = this.formatNbdEndpoint(disk)
+      if (endpoint) {
+        details.push({
+          key: 'nbd',
+          label: this.$t('label.ftctl.nbd.endpoint'),
+          value: endpoint
+        })
+      }
+      if (disk.secondary_path) {
+        details.push({
+          key: 'secondaryPath',
+          label: this.$t('label.ftctl.secondary.path'),
+          value: disk.secondary_path
+        })
+      }
+      const status = [disk.status, disk.io_status].filter(Boolean).join(' / ')
+      if (status) {
+        details.push({
+          key: 'status',
+          label: this.$t('label.ftctl.blockjob.status'),
+          value: status
+        })
+      }
+      return details
     },
     normalizeList (value) {
       if (!value) {
@@ -601,28 +753,31 @@ export default {
       }
       return value || '-'
     },
-    returnCodeStatus (value) {
+    executionStateFromReturnCode (value, side) {
       const rc = Number(value)
       if (Number.isNaN(rc)) {
         return '-'
       }
       if (rc === 0) {
-        return 'OK'
+        return 'Started'
       }
-      if (rc === 1) {
-        return 'WARN'
+      if (side === 'peer' && rc === 1 && this.expectedCloudManagedPeerStopped()) {
+        return 'Stopped'
       }
-      return 'ERR'
+      return 'Error'
     },
-    returnCodeTagColor (value) {
-      const status = this.returnCodeStatus(value)
-      if (status === 'OK') {
+    expectedCloudManagedPeerStopped () {
+      return String(this.checkResult.provisioningbackend || this.protection.provisioningbackend || '').toLowerCase() === 'cloud-managed' &&
+        String(this.checkResult.standbydomainstate || '').toLowerCase() === 'not-defined-expected'
+    },
+    executionStateTagColor (status) {
+      if (status === 'Started') {
         return 'green'
       }
-      if (status === 'WARN') {
-        return 'orange'
+      if (status === 'Stopped') {
+        return 'blue'
       }
-      if (status === 'ERR') {
+      if (status === 'Error') {
         return 'red'
       }
       return 'default'
@@ -729,6 +884,7 @@ export default {
         }
       } finally {
         this.loadingState = false
+        this.updateSyncAutoRefresh()
       }
     },
     async fetchProtection () {
@@ -852,6 +1008,38 @@ export default {
       if (payload.lasterror !== undefined) this.protection.lasterror = payload.lasterror
       if (payload.adminstate !== undefined) this.protection.adminstate = payload.adminstate
       if (payload.fencingstate !== undefined) this.protection.fencingstate = payload.fencingstate
+      if (payload.syncprogresspercent !== undefined) this.protection.syncprogresspercent = payload.syncprogresspercent
+      if (payload.synccopiedbytes !== undefined) this.protection.synccopiedbytes = payload.synccopiedbytes
+      if (payload.synctotalbytes !== undefined) this.protection.synctotalbytes = payload.synctotalbytes
+      if (payload.syncready !== undefined) this.protection.syncready = payload.syncready
+      if (payload.syncdirection !== undefined) this.protection.syncdirection = payload.syncdirection
+      if (payload.syncupdated !== undefined) this.protection.syncupdated = payload.syncupdated
+      if (payload.syncprogressjson !== undefined) this.protection.syncprogressjson = payload.syncprogressjson
+    },
+    updateSyncAutoRefresh () {
+      const transport = String(this.protection.transportstate || '').toLowerCase()
+      if (['copying', 'reverse_syncing'].includes(transport)) {
+        this.startSyncAutoRefresh()
+      } else {
+        this.stopSyncAutoRefresh()
+      }
+    },
+    startSyncAutoRefresh () {
+      if (this.syncRefreshTimer) {
+        return
+      }
+      this.syncRefreshTimer = setInterval(() => {
+        if (!this.loadingState && this.resource?.id) {
+          this.fetchAll()
+        }
+      }, 10000)
+    },
+    stopSyncAutoRefresh () {
+      if (!this.syncRefreshTimer) {
+        return
+      }
+      clearInterval(this.syncRefreshTimer)
+      this.syncRefreshTimer = null
     }
   },
   watch: {
@@ -917,6 +1105,70 @@ export default {
     font-size: 12px;
     font-weight: 600;
     color: rgba(0, 0, 0, 0.62);
+  }
+
+  &__progress {
+    margin-top: 12px;
+    padding: 14px 16px;
+    border: 1px solid rgba(127, 127, 127, 0.18);
+    border-radius: 6px;
+    background: rgba(24, 144, 255, 0.045);
+  }
+
+  &__progress-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+
+  &__progress-meta {
+    margin-top: 3px;
+    font-size: 12px;
+    color: rgba(0, 0, 0, 0.62);
+  }
+
+  &__progress-disks {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px 14px;
+    margin-top: 10px;
+  }
+
+  &__progress-disk-label {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 2px;
+    font-size: 12px;
+  }
+
+  &__progress-disk-runtime {
+    margin-top: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-size: 12px;
+  }
+
+  &__progress-disk-runtime-row {
+    display: grid;
+    grid-template-columns: minmax(82px, 0.32fr) minmax(0, 1fr);
+    gap: 8px;
+    align-items: baseline;
+  }
+
+  &__progress-disk-runtime-key {
+    font-weight: 600;
+    color: rgba(0, 0, 0, 0.58);
+  }
+
+  &__progress-disk-runtime-value {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font-family: monospace;
+    color: rgba(0, 0, 0, 0.72);
   }
 
   &__empty-state {
@@ -1063,6 +1315,21 @@ body.dark-mode .ftctl-tab {
 
   .ftctl-tab__summary-label {
     color: rgba(255, 255, 255, 0.68);
+  }
+
+  .ftctl-tab__progress {
+    border-color: rgba(64, 169, 255, 0.18);
+    background: rgba(24, 144, 255, 0.09);
+  }
+
+  .ftctl-tab__progress-meta,
+  .ftctl-tab__progress-disk-label,
+  .ftctl-tab__progress-disk-runtime-key {
+    color: rgba(255, 255, 255, 0.68);
+  }
+
+  .ftctl-tab__progress-disk-runtime-value {
+    color: rgba(255, 255, 255, 0.78);
   }
 
   .ftctl-tab__summary .ant-tag,

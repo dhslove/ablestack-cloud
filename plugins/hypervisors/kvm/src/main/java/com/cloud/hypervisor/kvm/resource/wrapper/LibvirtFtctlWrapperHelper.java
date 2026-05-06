@@ -62,12 +62,46 @@ public final class LibvirtFtctlWrapperHelper {
         }
     }
 
+    public static Long getLong(JsonObject object, String key) {
+        if (object == null || !object.has(key) || object.get(key).isJsonNull()) {
+            return null;
+        }
+        try {
+            return object.get(key).getAsLong();
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    public static Double getDouble(JsonObject object, String key) {
+        if (object == null || !object.has(key) || object.get(key).isJsonNull()) {
+            return null;
+        }
+        try {
+            return object.get(key).getAsDouble();
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
     public static Boolean getBoolean(JsonObject object, String key) {
         if (object == null || !object.has(key) || object.get(key).isJsonNull()) {
             return null;
         }
         try {
             return object.get(key).getAsBoolean();
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    public static JsonObject getObject(JsonObject object, String key) {
+        if (object == null || !object.has(key) || object.get(key).isJsonNull()) {
+            return null;
+        }
+        try {
+            JsonElement element = object.get(key);
+            return element != null && element.isJsonObject() ? element.getAsJsonObject() : null;
         } catch (RuntimeException e) {
             return null;
         }

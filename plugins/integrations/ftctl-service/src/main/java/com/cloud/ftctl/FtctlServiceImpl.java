@@ -105,6 +105,9 @@ import java.util.stream.Collectors;
 public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     private static final int FAILBACK_ACTION_WAIT_SECONDS = 900;
     private static final int UNPROTECT_ACTION_WAIT_SECONDS = 240;
+    private static final int FTCTL_ACTION_LOCK_EXIT_CODE = 20;
+    private static final int FTCTL_ACTION_LOCK_RETRY_INTERVAL_MILLIS = 2000;
+    private static final int FTCTL_ACTION_LOCK_RETRY_TIMEOUT_MILLIS = 90000;
 
     public static final String DETAIL_ENABLED = "ftctl.enabled";
     public static final String DETAIL_MODE = "ftctl.mode";
@@ -136,6 +139,14 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     public static final String DETAIL_LAST_ADMIN_STATE = "ftctl.last.admin.state";
     public static final String DETAIL_LAST_FENCING_STATE = "ftctl.last.fencing.state";
     public static final String DETAIL_LAST_ERROR = "ftctl.last.error";
+    public static final String DETAIL_SYNC_PROGRESS_PERCENT = "ftctl.sync.progress.percent";
+    public static final String DETAIL_SYNC_COPIED_BYTES = "ftctl.sync.copied.bytes";
+    public static final String DETAIL_SYNC_TOTAL_BYTES = "ftctl.sync.total.bytes";
+    public static final String DETAIL_SYNC_READY = "ftctl.sync.ready";
+    public static final String DETAIL_SYNC_DIRECTION = "ftctl.sync.direction";
+    public static final String DETAIL_SYNC_UPDATED = "ftctl.sync.updated";
+    public static final String DETAIL_SYNC_PROGRESS_JSON = "ftctl.sync.progress.json";
+    public static final String DETAIL_SYNC_PROGRESS_EVENT_BUCKET = "ftctl.sync.progress.event.bucket";
     public static final String DETAIL_NIC_IDENTITY_STATE = "ftctl.nic.identity.state";
     public static final String DETAIL_NIC_IDENTITY_PRIMARY_PREFIX = "ftctl.nic.identity.primary.";
     public static final String DETAIL_NIC_IDENTITY_SECONDARY_PREFIX = "ftctl.nic.identity.secondary.";
@@ -733,40 +744,99 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             } else if (action == FtctlActionCommand.Action.UNPROTECT) {
                 actionCommand.setWait(UNPROTECT_ACTION_WAIT_SECONDS);
             }
+            FtctlActionAnswer actionAnswer = sendFtctlActionWithLockRetry(hostId, actionCommand, userVm);
+            return buildFtctlActionResponse(userVm, action, actionAnswer);
+        } catch (AgentUnavailableException | OperationTimedoutException e) {
+            throw new CloudRuntimeException(String.format("Unable to execute FTCTL action %s for VM %s", action, userVm.getUuid()), e);
+        }
+    }
+
+    private FtctlActionAnswer sendFtctlActionWithLockRetry(Long hostId, FtctlActionCommand actionCommand, UserVmVO userVm)
+            throws AgentUnavailableException, OperationTimedoutException {
+        long deadline = System.currentTimeMillis() + FTCTL_ACTION_LOCK_RETRY_TIMEOUT_MILLIS;
+        int attempt = 0;
+        while (true) {
+            attempt++;
             Answer answer = agentManager.send(hostId, actionCommand);
             if (!(answer instanceof FtctlActionAnswer)) {
                 throw new CloudRuntimeException(String.format("Unexpected FTCTL action answer type for VM %s", userVm.getUuid()));
             }
             FtctlActionAnswer actionAnswer = (FtctlActionAnswer) answer;
-            if (!actionAnswer.getResult()) {
+            if (actionAnswer.getResult()) {
+                if (attempt > 1) {
+                    logger.info(String.format("FTCTL action %s for VM %s succeeded after %s lock retry attempt(s)",
+                            actionCommand.getAction(), userVm.getUuid(), attempt - 1));
+                }
+                return actionAnswer;
+            }
+            if (!isRetryableFtctlLock(actionAnswer)) {
                 throw new CloudRuntimeException(String.format("FTCTL action %s failed for VM %s: %s",
-                        action, userVm.getUuid(), actionAnswer.getDetails()));
+                        actionCommand.getAction(), userVm.getUuid(), actionAnswer.getDetails()));
             }
-            FtctlActionResponse response = new FtctlActionResponse();
-            response.setObjectName("ftctlaction");
-            response.setVirtualMachineId(userVm.getId());
-            response.setVmName(userVm.getInstanceName());
-            response.setAction(action.name());
-            response.setResult(actionAnswer.getFtctlResult());
-            response.setExitCode(actionAnswer.getExitCode());
-            response.setOutput(actionAnswer.getOutput());
-            FtctlStatusAnswer statusAnswer = fetchRuntimeStatus(userVm);
-            if (statusAnswer != null) {
-                response.setMode(statusAnswer.getMode());
-                response.setProtectionState(statusAnswer.getProtectionState());
-                response.setTransportState(statusAnswer.getTransportState());
-                response.setActiveSide(statusAnswer.getActiveSide());
-                response.setAdminState(statusAnswer.getAdminState());
-                response.setFencingState(statusAnswer.getFencingState());
-                response.setLastError(statusAnswer.getLastError());
-                persistRuntimeState(userVm, statusAnswer);
+            if (actionCommand.getAction() == FtctlActionCommand.Action.FAILOVER &&
+                    isManualFailoverTerminalSuccess(ftctlProtectionDao.findActiveByPrimaryVmId(userVm.getId()))) {
+                throw new FtctlActionLockedException(String.format("FTCTL action %s for VM %s was locked after final failover state had already converged: %s",
+                        actionCommand.getAction(), userVm.getUuid(), actionAnswer.getDetails()), actionAnswer);
             }
-            publishFtctlEvent(userVm, resolveFtctlActionEventType(action),
-                    String.format("Executed FTCTL action %s for VM %s", action.name(), userVm.getUuid()));
-            return response;
-        } catch (AgentUnavailableException | OperationTimedoutException e) {
-            throw new CloudRuntimeException(String.format("Unable to execute FTCTL action %s for VM %s", action, userVm.getUuid()), e);
+            if (System.currentTimeMillis() >= deadline) {
+                throw new FtctlActionLockedException(String.format("FTCTL action %s for VM %s remained locked after %s ms: %s",
+                        actionCommand.getAction(), userVm.getUuid(), FTCTL_ACTION_LOCK_RETRY_TIMEOUT_MILLIS,
+                        actionAnswer.getDetails()), actionAnswer);
+            }
+            logger.info(String.format("FTCTL action %s for VM %s is locked by another ftctl process; retrying in %s ms",
+                    actionCommand.getAction(), userVm.getUuid(), FTCTL_ACTION_LOCK_RETRY_INTERVAL_MILLIS));
+            sleepBeforeFtctlLockRetry(actionCommand.getAction(), userVm);
         }
+    }
+
+    private void sleepBeforeFtctlLockRetry(FtctlActionCommand.Action action, UserVmVO userVm) {
+        try {
+            Thread.sleep(FTCTL_ACTION_LOCK_RETRY_INTERVAL_MILLIS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new CloudRuntimeException(String.format("Interrupted while waiting to retry FTCTL action %s for VM %s",
+                    action, userVm.getUuid()), e);
+        }
+    }
+
+    private boolean isRetryableFtctlLock(FtctlActionAnswer actionAnswer) {
+        if (actionAnswer == null) {
+            return false;
+        }
+        if (Integer.valueOf(FTCTL_ACTION_LOCK_EXIT_CODE).equals(actionAnswer.getExitCode())) {
+            return true;
+        }
+        if ("locked".equalsIgnoreCase(StringUtils.trimToEmpty(actionAnswer.getFtctlResult()))) {
+            return true;
+        }
+        String details = StringUtils.defaultString(actionAnswer.getDetails());
+        String output = StringUtils.defaultString(actionAnswer.getOutput());
+        return details.contains("\"result\":\"locked\"") || output.contains("\"result\":\"locked\"");
+    }
+
+    private FtctlActionResponse buildFtctlActionResponse(UserVmVO userVm, FtctlActionCommand.Action action, FtctlActionAnswer actionAnswer) {
+        FtctlActionResponse response = new FtctlActionResponse();
+        response.setObjectName("ftctlaction");
+        response.setVirtualMachineId(userVm.getId());
+        response.setVmName(userVm.getInstanceName());
+        response.setAction(action.name());
+        response.setResult(actionAnswer.getFtctlResult());
+        response.setExitCode(actionAnswer.getExitCode());
+        response.setOutput(actionAnswer.getOutput());
+        FtctlStatusAnswer statusAnswer = fetchRuntimeStatus(userVm);
+        if (statusAnswer != null) {
+            response.setMode(statusAnswer.getMode());
+            response.setProtectionState(statusAnswer.getProtectionState());
+            response.setTransportState(statusAnswer.getTransportState());
+            response.setActiveSide(statusAnswer.getActiveSide());
+            response.setAdminState(statusAnswer.getAdminState());
+            response.setFencingState(statusAnswer.getFencingState());
+            response.setLastError(statusAnswer.getLastError());
+            persistRuntimeState(userVm, statusAnswer);
+        }
+        publishFtctlEvent(userVm, resolveFtctlActionEventType(action),
+                String.format("Executed FTCTL action %s for VM %s", action.name(), userVm.getUuid()));
+        return response;
     }
 
     private boolean isCloudManagedProvisioning(FtctlProtectionVO protection) {
@@ -844,14 +914,72 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             throw new CloudRuntimeException(String.format("Unable to find active FTCTL protection for VM %s", primaryVm.getUuid()));
         }
         validatePrimaryVmStoppedForManualFence(primaryVm);
+        if (isManualFailoverTerminalSuccess(protection)) {
+            return buildActionResponseFromProtection(primaryVm, FtctlActionCommand.Action.FENCE_CONFIRM, protection,
+                    "manual failover already completed");
+        }
 
         executeFtctlAction(primaryVm.getId(), FtctlActionCommand.Action.FENCE_CONFIRM, false);
         protection = validateManualFailoverTransportReady(primaryVm);
         UserVmVO secondaryVm = resolveSecondaryVmForManualFailover(primaryVm, protection);
-        handoffNicIdentityToSecondary(primaryVm, secondaryVm, protection);
+        handoffNicIdentityToSecondaryIfNeeded(primaryVm, secondaryVm, protection);
         startSecondaryVmForManualFailover(primaryVm, secondaryVm);
-        FtctlActionResponse response = executeFtctlAction(primaryVm.getId(), FtctlActionCommand.Action.FAILOVER, true);
+        FtctlActionResponse response;
+        try {
+            response = executeFtctlAction(primaryVm.getId(), FtctlActionCommand.Action.FAILOVER, true);
+        } catch (FtctlActionLockedException e) {
+            FtctlProtectionVO finalProtection = refreshProtection(primaryVm);
+            if (!isManualFailoverTerminalSuccess(finalProtection)) {
+                throw e;
+            }
+            logger.info(String.format("FTCTL manual fence confirmation for VM %s reached terminal failed-over state after a lock race; returning final persisted state",
+                    primaryVm.getUuid()));
+            response = buildActionResponseFromProtection(primaryVm, FtctlActionCommand.Action.FAILOVER, finalProtection,
+                    "manual failover already completed after ftctl lock retry exhaustion");
+        }
         response.setAction(FtctlActionCommand.Action.FENCE_CONFIRM.name());
+        return response;
+    }
+
+    private void handoffNicIdentityToSecondaryIfNeeded(UserVmVO primaryVm, UserVmVO secondaryVm, FtctlProtectionVO protection) {
+        if (!isCloudManagedProvisioning(protection)) {
+            return;
+        }
+        if (secondaryVm.getState() == VirtualMachine.State.Running) {
+            logger.info(String.format("Skipping FTCTL NIC identity handoff for primary VM %s because secondary VM %s is already running",
+                    primaryVm.getUuid(), secondaryVm.getUuid()));
+            return;
+        }
+        handoffNicIdentityToSecondary(primaryVm, secondaryVm, protection);
+    }
+
+    private boolean isManualFailoverTerminalSuccess(FtctlProtectionVO protection) {
+        return protection != null &&
+                "failed_over".equalsIgnoreCase(StringUtils.trimToEmpty(protection.getProtectionState())) &&
+                "failed_over".equalsIgnoreCase(StringUtils.trimToEmpty(protection.getTransportState())) &&
+                "secondary".equalsIgnoreCase(StringUtils.trimToEmpty(protection.getActiveSide())) &&
+                "active".equalsIgnoreCase(StringUtils.trimToEmpty(protection.getAdminState())) &&
+                "manual-fenced".equalsIgnoreCase(StringUtils.trimToEmpty(protection.getFencingState())) &&
+                StringUtils.isBlank(protection.getLastError());
+    }
+
+    private FtctlActionResponse buildActionResponseFromProtection(UserVmVO userVm, FtctlActionCommand.Action action,
+                                                                  FtctlProtectionVO protection, String output) {
+        FtctlActionResponse response = new FtctlActionResponse();
+        response.setObjectName("ftctlaction");
+        response.setVirtualMachineId(userVm.getId());
+        response.setVmName(userVm.getInstanceName());
+        response.setAction(action.name());
+        response.setResult("ok");
+        response.setExitCode(0);
+        response.setOutput(output);
+        response.setMode(protection.getMode());
+        response.setProtectionState(protection.getProtectionState());
+        response.setTransportState(protection.getTransportState());
+        response.setActiveSide(protection.getActiveSide());
+        response.setAdminState(protection.getAdminState());
+        response.setFencingState(protection.getFencingState());
+        response.setLastError(protection.getLastError());
         return response;
     }
 
@@ -1246,6 +1374,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         response.setAdminState(getDetailValue(sourceVmId, DETAIL_LAST_ADMIN_STATE));
         response.setFencingState(getDetailValue(sourceVmId, DETAIL_LAST_FENCING_STATE));
         response.setLastError(getDetailValue(sourceVmId, DETAIL_LAST_ERROR));
+        populateCachedSyncProgress(sourceVmId, response);
         return response;
     }
 
@@ -1458,6 +1587,13 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         response.setAdminState(statusAnswer.getAdminState());
         response.setFencingState(statusAnswer.getFencingState());
         response.setLastError(statusAnswer.getLastError());
+        response.setSyncProgressPercent(statusAnswer.getSyncProgressPercent());
+        response.setSyncCopiedBytes(statusAnswer.getSyncCopiedBytes());
+        response.setSyncTotalBytes(statusAnswer.getSyncTotalBytes());
+        response.setSyncReady(statusAnswer.getSyncReady());
+        response.setSyncDirection(statusAnswer.getSyncDirection());
+        response.setSyncUpdated(statusAnswer.getSyncUpdated());
+        response.setSyncProgressJson(statusAnswer.getSyncProgressJson());
         if (persistState) {
             persistRuntimeState(userVm, statusAnswer);
         }
@@ -1505,6 +1641,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         if (statusAnswer.getMode() != null) {
             putVmDetail(virtualMachineId, DETAIL_MODE, statusAnswer.getMode());
         }
+        persistSyncProgress(userVm, statusAnswer);
         boolean changed = persistProtectionRuntimeState(userVm, statusAnswer);
         if (changed) {
             publishFtctlEvent(userVm, EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE,
@@ -1513,6 +1650,113 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
                             statusAnswer.getActiveSide(), statusAnswer.getAdminState(), statusAnswer.getFencingState()));
         }
         return changed;
+    }
+
+    private void populateCachedSyncProgress(Long sourceVmId, FtctlProtectionResponse response) {
+        if (sourceVmId == null || response == null) {
+            return;
+        }
+        response.setSyncProgressPercent(parseDoubleDetail(getDetailValue(sourceVmId, DETAIL_SYNC_PROGRESS_PERCENT)));
+        response.setSyncCopiedBytes(parseLongDetail(getDetailValue(sourceVmId, DETAIL_SYNC_COPIED_BYTES)));
+        response.setSyncTotalBytes(parseLongDetail(getDetailValue(sourceVmId, DETAIL_SYNC_TOTAL_BYTES)));
+        response.setSyncReady(parseBooleanDetail(getDetailValue(sourceVmId, DETAIL_SYNC_READY)));
+        response.setSyncDirection(getDetailValue(sourceVmId, DETAIL_SYNC_DIRECTION));
+        response.setSyncUpdated(getDetailValue(sourceVmId, DETAIL_SYNC_UPDATED));
+        response.setSyncProgressJson(getDetailValue(sourceVmId, DETAIL_SYNC_PROGRESS_JSON));
+    }
+
+    private void persistSyncProgress(UserVmVO userVm, FtctlStatusAnswer statusAnswer) {
+        if (userVm == null || statusAnswer == null || statusAnswer.getSyncProgressPercent() == null) {
+            return;
+        }
+        Long virtualMachineId = userVm.getId();
+        putVmDetail(virtualMachineId, DETAIL_SYNC_PROGRESS_PERCENT, String.format(Locale.ROOT, "%.1f", statusAnswer.getSyncProgressPercent()));
+        if (statusAnswer.getSyncCopiedBytes() != null) {
+            putVmDetail(virtualMachineId, DETAIL_SYNC_COPIED_BYTES, String.valueOf(statusAnswer.getSyncCopiedBytes()));
+        }
+        if (statusAnswer.getSyncTotalBytes() != null) {
+            putVmDetail(virtualMachineId, DETAIL_SYNC_TOTAL_BYTES, String.valueOf(statusAnswer.getSyncTotalBytes()));
+        }
+        if (statusAnswer.getSyncReady() != null) {
+            putVmDetail(virtualMachineId, DETAIL_SYNC_READY, String.valueOf(statusAnswer.getSyncReady()));
+        }
+        if (StringUtils.isNotBlank(statusAnswer.getSyncDirection())) {
+            putVmDetail(virtualMachineId, DETAIL_SYNC_DIRECTION, statusAnswer.getSyncDirection());
+        }
+        if (StringUtils.isNotBlank(statusAnswer.getSyncUpdated())) {
+            putVmDetail(virtualMachineId, DETAIL_SYNC_UPDATED, statusAnswer.getSyncUpdated());
+        }
+        if (StringUtils.isNotBlank(statusAnswer.getSyncProgressJson())) {
+            putVmDetail(virtualMachineId, DETAIL_SYNC_PROGRESS_JSON, statusAnswer.getSyncProgressJson());
+        }
+        publishProgressEventIfBucketChanged(userVm, statusAnswer);
+    }
+
+    private void publishProgressEventIfBucketChanged(UserVmVO userVm, FtctlStatusAnswer statusAnswer) {
+        Integer bucket = calculateProgressBucket(statusAnswer.getSyncProgressPercent(), statusAnswer.getSyncReady());
+        if (bucket == null) {
+            return;
+        }
+        String existingBucket = getDetailValue(userVm.getId(), DETAIL_SYNC_PROGRESS_EVENT_BUCKET);
+        if (StringUtils.equals(existingBucket, String.valueOf(bucket))) {
+            return;
+        }
+        putVmDetail(userVm.getId(), DETAIL_SYNC_PROGRESS_EVENT_BUCKET, String.valueOf(bucket));
+        publishFtctlEvent(userVm, EventTypes.EVENT_FTCTL_PROTECTION_PROGRESS,
+                String.format(Locale.ROOT, "FTCTL block copy progress for VM %s: %.1f%% (%s / %s), direction=%s",
+                        userVm.getUuid(),
+                        statusAnswer.getSyncProgressPercent(),
+                        formatBytes(statusAnswer.getSyncCopiedBytes()),
+                        formatBytes(statusAnswer.getSyncTotalBytes()),
+                        StringUtils.defaultString(statusAnswer.getSyncDirection(), "unknown")));
+    }
+
+    private Integer calculateProgressBucket(Double percent, Boolean ready) {
+        if (percent == null) {
+            return null;
+        }
+        if (Boolean.TRUE.equals(ready) || percent >= 100.0d) {
+            return 100;
+        }
+        double bounded = Math.max(0.0d, Math.min(percent, 99.9d));
+        return (int)Math.floor(bounded / 5.0d) * 5;
+    }
+
+    private String formatBytes(Long bytes) {
+        if (bytes == null) {
+            return "-";
+        }
+        double gib = bytes / 1024.0d / 1024.0d / 1024.0d;
+        return String.format(Locale.ROOT, "%.1f GiB", gib);
+    }
+
+    private Double parseDoubleDetail(String value) {
+        if (StringUtils.isBlank(value)) {
+            return null;
+        }
+        try {
+            return Double.valueOf(value);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    private Long parseLongDetail(String value) {
+        if (StringUtils.isBlank(value)) {
+            return null;
+        }
+        try {
+            return Long.valueOf(value);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    private Boolean parseBooleanDetail(String value) {
+        if (StringUtils.isBlank(value)) {
+            return null;
+        }
+        return Boolean.valueOf(value);
     }
 
     private boolean persistProtectionRuntimeState(UserVmVO userVm, FtctlStatusAnswer statusAnswer) {
@@ -1887,5 +2131,18 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     @Override
     public ConfigKey<?>[] getConfigKeys() {
         return new ConfigKey<?>[] { FtctlServiceEnabled };
+    }
+
+    private static final class FtctlActionLockedException extends CloudRuntimeException {
+        private final FtctlActionAnswer actionAnswer;
+
+        private FtctlActionLockedException(String message, FtctlActionAnswer actionAnswer) {
+            super(message);
+            this.actionAnswer = actionAnswer;
+        }
+
+        private FtctlActionAnswer getActionAnswer() {
+            return actionAnswer;
+        }
     }
 }

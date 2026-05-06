@@ -113,6 +113,7 @@ test.describe('FTCTL protection save', () => {
     const preferredPeer = optionalEnv('FTCTL_UI_PEER_HOST_PATTERN', 'ablecube22-[12]')
     const preferredStorage = optionalEnv('FTCTL_UI_STORAGE_POOL_PATTERN', 'Primary Storage|RBD|ZONE')
     const expectedStorage = optionalEnv('FTCTL_UI_EXPECT_STORAGE_PATTERN', preferredStorage)
+    const selectedBackendMode = optionalEnv('FTCTL_UI_BACKEND_MODE', 'shared-blockcopy')
     const expectedBackendMode = optionalEnv('FTCTL_UI_EXPECT_BACKEND_MODE', 'shared-blockcopy')
     const secondaryVmName = optionalEnv('FTCTL_UI_SECONDARY_VM_NAME', 'r9-01-standby')
     const registerTimeoutMs = parseTimeoutEnv('FTCTL_UI_REGISTER_TIMEOUT_MS', 180000)
@@ -145,7 +146,7 @@ test.describe('FTCTL protection save', () => {
     await selectFirstOptionByControlId(page, 'form_item_peerhostid', preferredPeer)
     await selectFirstOptionByControlId(page, 'form_item_targetstoragepoolid', preferredStorage)
     await page.locator('#form_item_secondaryvmname').fill(secondaryVmName)
-    await selectByControlId(page, 'form_item_backendmode', 'shared-blockcopy')
+    await selectByControlId(page, 'form_item_backendmode', selectedBackendMode)
     await selectByControlId(page, 'form_item_fencingpolicy', 'manual-block')
 
     const registerResponsePromise = page.waitForResponse(response =>
@@ -175,7 +176,7 @@ test.describe('FTCTL protection save', () => {
     await expect(ftctlPanel.getByText(/Health|\uC0C1\uD0DC/, { exact: false }).first()).toBeVisible()
     await expect(ftctlPanel.getByText(/Events|\uC774\uBCA4\uD2B8/, { exact: false }).first()).toBeVisible()
     await expect(ftctlPanel.getByText(/HA/i, { exact: false }).first()).toBeVisible()
-    await expect(ftctlPanel.getByText(/shared-blockcopy/, { exact: false }).first()).toBeVisible()
+    await expect(ftctlPanel.getByText(new RegExp(expectedBackendMode), { exact: false }).first()).toBeVisible()
     await expect(ftctlPanel.getByText(/manual-block/, { exact: false }).first()).toBeVisible()
 
     expect(apiFailures, `API failures:\n${apiFailures.join('\n')}`).toEqual([])

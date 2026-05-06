@@ -30,6 +30,13 @@ public class FtctlStatusAnswer extends Answer {
     private String lastReconcileTs;
     private Integer rearmCount;
     private Integer failoverCount;
+    private Double syncProgressPercent;
+    private Long syncCopiedBytes;
+    private Long syncTotalBytes;
+    private Boolean syncReady;
+    private String syncDirection;
+    private String syncUpdated;
+    private String syncProgressJson;
 
     public FtctlStatusAnswer(Command command, boolean success, String details) {
         super(command, success, details);
@@ -39,6 +46,17 @@ public class FtctlStatusAnswer extends Answer {
                              String mode, String protectionState, String transportState, String activeSide,
                              String adminState, String fencingState, String lastError, String lastReconcileTs,
                              Integer rearmCount, Integer failoverCount) {
+        this(command, success, details, ftctlResult, vmName, mode, protectionState, transportState, activeSide,
+                adminState, fencingState, lastError, lastReconcileTs, rearmCount, failoverCount,
+                null, null, null, null, null, null, null);
+    }
+
+    public FtctlStatusAnswer(Command command, boolean success, String details, String ftctlResult, String vmName,
+                             String mode, String protectionState, String transportState, String activeSide,
+                             String adminState, String fencingState, String lastError, String lastReconcileTs,
+                             Integer rearmCount, Integer failoverCount, Double syncProgressPercent,
+                             Long syncCopiedBytes, Long syncTotalBytes, Boolean syncReady, String syncDirection,
+                             String syncUpdated, String syncProgressJson) {
         super(command, success, details);
         this.ftctlResult = ftctlResult;
         this.vmName = vmName;
@@ -52,6 +70,13 @@ public class FtctlStatusAnswer extends Answer {
         this.lastReconcileTs = lastReconcileTs;
         this.rearmCount = rearmCount;
         this.failoverCount = failoverCount;
+        this.syncProgressPercent = syncProgressPercent;
+        this.syncCopiedBytes = syncCopiedBytes;
+        this.syncTotalBytes = syncTotalBytes;
+        this.syncReady = syncReady;
+        this.syncDirection = syncDirection;
+        this.syncUpdated = syncUpdated;
+        this.syncProgressJson = syncProgressJson;
     }
 
     public String getFtctlResult() {
@@ -100,5 +125,33 @@ public class FtctlStatusAnswer extends Answer {
 
     public Integer getFailoverCount() {
         return failoverCount;
+    }
+
+    public Double getSyncProgressPercent() {
+        return syncProgressPercent;
+    }
+
+    public Long getSyncCopiedBytes() {
+        return syncCopiedBytes;
+    }
+
+    public Long getSyncTotalBytes() {
+        return syncTotalBytes;
+    }
+
+    public Boolean getSyncReady() {
+        return syncReady;
+    }
+
+    public String getSyncDirection() {
+        return syncDirection;
+    }
+
+    public String getSyncUpdated() {
+        return syncUpdated;
+    }
+
+    public String getSyncProgressJson() {
+        return syncProgressJson;
     }
 }

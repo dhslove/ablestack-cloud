@@ -327,6 +327,33 @@ public class FtctlServiceImplTest {
     }
 
     @Test
+    public void testExecuteFtctlActionRetriesLockedAction() throws Exception {
+        FtctlActionCommand actionCommand = new FtctlActionCommand(FtctlActionCommand.Action.PAUSE_PROTECTION, "vm-name");
+        FtctlActionAnswer lockedAnswer = new FtctlActionAnswer(actionCommand, false,
+                "{\"command\":\"pause\",\"result\":\"locked\",\"lock_file\":\"/run/ablestack-vm-ftctl/lock\"}",
+                FtctlActionCommand.Action.PAUSE_PROTECTION, "locked", 20,
+                "{\"command\":\"pause\",\"result\":\"locked\",\"lock_file\":\"/run/ablestack-vm-ftctl/lock\"}");
+        FtctlActionAnswer actionAnswer = new FtctlActionAnswer(actionCommand, true, "OK",
+                FtctlActionCommand.Action.PAUSE_PROTECTION, "ok", 0, "paused");
+        FtctlStatusAnswer statusAnswer = new FtctlStatusAnswer(new FtctlStatusCommand("vm-name"), true, "OK", "ok", "vm-name",
+                "ft", "protected", "mirroring", "primary", "paused", "clear", "",
+                "2026-05-06T09:00:00+09:00", 0, 0);
+        FtctlProtectionVO protection = new FtctlProtectionVO(101L);
+        Mockito.when(ftctlProtectionDao.findActiveByPrimaryVmId(101L)).thenReturn(protection);
+        Mockito.when(agentManager.send(Mockito.eq(201L), Mockito.any(Command.class)))
+                .thenReturn(lockedAnswer)
+                .thenReturn(actionAnswer)
+                .thenReturn(statusAnswer);
+
+        FtctlActionResponse response = ftctlService.executeFtctlAction(101L, FtctlActionCommand.Action.PAUSE_PROTECTION, false);
+
+        Assert.assertEquals("PAUSE_PROTECTION", getFieldValue(response, "action"));
+        Assert.assertEquals("ok", getFieldValue(response, "result"));
+        Assert.assertEquals("paused", getFieldValue(response, "adminState"));
+        Mockito.verify(agentManager, Mockito.times(3)).send(Mockito.eq(201L), Mockito.any(Command.class));
+    }
+
+    @Test
     public void testReleaseFtctlProtectionExpungesStandbyVolumesAndRemovesRows() throws Exception {
         UserVO caller = new UserVO();
         AccountVO account = new AccountVO("admin", 1L, "ROOT", Account.Type.ADMIN, "account-uuid");
@@ -470,6 +497,67 @@ public class FtctlServiceImplTest {
         Assert.assertEquals(FtctlActionCommand.Action.FAILOVER, ((FtctlActionCommand) commands.get(2)).getAction());
         Assert.assertTrue(((FtctlActionCommand) commands.get(2)).isForce());
         Assert.assertTrue(commands.get(3) instanceof FtctlStatusCommand);
+    }
+
+    @Test
+    public void testConfirmFtctlFenceReturnsFinalStateWhenFailoverContinuationIsLockedAfterConvergence() throws Exception {
+        Mockito.when(userVm.getState()).thenReturn(VirtualMachine.State.Stopped);
+        vmDetails.put("101:ftctl.peer.host.id", "202");
+
+        UserVmVO secondaryVm = Mockito.mock(UserVmVO.class);
+        Mockito.when(secondaryVm.getUuid()).thenReturn("secondary-vm-uuid");
+        Mockito.when(secondaryVm.getState()).thenReturn(VirtualMachine.State.Running);
+        Mockito.when(userVmDao.findById(401L)).thenReturn(secondaryVm);
+
+        FtctlProtectionVO protection = new FtctlProtectionVO(101L);
+        protection.setSecondaryVmId(401L);
+        protection.setMode("ha");
+        protection.setBackendMode("remote-nbd");
+        protection.setProvisioningBackend(FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED);
+        protection.setProvisioningState(FtctlProtectionProvisioningService.STATE_READY);
+        protection.setProtectionState("failing_over");
+        protection.setTransportState("mirroring");
+        protection.setActiveSide("primary");
+        protection.setAdminState("active");
+        protection.setFencingState("manual-fenced");
+        protection.setLastError("manual_fencing_required");
+        Mockito.when(ftctlProtectionDao.findActiveByPrimaryVmId(101L)).thenReturn(protection);
+
+        FtctlActionAnswer confirmAnswer = new FtctlActionAnswer(new FtctlActionCommand(FtctlActionCommand.Action.FENCE_CONFIRM, "vm-name"), true, "OK",
+                FtctlActionCommand.Action.FENCE_CONFIRM, "ok", 0, "manual-fenced");
+        FtctlStatusAnswer confirmStatus = new FtctlStatusAnswer(new FtctlStatusCommand("vm-name"), true, "OK", "ok", "vm-name",
+                "ha", "failed_over", "failed_over", "secondary", "active", "manual-fenced", "",
+                "2026-05-06T09:05:00+09:00", 0, 1);
+        FtctlActionAnswer lockedFailover = new FtctlActionAnswer(new FtctlActionCommand(FtctlActionCommand.Action.FAILOVER, "vm-name"), false,
+                "{\"command\":\"failover\",\"result\":\"locked\",\"lock_file\":\"/run/ablestack-vm-ftctl/lock\"}",
+                FtctlActionCommand.Action.FAILOVER, "locked", 20,
+                "{\"command\":\"failover\",\"result\":\"locked\",\"lock_file\":\"/run/ablestack-vm-ftctl/lock\"}");
+        Mockito.when(agentManager.send(Mockito.eq(201L), Mockito.any(Command.class)))
+                .thenReturn(confirmAnswer)
+                .thenReturn(confirmStatus)
+                .thenAnswer(invocation -> {
+                    protection.setProtectionState("failed_over");
+                    protection.setTransportState("failed_over");
+                    protection.setActiveSide("secondary");
+                    protection.setAdminState("active");
+                    protection.setFencingState("manual-fenced");
+                    protection.setLastError("");
+                    return lockedFailover;
+                });
+
+        FtctlActionResponse response = ftctlService.confirmFtctlFence(101L);
+
+        Assert.assertEquals("FENCE_CONFIRM", getFieldValue(response, "action"));
+        Assert.assertEquals("ok", getFieldValue(response, "result"));
+        Assert.assertEquals(Integer.valueOf(0), getFieldValue(response, "exitCode"));
+        Assert.assertEquals("failed_over", getFieldValue(response, "protectionState"));
+        Assert.assertEquals("failed_over", getFieldValue(response, "transportState"));
+        Assert.assertEquals("secondary", getFieldValue(response, "activeSide"));
+        Assert.assertEquals("manual-fenced", getFieldValue(response, "fencingState"));
+        Mockito.verify(userVmManager, Mockito.never()).startVirtualMachine(Mockito.anyLong(), Mockito.<Long>any(),
+                Mockito.<Map<VirtualMachineProfile.Param, Object>>any(), Mockito.<String>any());
+        Mockito.verify(nicDao, Mockito.never()).update(Mockito.anyLong(), Mockito.any(NicVO.class));
+        Mockito.verify(agentManager, Mockito.times(3)).send(Mockito.eq(201L), Mockito.any(Command.class));
     }
 
     @Test

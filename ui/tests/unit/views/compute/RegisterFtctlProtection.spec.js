@@ -133,20 +133,23 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
           clusterid: 'cluster-1'
         }
       ],
-      storagePools: [{ id: 'pool-1', name: 'pool-1', scope: 'HOST', state: 'Up' }]
+      storagePools: [{ id: 'pool-1', name: 'pool-1', scope: 'HOST', state: 'Up', path: '/var/lib/libvirt/images' }]
     })
 
     const wrapper = createWrapper()
     await flushPromises()
 
     expect(wrapper.vm.form.targetstoragepoolid).toBe('pool-1')
-    expect(wrapper.vm.form.targetstoragescope).toBe('host')
+    expect(wrapper.vm.form.targetstoragescope).toBe('secondary-local')
+    expect(wrapper.vm.form.backendmode).toBe('remote-nbd')
+    expect(wrapper.vm.form.secondarytargetdir).toBe('/var/lib/libvirt/images')
+    expect(wrapper.vm.requiresRemoteNbdBackend).toBe(true)
 
     wrapper.vm.form.mode = 'ft'
     wrapper.vm.handleModeChange('ft')
 
     expect(wrapper.vm.form.targetstoragepoolid).toBe('pool-1')
-    expect(wrapper.vm.form.targetstoragescope).toBe('host')
+    expect(wrapper.vm.form.targetstoragescope).toBe('secondary-local')
     expect(wrapper.vm.form.xcoloproxyendpoint).toBe('tcp:10.0.0.12:9000')
     expect(wrapper.vm.form.xcolonbdendpoint).toBe('tcp:10.0.1.12:10809')
     expect(wrapper.vm.form.xcolomigrateuri).toBe('tcp:10.0.1.12:9998')
@@ -156,7 +159,7 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
 
   it('updates conditional fields when mode and backend change', async () => {
     mockGetApi({
-      storagePools: [{ id: 'pool-1', name: 'pool-1', scope: 'HOST', state: 'Up' }]
+      storagePools: [{ id: 'pool-1', name: 'pool-1', scope: 'HOST', state: 'Up', path: '/var/lib/libvirt/images' }]
     })
     const wrapper = createWrapper()
     await flushPromises()
@@ -164,22 +167,23 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
     wrapper.vm.form.mode = 'ft'
     wrapper.vm.handleModeChange('ft')
     expect(wrapper.vm.form.backendmode).toBe(null)
-    expect(wrapper.vm.form.targetstoragescope).toBe('host')
+    expect(wrapper.vm.form.targetstoragescope).toBe('secondary-local')
     expect(wrapper.vm.showFtFields).toBe(true)
 
     wrapper.vm.form.mode = 'dr'
     wrapper.vm.handleModeChange('dr')
-    wrapper.vm.form.backendmode = 'remote-nbd'
-    wrapper.vm.handleBackendModeChange('remote-nbd')
+    wrapper.vm.form.backendmode = 'shared-blockcopy'
+    wrapper.vm.handleBackendModeChange('shared-blockcopy')
     expect(wrapper.vm.form.targetstoragepoolid).toBe('pool-1')
-    expect(wrapper.vm.form.targetstoragescope).toBe('host')
+    expect(wrapper.vm.form.targetstoragescope).toBe('secondary-local')
+    expect(wrapper.vm.form.backendmode).toBe('remote-nbd')
     expect(wrapper.vm.showRemoteNbdFields).toBe(true)
   })
 
   it('submits registerFtctlProtection and emits local refresh events', async () => {
     mockGetApi({
       hosts: [{ id: 'host-2', hypervisor: 'KVM', name: 'peer-host', ipaddress: '10.0.0.12' }],
-      storagePools: [{ id: 'pool-1', name: 'pool-1', scope: 'HOST', state: 'Up' }]
+      storagePools: [{ id: 'pool-1', name: 'pool-1', scope: 'HOST', state: 'Up', path: '/var/lib/libvirt/images' }]
     })
     postAPI.mockResolvedValue({ registerftctlprotectionresponse: { success: true } })
 
@@ -187,9 +191,8 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
     await flushPromises()
 
     wrapper.vm.form.mode = 'dr'
-    wrapper.vm.form.backendmode = 'remote-nbd'
     wrapper.vm.form.targetstoragepoolid = 'pool-1'
-    wrapper.vm.form.targetstoragescope = 'host'
+    wrapper.vm.applySelectedStoragePool('pool-1')
     wrapper.vm.form.fencingpolicy = 'manual-block'
     wrapper.vm.form.peerhostid = 'host-2'
     wrapper.vm.form.secondaryvmname = 'vm-name-standby'
@@ -209,7 +212,7 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
       provisioningbackend: 'cloud-managed',
       fencingpolicy: 'manual-block',
       backendmode: 'remote-nbd',
-      targetstoragescope: 'host',
+      targetstoragescope: 'secondary-local',
       targetstoragepoolid: 'pool-1',
       peerhostid: 'host-2',
       secondaryvmname: 'vm-name-standby',
@@ -233,7 +236,7 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
     wrapper.vm.form.mode = 'ft'
     wrapper.vm.handleModeChange('ft')
     wrapper.vm.form.targetstoragepoolid = 'pool-1'
-    wrapper.vm.form.targetstoragescope = 'host'
+    wrapper.vm.form.targetstoragescope = 'secondary-local'
     wrapper.vm.form.peerhostid = 'host-2'
     wrapper.vm.form.secondaryvmname = 'vm-name-standby'
     wrapper.vm.form.xcoloproxyendpoint = 'tcp:10.0.0.12:9000'
@@ -252,7 +255,7 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
       mode: 'ft',
       provisioningbackend: 'cloud-managed',
       fencingpolicy: 'manual-block',
-      targetstoragescope: 'host',
+      targetstoragescope: 'secondary-local',
       targetstoragepoolid: 'pool-1',
       peerhostid: 'host-2',
       secondaryvmname: 'vm-name-standby',

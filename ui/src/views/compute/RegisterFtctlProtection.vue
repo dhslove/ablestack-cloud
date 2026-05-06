@@ -88,7 +88,7 @@
             <tooltip-label :title="$t('label.ftctl.backend.mode')" :tooltip="$t('placeholder.ftctl.backend.mode')" />
           </template>
           <a-select v-model:value="form.backendmode" @change="handleBackendModeChange">
-            <a-select-option value="shared-blockcopy">shared-blockcopy</a-select-option>
+            <a-select-option value="shared-blockcopy" :disabled="requiresRemoteNbdBackend">shared-blockcopy</a-select-option>
             <a-select-option value="remote-nbd">remote-nbd</a-select-option>
           </a-select>
         </a-form-item>
@@ -199,6 +199,9 @@ export default {
     showRemoteNbdFields () {
       return this.showBackendFields && this.form?.backendmode === 'remote-nbd'
     },
+    requiresRemoteNbdBackend () {
+      return this.showBackendFields && this.form?.targetstoragescope === 'secondary-local'
+    },
     ftEndpointSummary () {
       if (!this.form?.peerhostid) {
         return this.$t('message.ftctl.ft.endpoint.auto.pending')
@@ -300,6 +303,11 @@ export default {
       if (this.form.targetstoragepoolid) {
         this.applySelectedStoragePool(this.form.targetstoragepoolid)
       }
+      if (this.requiresRemoteNbdBackend && backendMode !== 'remote-nbd') {
+        this.form.backendmode = 'remote-nbd'
+        this.applyPeerHostDefaults(this.form.peerhostid)
+        return
+      }
       if (backendMode === 'shared-blockcopy') {
         this.form.secondarytargetdir = null
         this.form.remotenbdexportaddr = null
@@ -352,12 +360,28 @@ export default {
     applySelectedStoragePool (poolId) {
       const pool = this.storagePools.find(item => item.id === poolId)
       this.form.targetstoragescope = this.deriveTargetStorageScope(pool)
+      if (this.requiresRemoteNbdBackend) {
+        this.form.backendmode = 'remote-nbd'
+        this.form.secondarytargetdir = this.deriveSecondaryTargetDir(pool)
+        this.applyPeerHostDefaults(this.form.peerhostid)
+      } else if (this.form.backendmode === 'shared-blockcopy') {
+        this.form.secondarytargetdir = null
+        this.form.remotenbdexportaddr = null
+      }
     },
     deriveTargetStorageScope (pool) {
       if (!pool?.scope) {
         return 'shared'
       }
-      return String(pool.scope).toLowerCase()
+      const scope = String(pool.scope).toLowerCase()
+      return scope === 'host' ? 'secondary-local' : scope
+    },
+    deriveSecondaryTargetDir (pool) {
+      const path = pool?.path || pool?.url
+      if (!path) {
+        return this.form.secondarytargetdir
+      }
+      return String(path).replace(/\/+$/, '')
     },
     formatStoragePoolLabel (pool) {
       const name = pool?.name || pool?.id

@@ -853,6 +853,7 @@ public class EventTypes {
     public static final String EVENT_FTCTL_PROTECTION_RESUME = "FTCTL.PROTECTION.RESUME";
     public static final String EVENT_FTCTL_PROTECTION_FAILOVER = "FTCTL.PROTECTION.FAILOVER";
     public static final String EVENT_FTCTL_PROTECTION_FAILBACK = "FTCTL.PROTECTION.FAILBACK";
+    public static final String EVENT_FTCTL_PROTECTION_PROGRESS = "FTCTL.PROTECTION.PROGRESS";
     public static final String EVENT_FTCTL_PROTECTION_FENCE_CONFIRM = "FTCTL.PROTECTION.FENCE.CONFIRM";
     public static final String EVENT_FTCTL_PROTECTION_FENCE_CLEAR = "FTCTL.PROTECTION.FENCE.CLEAR";
     public static final String EVENT_FTCTL_PROTECTION_RELEASE = "FTCTL.PROTECTION.RELEASE";
@@ -1422,6 +1423,7 @@ public class EventTypes {
         entityEventDetails.put(EVENT_FTCTL_PROTECTION_RESUME, VirtualMachine.class);
         entityEventDetails.put(EVENT_FTCTL_PROTECTION_FAILOVER, VirtualMachine.class);
         entityEventDetails.put(EVENT_FTCTL_PROTECTION_FAILBACK, VirtualMachine.class);
+        entityEventDetails.put(EVENT_FTCTL_PROTECTION_PROGRESS, VirtualMachine.class);
         entityEventDetails.put(EVENT_FTCTL_PROTECTION_FENCE_CONFIRM, VirtualMachine.class);
         entityEventDetails.put(EVENT_FTCTL_PROTECTION_FENCE_CLEAR, VirtualMachine.class);
         entityEventDetails.put(EVENT_FTCTL_PROTECTION_RELEASE, VirtualMachine.class);

@@ -160,6 +160,34 @@ public class FtctlProtectionResponse extends BaseResponse {
     @Param(description = "the last known FTCTL error")
     private String lastError;
 
+    @SerializedName("syncprogresspercent")
+    @Param(description = "the current FTCTL block copy progress percentage")
+    private Double syncProgressPercent;
+
+    @SerializedName("synccopiedbytes")
+    @Param(description = "the current FTCTL block copy copied bytes")
+    private Long syncCopiedBytes;
+
+    @SerializedName("synctotalbytes")
+    @Param(description = "the current FTCTL block copy total bytes")
+    private Long syncTotalBytes;
+
+    @SerializedName("syncready")
+    @Param(description = "whether the current FTCTL block copy is ready")
+    private Boolean syncReady;
+
+    @SerializedName("syncdirection")
+    @Param(description = "the current FTCTL block copy direction")
+    private String syncDirection;
+
+    @SerializedName("syncupdated")
+    @Param(description = "the current FTCTL block copy progress update timestamp")
+    private String syncUpdated;
+
+    @SerializedName("syncprogressjson")
+    @Param(description = "the current FTCTL block copy progress details as JSON")
+    private String syncProgressJson;
+
     public void setVirtualMachineId(Long virtualMachineId) {
         this.virtualMachineId = virtualMachineId;
     }
@@ -294,5 +322,33 @@ public class FtctlProtectionResponse extends BaseResponse {
 
     public void setLastError(String lastError) {
         this.lastError = lastError;
+    }
+
+    public void setSyncProgressPercent(Double syncProgressPercent) {
+        this.syncProgressPercent = syncProgressPercent;
+    }
+
+    public void setSyncCopiedBytes(Long syncCopiedBytes) {
+        this.syncCopiedBytes = syncCopiedBytes;
+    }
+
+    public void setSyncTotalBytes(Long syncTotalBytes) {
+        this.syncTotalBytes = syncTotalBytes;
+    }
+
+    public void setSyncReady(Boolean syncReady) {
+        this.syncReady = syncReady;
+    }
+
+    public void setSyncDirection(String syncDirection) {
+        this.syncDirection = syncDirection;
+    }
+
+    public void setSyncUpdated(String syncUpdated) {
+        this.syncUpdated = syncUpdated;
+    }
+
+    public void setSyncProgressJson(String syncProgressJson) {
+        this.syncProgressJson = syncProgressJson;
     }
 }
