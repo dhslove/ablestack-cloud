@@ -464,6 +464,11 @@ public class FtctlServiceImplTest {
         FtctlStatusAnswer confirmStatus = new FtctlStatusAnswer(new FtctlStatusCommand("vm-name"), true, "OK", "ok", "vm-name",
                 "ha", "failing_over", "mirroring", "primary", "active", "manual-fenced", "manual_fencing_required",
                 "2026-05-03T00:55:00+09:00", 0, 1);
+        FtctlActionAnswer prepareAnswer = new FtctlActionAnswer(new FtctlActionCommand(FtctlActionCommand.Action.FAILOVER_PREPARE, "vm-name"), true, "OK",
+                FtctlActionCommand.Action.FAILOVER_PREPARE, "ok", 0, "start-ready");
+        FtctlStatusAnswer prepareStatus = new FtctlStatusAnswer(new FtctlStatusCommand("vm-name"), true, "OK", "ok", "vm-name",
+                "ha", "failing_over", "mirroring", "primary", "active", "manual-fenced", "",
+                "2026-05-03T00:55:30+09:00", 0, 1);
         FtctlActionAnswer failoverAnswer = new FtctlActionAnswer(new FtctlActionCommand(FtctlActionCommand.Action.FAILOVER, "vm-name"), true, "OK",
                 FtctlActionCommand.Action.FAILOVER, "ok", 0, "failed-over");
         FtctlStatusAnswer failoverStatus = new FtctlStatusAnswer(new FtctlStatusCommand("vm-name"), true, "OK", "ok", "vm-name",
@@ -472,6 +477,8 @@ public class FtctlServiceImplTest {
         Mockito.when(agentManager.send(Mockito.eq(201L), Mockito.any(Command.class)))
                 .thenReturn(confirmAnswer)
                 .thenReturn(confirmStatus)
+                .thenReturn(prepareAnswer)
+                .thenReturn(prepareStatus)
                 .thenReturn(failoverAnswer)
                 .thenReturn(failoverStatus);
         Mockito.when(userVmManager.startVirtualMachine(Mockito.eq(401L), Mockito.eq(202L),
@@ -490,13 +497,16 @@ public class FtctlServiceImplTest {
                 Mockito.<Map<VirtualMachineProfile.Param, Object>>any(), Mockito.isNull());
 
         ArgumentCaptor<Command> commandCaptor = ArgumentCaptor.forClass(Command.class);
-        Mockito.verify(agentManager, Mockito.times(4)).send(Mockito.eq(201L), commandCaptor.capture());
+        Mockito.verify(agentManager, Mockito.times(6)).send(Mockito.eq(201L), commandCaptor.capture());
         List<Command> commands = commandCaptor.getAllValues();
         Assert.assertEquals(FtctlActionCommand.Action.FENCE_CONFIRM, ((FtctlActionCommand) commands.get(0)).getAction());
         Assert.assertTrue(commands.get(1) instanceof FtctlStatusCommand);
-        Assert.assertEquals(FtctlActionCommand.Action.FAILOVER, ((FtctlActionCommand) commands.get(2)).getAction());
+        Assert.assertEquals(FtctlActionCommand.Action.FAILOVER_PREPARE, ((FtctlActionCommand) commands.get(2)).getAction());
         Assert.assertTrue(((FtctlActionCommand) commands.get(2)).isForce());
         Assert.assertTrue(commands.get(3) instanceof FtctlStatusCommand);
+        Assert.assertEquals(FtctlActionCommand.Action.FAILOVER, ((FtctlActionCommand) commands.get(4)).getAction());
+        Assert.assertTrue(((FtctlActionCommand) commands.get(4)).isForce());
+        Assert.assertTrue(commands.get(5) instanceof FtctlStatusCommand);
     }
 
     @Test
@@ -528,6 +538,11 @@ public class FtctlServiceImplTest {
         FtctlStatusAnswer confirmStatus = new FtctlStatusAnswer(new FtctlStatusCommand("vm-name"), true, "OK", "ok", "vm-name",
                 "ha", "failed_over", "failed_over", "secondary", "active", "manual-fenced", "",
                 "2026-05-06T09:05:00+09:00", 0, 1);
+        FtctlActionAnswer prepareAnswer = new FtctlActionAnswer(new FtctlActionCommand(FtctlActionCommand.Action.FAILOVER_PREPARE, "vm-name"), true, "OK",
+                FtctlActionCommand.Action.FAILOVER_PREPARE, "ok", 0, "already-ready");
+        FtctlStatusAnswer prepareStatus = new FtctlStatusAnswer(new FtctlStatusCommand("vm-name"), true, "OK", "ok", "vm-name",
+                "ha", "failed_over", "failed_over", "secondary", "active", "manual-fenced", "",
+                "2026-05-06T09:05:30+09:00", 0, 1);
         FtctlActionAnswer lockedFailover = new FtctlActionAnswer(new FtctlActionCommand(FtctlActionCommand.Action.FAILOVER, "vm-name"), false,
                 "{\"command\":\"failover\",\"result\":\"locked\",\"lock_file\":\"/run/ablestack-vm-ftctl/lock\"}",
                 FtctlActionCommand.Action.FAILOVER, "locked", 20,
@@ -535,6 +550,8 @@ public class FtctlServiceImplTest {
         Mockito.when(agentManager.send(Mockito.eq(201L), Mockito.any(Command.class)))
                 .thenReturn(confirmAnswer)
                 .thenReturn(confirmStatus)
+                .thenReturn(prepareAnswer)
+                .thenReturn(prepareStatus)
                 .thenAnswer(invocation -> {
                     protection.setProtectionState("failed_over");
                     protection.setTransportState("failed_over");
@@ -557,7 +574,7 @@ public class FtctlServiceImplTest {
         Mockito.verify(userVmManager, Mockito.never()).startVirtualMachine(Mockito.anyLong(), Mockito.<Long>any(),
                 Mockito.<Map<VirtualMachineProfile.Param, Object>>any(), Mockito.<String>any());
         Mockito.verify(nicDao, Mockito.never()).update(Mockito.anyLong(), Mockito.any(NicVO.class));
-        Mockito.verify(agentManager, Mockito.times(3)).send(Mockito.eq(201L), Mockito.any(Command.class));
+        Mockito.verify(agentManager, Mockito.times(5)).send(Mockito.eq(201L), Mockito.any(Command.class));
     }
 
     @Test
@@ -592,6 +609,11 @@ public class FtctlServiceImplTest {
         FtctlStatusAnswer confirmStatus = new FtctlStatusAnswer(new FtctlStatusCommand("vm-name"), true, "OK", "ok", "vm-name",
                 "ha", "failing_over", "mirroring", "primary", "active", "manual-fenced", "manual_fencing_required",
                 "2026-05-03T00:55:00+09:00", 0, 1);
+        FtctlActionAnswer prepareAnswer = new FtctlActionAnswer(new FtctlActionCommand(FtctlActionCommand.Action.FAILOVER_PREPARE, "vm-name"), true, "OK",
+                FtctlActionCommand.Action.FAILOVER_PREPARE, "ok", 0, "start-ready");
+        FtctlStatusAnswer prepareStatus = new FtctlStatusAnswer(new FtctlStatusCommand("vm-name"), true, "OK", "ok", "vm-name",
+                "ha", "failing_over", "mirroring", "primary", "active", "manual-fenced", "",
+                "2026-05-03T00:55:30+09:00", 0, 1);
         FtctlActionAnswer failoverAnswer = new FtctlActionAnswer(new FtctlActionCommand(FtctlActionCommand.Action.FAILOVER, "vm-name"), true, "OK",
                 FtctlActionCommand.Action.FAILOVER, "ok", 0, "failed-over");
         FtctlStatusAnswer failoverStatus = new FtctlStatusAnswer(new FtctlStatusCommand("vm-name"), true, "OK", "ok", "vm-name",
@@ -600,6 +622,8 @@ public class FtctlServiceImplTest {
         Mockito.when(agentManager.send(Mockito.eq(201L), Mockito.any(Command.class)))
                 .thenReturn(confirmAnswer)
                 .thenReturn(confirmStatus)
+                .thenReturn(prepareAnswer)
+                .thenReturn(prepareStatus)
                 .thenReturn(failoverAnswer)
                 .thenReturn(failoverStatus);
         Mockito.when(userVmManager.startVirtualMachine(Mockito.eq(401L), Mockito.eq(202L),
@@ -637,9 +661,16 @@ public class FtctlServiceImplTest {
         FtctlStatusAnswer confirmStatus = new FtctlStatusAnswer(new FtctlStatusCommand("vm-name"), true, "OK", "ok", "vm-name",
                 "ha", "failing_over", "copying", "primary", "active", "manual-fenced", "manual_fencing_required",
                 "2026-05-03T00:55:00+09:00", 0, 1);
+        FtctlActionAnswer prepareAnswer = new FtctlActionAnswer(new FtctlActionCommand(FtctlActionCommand.Action.FAILOVER_PREPARE, "vm-name"), true, "OK",
+                FtctlActionCommand.Action.FAILOVER_PREPARE, "ok", 0, "not-ready");
+        FtctlStatusAnswer prepareStatus = new FtctlStatusAnswer(new FtctlStatusCommand("vm-name"), true, "OK", "ok", "vm-name",
+                "ha", "failing_over", "copying", "primary", "active", "manual-fenced", "blockcopy_not_ready_for_failover",
+                "2026-05-03T00:55:30+09:00", 0, 1);
         Mockito.when(agentManager.send(Mockito.eq(201L), Mockito.any(Command.class)))
                 .thenReturn(confirmAnswer)
-                .thenReturn(confirmStatus);
+                .thenReturn(confirmStatus)
+                .thenReturn(prepareAnswer)
+                .thenReturn(prepareStatus);
 
         try {
             ftctlService.confirmFtctlFence(101L);
@@ -651,10 +682,12 @@ public class FtctlServiceImplTest {
         Mockito.verify(userVmManager, Mockito.never()).startVirtualMachine(Mockito.anyLong(), Mockito.<Long>any(),
                 Mockito.<Map<VirtualMachineProfile.Param, Object>>any(), Mockito.<String>any());
         ArgumentCaptor<Command> commandCaptor = ArgumentCaptor.forClass(Command.class);
-        Mockito.verify(agentManager, Mockito.times(2)).send(Mockito.eq(201L), commandCaptor.capture());
+        Mockito.verify(agentManager, Mockito.times(4)).send(Mockito.eq(201L), commandCaptor.capture());
         List<Command> commands = commandCaptor.getAllValues();
         Assert.assertEquals(FtctlActionCommand.Action.FENCE_CONFIRM, ((FtctlActionCommand) commands.get(0)).getAction());
         Assert.assertTrue(commands.get(1) instanceof FtctlStatusCommand);
+        Assert.assertEquals(FtctlActionCommand.Action.FAILOVER_PREPARE, ((FtctlActionCommand) commands.get(2)).getAction());
+        Assert.assertTrue(commands.get(3) instanceof FtctlStatusCommand);
     }
 
     @Test

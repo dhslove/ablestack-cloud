@@ -26,6 +26,7 @@ public class FtctlActionCommand extends Command {
         PAUSE_PROTECTION("pause-protection"),
         RESUME_PROTECTION("resume-protection"),
         FAILOVER("failover"),
+        FAILOVER_PREPARE("failover-prepare"),
         FAILBACK("failback"),
         FAILBACK_SYNC("failback-sync"),
         FAILBACK_REPROTECT("failback-reprotect"),

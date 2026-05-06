@@ -736,7 +736,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         Long hostId = requireExecutionHostId(userVm);
         try {
             FtctlActionCommand actionCommand = new FtctlActionCommand(action, userVm.getInstanceName());
-            actionCommand.setForce(force || action == FtctlActionCommand.Action.FAILOVER || action == FtctlActionCommand.Action.FAILBACK ||
+            actionCommand.setForce(force || action == FtctlActionCommand.Action.FAILOVER || action == FtctlActionCommand.Action.FAILOVER_PREPARE ||
+                    action == FtctlActionCommand.Action.FAILBACK ||
                     action == FtctlActionCommand.Action.FAILBACK_SYNC || action == FtctlActionCommand.Action.FAILBACK_REPROTECT ||
                     action == FtctlActionCommand.Action.UNPROTECT);
             if (action == FtctlActionCommand.Action.FAILBACK || action == FtctlActionCommand.Action.FAILBACK_SYNC ||
@@ -921,6 +922,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         }
 
         executeFtctlAction(primaryVm.getId(), FtctlActionCommand.Action.FENCE_CONFIRM, false);
+        executeFtctlAction(primaryVm.getId(), FtctlActionCommand.Action.FAILOVER_PREPARE, true);
         protection = validateManualFailoverTransportReady(primaryVm);
         UserVmVO secondaryVm = resolveSecondaryVmForManualFailover(primaryVm, protection);
         handoffNicIdentityToSecondaryIfNeeded(primaryVm, secondaryVm, protection);
@@ -1039,8 +1041,28 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
                     String.format("Started FTCTL secondary VM %s for primary VM %s after manual fence confirmation",
                             secondaryVm.getUuid(), primaryVm.getUuid()));
         } catch (ConcurrentOperationException | ResourceUnavailableException | InsufficientCapacityException | ResourceAllocationException e) {
+            repairSecondaryVmStateAfterFailedStart(primaryVm, secondaryVm);
             throw new CloudRuntimeException(String.format("Unable to start FTCTL secondary VM %s for primary VM %s",
                     secondaryVm.getUuid(), primaryVm.getUuid()), e);
+        }
+    }
+
+    private void repairSecondaryVmStateAfterFailedStart(UserVmVO primaryVm, UserVmVO secondaryVm) {
+        if (secondaryVm == null) {
+            return;
+        }
+        UserVmVO refreshedSecondaryVm = userVmDao.findById(secondaryVm.getId());
+        if (refreshedSecondaryVm == null || refreshedSecondaryVm.getState() != VirtualMachine.State.Running) {
+            return;
+        }
+        try {
+            userVmService.stopVirtualMachine(refreshedSecondaryVm.getId(), true);
+            publishFtctlEvent(primaryVm, EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE,
+                    String.format("Stopped FTCTL secondary VM %s after failed Cloud-managed manual failover start reconciliation",
+                            refreshedSecondaryVm.getUuid()));
+        } catch (ConcurrentOperationException e) {
+            logger.warn(String.format("Unable to reconcile FTCTL secondary VM %s after failed manual failover start",
+                    refreshedSecondaryVm.getUuid()), e);
         }
     }
 
@@ -1864,6 +1886,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             case RESUME_PROTECTION:
                 return EventTypes.EVENT_FTCTL_PROTECTION_RESUME;
             case FAILOVER:
+            case FAILOVER_PREPARE:
                 return EventTypes.EVENT_FTCTL_PROTECTION_FAILOVER;
             case FAILBACK:
                 return EventTypes.EVENT_FTCTL_PROTECTION_FAILBACK;
