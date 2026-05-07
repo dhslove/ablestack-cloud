@@ -154,6 +154,11 @@
                     <SyncOutlined spin />
                   </span>
                 </div>
+                <div v-if="thinStatusDetails.length" class="ftctl-tab__progress-meta">
+                  <span v-for="detail in thinStatusDetails" :key="detail.key">
+                    {{ detail.label }}: {{ detail.value }}
+                  </span>
+                </div>
               </div>
               <a-tag :color="syncReady ? 'green' : 'blue'">{{ syncReady ? 'ready' : 'copying' }}</a-tag>
             </div>
@@ -544,6 +549,31 @@ export default {
     },
     syncProgressDisks () {
       return Array.isArray(this.syncProgressObject.disks) ? this.syncProgressObject.disks : []
+    },
+    thinStatusDetails () {
+      const details = []
+      if (this.syncProgressObject.thin_preserve) {
+        details.push({
+          key: 'thinPreserve',
+          label: 'Thin Preserve',
+          value: this.syncProgressObject.thin_preserve
+        })
+      }
+      if (this.syncProgressObject.rbd_parent_flattened) {
+        details.push({
+          key: 'rbdParentFlattened',
+          label: 'RBD Parent Flattened',
+          value: this.syncProgressObject.rbd_parent_flattened
+        })
+      }
+      if (this.syncProgressObject.last_thin_preserve_reason) {
+        details.push({
+          key: 'thinPreserveReason',
+          label: 'Reason',
+          value: this.syncProgressObject.last_thin_preserve_reason
+        })
+      }
+      return details
     },
     primaryExecutionState () {
       return this.executionStateFromReturnCode(this.checkResult.primaryrc, 'primary')
@@ -1202,6 +1232,9 @@ export default {
   }
 
   &__progress-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
     margin-top: 3px;
     font-size: 12px;
     color: rgba(0, 0, 0, 0.62);
