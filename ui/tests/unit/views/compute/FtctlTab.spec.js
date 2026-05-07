@@ -283,6 +283,83 @@ describe('Views > compute > FtctlTab.vue', () => {
     expect(wrapper.vm.stateTagColor('failed_over')).toBe('blue')
   })
 
+  it('shows cloud-managed failed-over primary as stopped without failure summary', async () => {
+    getAPI.mockImplementation((command) => {
+      switch (command) {
+        case 'getFtctlProtection':
+          return Promise.resolve({
+            getftctlprotectionresponse: {
+              ftctlprotection: {
+                enabled: 'true',
+                mode: 'ha',
+                provisioningbackend: 'cloud-managed',
+                protectionstate: 'failed_over',
+                transportstate: 'failed_over',
+                activeside: 'secondary',
+                adminstate: 'active',
+                fencingstate: 'manual-fenced'
+              }
+            }
+          })
+        case 'getFtctlCheck':
+          return Promise.resolve({
+            getftctlcheckresponse: {
+              ftctlcheck: {
+                result: 'ok',
+                inventoryresult: 'ok',
+                provisioningbackend: 'cloud-managed',
+                primaryrc: 1,
+                peerrc: 0,
+                standbydomainstate: 'running'
+              }
+            }
+          })
+        case 'getFtctlHealth':
+          return Promise.resolve({
+            getftctlhealthresponse: {
+              ftctlhealth: {
+                result: 'ok',
+                rc: 0
+              }
+            }
+          })
+        case 'getFtctlEvents':
+          return Promise.resolve({
+            getftctleventsresponse: {
+              ftctlevents: {
+                events: [
+                  {
+                    ts: '2026-05-07T10:00:00+09:00',
+                    stage: 'inventory',
+                    event: 'inventory.disks',
+                    result: 'fail',
+                    details: '{"primary_uri":"qemu:///system"}'
+                  },
+                  { ts: '2026-05-07T10:01:00+09:00', stage: 'failover', event: 'failover.steady', result: 'ok' }
+                ]
+              }
+            }
+          })
+        default:
+          return Promise.resolve({})
+      }
+    })
+
+    const wrapper = createWrapper({
+      getFtctlCheck: true,
+      getFtctlHealth: true,
+      getFtctlEvents: true
+    })
+
+    await flushPromises()
+
+    expect(wrapper.vm.primaryExecutionState).toBe('Stopped')
+    expect(wrapper.vm.peerExecutionState).toBe('Started')
+    expect(wrapper.vm.eventStats.total).toBe(2)
+    expect(wrapper.vm.eventStats.fail).toBe(0)
+    expect(wrapper.vm.operationalSummary.type).toBe('info')
+  })
+
   it('runs action, applies payload and emits refresh event', async () => {
     let protectionState = {
       enabled: 'true',

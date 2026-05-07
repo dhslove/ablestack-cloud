@@ -470,6 +470,9 @@ export default {
     eventStats () {
       const stats = { total: this.events.length, warn: 0, fail: 0 }
       this.events.forEach(event => {
+        if (this.isExpectedFailoverSteadyEvent(event)) {
+          return
+        }
         const result = String(event.result || '').toLowerCase()
         if (result === 'warn') {
           stats.warn += 1
@@ -769,11 +772,44 @@ export default {
       if (side === 'peer' && rc === 1 && this.expectedCloudManagedPeerStopped()) {
         return 'Stopped'
       }
+      if (side === 'primary' && rc === 1 && this.expectedCloudManagedPrimaryStopped()) {
+        return 'Stopped'
+      }
       return 'Error'
     },
+    isCloudManagedProvisioningBackend () {
+      return String(this.checkResult.provisioningbackend || this.protection.provisioningbackend || '').toLowerCase() === 'cloud-managed'
+    },
+    isCloudManagedFailedOver () {
+      const protection = String(this.protection.protectionstate || '').toLowerCase()
+      const transport = String(this.protection.transportstate || '').toLowerCase()
+      const activeSide = String(this.protection.activeside || '').toLowerCase()
+      const fencing = String(this.protection.fencingstate || '').toLowerCase()
+      return this.isCloudManagedProvisioningBackend() &&
+        protection === 'failed_over' &&
+        transport === 'failed_over' &&
+        activeSide === 'secondary' &&
+        ['manual-fenced', 'fenced', 'source-fenced'].includes(fencing)
+    },
     expectedCloudManagedPeerStopped () {
-      return String(this.checkResult.provisioningbackend || this.protection.provisioningbackend || '').toLowerCase() === 'cloud-managed' &&
+      return this.isCloudManagedProvisioningBackend() &&
         String(this.checkResult.standbydomainstate || '').toLowerCase() === 'not-defined-expected'
+    },
+    expectedCloudManagedPrimaryStopped () {
+      return this.isCloudManagedFailedOver() &&
+        Number(this.checkResult.peerrc) === 0 &&
+        String(this.checkResult.standbydomainstate || '').toLowerCase() === 'running'
+    },
+    isExpectedFailoverSteadyEvent (event) {
+      if (!this.isCloudManagedFailedOver()) {
+        return false
+      }
+      const result = String(event?.result || '').toLowerCase()
+      if (!['fail', 'error'].includes(result)) {
+        return false
+      }
+      return String(event?.stage || '').toLowerCase() === 'inventory' &&
+        String(event?.event || '').toLowerCase() === 'inventory.disks'
     },
     executionStateTagColor (status) {
       if (status === 'Started') {
