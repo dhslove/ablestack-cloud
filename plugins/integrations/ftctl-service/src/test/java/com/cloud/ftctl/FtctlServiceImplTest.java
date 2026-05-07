@@ -327,6 +327,28 @@ public class FtctlServiceImplTest {
     }
 
     @Test
+    public void testExecuteFailoverActionRecordsReadyMarkerBeforeManualFence() throws Exception {
+        FtctlActionCommand actionCommand = new FtctlActionCommand(FtctlActionCommand.Action.FAILOVER, "vm-name");
+        FtctlActionAnswer actionAnswer = new FtctlActionAnswer(actionCommand, true, "OK",
+                FtctlActionCommand.Action.FAILOVER, "ok", 0, "manual-fencing-required");
+        FtctlStatusAnswer statusAnswer = new FtctlStatusAnswer(new FtctlStatusCommand("vm-name"), true, "OK", "ok", "vm-name",
+                "ha", "failing_over", "mirroring", "primary", "active", "required", "manual_fencing_required",
+                "2026-05-07T22:35:00+09:00", 0, 1, 100.0d, 1024L, 1024L, true,
+                "forward", "2026-05-07T22:35:00+09:00", "{\"ready\":true}");
+        FtctlProtectionVO protection = new FtctlProtectionVO(101L);
+        Mockito.when(ftctlProtectionDao.findActiveByPrimaryVmId(101L)).thenReturn(protection);
+        Mockito.when(agentManager.send(Mockito.eq(201L), Mockito.any(Command.class)))
+                .thenReturn(actionAnswer)
+                .thenReturn(statusAnswer);
+
+        ftctlService.executeFtctlAction(101L, FtctlActionCommand.Action.FAILOVER, false);
+
+        Assert.assertEquals("true", vmDetails.get("101:ftctl.failover.ready"));
+        Assert.assertEquals("100.0", vmDetails.get("101:ftctl.failover.ready.sync.percent"));
+        Assert.assertEquals("{\"ready\":true}", vmDetails.get("101:ftctl.failover.ready.sync.json"));
+    }
+
+    @Test
     public void testExecuteFtctlActionRetriesLockedAction() throws Exception {
         FtctlActionCommand actionCommand = new FtctlActionCommand(FtctlActionCommand.Action.PAUSE_PROTECTION, "vm-name");
         FtctlActionAnswer lockedAnswer = new FtctlActionAnswer(actionCommand, false,
@@ -688,6 +710,65 @@ public class FtctlServiceImplTest {
         Assert.assertTrue(commands.get(1) instanceof FtctlStatusCommand);
         Assert.assertEquals(FtctlActionCommand.Action.FAILOVER_PREPARE, ((FtctlActionCommand) commands.get(2)).getAction());
         Assert.assertTrue(commands.get(3) instanceof FtctlStatusCommand);
+    }
+
+    @Test
+    public void testConfirmFtctlFenceAllowsTransientTransportWithReadyMarker() throws Exception {
+        Mockito.when(userVm.getState()).thenReturn(VirtualMachine.State.Stopped);
+        vmDetails.put("101:ftctl.peer.host.id", "202");
+        vmDetails.put("101:ftctl.failover.ready", "true");
+
+        UserVmVO secondaryVm = Mockito.mock(UserVmVO.class);
+        Mockito.when(secondaryVm.getId()).thenReturn(401L);
+        Mockito.when(secondaryVm.getUuid()).thenReturn("secondary-vm-uuid");
+        Mockito.when(secondaryVm.getState()).thenReturn(VirtualMachine.State.Stopped);
+        Mockito.when(userVmDao.findById(401L)).thenReturn(secondaryVm);
+
+        FtctlProtectionVO protection = new FtctlProtectionVO(101L);
+        protection.setSecondaryVmId(401L);
+        protection.setMode("ha");
+        protection.setBackendMode("remote-nbd");
+        protection.setProtectionState("error");
+        protection.setTransportState("transient_loss");
+        protection.setActiveSide("primary");
+        protection.setAdminState("active");
+        protection.setFencingState("manual-fenced");
+        protection.setLastError("blockcopy_not_ready_for_failover");
+        Mockito.when(ftctlProtectionDao.findActiveByPrimaryVmId(101L)).thenReturn(protection);
+
+        FtctlActionAnswer confirmAnswer = new FtctlActionAnswer(new FtctlActionCommand(FtctlActionCommand.Action.FENCE_CONFIRM, "vm-name"), true, "OK",
+                FtctlActionCommand.Action.FENCE_CONFIRM, "ok", 0, "manual-fenced");
+        FtctlStatusAnswer confirmStatus = new FtctlStatusAnswer(new FtctlStatusCommand("vm-name"), true, "OK", "ok", "vm-name",
+                "ha", "error", "transient_loss", "primary", "active", "manual-fenced", "blockcopy_not_ready_for_failover",
+                "2026-05-07T22:36:00+09:00", 0, 1);
+        FtctlActionAnswer prepareAnswer = new FtctlActionAnswer(new FtctlActionCommand(FtctlActionCommand.Action.FAILOVER_PREPARE, "vm-name"), true, "OK",
+                FtctlActionCommand.Action.FAILOVER_PREPARE, "ok", 0, "start-ready");
+        FtctlStatusAnswer prepareStatus = new FtctlStatusAnswer(new FtctlStatusCommand("vm-name"), true, "OK", "ok", "vm-name",
+                "ha", "error", "transient_loss", "primary", "active", "manual-fenced", "blockcopy_not_ready_for_failover",
+                "2026-05-07T22:36:30+09:00", 0, 1);
+        FtctlActionAnswer failoverAnswer = new FtctlActionAnswer(new FtctlActionCommand(FtctlActionCommand.Action.FAILOVER, "vm-name"), true, "OK",
+                FtctlActionCommand.Action.FAILOVER, "ok", 0, "failed-over");
+        FtctlStatusAnswer failoverStatus = new FtctlStatusAnswer(new FtctlStatusCommand("vm-name"), true, "OK", "ok", "vm-name",
+                "ha", "failed_over", "failed_over", "secondary", "active", "manual-fenced", "",
+                "2026-05-07T22:37:00+09:00", 0, 2);
+        Mockito.when(agentManager.send(Mockito.eq(201L), Mockito.any(Command.class)))
+                .thenReturn(confirmAnswer)
+                .thenReturn(confirmStatus)
+                .thenReturn(prepareAnswer)
+                .thenReturn(prepareStatus)
+                .thenReturn(failoverAnswer)
+                .thenReturn(failoverStatus);
+        Mockito.when(userVmManager.startVirtualMachine(Mockito.eq(401L), Mockito.eq(202L),
+                        Mockito.<Map<VirtualMachineProfile.Param, Object>>any(), Mockito.isNull()))
+                .thenReturn(new Pair<>(secondaryVm, new HashMap<>()));
+
+        FtctlActionResponse response = ftctlService.confirmFtctlFence(101L);
+
+        Assert.assertEquals("failed_over", getFieldValue(response, "protectionState"));
+        Assert.assertEquals("failed_over", getFieldValue(response, "transportState"));
+        Mockito.verify(userVmManager).startVirtualMachine(Mockito.eq(401L), Mockito.eq(202L),
+                Mockito.<Map<VirtualMachineProfile.Param, Object>>any(), Mockito.isNull());
+        Assert.assertNull(vmDetails.get("101:ftctl.failover.ready"));
     }
 
     @Test

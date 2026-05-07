@@ -148,6 +148,10 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     public static final String DETAIL_SYNC_UPDATED = "ftctl.sync.updated";
     public static final String DETAIL_SYNC_PROGRESS_JSON = "ftctl.sync.progress.json";
     public static final String DETAIL_SYNC_PROGRESS_EVENT_BUCKET = "ftctl.sync.progress.event.bucket";
+    public static final String DETAIL_FAILOVER_READY = "ftctl.failover.ready";
+    public static final String DETAIL_FAILOVER_READY_UPDATED = "ftctl.failover.ready.updated";
+    public static final String DETAIL_FAILOVER_READY_SYNC_PERCENT = "ftctl.failover.ready.sync.percent";
+    public static final String DETAIL_FAILOVER_READY_SYNC_JSON = "ftctl.failover.ready.sync.json";
     public static final String DETAIL_NIC_IDENTITY_STATE = "ftctl.nic.identity.state";
     public static final String DETAIL_NIC_IDENTITY_PRIMARY_PREFIX = "ftctl.nic.identity.primary.";
     public static final String DETAIL_NIC_IDENTITY_SECONDARY_PREFIX = "ftctl.nic.identity.secondary.";
@@ -835,6 +839,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             response.setFencingState(statusAnswer.getFencingState());
             response.setLastError(statusAnswer.getLastError());
             persistRuntimeState(userVm, statusAnswer);
+            updateFailoverReadyMarker(userVm, action, statusAnswer);
         }
         publishFtctlEvent(userVm, resolveFtctlActionEventType(action),
                 String.format("Executed FTCTL action %s for VM %s", action.name(), userVm.getUuid()));
@@ -923,7 +928,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
 
         executeFtctlAction(primaryVm.getId(), FtctlActionCommand.Action.FENCE_CONFIRM, false);
         executeFtctlAction(primaryVm.getId(), FtctlActionCommand.Action.FAILOVER_PREPARE, true);
-        protection = validateManualFailoverTransportReady(primaryVm);
+        protection = validateManualFailoverTransportReadyOrMarker(primaryVm);
         UserVmVO secondaryVm = resolveSecondaryVmForManualFailover(primaryVm, protection);
         handoffNicIdentityToSecondaryIfNeeded(primaryVm, secondaryVm, protection);
         startSecondaryVmForManualFailover(primaryVm, secondaryVm);
@@ -1003,10 +1008,80 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         return protection;
     }
 
+    private FtctlProtectionVO validateManualFailoverTransportReadyOrMarker(UserVmVO primaryVm) {
+        FtctlProtectionVO protection = ftctlProtectionDao.findActiveByPrimaryVmId(primaryVm.getId());
+        if (protection == null) {
+            throw new CloudRuntimeException(String.format("Unable to find active FTCTL protection for VM %s", primaryVm.getUuid()));
+        }
+        if (hasFailoverReadyMarker(primaryVm, protection)) {
+            logger.info(String.format("FTCTL manual fence confirmation for VM %s is continuing with cached failover-ready marker after primary stop",
+                    primaryVm.getUuid()));
+            return protection;
+        }
+        return validateManualFailoverTransportReady(primaryVm);
+    }
+
     private boolean requiresManualFailoverTransportReady(FtctlProtectionVO protection) {
         String mode = StringUtils.trimToEmpty(protection.getMode()).toLowerCase(Locale.ROOT);
         String backendMode = StringUtils.trimToEmpty(protection.getBackendMode()).toLowerCase(Locale.ROOT);
         return "ha".equals(mode) && ("shared-blockcopy".equals(backendMode) || "remote-nbd".equals(backendMode));
+    }
+
+    private boolean hasFailoverReadyMarker(UserVmVO primaryVm, FtctlProtectionVO protection) {
+        if (!requiresManualFailoverTransportReady(protection)) {
+            return true;
+        }
+        return "true".equalsIgnoreCase(StringUtils.trimToEmpty(getDetailValue(primaryVm.getId(), DETAIL_FAILOVER_READY)));
+    }
+
+    private void updateFailoverReadyMarker(UserVmVO userVm, FtctlActionCommand.Action action, FtctlStatusAnswer statusAnswer) {
+        if (userVm == null || action == null || statusAnswer == null) {
+            return;
+        }
+        if (action == FtctlActionCommand.Action.FAILOVER && isManualFailoverReadyStatus(statusAnswer)) {
+            Long virtualMachineId = userVm.getId();
+            putVmDetail(virtualMachineId, DETAIL_FAILOVER_READY, String.valueOf(true));
+            putVmDetail(virtualMachineId, DETAIL_FAILOVER_READY_UPDATED, String.valueOf(System.currentTimeMillis()));
+            if (statusAnswer.getSyncProgressPercent() != null) {
+                putVmDetail(virtualMachineId, DETAIL_FAILOVER_READY_SYNC_PERCENT,
+                        String.format(Locale.ROOT, "%.1f", statusAnswer.getSyncProgressPercent()));
+            }
+            if (StringUtils.isNotBlank(statusAnswer.getSyncProgressJson())) {
+                putVmDetail(virtualMachineId, DETAIL_FAILOVER_READY_SYNC_JSON, statusAnswer.getSyncProgressJson());
+            }
+            publishFtctlEvent(userVm, EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE,
+                    String.format("Recorded FTCTL failover-ready marker for VM %s before manual fencing", userVm.getUuid()));
+            return;
+        }
+        if (action == FtctlActionCommand.Action.FAILBACK || isManualFailoverTerminalStatus(statusAnswer)) {
+            clearFailoverReadyMarker(userVm.getId());
+        }
+    }
+
+    private boolean isManualFailoverReadyStatus(FtctlStatusAnswer statusAnswer) {
+        return statusAnswer != null &&
+                "ha".equalsIgnoreCase(StringUtils.trimToEmpty(statusAnswer.getMode())) &&
+                "failing_over".equalsIgnoreCase(StringUtils.trimToEmpty(statusAnswer.getProtectionState())) &&
+                "mirroring".equalsIgnoreCase(StringUtils.trimToEmpty(statusAnswer.getTransportState())) &&
+                "primary".equalsIgnoreCase(StringUtils.trimToEmpty(statusAnswer.getActiveSide())) &&
+                "required".equalsIgnoreCase(StringUtils.trimToEmpty(statusAnswer.getFencingState())) &&
+                "manual_fencing_required".equalsIgnoreCase(StringUtils.trimToEmpty(statusAnswer.getLastError()));
+    }
+
+    private boolean isManualFailoverTerminalStatus(FtctlStatusAnswer statusAnswer) {
+        return statusAnswer != null &&
+                "failed_over".equalsIgnoreCase(StringUtils.trimToEmpty(statusAnswer.getProtectionState())) &&
+                "failed_over".equalsIgnoreCase(StringUtils.trimToEmpty(statusAnswer.getTransportState())) &&
+                "secondary".equalsIgnoreCase(StringUtils.trimToEmpty(statusAnswer.getActiveSide())) &&
+                "manual-fenced".equalsIgnoreCase(StringUtils.trimToEmpty(statusAnswer.getFencingState())) &&
+                StringUtils.isBlank(statusAnswer.getLastError());
+    }
+
+    private void clearFailoverReadyMarker(Long virtualMachineId) {
+        removeVmDetail(virtualMachineId, DETAIL_FAILOVER_READY);
+        removeVmDetail(virtualMachineId, DETAIL_FAILOVER_READY_UPDATED);
+        removeVmDetail(virtualMachineId, DETAIL_FAILOVER_READY_SYNC_PERCENT);
+        removeVmDetail(virtualMachineId, DETAIL_FAILOVER_READY_SYNC_JSON);
     }
 
     private void validatePrimaryVmStoppedForManualFence(UserVmVO primaryVm) {
@@ -1602,6 +1677,16 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         synchronized (lock) {
             vmInstanceDetailsDao.removeDetail(virtualMachineId, key);
             vmInstanceDetailsDao.addDetail(virtualMachineId, key, value, true);
+        }
+    }
+
+    private void removeVmDetail(Long virtualMachineId, String key) {
+        if (virtualMachineId == null || StringUtils.isBlank(key)) {
+            return;
+        }
+        Object lock = VM_DETAIL_LOCKS.computeIfAbsent(String.format("%s:%s", virtualMachineId, key), ignored -> new Object());
+        synchronized (lock) {
+            vmInstanceDetailsDao.removeDetail(virtualMachineId, key);
         }
     }
 
