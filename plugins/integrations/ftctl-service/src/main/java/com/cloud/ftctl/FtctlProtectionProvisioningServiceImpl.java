@@ -580,7 +580,7 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
         if (normalizedController.contains("ide")) {
             return "hd";
         }
-        return "vd";
+        return "sd";
     }
 
     private String resolveDiskController(UserVmVO primaryVm, VolumeVO volume) {
@@ -590,7 +590,7 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
         userVmDao.loadDetails(primaryVm);
         Map<String, String> details = primaryVm.getDetails();
         if (details == null || details.isEmpty()) {
-            return null;
+            return "scsi";
         }
         if (volume.getVolumeType() == Volume.Type.ROOT) {
             return details.get(VmDetailConstants.ROOT_DISK_CONTROLLER);

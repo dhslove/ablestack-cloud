@@ -1546,7 +1546,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         if (normalizedController.contains("ide")) {
             return "hd";
         }
-        return "vd";
+        return "sd";
     }
 
     private String resolveDiskController(Long virtualMachineId, VolumeVO volume) {
@@ -1560,7 +1560,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         userVmDao.loadDetails(primaryVm);
         Map<String, String> details = primaryVm.getDetails();
         if (details == null || details.isEmpty()) {
-            return null;
+            return "scsi";
         }
         if (volume.getVolumeType() == Volume.Type.ROOT) {
             return details.get(VmDetailConstants.ROOT_DISK_CONTROLLER);

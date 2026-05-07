@@ -128,7 +128,7 @@ public class LibvirtFtctlSyncProfileCommandWrapper extends CommandWrapper<FtctlS
 
     private String resolveDiskMap(FtctlSyncProfileCommand command, long timeout) {
         if (StringUtils.isNotBlank(command.getDiskMap())) {
-            return command.getDiskMap();
+            return normalizeExplicitDiskMap(command, timeout);
         }
         if (!StringUtils.equalsIgnoreCase(command.getBackendMode(), "shared-blockcopy")) {
             return null;
@@ -147,6 +147,86 @@ public class LibvirtFtctlSyncProfileCommandWrapper extends CommandWrapper<FtctlS
             return null;
         }
         return StringUtils.trimToNull(output);
+    }
+
+    private String normalizeExplicitDiskMap(FtctlSyncProfileCommand command, long timeout) {
+        if (!StringUtils.equalsIgnoreCase(command.getProvisioningBackend(), "cloud-managed")) {
+            return command.getDiskMap();
+        }
+
+        Script script = new Script("bash", timeout, logger);
+        script.add("-lc", buildNormalizeExplicitDiskMapScript(command));
+        OutputInterpreter.AllLinesParser parser = new OutputInterpreter.AllLinesParser();
+        String result = script.execute(parser);
+        String output = StringUtils.trimToNull(LibvirtFtctlWrapperHelper.getOutput(result, parser));
+        if (script.getExitValue() != 0 || StringUtils.isBlank(output) || !StringUtils.contains(output, "=")) {
+            logger.warn("Unable to normalize FTCTL disk map for VM [{}]; using Cloud-resolved disk map [{}]: {}",
+                    command.getVmName(), command.getDiskMap(), output);
+            return command.getDiskMap();
+        }
+        if (!StringUtils.equals(output, command.getDiskMap())) {
+            logger.info("Normalized FTCTL disk map for VM [{}] from [{}] to [{}]",
+                    command.getVmName(), command.getDiskMap(), output);
+        }
+        return output;
+    }
+
+    private String buildNormalizeExplicitDiskMapScript(FtctlSyncProfileCommand command) {
+        return "FTCTL_VM=" + shellQuote(command.getVmName()) +
+                " FTCTL_DISK_MAP=" + shellQuote(command.getDiskMap()) +
+                " python3 - <<'PY'\n" +
+                        "import os\n" +
+                        "import subprocess\n" +
+                        "import xml.etree.ElementTree as ET\n" +
+                        "\n" +
+                        "vm = os.environ['FTCTL_VM']\n" +
+                        "disk_map = os.environ.get('FTCTL_DISK_MAP', '')\n" +
+                        "\n" +
+                        "entries = []\n" +
+                        "for raw in disk_map.split(';'):\n" +
+                        "    raw = raw.strip()\n" +
+                        "    if not raw:\n" +
+                        "        continue\n" +
+                        "    if '=' not in raw:\n" +
+                        "        raise SystemExit('invalid_disk_map_entry')\n" +
+                        "    key, value = raw.split('=', 1)\n" +
+                        "    key = key.strip()\n" +
+                        "    value = value.strip()\n" +
+                        "    if not key or not value:\n" +
+                        "        raise SystemExit('invalid_disk_map_entry')\n" +
+                        "    entries.append((key, value))\n" +
+                        "\n" +
+                        "if not entries:\n" +
+                        "    raise SystemExit('empty_disk_map')\n" +
+                        "\n" +
+                        "xml = subprocess.check_output(['virsh', 'dumpxml', vm], text=True)\n" +
+                        "root = ET.fromstring(xml)\n" +
+                        "targets = []\n" +
+                        "for disk in root.findall('./devices/disk'):\n" +
+                        "    if disk.get('device') != 'disk':\n" +
+                        "        continue\n" +
+                        "    target = disk.find('target')\n" +
+                        "    source = disk.find('source')\n" +
+                        "    if target is None or source is None:\n" +
+                        "        continue\n" +
+                        "    dev = target.get('dev')\n" +
+                        "    if dev:\n" +
+                        "        targets.append(dev)\n" +
+                        "\n" +
+                        "if not targets:\n" +
+                        "    raise SystemExit('empty_domain_disks')\n" +
+                        "\n" +
+                        "entry_keys = [entry[0] for entry in entries]\n" +
+                        "target_set = set(targets)\n" +
+                        "if all(key in target_set for key in entry_keys):\n" +
+                        "    print(';'.join('%s=%s' % entry for entry in entries))\n" +
+                        "    raise SystemExit(0)\n" +
+                        "\n" +
+                        "if len(entries) != len(targets):\n" +
+                        "    raise SystemExit('disk_count_mismatch')\n" +
+                        "\n" +
+                        "print(';'.join('%s=%s' % (targets[index], entries[index][1]) for index in range(len(entries))))\n" +
+                        "PY";
     }
 
     private String buildDiskMapScript(FtctlSyncProfileCommand command) {

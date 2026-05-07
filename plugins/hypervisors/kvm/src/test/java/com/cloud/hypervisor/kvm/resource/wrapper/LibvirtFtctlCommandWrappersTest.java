@@ -293,8 +293,10 @@ public class LibvirtFtctlCommandWrappersTest {
         command.setFencingIpmiSecondaryPassword("password-b");
         command.setFencingIpmiSecondaryInterface("lanplus");
 
+        AtomicInteger constructed = new AtomicInteger();
         try (MockedConstruction<Script> scripts = Mockito.mockConstruction(Script.class, (mock, context) -> {
-            Mockito.when(mock.execute(Mockito.any())).thenReturn("{\"result\":\"ok\"}");
+            int index = constructed.getAndIncrement();
+            Mockito.when(mock.execute(Mockito.any())).thenReturn(index == 0 ? "{\"result\":\"ok\"}" : "vda=rbd:rbd/vm-a-secondary-disk0");
             Mockito.when(mock.getExitValue()).thenReturn(0);
         })) {
             Answer answer = wrapper.execute(command, resource);
@@ -334,6 +336,30 @@ public class LibvirtFtctlCommandWrappersTest {
             Mockito.verify(script).add("--xcolo-nbd-endpoint", "10.0.10.12:7001");
             Mockito.verify(script).add("--xcolo-migrate-uri", "tcp:10.0.10.12:4444");
             Mockito.verify(script).add("--json");
+        }
+    }
+
+    @Test
+    public void testSyncProfileWrapperNormalizesCloudManagedDiskMapToRuntimeTargets() {
+        LibvirtFtctlSyncProfileCommandWrapper wrapper = new LibvirtFtctlSyncProfileCommandWrapper();
+        FtctlSyncProfileCommand command = new FtctlSyncProfileCommand("i-2-333-VM", "ha", "qemu+ssh://peer/system");
+        command.setDiskMap("vda=/var/lib/libvirt/images/root;vdb=/var/lib/libvirt/images/data");
+        command.setBackendMode("remote-nbd");
+        command.setProvisioningBackend("cloud-managed");
+
+        AtomicInteger constructed = new AtomicInteger();
+        try (MockedConstruction<Script> scripts = Mockito.mockConstruction(Script.class, (mock, context) -> {
+            int index = constructed.getAndIncrement();
+            Mockito.when(mock.execute(Mockito.any())).thenReturn(index == 0
+                    ? "{\"result\":\"ok\"}"
+                    : "sda=/var/lib/libvirt/images/root;sdb=/var/lib/libvirt/images/data");
+            Mockito.when(mock.getExitValue()).thenReturn(0);
+        })) {
+            Answer answer = wrapper.execute(command, resource);
+
+            Assert.assertTrue(answer.getResult());
+            Script script = scripts.constructed().get(0);
+            Mockito.verify(script).add("--disk-map", "sda=/var/lib/libvirt/images/root;sdb=/var/lib/libvirt/images/data");
         }
     }
 }
