@@ -742,10 +742,11 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             FtctlActionCommand actionCommand = new FtctlActionCommand(action, userVm.getInstanceName());
             actionCommand.setForce(force || action == FtctlActionCommand.Action.FAILOVER || action == FtctlActionCommand.Action.FAILOVER_PREPARE ||
                     action == FtctlActionCommand.Action.FAILBACK ||
-                    action == FtctlActionCommand.Action.FAILBACK_SYNC || action == FtctlActionCommand.Action.FAILBACK_REPROTECT ||
+                    action == FtctlActionCommand.Action.FAILBACK_SYNC || action == FtctlActionCommand.Action.FAILBACK_FINALIZE ||
+                    action == FtctlActionCommand.Action.FAILBACK_REPROTECT ||
                     action == FtctlActionCommand.Action.UNPROTECT);
             if (action == FtctlActionCommand.Action.FAILBACK || action == FtctlActionCommand.Action.FAILBACK_SYNC ||
-                    action == FtctlActionCommand.Action.FAILBACK_REPROTECT) {
+                    action == FtctlActionCommand.Action.FAILBACK_FINALIZE || action == FtctlActionCommand.Action.FAILBACK_REPROTECT) {
                 actionCommand.setWait(FAILBACK_ACTION_WAIT_SECONDS);
             } else if (action == FtctlActionCommand.Action.UNPROTECT) {
                 actionCommand.setWait(UNPROTECT_ACTION_WAIT_SECONDS);
@@ -857,6 +858,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
 
         executeFtctlAgentAction(primaryVm, FtctlActionCommand.Action.FAILBACK_SYNC, true);
         stopSecondaryVmForCloudManagedFailback(primaryVm, secondaryVm);
+        executeFtctlAgentAction(primaryVm, FtctlActionCommand.Action.FAILBACK_FINALIZE, true);
         protection = refreshProtection(primaryVm);
         secondaryVm = validateVirtualMachineExists(secondaryVm.getId());
         handoffNicIdentityToPrimary(primaryVm, secondaryVm, protection);
@@ -1976,6 +1978,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             case FAILBACK:
                 return EventTypes.EVENT_FTCTL_PROTECTION_FAILBACK;
             case FAILBACK_SYNC:
+            case FAILBACK_FINALIZE:
             case FAILBACK_REPROTECT:
                 return EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE;
             case UNPROTECT:
