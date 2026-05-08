@@ -64,24 +64,29 @@ public abstract class AbstractFtctlVmActionCmd extends BaseAsyncCmd {
 
     @Override
     public String getEventType() {
-        switch (getAction()) {
-            case PAUSE_PROTECTION:
-                return EventTypes.EVENT_FTCTL_PROTECTION_PAUSE;
-            case RESUME_PROTECTION:
-                return EventTypes.EVENT_FTCTL_PROTECTION_RESUME;
-            case FAILOVER:
-                return EventTypes.EVENT_FTCTL_PROTECTION_FAILOVER;
-            case FAILBACK:
-                return EventTypes.EVENT_FTCTL_PROTECTION_FAILBACK;
-            case UNPROTECT:
-                return EventTypes.EVENT_FTCTL_PROTECTION_RELEASE;
-            case FENCE_CONFIRM:
-                return EventTypes.EVENT_FTCTL_PROTECTION_FENCE_CONFIRM;
-            case FENCE_CLEAR:
-                return EventTypes.EVENT_FTCTL_PROTECTION_FENCE_CLEAR;
-            default:
-                return EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE;
+        FtctlActionCommand.Action action = getAction();
+        if (action == FtctlActionCommand.Action.PAUSE_PROTECTION) {
+            return EventTypes.EVENT_FTCTL_PROTECTION_PAUSE;
         }
+        if (action == FtctlActionCommand.Action.RESUME_PROTECTION) {
+            return EventTypes.EVENT_FTCTL_PROTECTION_RESUME;
+        }
+        if (action == FtctlActionCommand.Action.FAILOVER) {
+            return EventTypes.EVENT_FTCTL_PROTECTION_FAILOVER;
+        }
+        if (action == FtctlActionCommand.Action.FAILBACK) {
+            return EventTypes.EVENT_FTCTL_PROTECTION_FAILBACK;
+        }
+        if (action == FtctlActionCommand.Action.UNPROTECT) {
+            return EventTypes.EVENT_FTCTL_PROTECTION_RELEASE;
+        }
+        if (action == FtctlActionCommand.Action.FENCE_CONFIRM) {
+            return EventTypes.EVENT_FTCTL_PROTECTION_FENCE_CONFIRM;
+        }
+        if (action == FtctlActionCommand.Action.FENCE_CLEAR) {
+            return EventTypes.EVENT_FTCTL_PROTECTION_FENCE_CLEAR;
+        }
+        return EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE;
     }
 
     @Override

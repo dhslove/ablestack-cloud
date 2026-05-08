@@ -17,7 +17,7 @@
   under the License.
 -->
 <template>
-  <a-spin :spinning="loadingState">
+  <a-spin :spinning="blockingLoadingState">
     <div class="ftctl-tab">
       <a-card size="small" :bordered="true" class="ftctl-tab__section">
         <template #title>{{ $t('label.ftctl.fault.protection') }}</template>
@@ -381,6 +381,7 @@ export default {
   data () {
     return {
       loadingState: false,
+      initialLoadComplete: false,
       errorMessage: null,
       protection: {},
       checkResult: {},
@@ -407,6 +408,9 @@ export default {
     }
   },
   computed: {
+    blockingLoadingState () {
+      return this.loadingState && !this.initialLoadComplete
+    },
     eventColumns () {
       return [
         { title: this.$t('label.ftctl.timestamp'), key: 'timestamp', dataIndex: 'timestamp', width: 220 },
@@ -965,6 +969,7 @@ export default {
           this.events = []
         }
       } finally {
+        this.initialLoadComplete = true
         if (!silent) {
           this.loadingState = false
         }
@@ -1212,6 +1217,7 @@ export default {
     'resource.id': {
       handler (value, oldValue) {
         if (value && value !== oldValue) {
+          this.initialLoadComplete = false
           this.fetchAll()
         }
       }

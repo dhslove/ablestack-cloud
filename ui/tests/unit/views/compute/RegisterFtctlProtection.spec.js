@@ -224,7 +224,7 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
     expect(wrapper.emitted('close-action')).toBeTruthy()
   })
 
-  it('polls async register job and closes modal after job submission', async () => {
+  it('closes modal after async register job submission without waiting for completion', async () => {
     mockGetApi({
       hosts: [{ id: 'host-2', hypervisor: 'KVM', name: 'peer-host', ipaddress: '10.0.0.12' }],
       storagePools: [{ id: 'pool-1', name: 'pool-1', scope: 'CLUSTER', state: 'Up' }]
@@ -247,10 +247,8 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
     await wrapper.vm.handleSubmit({ preventDefault: jest.fn() })
     await flushPromises()
 
-    expect(wrapper.vm.$pollJob).toHaveBeenCalledWith(expect.objectContaining({
-      jobId: 'job-1',
-      resourceId: 'vm-1'
-    }))
+    expect(wrapper.vm.$pollJob).not.toHaveBeenCalled()
+    expect(wrapper.vm.$message.success).toHaveBeenCalledWith(expect.stringContaining('label.started'))
     expect(wrapper.emitted('refresh-data')).toBeTruthy()
     expect(wrapper.emitted('close-action')).toBeTruthy()
   })
