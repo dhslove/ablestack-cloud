@@ -815,7 +815,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
                 throw new CloudRuntimeException(String.format("FTCTL action %s failed for VM %s: %s",
                         actionCommand.getAction(), userVm.getUuid(), actionAnswer.getDetails()));
             }
-            if (actionCommand.getAction() == FtctlActionCommand.Action.FAILOVER &&
+            if (isManualFailoverContinuationAction(actionCommand.getAction()) &&
                     isManualFailoverTerminalSuccess(ftctlProtectionDao.findActiveByPrimaryVmId(userVm.getId()))) {
                 throw new FtctlActionLockedException(String.format("FTCTL action %s for VM %s was locked after final failover state had already converged: %s",
                         actionCommand.getAction(), userVm.getUuid(), actionAnswer.getDetails()), actionAnswer);
@@ -854,6 +854,10 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         String details = StringUtils.defaultString(actionAnswer.getDetails());
         String output = StringUtils.defaultString(actionAnswer.getOutput());
         return details.contains("\"result\":\"locked\"") || output.contains("\"result\":\"locked\"");
+    }
+
+    private boolean isManualFailoverContinuationAction(FtctlActionCommand.Action action) {
+        return action == FtctlActionCommand.Action.FENCE_CONFIRM || action == FtctlActionCommand.Action.FAILOVER;
     }
 
     private FtctlActionResponse buildFtctlActionResponse(UserVmVO userVm, FtctlActionCommand.Action action, FtctlActionAnswer actionAnswer) {
@@ -963,7 +967,18 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
                     "manual failover already completed");
         }
 
-        executeFtctlAction(primaryVm.getId(), FtctlActionCommand.Action.FENCE_CONFIRM, false);
+        try {
+            executeFtctlAction(primaryVm.getId(), FtctlActionCommand.Action.FENCE_CONFIRM, false);
+        } catch (FtctlActionLockedException e) {
+            FtctlProtectionVO finalProtection = refreshProtection(primaryVm);
+            if (!isManualFailoverTerminalSuccess(finalProtection)) {
+                throw e;
+            }
+            logger.info(String.format("FTCTL manual fence confirmation for VM %s reached terminal failed-over state before confirm response returned; returning final persisted state",
+                    primaryVm.getUuid()));
+            return buildActionResponseFromProtection(primaryVm, FtctlActionCommand.Action.FENCE_CONFIRM, finalProtection,
+                    "manual failover already completed after fence confirm lock retry exhaustion");
+        }
         executeFtctlAction(primaryVm.getId(), FtctlActionCommand.Action.FAILOVER_PREPARE, true);
         protection = validateManualFailoverTransportReadyOrMarker(primaryVm);
         UserVmVO secondaryVm = resolveSecondaryVmForManualFailover(primaryVm, protection);

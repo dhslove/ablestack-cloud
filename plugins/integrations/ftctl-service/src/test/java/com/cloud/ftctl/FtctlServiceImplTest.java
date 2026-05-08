@@ -602,6 +602,52 @@ public class FtctlServiceImplTest {
     }
 
     @Test
+    public void testConfirmFtctlFenceReturnsFinalStateWhenFenceConfirmIsLockedAfterConvergence() throws Exception {
+        Mockito.when(userVm.getState()).thenReturn(VirtualMachine.State.Stopped);
+
+        FtctlProtectionVO protection = new FtctlProtectionVO(101L);
+        protection.setSecondaryVmId(401L);
+        protection.setMode("ha");
+        protection.setBackendMode("shared-blockcopy");
+        protection.setProvisioningBackend(FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED);
+        protection.setProtectionState("failing_over");
+        protection.setTransportState("mirroring");
+        protection.setActiveSide("primary");
+        protection.setAdminState("active");
+        protection.setFencingState("required");
+        protection.setLastError("manual_fencing_required");
+        Mockito.when(ftctlProtectionDao.findActiveByPrimaryVmId(101L)).thenReturn(protection);
+
+        FtctlActionAnswer lockedConfirm = new FtctlActionAnswer(new FtctlActionCommand(FtctlActionCommand.Action.FENCE_CONFIRM, "vm-name"), false,
+                "{\"command\":\"fence-confirm\",\"result\":\"locked\",\"lock_file\":\"/run/ablestack-vm-ftctl/locks/vm-name.lock\"}",
+                FtctlActionCommand.Action.FENCE_CONFIRM, "locked", 20,
+                "{\"command\":\"fence-confirm\",\"result\":\"locked\",\"lock_file\":\"/run/ablestack-vm-ftctl/locks/vm-name.lock\"}");
+        Mockito.when(agentManager.send(Mockito.eq(201L), Mockito.any(Command.class)))
+                .thenAnswer(invocation -> {
+                    protection.setProtectionState("failed_over");
+                    protection.setTransportState("failed_over");
+                    protection.setActiveSide("secondary");
+                    protection.setAdminState("active");
+                    protection.setFencingState("manual-fenced");
+                    protection.setLastError("");
+                    return lockedConfirm;
+                });
+
+        FtctlActionResponse response = ftctlService.confirmFtctlFence(101L);
+
+        Assert.assertEquals("FENCE_CONFIRM", getFieldValue(response, "action"));
+        Assert.assertEquals("ok", getFieldValue(response, "result"));
+        Assert.assertEquals(Integer.valueOf(0), getFieldValue(response, "exitCode"));
+        Assert.assertEquals("failed_over", getFieldValue(response, "protectionState"));
+        Assert.assertEquals("failed_over", getFieldValue(response, "transportState"));
+        Assert.assertEquals("secondary", getFieldValue(response, "activeSide"));
+        Assert.assertEquals("manual-fenced", getFieldValue(response, "fencingState"));
+        Mockito.verify(agentManager, Mockito.times(1)).send(Mockito.eq(201L), Mockito.any(Command.class));
+        Mockito.verify(userVmManager, Mockito.never()).startVirtualMachine(Mockito.anyLong(), Mockito.<Long>any(),
+                Mockito.<Map<VirtualMachineProfile.Param, Object>>any(), Mockito.<String>any());
+    }
+
+    @Test
     public void testConfirmFtctlFenceHandsOffCloudManagedNicIdentityBeforeStartingSecondary() throws Exception {
         Mockito.when(userVm.getState()).thenReturn(VirtualMachine.State.Stopped);
         vmDetails.put("101:ftctl.peer.host.id", "202");
