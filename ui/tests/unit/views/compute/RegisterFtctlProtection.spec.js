@@ -42,6 +42,7 @@ const createWrapper = () => {
           success: jest.fn(),
           error: jest.fn()
         },
+        $pollJob: jest.fn(),
         $notifyError: jest.fn()
       },
       directives: {
@@ -219,6 +220,37 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
       secondarytargetdir: '/data/secondary',
       remotenbdexportaddr: '10.0.0.12:10809'
     })
+    expect(wrapper.emitted('refresh-data')).toBeTruthy()
+    expect(wrapper.emitted('close-action')).toBeTruthy()
+  })
+
+  it('polls async register job and closes modal after job submission', async () => {
+    mockGetApi({
+      hosts: [{ id: 'host-2', hypervisor: 'KVM', name: 'peer-host', ipaddress: '10.0.0.12' }],
+      storagePools: [{ id: 'pool-1', name: 'pool-1', scope: 'CLUSTER', state: 'Up' }]
+    })
+    postAPI.mockResolvedValue({ registerftctlprotectionresponse: { jobid: 'job-1' } })
+
+    const wrapper = createWrapper()
+    await flushPromises()
+
+    wrapper.vm.form.mode = 'ha'
+    wrapper.vm.form.targetstoragepoolid = 'pool-1'
+    wrapper.vm.form.targetstoragescope = 'shared'
+    wrapper.vm.form.peerhostid = 'host-2'
+    wrapper.vm.form.secondaryvmname = 'vm-name-standby'
+    wrapper.vm.formRef.value = {
+      validate: jest.fn().mockResolvedValue(true),
+      scrollToField: jest.fn()
+    }
+
+    await wrapper.vm.handleSubmit({ preventDefault: jest.fn() })
+    await flushPromises()
+
+    expect(wrapper.vm.$pollJob).toHaveBeenCalledWith(expect.objectContaining({
+      jobId: 'job-1',
+      resourceId: 'vm-1'
+    }))
     expect(wrapper.emitted('refresh-data')).toBeTruthy()
     expect(wrapper.emitted('close-action')).toBeTruthy()
   })

@@ -17,10 +17,13 @@
 package org.apache.cloudstack.api.command.admin.ftctl;
 
 import com.cloud.ftctl.FtctlService;
+import com.cloud.event.EventTypes;
 import com.cloud.user.Account;
+import com.cloud.uservm.UserVm;
 import org.apache.cloudstack.acl.RoleType;
 import org.apache.cloudstack.api.APICommand;
-import org.apache.cloudstack.api.BaseCmd;
+import org.apache.cloudstack.api.ApiCommandResourceType;
+import org.apache.cloudstack.api.BaseAsyncCmd;
 import org.apache.cloudstack.api.Parameter;
 import org.apache.cloudstack.api.ResponseObject;
 import org.apache.cloudstack.api.ServerApiException;
@@ -36,7 +39,7 @@ import javax.inject.Inject;
         responseObject = FtctlProtectionResponse.class,
         responseView = ResponseObject.ResponseView.Full,
         authorized = {RoleType.Admin})
-public class RegisterFtctlProtectionCmd extends BaseCmd {
+public class RegisterFtctlProtectionCmd extends BaseAsyncCmd {
     public static final String APINAME = "registerFtctlProtection";
 
     @Inject
@@ -154,6 +157,29 @@ public class RegisterFtctlProtectionCmd extends BaseCmd {
 
     @Override
     public long getEntityOwnerId() {
-        return Account.ACCOUNT_ID_SYSTEM;
+        UserVm vm = _entityMgr.findById(UserVm.class, getVirtualMachineId());
+        return vm != null ? vm.getAccountId() : Account.ACCOUNT_ID_SYSTEM;
+    }
+
+    @Override
+    public String getEventType() {
+        return EventTypes.EVENT_FTCTL_PROTECTION_REGISTER;
+    }
+
+    @Override
+    public String getEventDescription() {
+        UserVm vm = _entityMgr.findById(UserVm.class, getVirtualMachineId());
+        String identifier = vm != null ? vm.getUuid() : String.valueOf(getVirtualMachineId());
+        return String.format("Registering FTCTL protection for VM %s", identifier);
+    }
+
+    @Override
+    public ApiCommandResourceType getApiResourceType() {
+        return ApiCommandResourceType.VirtualMachine;
+    }
+
+    @Override
+    public Long getApiResourceId() {
+        return getVirtualMachineId();
     }
 }

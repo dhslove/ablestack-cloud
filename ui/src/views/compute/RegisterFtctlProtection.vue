@@ -509,8 +509,31 @@ export default {
           params.xcolomigrateuri = values.xcolomigrateuri
         }
         this.loading = true
-        postAPI('registerFtctlProtection', params).then(() => {
-          this.$message.success(this.$t('message.ftctl.protection.saved'))
+        postAPI('registerFtctlProtection', params).then((json) => {
+          const payload = this.extractRegisterPayload(json)
+          const jobId = this.extractJobId(payload)
+          if (jobId) {
+            this.$pollJob({
+              jobId,
+              title: this.$t('label.ftctl.protection.configure'),
+              description: this.resource?.name || this.resource?.id,
+              loadingMessage: `${this.$t('label.ftctl.protection.configure')} ${this.$t('label.in.progress')}`,
+              successMessage: this.$t('message.ftctl.protection.saved'),
+              errorMessage: `${this.$t('label.ftctl.protection.configure')} ${this.$t('label.failed')}`,
+              resourceId: this.resource?.id,
+              successMethod: () => {
+                this.$emit('refresh-data')
+              },
+              errorMethod: () => {
+                this.$emit('refresh-data')
+              },
+              catchMethod: () => {
+                this.$emit('refresh-data')
+              }
+            })
+          } else {
+            this.$message.success(this.$t('message.ftctl.protection.saved'))
+          }
           this.$emit('refresh-data')
           this.closeAction()
         }).catch((error) => {
@@ -521,6 +544,12 @@ export default {
       }).catch((error) => {
         this.formRef.value.scrollToField(error.errorFields[0].name)
       })
+    },
+    extractRegisterPayload (response) {
+      return response?.registerftctlprotectionresponse || response || {}
+    },
+    extractJobId (payload) {
+      return payload?.jobid || payload?.jobId || null
     }
   }
 }

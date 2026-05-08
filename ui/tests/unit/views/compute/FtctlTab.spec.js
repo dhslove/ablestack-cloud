@@ -57,6 +57,7 @@ const createWrapper = (apis = {}) => {
           success: jest.fn(),
           error: jest.fn()
         },
+        $pollJob: jest.fn(),
         $t: (key) => key
       },
       stubs: {
@@ -422,6 +423,52 @@ describe('Views > compute > FtctlTab.vue', () => {
     expect(wrapper.vm.lastAction.success).toBe(true)
     expect(wrapper.vm.lastAction.message).toContain('label.ftctl.failover label.completed')
     expect(eventBus.emit).toHaveBeenCalledWith('vm-refresh-data')
+  })
+
+  it('starts async action job polling without waiting for action completion', async () => {
+    getAPI.mockImplementation((command) => {
+      if (command === 'getFtctlProtection') {
+        return Promise.resolve({
+          getftctlprotectionresponse: {
+            ftctlprotection: {
+              enabled: 'true',
+              mode: 'ha',
+              protectionstate: 'protected',
+              transportstate: 'mirroring',
+              activeside: 'primary',
+              adminstate: 'active',
+              fencingstate: 'clear'
+            }
+          }
+        })
+      }
+      return Promise.resolve({})
+    })
+    postAPI.mockResolvedValue({
+      failbackftctlprotectionresponse: {
+        jobid: 'job-1'
+      }
+    })
+
+    const wrapper = createWrapper({
+      getFtctlCheck: true,
+      getFtctlHealth: true,
+      getFtctlEvents: true,
+      failbackFtctlProtection: true
+    })
+    await flushPromises()
+
+    await wrapper.vm.runAction('failbackFtctlProtection')
+    await flushPromises()
+
+    expect(postAPI).toHaveBeenCalledWith('failbackFtctlProtection', { virtualmachineid: 'vm-1' })
+    expect(wrapper.vm.$pollJob).toHaveBeenCalledWith(expect.objectContaining({
+      jobId: 'job-1',
+      title: 'label.ftctl.failback',
+      resourceId: 'vm-1'
+    }))
+    expect(wrapper.vm.actionLoading.failbackFtctlProtection).toBe(false)
+    expect(wrapper.vm.lastAction.message).toContain('job-1')
   })
 
   it('updates sync progress silently without full tab loading', async () => {

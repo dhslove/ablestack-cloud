@@ -904,6 +904,18 @@ export default {
       const responseName = `${commandName.toLowerCase()}response`
       return error?.response?.data?.[responseName]?.errortext || error?.message || `Failed to execute ${commandName}`
     },
+    extractActionResponsePayload (response, commandName) {
+      const responseName = `${commandName.toLowerCase()}response`
+      return response?.[responseName] || response || {}
+    },
+    extractJobPayload (result, commandName) {
+      const responseName = `${commandName.toLowerCase()}response`
+      const jobResult = result?.jobresult || {}
+      return jobResult?.[responseName] || jobResult || {}
+    },
+    extractJobId (payload) {
+      return payload?.jobid || payload?.jobId || null
+    },
     hasEventDetails (record) {
       return !!(record && record.details)
     },
@@ -1042,8 +1054,18 @@ export default {
       }
       try {
         const response = await postAPI(commandName, { virtualmachineid: this.resource.id })
-        const responseName = `${commandName.toLowerCase()}response`
-        const payload = response?.[responseName] || {}
+        const payload = this.extractActionResponsePayload(response, commandName)
+        const jobId = this.extractJobId(payload)
+        if (jobId) {
+          this.startActionJobPolling(commandName, jobId)
+          this.lastAction = {
+            success: true,
+            message: `${this.actionLabel(commandName)} ${this.$t('label.started')} (${jobId})`,
+            timestamp: new Date().toLocaleString()
+          }
+          await this.fetchAll({ silent: true })
+          return
+        }
         this.applyActionPayload(payload)
         this.$message.success(`${this.actionLabel(commandName)} ${this.$t('label.succeeded')}`)
         this.lastAction = {
@@ -1065,6 +1087,42 @@ export default {
       } finally {
         this.actionLoading[commandName] = false
       }
+    },
+    startActionJobPolling (commandName, jobId) {
+      const actionLabel = this.actionLabel(commandName)
+      this.$pollJob({
+        jobId,
+        title: actionLabel,
+        description: this.resource?.name || this.resource?.displayname || this.resource?.id,
+        loadingMessage: `${actionLabel} ${this.$t('label.in.progress')}`,
+        successMessage: `${actionLabel} ${this.$t('label.succeeded')}`,
+        errorMessage: `${actionLabel} ${this.$t('label.failed')}`,
+        resourceId: this.resource?.id,
+        successMethod: async (result) => {
+          const payload = this.extractJobPayload(result, commandName)
+          this.applyActionPayload(payload)
+          this.lastAction = {
+            success: true,
+            message: this.buildActionMessage(commandName, payload),
+            timestamp: new Date().toLocaleString()
+          }
+          if (this.shouldRefreshParentVm(commandName)) {
+            eventBus.emit('vm-refresh-data')
+          }
+          await this.fetchAll()
+        },
+        errorMethod: async (result) => {
+          this.lastAction = {
+            success: false,
+            message: result?.jobresult?.errortext || `${actionLabel} ${this.$t('label.failed')}`,
+            timestamp: new Date().toLocaleString()
+          }
+          await this.fetchAll({ silent: true })
+        },
+        catchMethod: async () => {
+          await this.fetchAll({ silent: true })
+        }
+      })
     },
     actionLabel (commandName) {
       return this.actionDefinitions.find(action => action.api === commandName)?.label || commandName

@@ -17,9 +17,12 @@
 package org.apache.cloudstack.api.command.admin.ftctl;
 
 import com.cloud.agent.api.FtctlActionCommand;
+import com.cloud.event.EventTypes;
 import com.cloud.ftctl.FtctlService;
 import com.cloud.user.Account;
-import org.apache.cloudstack.api.BaseCmd;
+import com.cloud.uservm.UserVm;
+import org.apache.cloudstack.api.ApiCommandResourceType;
+import org.apache.cloudstack.api.BaseAsyncCmd;
 import org.apache.cloudstack.api.Parameter;
 import org.apache.cloudstack.api.ServerApiException;
 import org.apache.cloudstack.api.response.UserVmResponse;
@@ -27,7 +30,7 @@ import org.apache.cloudstack.api.response.ftctl.FtctlActionResponse;
 
 import javax.inject.Inject;
 
-public abstract class AbstractFtctlVmActionCmd extends BaseCmd {
+public abstract class AbstractFtctlVmActionCmd extends BaseAsyncCmd {
 
     @Inject
     protected FtctlService ftctlService;
@@ -55,6 +58,46 @@ public abstract class AbstractFtctlVmActionCmd extends BaseCmd {
 
     @Override
     public long getEntityOwnerId() {
-        return Account.ACCOUNT_ID_SYSTEM;
+        UserVm vm = _entityMgr.findById(UserVm.class, getVirtualMachineId());
+        return vm != null ? vm.getAccountId() : Account.ACCOUNT_ID_SYSTEM;
+    }
+
+    @Override
+    public String getEventType() {
+        switch (getAction()) {
+            case PAUSE_PROTECTION:
+                return EventTypes.EVENT_FTCTL_PROTECTION_PAUSE;
+            case RESUME_PROTECTION:
+                return EventTypes.EVENT_FTCTL_PROTECTION_RESUME;
+            case FAILOVER:
+                return EventTypes.EVENT_FTCTL_PROTECTION_FAILOVER;
+            case FAILBACK:
+                return EventTypes.EVENT_FTCTL_PROTECTION_FAILBACK;
+            case UNPROTECT:
+                return EventTypes.EVENT_FTCTL_PROTECTION_RELEASE;
+            case FENCE_CONFIRM:
+                return EventTypes.EVENT_FTCTL_PROTECTION_FENCE_CONFIRM;
+            case FENCE_CLEAR:
+                return EventTypes.EVENT_FTCTL_PROTECTION_FENCE_CLEAR;
+            default:
+                return EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE;
+        }
+    }
+
+    @Override
+    public String getEventDescription() {
+        UserVm vm = _entityMgr.findById(UserVm.class, getVirtualMachineId());
+        String identifier = vm != null ? vm.getUuid() : String.valueOf(getVirtualMachineId());
+        return String.format("Executing FTCTL action %s for VM %s", getAction().name(), identifier);
+    }
+
+    @Override
+    public ApiCommandResourceType getApiResourceType() {
+        return ApiCommandResourceType.VirtualMachine;
+    }
+
+    @Override
+    public Long getApiResourceId() {
+        return getVirtualMachineId();
     }
 }
