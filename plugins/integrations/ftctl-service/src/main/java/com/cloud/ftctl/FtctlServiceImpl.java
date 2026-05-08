@@ -604,6 +604,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         validateReleaseProtectionState(primaryVm, protection, force);
 
         FtctlActionResponse response = executeFtctlAgentAction(primaryVm, FtctlActionCommand.Action.UNPROTECT, true);
+        validateUnprotectRuntimeRelease(primaryVm, protection, response);
         releaseCloudManagedStandbyResources(primaryVm, protection);
         markProtectionRowsRemoved(protection);
         vmInstanceDetailsDao.removeDetailsWithPrefix(primaryVm.getId(), "ftctl.");
@@ -625,6 +626,40 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             throw new CloudRuntimeException(String.format("FTCTL protection release for VM %s requires active side primary, current active side is %s. Fail back first.",
                     primaryVm.getUuid(), protection.getActiveSide()));
         }
+    }
+
+    private void validateUnprotectRuntimeRelease(UserVmVO primaryVm, FtctlProtectionVO protection, FtctlActionResponse response) {
+        if (!"remote-nbd".equalsIgnoreCase(StringUtils.trimToEmpty(protection.getBackendMode()))) {
+            return;
+        }
+        String output = StringUtils.trimToEmpty(response.getOutput());
+        try {
+            JsonObject object = JsonParser.parseString(output).getAsJsonObject();
+            boolean remoteNbdRequired = object.has("remote_nbd_required") && object.get("remote_nbd_required").getAsBoolean();
+            boolean remoteNbdReleased = object.has("remote_nbd_released") && object.get("remote_nbd_released").getAsBoolean();
+            if (remoteNbdRequired && remoteNbdReleased) {
+                return;
+            }
+        } catch (RuntimeException e) {
+            markProtectionReleaseFailed(primaryVm, protection,
+                    String.format("remote_nbd_release_unverified: invalid unprotect output: %s", output));
+            throw new CloudRuntimeException(String.format("Unable to verify remote-NBD cleanup for FTCTL protection release of VM %s: %s",
+                    primaryVm.getUuid(), output), e);
+        }
+
+        markProtectionReleaseFailed(primaryVm, protection,
+                String.format("remote_nbd_release_unverified: %s", output));
+        throw new CloudRuntimeException(String.format("FTCTL remote-NBD cleanup was not confirmed for protection release of VM %s: %s",
+                primaryVm.getUuid(), output));
+    }
+
+    private void markProtectionReleaseFailed(UserVmVO primaryVm, FtctlProtectionVO protection, String lastError) {
+        protection.setProtectionState("error");
+        protection.setTransportState("failed");
+        protection.setLastError(StringUtils.abbreviate(lastError, 1024));
+        ftctlProtectionDao.update(protection.getId(), protection);
+        publishFtctlEvent(primaryVm, EventTypes.EVENT_FTCTL_PROTECTION_RELEASE,
+                String.format("FTCTL protection release failed for VM %s: %s", primaryVm.getUuid(), StringUtils.abbreviate(lastError, 512)));
     }
 
     private void releaseCloudManagedStandbyResources(UserVmVO primaryVm, FtctlProtectionVO protection) {

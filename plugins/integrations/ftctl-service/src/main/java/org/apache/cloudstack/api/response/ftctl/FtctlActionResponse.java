@@ -125,4 +125,16 @@ public class FtctlActionResponse extends BaseResponse {
     public void setLastError(String lastError) {
         this.lastError = lastError;
     }
+
+    public String getResult() {
+        return result;
+    }
+
+    public Integer getExitCode() {
+        return exitCode;
+    }
+
+    public String getOutput() {
+        return output;
+    }
 }

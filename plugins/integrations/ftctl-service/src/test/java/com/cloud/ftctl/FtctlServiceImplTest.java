@@ -391,6 +391,7 @@ public class FtctlServiceImplTest {
             FtctlProtectionVO protection = new FtctlProtectionVO(101L);
             setField(protection, "id", 801L);
             protection.setSecondaryVmId(202L);
+            protection.setBackendMode("remote-nbd");
             protection.setProvisioningBackend(FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED);
             protection.setActiveSide("primary");
             Mockito.when(ftctlProtectionDao.findActiveByPrimaryVmId(101L)).thenReturn(protection);
@@ -426,7 +427,8 @@ public class FtctlServiceImplTest {
 
             FtctlActionCommand actionCommand = new FtctlActionCommand(FtctlActionCommand.Action.UNPROTECT, "vm-name");
             FtctlActionAnswer actionAnswer = new FtctlActionAnswer(actionCommand, true, "OK",
-                    FtctlActionCommand.Action.UNPROTECT, "ok", 0, "{\"result\":\"ok\"}");
+                    FtctlActionCommand.Action.UNPROTECT, "ok", 0,
+                    "{\"result\":\"ok\",\"remote_nbd_required\":true,\"remote_nbd_released\":true}");
             FtctlStatusCommand statusCommand = new FtctlStatusCommand("vm-name");
             FtctlStatusAnswer statusAnswer = new FtctlStatusAnswer(statusCommand, true, "OK", "ok", "vm-name",
                     "ha", "disabled", "stopped", "primary", "inactive", "clear", "",
