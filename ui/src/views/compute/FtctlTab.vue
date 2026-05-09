@@ -395,6 +395,7 @@ export default {
       },
       syncRefreshTimer: null,
       refreshingProgress: false,
+      runtimeRefreshing: false,
       syncRefreshCount: 0,
       actionLoading: {
         pauseFtctlProtection: false,
@@ -955,14 +956,19 @@ export default {
     },
     async fetchAll (options = {}) {
       const silent = options?.silent === true
-      if (!silent) {
+      const refreshRuntime = options?.refreshRuntime === true
+      if (!silent && !this.initialLoadComplete) {
         this.loadingState = true
       }
       this.errorMessage = null
       try {
-        await this.fetchProtection({ silent })
+        await this.fetchProtection({ silent, refreshRuntime })
         if (this.protectionConfigured) {
-          await this.fetchRuntimeData({ silent })
+          this.fetchRuntimeData({ silent: true }).catch(error => {
+            if (!silent) {
+              this.errorMessage = this.extractErrorMessage(error, 'fetchRuntimeData')
+            }
+          })
         } else {
           this.checkResult = {}
           this.healthResult = {}
@@ -977,18 +983,30 @@ export default {
       }
     },
     async fetchRuntimeData (options = {}) {
-      await Promise.all([
-        this.fetchCheck(options),
-        this.fetchHealth(options),
-        this.fetchEvents(options)
-      ])
+      if (this.runtimeRefreshing) {
+        return
+      }
+      this.runtimeRefreshing = true
+      try {
+        await Promise.all([
+          this.fetchCheck(options),
+          this.fetchHealth(options),
+          this.fetchEvents(options)
+        ])
+      } finally {
+        this.runtimeRefreshing = false
+      }
     },
     async fetchProtection (options = {}) {
       if (!this.resource?.id) {
         return
       }
       try {
-        const response = await getAPI('getFtctlProtection', { virtualmachineid: this.resource.id })
+        const params = { virtualmachineid: this.resource.id }
+        if (options?.refreshRuntime === true) {
+          params.refreshruntime = true
+        }
+        const response = await getAPI('getFtctlProtection', params)
         this.protection = Object.assign({}, this.extractProtectionPayload(response))
       } catch (error) {
         if (!options.silent) {
@@ -1081,7 +1099,7 @@ export default {
         if (this.shouldRefreshParentVm(commandName)) {
           eventBus.emit('vm-refresh-data')
         }
-        await this.fetchAll()
+        await this.fetchAll({ silent: true })
       } catch (error) {
         this.errorMessage = this.extractErrorMessage(error, commandName)
         this.lastAction = {
@@ -1114,7 +1132,7 @@ export default {
           if (this.shouldRefreshParentVm(commandName)) {
             eventBus.emit('vm-refresh-data')
           }
-          await this.fetchAll()
+          await this.fetchAll({ silent: true })
         },
         errorMethod: async (result) => {
           this.lastAction = {
@@ -1197,9 +1215,6 @@ export default {
       try {
         await this.fetchProtection({ silent: true })
         this.syncRefreshCount += 1
-        if (this.protectionConfigured && this.syncRefreshCount % 3 === 0) {
-          await this.fetchRuntimeData({ silent: true })
-        }
       } finally {
         this.refreshingProgress = false
         this.updateSyncAutoRefresh()

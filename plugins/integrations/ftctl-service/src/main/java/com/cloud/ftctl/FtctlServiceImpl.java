@@ -239,7 +239,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         UserVmVO userVm = validateVirtualMachineExists(cmd.getVirtualMachineId());
         FtctlProtectionResponse response = buildProtectionResponse(userVm);
         UserVmVO runtimeVm = resolveRuntimeVmForProtectionView(userVm);
-        if (runtimeVm != null) {
+        if (runtimeVm != null && cmd.isRefreshRuntime()) {
             populateRuntimeStateFromAgent(runtimeVm, response, true);
         }
         response.setObjectName("ftctlprotection");
