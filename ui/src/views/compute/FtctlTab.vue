@@ -396,6 +396,7 @@ export default {
       syncRefreshTimer: null,
       refreshingProgress: false,
       runtimeRefreshing: false,
+      protectionRuntimeRefreshing: false,
       syncRefreshCount: 0,
       actionLoading: {
         pauseFtctlProtection: false,
@@ -924,6 +925,72 @@ export default {
     hasEventDetails (record) {
       return !!(record && record.details)
     },
+    parseEventDetails (details) {
+      if (!details) {
+        return {}
+      }
+      if (typeof details === 'object') {
+        return details
+      }
+      try {
+        return JSON.parse(details)
+      } catch (e) {
+        return {}
+      }
+    },
+    isProgressEvent (event) {
+      return ['blockcopy.progress', 'reverse_sync.progress'].includes(String(event?.event || '').toLowerCase())
+    },
+    parseProgressNumber (value) {
+      if (value === undefined || value === null || value === '') {
+        return undefined
+      }
+      const parsed = Number(value)
+      return Number.isFinite(parsed) ? parsed : undefined
+    },
+    parseProgressReady (value) {
+      if (value === true || value === 'true') {
+        return true
+      }
+      if (value === false || value === 'false') {
+        return false
+      }
+      return undefined
+    },
+    applyProgressFromEvents () {
+      const progressEvent = this.events.find(event => this.isProgressEvent(event))
+      if (!progressEvent) {
+        return
+      }
+      const details = this.parseEventDetails(progressEvent.details)
+      const percent = this.parseProgressNumber(details.percent)
+      if (percent === undefined) {
+        return
+      }
+      const copiedBytes = this.parseProgressNumber(details.copied_bytes)
+      const totalBytes = this.parseProgressNumber(details.total_bytes)
+      const ready = this.parseProgressReady(details.ready)
+      const direction = details.direction || (String(progressEvent.event).toLowerCase() === 'reverse_sync.progress' ? 'reverse' : 'forward')
+      const updated = details.updated || progressEvent.timestamp || progressEvent.ts || ''
+      const progress = {
+        direction,
+        percent,
+        copied_bytes: copiedBytes,
+        total_bytes: totalBytes,
+        ready,
+        updated,
+        stage: details.stage || progressEvent.stage || ''
+      }
+      this.protection = Object.assign({}, this.protection, {
+        syncprogresspercent: percent,
+        synccopiedbytes: copiedBytes,
+        synctotalbytes: totalBytes,
+        syncready: ready,
+        syncdirection: direction,
+        syncupdated: updated,
+        syncprogressjson: JSON.stringify(progress)
+      })
+    },
     summarizeEventDetails (details) {
       if (!details) {
         return '-'
@@ -979,6 +1046,25 @@ export default {
         if (!silent) {
           this.loadingState = false
         }
+        this.updateSyncAutoRefresh()
+      }
+    },
+    async refreshProtectionRuntime (options = {}) {
+      if (!this.resource?.id || this.protectionRuntimeRefreshing) {
+        return
+      }
+      this.protectionRuntimeRefreshing = true
+      try {
+        await this.fetchProtection(Object.assign({}, options, {
+          silent: true,
+          refreshRuntime: true
+        }))
+      } catch (error) {
+        if (!options.silent) {
+          this.errorMessage = this.extractErrorMessage(error, 'getFtctlProtection')
+        }
+      } finally {
+        this.protectionRuntimeRefreshing = false
         this.updateSyncAutoRefresh()
       }
     },
@@ -1048,7 +1134,7 @@ export default {
         return
       }
       try {
-        const response = await getAPI('getFtctlEvents', { virtualmachineid: this.resource.id, limit: 10 })
+        const response = await getAPI('getFtctlEvents', { virtualmachineid: this.resource.id, limit: 100 })
         const payload = this.extractNestedPayload(response, 'getftctleventsresponse', 'ftctlevents')
         this.events = (payload.events || []).map(event => {
           return Object.assign({}, event, {
@@ -1057,6 +1143,7 @@ export default {
         }).sort((a, b) => {
           return String(b.timestamp || '').localeCompare(String(a.timestamp || ''))
         })
+        this.applyProgressFromEvents()
       } catch (error) {
         if (!options.silent) {
           this.events = []
@@ -1190,8 +1277,10 @@ export default {
       return ['failoverFtctlProtection', 'failbackFtctlProtection', 'confirmFtctlFence', 'releaseFtctlProtection'].includes(commandName)
     },
     updateSyncAutoRefresh () {
+      const protection = String(this.protection.protectionstate || '').toLowerCase()
       const transport = String(this.protection.transportstate || '').toLowerCase()
-      if (['copying', 'reverse_syncing'].includes(transport)) {
+      if (['syncing', 'failing_back'].includes(protection) ||
+        ['copying', 'reverse_syncing', 'reverse_sync_ready', 'reverse_sync_pending'].includes(transport)) {
         this.startSyncAutoRefresh()
       } else {
         this.stopSyncAutoRefresh()
@@ -1213,7 +1302,7 @@ export default {
       }
       this.refreshingProgress = true
       try {
-        await this.fetchProtection({ silent: true })
+        await this.fetchEvents({ silent: true })
         this.syncRefreshCount += 1
       } finally {
         this.refreshingProgress = false
