@@ -15,6 +15,8 @@ virsh blockjob --domain 42 --path sdb --info
 
 The VM detail cache in Cloud could remain stale while FTCTL host events and state files already had newer progress. This made the UI look stuck even though host-side block copy continued.
 
+Correction: this document describes the progress visibility and UI blocking defect, but it is not the complete failure root cause for the later HA-RKY full-chain failure. The direct destructive failure was hangctl misclassifying FTCTL/libvirt contention as `qmp_no_response` and killing the primary VM while blockcopy was active. See `191-HA-RKY-hangctl-ftctl-guard-destroy-fix-design-20260509.md` for the corrected root-cause chain and required qemu-side safety guard.
+
 ## Architectural Boundary
 
 FTCTL exists so replication work can run independently on the host side.
