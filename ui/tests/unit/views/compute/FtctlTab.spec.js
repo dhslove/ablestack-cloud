@@ -173,7 +173,7 @@ describe('Views > compute > FtctlTab.vue', () => {
     expect(getAPI).toHaveBeenCalledWith('getFtctlProtection', { virtualmachineid: 'vm-1' })
     expect(getAPI).toHaveBeenCalledWith('getFtctlCheck', { virtualmachineid: 'vm-1' })
     expect(getAPI).toHaveBeenCalledWith('getFtctlHealth', { virtualmachineid: 'vm-1' })
-    expect(getAPI).toHaveBeenCalledWith('getFtctlEvents', { virtualmachineid: 'vm-1', limit: 10 })
+    expect(getAPI).toHaveBeenCalledWith('getFtctlEvents', { virtualmachineid: 'vm-1', limit: 100 })
     expect(wrapper.vm.protection.mode).toBe('dr')
     expect(wrapper.vm.peerHostDisplay).toBe('ablecube22-1')
     expect(wrapper.vm.secondaryVmDisplay).toBe('vm-name-secondary')
@@ -273,7 +273,7 @@ describe('Views > compute > FtctlTab.vue', () => {
     expect(getAPI).toHaveBeenCalledWith('getFtctlProtection', { virtualmachineid: 'vm-1' })
     expect(getAPI).toHaveBeenCalledWith('getFtctlCheck', { virtualmachineid: 'vm-1' })
     expect(getAPI).toHaveBeenCalledWith('getFtctlHealth', { virtualmachineid: 'vm-1' })
-    expect(getAPI).toHaveBeenCalledWith('getFtctlEvents', { virtualmachineid: 'vm-1', limit: 10 })
+    expect(getAPI).toHaveBeenCalledWith('getFtctlEvents', { virtualmachineid: 'vm-1', limit: 100 })
     expect(wrapper.vm.standbyProtectionView).toBe(true)
     expect(wrapper.vm.canRunActions).toBe(false)
     expect(wrapper.vm.checkResult.vmname).toBe('r9-01')
@@ -472,10 +472,9 @@ describe('Views > compute > FtctlTab.vue', () => {
   })
 
   it('updates sync progress silently without full tab loading', async () => {
-    let protectionCallCount = 0
+    let eventCallCount = 0
     getAPI.mockImplementation((command) => {
       if (command === 'getFtctlProtection') {
-        protectionCallCount += 1
         return Promise.resolve({
           getftctlprotectionresponse: {
             ftctlprotection: {
@@ -485,9 +484,28 @@ describe('Views > compute > FtctlTab.vue', () => {
               transportstate: 'copying',
               activeside: 'primary',
               adminstate: 'active',
-              fencingstate: 'clear',
-              syncprogresspercent: protectionCallCount === 1 ? 10 : 25,
-              syncready: false
+              fencingstate: 'clear'
+            }
+          }
+        })
+      }
+      if (command === 'getFtctlEvents') {
+        eventCallCount += 1
+        const percent = eventCallCount === 1 ? 10 : 25
+        return Promise.resolve({
+          getftctleventsresponse: {
+            ftctlevents: {
+              events: [{
+                timestamp: `2026-05-10T00:00:${String(eventCallCount).padStart(2, '0')}+09:00`,
+                event: 'blockcopy.progress',
+                details: JSON.stringify({
+                  direction: 'forward',
+                  percent,
+                  copied_bytes: percent,
+                  total_bytes: 100,
+                  ready: false
+                })
+              }]
             }
           }
         })
@@ -509,7 +527,65 @@ describe('Views > compute > FtctlTab.vue', () => {
     expect(wrapper.vm.loadingState).toBe(false)
     expect(wrapper.vm.refreshingProgress).toBe(false)
     expect(wrapper.vm.syncProgressPercent).toBe(25)
-    expect(getAPI).toHaveBeenLastCalledWith('getFtctlProtection', { virtualmachineid: 'vm-1' })
+    expect(getAPI).toHaveBeenLastCalledWith('getFtctlEvents', { virtualmachineid: 'vm-1', limit: 100 })
+    wrapper.unmount()
+  })
+
+  it('does not let protection refresh overwrite event progress with stale detail fields', async () => {
+    getAPI.mockImplementation((command) => {
+      if (command === 'getFtctlProtection') {
+        return Promise.resolve({
+          getftctlprotectionresponse: {
+            ftctlprotection: {
+              enabled: 'true',
+              mode: 'ha',
+              protectionstate: 'syncing',
+              transportstate: 'copying',
+              activeside: 'primary',
+              adminstate: 'active',
+              fencingstate: 'clear',
+              syncprogresspercent: 4.4,
+              syncprogressjson: JSON.stringify({ direction: 'forward', percent: 4.4 })
+            }
+          }
+        })
+      }
+      if (command === 'getFtctlEvents') {
+        return Promise.resolve({
+          getftctleventsresponse: {
+            ftctlevents: {
+              events: [{
+                timestamp: '2026-05-10T00:01:00+09:00',
+                event: 'blockcopy.progress',
+                details: JSON.stringify({
+                  direction: 'forward',
+                  percent: 100,
+                  copied_bytes: 100,
+                  total_bytes: 100,
+                  ready: true,
+                  updated: '2026-05-10T00:01:00+09:00'
+                })
+              }]
+            }
+          }
+        })
+      }
+      return Promise.resolve({})
+    })
+
+    const wrapper = createWrapper({
+      getFtctlCheck: true,
+      getFtctlHealth: true,
+      getFtctlEvents: true
+    })
+    await flushPromises()
+
+    expect(wrapper.vm.syncProgressPercent).toBe(100)
+
+    await wrapper.vm.fetchProtection({ silent: true })
+    await flushPromises()
+
+    expect(wrapper.vm.syncProgressPercent).toBe(100)
     wrapper.unmount()
   })
 

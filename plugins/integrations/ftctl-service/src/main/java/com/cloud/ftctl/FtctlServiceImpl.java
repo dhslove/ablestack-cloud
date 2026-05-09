@@ -145,18 +145,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     public static final String DETAIL_LAST_ADMIN_STATE = "ftctl.last.admin.state";
     public static final String DETAIL_LAST_FENCING_STATE = "ftctl.last.fencing.state";
     public static final String DETAIL_LAST_ERROR = "ftctl.last.error";
-    public static final String DETAIL_SYNC_PROGRESS_PERCENT = "ftctl.sync.progress.percent";
-    public static final String DETAIL_SYNC_COPIED_BYTES = "ftctl.sync.copied.bytes";
-    public static final String DETAIL_SYNC_TOTAL_BYTES = "ftctl.sync.total.bytes";
-    public static final String DETAIL_SYNC_READY = "ftctl.sync.ready";
-    public static final String DETAIL_SYNC_DIRECTION = "ftctl.sync.direction";
-    public static final String DETAIL_SYNC_UPDATED = "ftctl.sync.updated";
-    public static final String DETAIL_SYNC_PROGRESS_JSON = "ftctl.sync.progress.json";
-    public static final String DETAIL_SYNC_PROGRESS_EVENT_BUCKET = "ftctl.sync.progress.event.bucket";
     public static final String DETAIL_FAILOVER_READY = "ftctl.failover.ready";
     public static final String DETAIL_FAILOVER_READY_UPDATED = "ftctl.failover.ready.updated";
-    public static final String DETAIL_FAILOVER_READY_SYNC_PERCENT = "ftctl.failover.ready.sync.percent";
-    public static final String DETAIL_FAILOVER_READY_SYNC_JSON = "ftctl.failover.ready.sync.json";
     public static final String DETAIL_NIC_IDENTITY_STATE = "ftctl.nic.identity.state";
     public static final String DETAIL_NIC_IDENTITY_PRIMARY_PREFIX = "ftctl.nic.identity.primary.";
     public static final String DETAIL_NIC_IDENTITY_SECONDARY_PREFIX = "ftctl.nic.identity.secondary.";
@@ -169,6 +159,18 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     private static final String FENCING_POLICY_IPMI = "ipmi";
     private static final String OOBM_DRIVER_IPMITOOL = "ipmitool";
     private static final String DEFAULT_IPMI_INTERFACE = "lanplus";
+    private static final String[] LEGACY_PROGRESS_DETAIL_KEYS = {
+            "ftctl.sync.progress.percent",
+            "ftctl.sync.copied.bytes",
+            "ftctl.sync.total.bytes",
+            "ftctl.sync.ready",
+            "ftctl.sync.direction",
+            "ftctl.sync.updated",
+            "ftctl.sync.progress.json",
+            "ftctl.sync.progress.event.bucket",
+            "ftctl.failover.ready.sync.percent",
+            "ftctl.failover.ready.sync.json"
+    };
     private static final ConcurrentMap<String, Object> VM_DETAIL_LOCKS = new ConcurrentHashMap<>();
     private final ConcurrentMap<Long, Object> cloudManagedFailbackCutbackLocks = new ConcurrentHashMap<>();
     private Timer cloudManagedFailbackMonitorTimer;
@@ -1269,13 +1271,6 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             Long virtualMachineId = userVm.getId();
             putVmDetail(virtualMachineId, DETAIL_FAILOVER_READY, String.valueOf(true));
             putVmDetail(virtualMachineId, DETAIL_FAILOVER_READY_UPDATED, String.valueOf(System.currentTimeMillis()));
-            if (statusAnswer.getSyncProgressPercent() != null) {
-                putVmDetail(virtualMachineId, DETAIL_FAILOVER_READY_SYNC_PERCENT,
-                        String.format(Locale.ROOT, "%.1f", statusAnswer.getSyncProgressPercent()));
-            }
-            if (StringUtils.isNotBlank(statusAnswer.getSyncProgressJson())) {
-                putVmDetail(virtualMachineId, DETAIL_FAILOVER_READY_SYNC_JSON, statusAnswer.getSyncProgressJson());
-            }
             publishFtctlEvent(userVm, EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE,
                     String.format("Recorded FTCTL failover-ready marker for VM %s before manual fencing", userVm.getUuid()));
             return;
@@ -1307,8 +1302,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     private void clearFailoverReadyMarker(Long virtualMachineId) {
         removeVmDetail(virtualMachineId, DETAIL_FAILOVER_READY);
         removeVmDetail(virtualMachineId, DETAIL_FAILOVER_READY_UPDATED);
-        removeVmDetail(virtualMachineId, DETAIL_FAILOVER_READY_SYNC_PERCENT);
-        removeVmDetail(virtualMachineId, DETAIL_FAILOVER_READY_SYNC_JSON);
+        purgeLegacyProgressDetails(virtualMachineId);
     }
 
     private void validatePrimaryVmStoppedForManualFence(UserVmVO primaryVm) {
@@ -1699,7 +1693,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         response.setAdminState(getDetailValue(sourceVmId, DETAIL_LAST_ADMIN_STATE));
         response.setFencingState(getDetailValue(sourceVmId, DETAIL_LAST_FENCING_STATE));
         response.setLastError(getDetailValue(sourceVmId, DETAIL_LAST_ERROR));
-        populateCachedSyncProgress(sourceVmId, response);
+        purgeLegacyProgressDetails(sourceVmId);
         return response;
     }
 
@@ -1962,13 +1956,6 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         response.setAdminState(statusAnswer.getAdminState());
         response.setFencingState(statusAnswer.getFencingState());
         response.setLastError(statusAnswer.getLastError());
-        response.setSyncProgressPercent(statusAnswer.getSyncProgressPercent());
-        response.setSyncCopiedBytes(statusAnswer.getSyncCopiedBytes());
-        response.setSyncTotalBytes(statusAnswer.getSyncTotalBytes());
-        response.setSyncReady(statusAnswer.getSyncReady());
-        response.setSyncDirection(statusAnswer.getSyncDirection());
-        response.setSyncUpdated(statusAnswer.getSyncUpdated());
-        response.setSyncProgressJson(statusAnswer.getSyncProgressJson());
         if (persistState) {
             persistRuntimeState(userVm, statusAnswer);
         }
@@ -2016,7 +2003,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         if (statusAnswer.getMode() != null) {
             putVmDetail(virtualMachineId, DETAIL_MODE, statusAnswer.getMode());
         }
-        persistSyncProgress(userVm, statusAnswer);
+        purgeLegacyProgressDetails(virtualMachineId);
         boolean changed = persistProtectionRuntimeState(userVm, statusAnswer);
         if (changed) {
             publishFtctlEvent(userVm, EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE,
@@ -2027,111 +2014,13 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         return changed;
     }
 
-    private void populateCachedSyncProgress(Long sourceVmId, FtctlProtectionResponse response) {
-        if (sourceVmId == null || response == null) {
+    private void purgeLegacyProgressDetails(Long virtualMachineId) {
+        if (virtualMachineId == null) {
             return;
         }
-        response.setSyncProgressPercent(parseDoubleDetail(getDetailValue(sourceVmId, DETAIL_SYNC_PROGRESS_PERCENT)));
-        response.setSyncCopiedBytes(parseLongDetail(getDetailValue(sourceVmId, DETAIL_SYNC_COPIED_BYTES)));
-        response.setSyncTotalBytes(parseLongDetail(getDetailValue(sourceVmId, DETAIL_SYNC_TOTAL_BYTES)));
-        response.setSyncReady(parseBooleanDetail(getDetailValue(sourceVmId, DETAIL_SYNC_READY)));
-        response.setSyncDirection(getDetailValue(sourceVmId, DETAIL_SYNC_DIRECTION));
-        response.setSyncUpdated(getDetailValue(sourceVmId, DETAIL_SYNC_UPDATED));
-        response.setSyncProgressJson(getDetailValue(sourceVmId, DETAIL_SYNC_PROGRESS_JSON));
-    }
-
-    private void persistSyncProgress(UserVmVO userVm, FtctlStatusAnswer statusAnswer) {
-        if (userVm == null || statusAnswer == null || statusAnswer.getSyncProgressPercent() == null) {
-            return;
+        for (String key : LEGACY_PROGRESS_DETAIL_KEYS) {
+            removeVmDetail(virtualMachineId, key);
         }
-        Long virtualMachineId = userVm.getId();
-        putVmDetail(virtualMachineId, DETAIL_SYNC_PROGRESS_PERCENT, String.format(Locale.ROOT, "%.1f", statusAnswer.getSyncProgressPercent()));
-        if (statusAnswer.getSyncCopiedBytes() != null) {
-            putVmDetail(virtualMachineId, DETAIL_SYNC_COPIED_BYTES, String.valueOf(statusAnswer.getSyncCopiedBytes()));
-        }
-        if (statusAnswer.getSyncTotalBytes() != null) {
-            putVmDetail(virtualMachineId, DETAIL_SYNC_TOTAL_BYTES, String.valueOf(statusAnswer.getSyncTotalBytes()));
-        }
-        if (statusAnswer.getSyncReady() != null) {
-            putVmDetail(virtualMachineId, DETAIL_SYNC_READY, String.valueOf(statusAnswer.getSyncReady()));
-        }
-        if (StringUtils.isNotBlank(statusAnswer.getSyncDirection())) {
-            putVmDetail(virtualMachineId, DETAIL_SYNC_DIRECTION, statusAnswer.getSyncDirection());
-        }
-        if (StringUtils.isNotBlank(statusAnswer.getSyncUpdated())) {
-            putVmDetail(virtualMachineId, DETAIL_SYNC_UPDATED, statusAnswer.getSyncUpdated());
-        }
-        if (StringUtils.isNotBlank(statusAnswer.getSyncProgressJson())) {
-            putVmDetail(virtualMachineId, DETAIL_SYNC_PROGRESS_JSON, statusAnswer.getSyncProgressJson());
-        }
-        publishProgressEventIfBucketChanged(userVm, statusAnswer);
-    }
-
-    private void publishProgressEventIfBucketChanged(UserVmVO userVm, FtctlStatusAnswer statusAnswer) {
-        Integer bucket = calculateProgressBucket(statusAnswer.getSyncProgressPercent(), statusAnswer.getSyncReady());
-        if (bucket == null) {
-            return;
-        }
-        String existingBucket = getDetailValue(userVm.getId(), DETAIL_SYNC_PROGRESS_EVENT_BUCKET);
-        if (StringUtils.equals(existingBucket, String.valueOf(bucket))) {
-            return;
-        }
-        putVmDetail(userVm.getId(), DETAIL_SYNC_PROGRESS_EVENT_BUCKET, String.valueOf(bucket));
-        publishFtctlEvent(userVm, EventTypes.EVENT_FTCTL_PROTECTION_PROGRESS,
-                String.format(Locale.ROOT, "FTCTL block copy progress for VM %s: %.1f%% (%s / %s), direction=%s",
-                        userVm.getUuid(),
-                        statusAnswer.getSyncProgressPercent(),
-                        formatBytes(statusAnswer.getSyncCopiedBytes()),
-                        formatBytes(statusAnswer.getSyncTotalBytes()),
-                        StringUtils.defaultString(statusAnswer.getSyncDirection(), "unknown")));
-    }
-
-    private Integer calculateProgressBucket(Double percent, Boolean ready) {
-        if (percent == null) {
-            return null;
-        }
-        if (Boolean.TRUE.equals(ready) || percent >= 100.0d) {
-            return 100;
-        }
-        double bounded = Math.max(0.0d, Math.min(percent, 99.9d));
-        return (int)Math.floor(bounded / 5.0d) * 5;
-    }
-
-    private String formatBytes(Long bytes) {
-        if (bytes == null) {
-            return "-";
-        }
-        double gib = bytes / 1024.0d / 1024.0d / 1024.0d;
-        return String.format(Locale.ROOT, "%.1f GiB", gib);
-    }
-
-    private Double parseDoubleDetail(String value) {
-        if (StringUtils.isBlank(value)) {
-            return null;
-        }
-        try {
-            return Double.valueOf(value);
-        } catch (RuntimeException e) {
-            return null;
-        }
-    }
-
-    private Long parseLongDetail(String value) {
-        if (StringUtils.isBlank(value)) {
-            return null;
-        }
-        try {
-            return Long.valueOf(value);
-        } catch (RuntimeException e) {
-            return null;
-        }
-    }
-
-    private Boolean parseBooleanDetail(String value) {
-        if (StringUtils.isBlank(value)) {
-            return null;
-        }
-        return Boolean.valueOf(value);
     }
 
     private boolean persistProtectionRuntimeState(UserVmVO userVm, FtctlStatusAnswer statusAnswer) {

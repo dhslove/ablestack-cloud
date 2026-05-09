@@ -387,6 +387,7 @@ export default {
       checkResult: {},
       healthResult: {},
       events: [],
+      syncProgressState: {},
       showProtectionModal: false,
       lastAction: {
         success: false,
@@ -510,41 +511,29 @@ export default {
       return { type: null, message: null }
     },
     syncProgressObject () {
-      const raw = this.protection.syncprogressjson
-      if (!raw) {
-        return {}
-      }
-      if (typeof raw === 'object') {
-        return raw
-      }
-      try {
-        return JSON.parse(raw)
-      } catch (e) {
-        return {}
-      }
+      return this.syncProgressState || {}
     },
     syncProgressVisible () {
-      return this.protection.syncprogresspercent !== undefined ||
-        this.syncProgressObject.percent !== undefined
+      return this.syncProgressObject.percent !== undefined
     },
     syncProgressPercent () {
-      return this.normalizePercent(this.protection.syncprogresspercent ?? this.syncProgressObject.percent)
+      return this.normalizePercent(this.syncProgressObject.percent)
     },
     syncCopiedBytes () {
-      return this.protection.synccopiedbytes ?? this.syncProgressObject.copied_bytes
+      return this.syncProgressObject.copied_bytes
     },
     syncTotalBytes () {
-      return this.protection.synctotalbytes ?? this.syncProgressObject.total_bytes
+      return this.syncProgressObject.total_bytes
     },
     syncReady () {
-      const ready = this.protection.syncready ?? this.syncProgressObject.ready
+      const ready = this.syncProgressObject.ready
       return ready === true || ready === 'true'
     },
     syncProgressDirection () {
-      return this.protection.syncdirection || this.syncProgressObject.direction || 'forward'
+      return this.syncProgressObject.direction || 'forward'
     },
     syncProgressUpdated () {
-      return this.protection.syncupdated || this.syncProgressObject.updated || ''
+      return this.syncProgressObject.updated || ''
     },
     syncProgressStatus () {
       const transport = String(this.protection.transportstate || '').toLowerCase()
@@ -957,6 +946,30 @@ export default {
       }
       return undefined
     },
+    shouldApplyProgress (progress) {
+      const current = this.syncProgressState || {}
+      const currentDirection = current.direction || ''
+      const nextDirection = progress.direction || ''
+      if (currentDirection && nextDirection && currentDirection !== nextDirection) {
+        return true
+      }
+      const currentUpdated = String(current.updated || '')
+      const nextUpdated = String(progress.updated || '')
+      if (currentUpdated && nextUpdated && nextUpdated < currentUpdated) {
+        return false
+      }
+      const currentPercent = this.parseProgressNumber(current.percent)
+      const nextPercent = this.parseProgressNumber(progress.percent)
+      if ((nextUpdated === '' || nextUpdated === currentUpdated) &&
+        currentDirection === nextDirection &&
+        currentPercent !== undefined &&
+        nextPercent !== undefined &&
+        currentPercent >= 100 &&
+        nextPercent < currentPercent) {
+        return false
+      }
+      return true
+    },
     applyProgressFromEvents () {
       const progressEvent = this.events.find(event => this.isProgressEvent(event))
       if (!progressEvent) {
@@ -972,7 +985,7 @@ export default {
       const ready = this.parseProgressReady(details.ready)
       const direction = details.direction || (String(progressEvent.event).toLowerCase() === 'reverse_sync.progress' ? 'reverse' : 'forward')
       const updated = details.updated || progressEvent.timestamp || progressEvent.ts || ''
-      const progress = {
+      const progress = Object.assign({}, details, {
         direction,
         percent,
         copied_bytes: copiedBytes,
@@ -980,16 +993,10 @@ export default {
         ready,
         updated,
         stage: details.stage || progressEvent.stage || ''
-      }
-      this.protection = Object.assign({}, this.protection, {
-        syncprogresspercent: percent,
-        synccopiedbytes: copiedBytes,
-        synctotalbytes: totalBytes,
-        syncready: ready,
-        syncdirection: direction,
-        syncupdated: updated,
-        syncprogressjson: JSON.stringify(progress)
       })
+      if (this.shouldApplyProgress(progress)) {
+        this.syncProgressState = progress
+      }
     },
     summarizeEventDetails (details) {
       if (!details) {
@@ -1040,6 +1047,7 @@ export default {
           this.checkResult = {}
           this.healthResult = {}
           this.events = []
+          this.syncProgressState = {}
         }
       } finally {
         this.initialLoadComplete = true
@@ -1265,13 +1273,6 @@ export default {
       if (payload.lasterror !== undefined) this.protection.lasterror = payload.lasterror
       if (payload.adminstate !== undefined) this.protection.adminstate = payload.adminstate
       if (payload.fencingstate !== undefined) this.protection.fencingstate = payload.fencingstate
-      if (payload.syncprogresspercent !== undefined) this.protection.syncprogresspercent = payload.syncprogresspercent
-      if (payload.synccopiedbytes !== undefined) this.protection.synccopiedbytes = payload.synccopiedbytes
-      if (payload.synctotalbytes !== undefined) this.protection.synctotalbytes = payload.synctotalbytes
-      if (payload.syncready !== undefined) this.protection.syncready = payload.syncready
-      if (payload.syncdirection !== undefined) this.protection.syncdirection = payload.syncdirection
-      if (payload.syncupdated !== undefined) this.protection.syncupdated = payload.syncupdated
-      if (payload.syncprogressjson !== undefined) this.protection.syncprogressjson = payload.syncprogressjson
     },
     shouldRefreshParentVm (commandName) {
       return ['failoverFtctlProtection', 'failbackFtctlProtection', 'confirmFtctlFence', 'releaseFtctlProtection'].includes(commandName)
@@ -1322,6 +1323,7 @@ export default {
       handler (value, oldValue) {
         if (value && value !== oldValue) {
           this.initialLoadComplete = false
+          this.syncProgressState = {}
           this.fetchAll()
         }
       }

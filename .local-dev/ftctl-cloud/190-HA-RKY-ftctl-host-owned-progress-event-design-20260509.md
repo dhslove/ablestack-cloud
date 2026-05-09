@@ -3,6 +3,8 @@
 Date: 2026-05-09
 Scope: HA-RKY full-chain retest follow-up for `ha-r9-01`, RBD -> RBD shared-blockcopy.
 
+Finalized note, 2026-05-10: this host-owned progress direction remains valid, but the final implementation rule is stricter: Cloud must not write or read live progress through VM details, and the UI `Update` action must not overwrite event-derived progress with `getFtctlProtection` response fields. See `192-HA-RKY-progress-single-source-final-design-20260510.md`.
+
 ## Test Result Summary
 
 During block copy, the Fault Protection tab still appeared blocked and the Block Copy Progress panel did not reflect the current host-side progress.
