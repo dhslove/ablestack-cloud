@@ -30,6 +30,7 @@ public class FtctlProtectionDaoImpl extends GenericDaoBase<FtctlProtectionVO, Lo
     private final SearchBuilder<FtctlProtectionVO> activeByPrimaryVmSearch;
     private final SearchBuilder<FtctlProtectionVO> activeBySecondaryVmSearch;
     private final SearchBuilder<FtctlProtectionVO> activeByPeerHostSearch;
+    private final SearchBuilder<FtctlProtectionVO> activeByProtectionStateSearch;
 
     public FtctlProtectionDaoImpl() {
         activeByPrimaryVmSearch = createSearchBuilder();
@@ -46,6 +47,11 @@ public class FtctlProtectionDaoImpl extends GenericDaoBase<FtctlProtectionVO, Lo
         activeByPeerHostSearch.and("peerHostId", activeByPeerHostSearch.entity().getPeerHostId(), SearchCriteria.Op.EQ);
         activeByPeerHostSearch.and("removed", activeByPeerHostSearch.entity().getRemoved(), SearchCriteria.Op.NULL);
         activeByPeerHostSearch.done();
+
+        activeByProtectionStateSearch = createSearchBuilder();
+        activeByProtectionStateSearch.and("protectionState", activeByProtectionStateSearch.entity().getProtectionState(), SearchCriteria.Op.EQ);
+        activeByProtectionStateSearch.and("removed", activeByProtectionStateSearch.entity().getRemoved(), SearchCriteria.Op.NULL);
+        activeByProtectionStateSearch.done();
     }
 
     @Override
@@ -66,6 +72,13 @@ public class FtctlProtectionDaoImpl extends GenericDaoBase<FtctlProtectionVO, Lo
     public List<FtctlProtectionVO> listActiveByPeerHostId(long peerHostId) {
         SearchCriteria<FtctlProtectionVO> sc = activeByPeerHostSearch.create();
         sc.setParameters("peerHostId", peerHostId);
+        return listBy(sc);
+    }
+
+    @Override
+    public List<FtctlProtectionVO> listActiveByProtectionState(String protectionState) {
+        SearchCriteria<FtctlProtectionVO> sc = activeByProtectionStateSearch.create();
+        sc.setParameters("protectionState", protectionState);
         return listBy(sc);
     }
 }
