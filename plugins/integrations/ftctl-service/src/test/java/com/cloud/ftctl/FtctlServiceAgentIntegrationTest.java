@@ -19,13 +19,14 @@ package com.cloud.ftctl;
 import com.cloud.agent.AgentManager;
 import com.cloud.agent.api.FtctlActionAnswer;
 import com.cloud.agent.api.FtctlActionCommand;
-import com.cloud.agent.api.FtctlEventsAnswer;
-import com.cloud.agent.api.FtctlEventsCommand;
 import com.cloud.agent.api.FtctlStatusAnswer;
 import com.cloud.agent.api.FtctlStatusCommand;
 import com.cloud.agent.api.FtctlSyncAnswer;
 import com.cloud.agent.api.FtctlSyncClusterCommand;
 import com.cloud.agent.api.FtctlSyncProfileCommand;
+import com.cloud.event.EventTypes;
+import com.cloud.event.EventVO;
+import com.cloud.event.dao.EventDao;
 import com.cloud.ftctl.dao.FtctlProtectionDao;
 import com.cloud.ftctl.dao.FtctlProtectionVolumeDao;
 import com.cloud.host.DetailVO;
@@ -60,6 +61,8 @@ import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnitRunner;
 
 import java.lang.reflect.Field;
+import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -87,6 +90,8 @@ public class FtctlServiceAgentIntegrationTest {
     private FtctlProtectionVolumeDao ftctlProtectionVolumeDao;
     @Mock
     private VolumeDao volumeDao;
+    @Mock
+    private EventDao eventDao;
 
     @InjectMocks
     private FtctlServiceImpl ftctlService;
@@ -297,26 +302,23 @@ public class FtctlServiceAgentIntegrationTest {
     }
 
     @Test
-    public void testGetFtctlProtectionRefreshesPersistedStateFromStatus() throws Exception {
+    public void testGetFtctlProtectionReadsCachedRuntimeState() throws Exception {
         vmDetails.put("101:ftctl.enabled", "true");
         vmDetails.put("101:ftctl.mode", "dr");
         vmDetails.put("101:ftctl.backend.mode", "remote-nbd");
         vmDetails.put("101:ftctl.peer.host.id", "202");
+        vmDetails.put("101:ftctl.last.protection.state", "protected");
+        vmDetails.put("101:ftctl.last.transport.state", "replicating");
+        vmDetails.put("101:ftctl.last.active.side", "primary");
+        vmDetails.put("101:ftctl.last.admin.state", "running");
+        vmDetails.put("101:ftctl.last.fencing.state", "clear");
 
         GetFtctlProtectionCmd cmd = new GetFtctlProtectionCmd();
         setField(cmd, "virtualMachineId", 101L);
 
-        agentHelper.onCommand(FtctlStatusCommand.class, (hostId, command) -> {
-            Assert.assertEquals(Long.valueOf(201L), hostId);
-            Assert.assertEquals("vm-name", command.getVmName());
-            return new FtctlStatusAnswer(command, true, "OK", "ok", "vm-name",
-                    "dr", "protected", "replicating", "primary", "running", "clear", "",
-                    "2026-04-19T00:45:00+09:00", 1, 0);
-        });
-
         FtctlProtectionResponse response = ftctlService.getFtctlProtection(cmd);
 
-        agentHelper.assertSequence(FtctlStatusCommand.class);
+        agentHelper.assertSequence();
         Assert.assertEquals(Long.valueOf(101L), getFieldValue(response, "virtualMachineId"));
         Assert.assertEquals("true", getFieldValue(response, "enabled"));
         Assert.assertEquals("dr", getFieldValue(response, "mode"));
@@ -327,32 +329,33 @@ public class FtctlServiceAgentIntegrationTest {
         Assert.assertEquals("primary", getFieldValue(response, "activeSide"));
         Assert.assertEquals("running", getFieldValue(response, "adminState"));
         Assert.assertEquals("clear", getFieldValue(response, "fencingState"));
-
-        Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.last.protection.state", "protected", true);
-        Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.last.transport.state", "replicating", true);
     }
 
     @Test
-    public void testGetFtctlEventsServiceAgentIntegrationFlow() throws Exception {
+    public void testGetFtctlEventsReadsCloudEventCache() throws Exception {
         GetFtctlEventsCmd cmd = new GetFtctlEventsCmd();
         setField(cmd, "virtualMachineId", 101L);
         setField(cmd, "limit", 5);
 
-        String itemsJson = "[" +
-                "{\"ts\":\"2026-04-19T00:50:00+09:00\",\"scan_id\":\"scan-1\",\"vm\":\"vm-name\",\"stage\":\"health\",\"event\":\"tick\",\"result\":\"ok\"}," +
-                "{\"ts\":\"2026-04-19T00:51:00+09:00\",\"scan_id\":\"scan-2\",\"vm\":\"vm-name\",\"stage\":\"failover\",\"event\":\"switch\",\"result\":\"warn\",\"details\":{\"reason\":\"operator\"}}" +
-                "]";
-
-        agentHelper.onCommand(FtctlEventsCommand.class, (hostId, command) -> {
-            Assert.assertEquals(Long.valueOf(201L), hostId);
-            Assert.assertEquals("vm-name", command.getVmName());
-            Assert.assertEquals(Integer.valueOf(5), command.getLimit());
-            return new FtctlEventsAnswer(command, true, "OK", "ok", "vm-name", 2, itemsJson);
-        });
+        EventVO failover = buildEvent(EventTypes.EVENT_FTCTL_PROTECTION_FAILOVER, 101L,
+                "FTCTL failover started by operator", new Date(2000L));
+        EventVO progress = buildEvent(EventTypes.EVENT_FTCTL_PROTECTION_PROGRESS, 101L,
+                "FTCTL block copy progress for VM vm-uuid: 80.0%", new Date(1000L));
+        Mockito.when(eventDao.listToArchiveOrDeleteEvents(Mockito.isNull(), Mockito.anyString(), Mockito.isNull(), Mockito.isNull(), Mockito.anyList()))
+                .thenAnswer(invocation -> {
+                    String type = invocation.getArgument(1);
+                    if (EventTypes.EVENT_FTCTL_PROTECTION_FAILOVER.equals(type)) {
+                        return Collections.singletonList(failover);
+                    }
+                    if (EventTypes.EVENT_FTCTL_PROTECTION_PROGRESS.equals(type)) {
+                        return Collections.singletonList(progress);
+                    }
+                    return Collections.emptyList();
+                });
 
         FtctlEventsResponse response = ftctlService.getFtctlEvents(cmd);
 
-        agentHelper.assertSequence(FtctlEventsCommand.class);
+        agentHelper.assertSequence();
         Assert.assertEquals(Long.valueOf(101L), response.getVirtualMachineId());
         Assert.assertEquals("vm-name", response.getVmName());
         Assert.assertEquals("ok", response.getResult());
@@ -360,10 +363,21 @@ public class FtctlServiceAgentIntegrationTest {
 
         List<FtctlEventResponse> events = response.getEvents();
         Assert.assertEquals(2, events.size());
-        Assert.assertEquals("health", events.get(0).getStage());
-        Assert.assertEquals("tick", events.get(0).getEvent());
-        Assert.assertEquals("warn", events.get(1).getResult());
-        Assert.assertTrue(events.get(1).getDetails().contains("operator"));
+        Assert.assertEquals("cloud", events.get(0).getStage());
+        Assert.assertEquals(EventTypes.EVENT_FTCTL_PROTECTION_FAILOVER, events.get(0).getEvent());
+        Assert.assertEquals("info", events.get(0).getResult());
+        Assert.assertTrue(events.get(0).getDetails().contains("operator"));
+    }
+
+    private EventVO buildEvent(String type, long resourceId, String description, Date createDate) {
+        EventVO event = new EventVO();
+        event.setType(type);
+        event.setLevel(EventVO.LEVEL_INFO);
+        event.setResourceId(resourceId);
+        event.setResourceType("VirtualMachine");
+        event.setDescription(description);
+        event.setCreatedDate(createDate);
+        return event;
     }
 
     private void setField(Object target, String fieldName, Object value) {

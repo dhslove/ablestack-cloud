@@ -20,12 +20,6 @@ import com.cloud.agent.AgentManager;
 import com.cloud.agent.api.Answer;
 import com.cloud.agent.api.FtctlActionAnswer;
 import com.cloud.agent.api.FtctlActionCommand;
-import com.cloud.agent.api.FtctlCheckAnswer;
-import com.cloud.agent.api.FtctlCheckCommand;
-import com.cloud.agent.api.FtctlEventsAnswer;
-import com.cloud.agent.api.FtctlEventsCommand;
-import com.cloud.agent.api.FtctlHealthAnswer;
-import com.cloud.agent.api.FtctlHealthCommand;
 import com.cloud.agent.api.FtctlStatusAnswer;
 import com.cloud.agent.api.FtctlStatusCommand;
 import com.cloud.agent.api.FtctlSyncAnswer;
@@ -34,6 +28,7 @@ import com.cloud.agent.api.FtctlSyncProfileCommand;
 import com.cloud.event.ActionEventUtils;
 import com.cloud.event.EventTypes;
 import com.cloud.event.EventVO;
+import com.cloud.event.dao.EventDao;
 import com.cloud.exception.AgentUnavailableException;
 import com.cloud.exception.ConcurrentOperationException;
 import com.cloud.exception.InsufficientCapacityException;
@@ -95,6 +90,9 @@ import org.apache.cloudstack.outofbandmanagement.dao.OutOfBandManagementDao;
 
 import javax.inject.Inject;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -148,6 +146,17 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     public static final String DETAIL_LAST_ADMIN_STATE = "ftctl.last.admin.state";
     public static final String DETAIL_LAST_FENCING_STATE = "ftctl.last.fencing.state";
     public static final String DETAIL_LAST_ERROR = "ftctl.last.error";
+    public static final String DETAIL_CHECK_RESULT = "ftctl.check.result";
+    public static final String DETAIL_CHECK_INVENTORY_RESULT = "ftctl.check.inventory.result";
+    public static final String DETAIL_CHECK_PRIMARY_RC = "ftctl.check.primary.rc";
+    public static final String DETAIL_CHECK_PEER_RC = "ftctl.check.peer.rc";
+    public static final String DETAIL_CHECK_PEER_DOMAIN_EXPECTED = "ftctl.check.peer.domain.expected";
+    public static final String DETAIL_CHECK_STANDBY_DOMAIN_STATE = "ftctl.check.standby.domain.state";
+    public static final String DETAIL_CHECK_UPDATED = "ftctl.check.updated";
+    public static final String DETAIL_HEALTH_RESULT = "ftctl.health.result";
+    public static final String DETAIL_HEALTH_URI = "ftctl.health.uri";
+    public static final String DETAIL_HEALTH_RC = "ftctl.health.rc";
+    public static final String DETAIL_HEALTH_UPDATED = "ftctl.health.updated";
     public static final String DETAIL_FAILOVER_READY = "ftctl.failover.ready";
     public static final String DETAIL_FAILOVER_READY_UPDATED = "ftctl.failover.ready.updated";
     public static final String DETAIL_NIC_IDENTITY_STATE = "ftctl.nic.identity.state";
@@ -174,6 +183,17 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             "ftctl.failover.ready.sync.percent",
             "ftctl.failover.ready.sync.json"
     };
+    private static final List<String> FTCTL_EVENT_TYPES = Arrays.asList(
+            EventTypes.EVENT_FTCTL_PROTECTION_REGISTER,
+            EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE,
+            EventTypes.EVENT_FTCTL_PROTECTION_PAUSE,
+            EventTypes.EVENT_FTCTL_PROTECTION_RESUME,
+            EventTypes.EVENT_FTCTL_PROTECTION_FAILOVER,
+            EventTypes.EVENT_FTCTL_PROTECTION_FAILBACK,
+            EventTypes.EVENT_FTCTL_PROTECTION_PROGRESS,
+            EventTypes.EVENT_FTCTL_PROTECTION_FENCE_CONFIRM,
+            EventTypes.EVENT_FTCTL_PROTECTION_FENCE_CLEAR,
+            EventTypes.EVENT_FTCTL_PROTECTION_RELEASE);
     private static final ConcurrentMap<String, Object> VM_DETAIL_LOCKS = new ConcurrentHashMap<>();
     private final ConcurrentMap<Long, Object> cloudManagedFailbackCutbackLocks = new ConcurrentHashMap<>();
     private final AtomicBoolean runtimeStateSyncRunning = new AtomicBoolean(false);
@@ -210,6 +230,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     private VolumeDao volumeDao;
     @Inject
     private VolumeApiService volumeApiService;
+    @Inject
+    private EventDao eventDao;
 
     @Override
     public boolean start() {
@@ -261,10 +283,6 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     public FtctlProtectionResponse getFtctlProtection(GetFtctlProtectionCmd cmd) throws CloudRuntimeException {
         UserVmVO userVm = validateVirtualMachineExists(cmd.getVirtualMachineId());
         FtctlProtectionResponse response = buildProtectionResponse(userVm);
-        UserVmVO runtimeVm = resolveRuntimeVmForProtectionView(userVm);
-        if (runtimeVm != null && cmd.isRefreshRuntime()) {
-            populateRuntimeStateFromAgent(runtimeVm, response, true);
-        }
         response.setObjectName("ftctlprotection");
         return response;
     }
@@ -384,32 +402,18 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         FtctlProtectionVO protection = findActiveProtectionForVm(requestedVm.getId());
         UserVmVO runtimeVm = resolveRuntimeVmForProtectionView(requestedVm);
         Long sourceVmId = protection != null ? protection.getPrimaryVmId() : runtimeVm.getId();
-        Long hostId = requireExecutionHostId(runtimeVm);
-        try {
-            FtctlCheckCommand checkCommand = new FtctlCheckCommand(runtimeVm.getInstanceName(),
-                    resolveFtctlCheckSecondaryVmName(protection, sourceVmId),
-                    resolveFtctlCheckActiveSide(protection, sourceVmId),
-                    resolveFtctlCheckProvisioningBackend(protection, sourceVmId));
-            Answer answer = agentManager.send(hostId, checkCommand);
-            if (!(answer instanceof FtctlCheckAnswer)) {
-                throw new CloudRuntimeException(String.format("Unexpected FTCTL check answer type for VM %s", requestedVm.getUuid()));
-            }
-            FtctlCheckAnswer checkAnswer = (FtctlCheckAnswer) answer;
-            FtctlCheckResponse response = new FtctlCheckResponse();
-            response.setObjectName("ftctlcheck");
-            response.setVirtualMachineId(requestedVm.getId());
-            response.setVmName(checkAnswer.getVmName());
-            response.setResult(checkAnswer.getFtctlResult());
-            response.setInventoryResult(checkAnswer.getInventoryResult());
-            response.setPrimaryRc(checkAnswer.getPrimaryRc());
-            response.setPeerRc(checkAnswer.getPeerRc());
-            response.setPeerDomainExpected(checkAnswer.getPeerDomainExpected());
-            response.setStandbyDomainState(checkAnswer.getStandbyDomainState());
-            response.setProvisioningBackend(checkAnswer.getProvisioningBackend());
-            return response;
-        } catch (AgentUnavailableException | OperationTimedoutException e) {
-            throw new CloudRuntimeException(String.format("Unable to get FTCTL check result for VM %s", requestedVm.getUuid()), e);
-        }
+        FtctlCheckResponse response = new FtctlCheckResponse();
+        response.setObjectName("ftctlcheck");
+        response.setVirtualMachineId(requestedVm.getId());
+        response.setVmName(runtimeVm.getInstanceName());
+        response.setResult(StringUtils.defaultIfBlank(getDetailValue(sourceVmId, DETAIL_CHECK_RESULT), "not_available"));
+        response.setInventoryResult(StringUtils.defaultIfBlank(getDetailValue(sourceVmId, DETAIL_CHECK_INVENTORY_RESULT), "unknown"));
+        response.setPrimaryRc(parseIntegerDetail(getDetailValue(sourceVmId, DETAIL_CHECK_PRIMARY_RC)));
+        response.setPeerRc(parseIntegerDetail(getDetailValue(sourceVmId, DETAIL_CHECK_PEER_RC)));
+        response.setPeerDomainExpected(parseBooleanDetail(getDetailValue(sourceVmId, DETAIL_CHECK_PEER_DOMAIN_EXPECTED)));
+        response.setStandbyDomainState(getDetailValue(sourceVmId, DETAIL_CHECK_STANDBY_DOMAIN_STATE));
+        response.setProvisioningBackend(resolveFtctlCheckProvisioningBackend(protection, sourceVmId));
+        return response;
     }
 
     private String resolveFtctlCheckSecondaryVmName(FtctlProtectionVO protection, Long sourceVmId) {
@@ -438,24 +442,17 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     public FtctlEventsResponse getFtctlEvents(GetFtctlEventsCmd cmd) throws CloudRuntimeException {
         UserVmVO requestedVm = validateVirtualMachineExists(cmd.getVirtualMachineId());
         UserVmVO runtimeVm = resolveRuntimeVmForProtectionView(requestedVm);
-        Long hostId = requireExecutionHostId(runtimeVm);
-        try {
-            Answer answer = agentManager.send(hostId, new FtctlEventsCommand(runtimeVm.getInstanceName(), cmd.getLimit()));
-            if (!(answer instanceof FtctlEventsAnswer)) {
-                throw new CloudRuntimeException(String.format("Unexpected FTCTL events answer type for VM %s", requestedVm.getUuid()));
-            }
-            FtctlEventsAnswer eventsAnswer = (FtctlEventsAnswer) answer;
-            FtctlEventsResponse response = new FtctlEventsResponse();
-            response.setObjectName("ftctlevents");
-            response.setVirtualMachineId(requestedVm.getId());
-            response.setVmName(eventsAnswer.getVmName());
-            response.setResult(eventsAnswer.getFtctlResult());
-            response.setCount(eventsAnswer.getCount());
-            response.setEvents(parseEvents(eventsAnswer.getItemsJson()));
-            return response;
-        } catch (AgentUnavailableException | OperationTimedoutException e) {
-            throw new CloudRuntimeException(String.format("Unable to get FTCTL events for VM %s", requestedVm.getUuid()), e);
-        }
+        FtctlProtectionVO protection = findActiveProtectionForVm(requestedVm.getId());
+        Long sourceVmId = protection != null ? protection.getPrimaryVmId() : runtimeVm.getId();
+        List<FtctlEventResponse> events = listCachedFtctlEvents(requestedVm, runtimeVm.getInstanceName(), sourceVmId, cmd.getLimit());
+        FtctlEventsResponse response = new FtctlEventsResponse();
+        response.setObjectName("ftctlevents");
+        response.setVirtualMachineId(requestedVm.getId());
+        response.setVmName(runtimeVm.getInstanceName());
+        response.setResult("ok");
+        response.setCount(events.size());
+        response.setEvents(events);
+        return response;
     }
 
     private void validateRegisterRequest(RegisterFtctlProtectionCmd cmd) {
@@ -619,25 +616,18 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     public FtctlHealthResponse getFtctlHealth(GetFtctlHealthCmd cmd) throws CloudRuntimeException {
         UserVmVO requestedVm = validateVirtualMachineExists(cmd.getVirtualMachineId());
         UserVmVO runtimeVm = resolveRuntimeVmForProtectionView(requestedVm);
-        Long hostId = requireExecutionHostId(runtimeVm);
-        try {
-            Answer answer = agentManager.send(hostId, new FtctlHealthCommand());
-            if (!(answer instanceof FtctlHealthAnswer)) {
-                throw new CloudRuntimeException(String.format("Unexpected FTCTL health answer type for VM %s", requestedVm.getUuid()));
-            }
-            FtctlHealthAnswer healthAnswer = (FtctlHealthAnswer) answer;
-            FtctlHealthResponse response = new FtctlHealthResponse();
-            response.setObjectName("ftctlhealth");
-            response.setVirtualMachineId(requestedVm.getId());
-            response.setHostId(hostId);
-            response.setHostName(resolveHostName(hostId));
-            response.setResult(healthAnswer.getFtctlResult());
-            response.setUri(healthAnswer.getUri());
-            response.setRc(healthAnswer.getRc());
-            return response;
-        } catch (AgentUnavailableException | OperationTimedoutException e) {
-            throw new CloudRuntimeException(String.format("Unable to get FTCTL health result for VM %s", requestedVm.getUuid()), e);
-        }
+        FtctlProtectionVO protection = findActiveProtectionForVm(requestedVm.getId());
+        Long sourceVmId = protection != null ? protection.getPrimaryVmId() : runtimeVm.getId();
+        Long hostId = getExecutionHostId(runtimeVm);
+        FtctlHealthResponse response = new FtctlHealthResponse();
+        response.setObjectName("ftctlhealth");
+        response.setVirtualMachineId(requestedVm.getId());
+        response.setHostId(hostId);
+        response.setHostName(resolveHostName(hostId));
+        response.setResult(StringUtils.defaultIfBlank(getDetailValue(sourceVmId, DETAIL_HEALTH_RESULT), "not_available"));
+        response.setUri(StringUtils.defaultIfBlank(getDetailValue(sourceVmId, DETAIL_HEALTH_URI), resolvePeerUri(hostId)));
+        response.setRc(parseIntegerDetail(getDetailValue(sourceVmId, DETAIL_HEALTH_RC)));
+        return response;
     }
 
     @Override
@@ -2052,6 +2042,24 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         }
     }
 
+    private Integer parseIntegerDetail(String value) {
+        if (StringUtils.isBlank(value)) {
+            return null;
+        }
+        try {
+            return Integer.valueOf(value);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    private Boolean parseBooleanDetail(String value) {
+        if (StringUtils.isBlank(value)) {
+            return null;
+        }
+        return Boolean.valueOf(value);
+    }
+
     private boolean persistProtectionRuntimeState(UserVmVO userVm, FtctlStatusAnswer statusAnswer) {
         FtctlProtectionVO protection = findActiveProtectionForVm(userVm.getId());
         if (protection == null) {
@@ -2367,6 +2375,42 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             this.password = password;
             this.ipmiInterface = ipmiInterface;
         }
+    }
+
+    private List<FtctlEventResponse> listCachedFtctlEvents(UserVmVO userVm, String vmName, Long sourceVmId, Integer requestedLimit) {
+        if (userVm == null || sourceVmId == null || eventDao == null) {
+            return Collections.emptyList();
+        }
+        int limit = requestedLimit != null && requestedLimit > 0 ? requestedLimit : 20;
+        List<EventVO> cachedEvents = new ArrayList<>();
+        List<Long> accountIds = Collections.singletonList(userVm.getAccountId());
+        for (String eventType : FTCTL_EVENT_TYPES) {
+            List<EventVO> events = eventDao.listToArchiveOrDeleteEvents(null, eventType, null, null, accountIds);
+            if (events != null) {
+                cachedEvents.addAll(events);
+            }
+        }
+        return cachedEvents.stream()
+                .filter(event -> event != null && Objects.equals(event.getResourceId(), sourceVmId))
+                .filter(event -> StringUtils.isBlank(event.getResourceType()) ||
+                        StringUtils.equalsIgnoreCase(event.getResourceType(), ApiCommandResourceType.VirtualMachine.toString()))
+                .sorted(Comparator.comparing(EventVO::getCreateDate, Comparator.nullsLast(Comparator.naturalOrder())).reversed())
+                .limit(limit)
+                .map(event -> buildCachedFtctlEventResponse(event, vmName))
+                .collect(Collectors.toList());
+    }
+
+    private FtctlEventResponse buildCachedFtctlEventResponse(EventVO event, String vmName) {
+        FtctlEventResponse response = new FtctlEventResponse();
+        response.setObjectName("ftctlevent");
+        response.setTimestamp(event.getCreateDate() != null ? event.getCreateDate().toInstant().toString() : null);
+        response.setScanId(String.valueOf(event.getId()));
+        response.setVmName(vmName);
+        response.setStage("cloud");
+        response.setEvent(event.getType());
+        response.setResult(StringUtils.lowerCase(StringUtils.defaultIfBlank(event.getLevel(), EventVO.LEVEL_INFO), Locale.ROOT));
+        response.setDetails(event.getDescription());
+        return response;
     }
 
     private List<FtctlEventResponse> parseEvents(String itemsJson) {

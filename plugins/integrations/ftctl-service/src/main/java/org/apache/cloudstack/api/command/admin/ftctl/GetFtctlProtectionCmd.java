@@ -44,16 +44,8 @@ public class GetFtctlProtectionCmd extends BaseCmd {
             required = true, description = "the virtual machine ID")
     private Long virtualMachineId;
 
-    @Parameter(name = "refreshruntime", type = CommandType.BOOLEAN,
-            description = "whether to refresh FTCTL runtime state from the host agent before returning")
-    private Boolean refreshRuntime;
-
     public Long getVirtualMachineId() {
         return virtualMachineId;
-    }
-
-    public boolean isRefreshRuntime() {
-        return Boolean.TRUE.equals(refreshRuntime);
     }
 
     @Override

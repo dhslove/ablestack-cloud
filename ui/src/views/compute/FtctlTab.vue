@@ -398,7 +398,6 @@ export default {
       syncRefreshIntervalMs: null,
       refreshingProgress: false,
       runtimeRefreshing: false,
-      protectionRuntimeRefreshing: false,
       backgroundRefreshing: false,
       syncRefreshCount: 0,
       actionLoading: {
@@ -1032,13 +1031,12 @@ export default {
     },
     async fetchAll (options = {}) {
       const silent = options?.silent === true
-      const refreshRuntime = options?.refreshRuntime === true
       if (!silent && !this.initialLoadComplete) {
         this.loadingState = true
       }
       this.errorMessage = null
       try {
-        await this.fetchProtection({ silent, refreshRuntime })
+        await this.fetchProtection({ silent })
         if (this.protectionConfigured) {
           this.fetchRuntimeData({ silent: true }).catch(error => {
             if (!silent) {
@@ -1056,25 +1054,6 @@ export default {
         if (!silent) {
           this.loadingState = false
         }
-        this.updateSyncAutoRefresh()
-      }
-    },
-    async refreshProtectionRuntime (options = {}) {
-      if (!this.resource?.id || this.protectionRuntimeRefreshing) {
-        return
-      }
-      this.protectionRuntimeRefreshing = true
-      try {
-        await this.fetchProtection(Object.assign({}, options, {
-          silent: true,
-          refreshRuntime: true
-        }))
-      } catch (error) {
-        if (!options.silent) {
-          this.errorMessage = this.extractErrorMessage(error, 'getFtctlProtection')
-        }
-      } finally {
-        this.protectionRuntimeRefreshing = false
         this.updateSyncAutoRefresh()
       }
     },
@@ -1099,9 +1078,6 @@ export default {
       }
       try {
         const params = { virtualmachineid: this.resource.id }
-        if (options?.refreshRuntime === true) {
-          params.refreshruntime = true
-        }
         const response = await getAPI('getFtctlProtection', params)
         this.protection = Object.assign({}, this.extractProtectionPayload(response))
       } catch (error) {
@@ -1309,7 +1285,7 @@ export default {
       this.backgroundRefreshing = true
       this.refreshingProgress = true
       try {
-        await this.fetchProtection({ silent: true, refreshRuntime: true })
+        await this.fetchProtection({ silent: true })
         if (this.protectionConfigured) {
           await this.fetchRuntimeData({ silent: true })
         }
