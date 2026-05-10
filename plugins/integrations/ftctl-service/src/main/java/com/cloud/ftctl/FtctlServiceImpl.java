@@ -960,10 +960,6 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
 
         FtctlActionResponse response = executeFtctlAgentAction(primaryVm, FtctlActionCommand.Action.FAILBACK_SYNC, true);
         response.setAction(FtctlActionCommand.Action.FAILBACK.name());
-        FtctlProtectionVO latestProtection = refreshProtection(primaryVm);
-        if (!isCloudManagedFailbackReverseReady(latestProtection)) {
-            markCloudManagedFailbackStage(primaryVm, latestProtection, "reverse_syncing", "reverse_sync_pending");
-        }
         publishFtctlEvent(primaryVm, EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE,
                 String.format("Started cloud-managed FTCTL failback reverse sync for VM %s", primaryVm.getUuid()));
         return response;
@@ -1011,17 +1007,19 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             UserVmVO secondaryVm = resolveSecondaryVmForManualFailover(primaryVm, latestProtection);
             Long primaryHostId = requireExecutionHostId(primaryVm);
 
-            markCloudManagedFailbackStage(primaryVm, latestProtection, "secondary_stopping", null);
+            publishFtctlEvent(primaryVm, EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE,
+                    String.format("Stopping FTCTL secondary VM %s during cloud-managed failback for primary VM %s",
+                            secondaryVm.getUuid(), primaryVm.getUuid()));
             stopSecondaryVmForCloudManagedFailback(primaryVm, secondaryVm);
 
-            markCloudManagedFailbackStage(primaryVm, latestProtection, "finalizing", null);
             executeFtctlAgentAction(primaryVm, FtctlActionCommand.Action.FAILBACK_FINALIZE, true);
 
             latestProtection = refreshProtection(primaryVm);
             secondaryVm = validateVirtualMachineExists(secondaryVm.getId());
             handoffNicIdentityToPrimary(primaryVm, secondaryVm, latestProtection);
 
-            markCloudManagedFailbackStage(primaryVm, latestProtection, "primary_restoring", null);
+            publishFtctlEvent(primaryVm, EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE,
+                    String.format("Starting FTCTL primary VM %s during cloud-managed failback", primaryVm.getUuid()));
             startPrimaryVmForCloudManagedFailback(primaryVm, primaryHostId);
 
             UserVmVO refreshedPrimaryVm = validateVirtualMachineExists(primaryVm.getId());
@@ -1062,33 +1060,6 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         }
         String transportState = StringUtils.trimToEmpty(protection.getTransportState()).toLowerCase(Locale.ROOT);
         return "reverse_sync_ready".equals(transportState) || "reverse_sync_cutback_required".equals(transportState);
-    }
-
-    private void markCloudManagedFailbackStage(UserVmVO primaryVm, FtctlProtectionVO protection, String transportState, String lastError) {
-        if (protection == null) {
-            return;
-        }
-        protection.setProtectionState("failing_back");
-        protection.setTransportState(transportState);
-        protection.setActiveSide("secondary");
-        protection.setAdminState("active");
-        protection.setFencingState("manual-fenced");
-        protection.setLastError(lastError);
-        protection.markUpdated();
-        ftctlProtectionDao.update(protection.getId(), protection);
-
-        putVmDetail(primaryVm.getId(), DETAIL_LAST_PROTECTION_STATE, "failing_back");
-        putVmDetail(primaryVm.getId(), DETAIL_LAST_TRANSPORT_STATE, transportState);
-        putVmDetail(primaryVm.getId(), DETAIL_LAST_ACTIVE_SIDE, "secondary");
-        putVmDetail(primaryVm.getId(), DETAIL_LAST_ADMIN_STATE, "active");
-        putVmDetail(primaryVm.getId(), DETAIL_LAST_FENCING_STATE, "manual-fenced");
-        if (lastError == null) {
-            removeVmDetail(primaryVm.getId(), DETAIL_LAST_ERROR);
-        } else {
-            putVmDetail(primaryVm.getId(), DETAIL_LAST_ERROR, lastError);
-        }
-        publishFtctlEvent(primaryVm, EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE,
-                String.format("Updated cloud-managed FTCTL failback stage for VM %s: transport=%s", primaryVm.getUuid(), transportState));
     }
 
     private void markCloudManagedFailbackFailed(UserVmVO primaryVm, FtctlProtectionVO protection, RuntimeException cause) {

@@ -395,9 +395,11 @@ export default {
         timestamp: null
       },
       syncRefreshTimer: null,
+      syncRefreshIntervalMs: null,
       refreshingProgress: false,
       runtimeRefreshing: false,
       protectionRuntimeRefreshing: false,
+      backgroundRefreshing: false,
       syncRefreshCount: 0,
       actionLoading: {
         pauseFtctlProtection: false,
@@ -1278,44 +1280,55 @@ export default {
       return ['failoverFtctlProtection', 'failbackFtctlProtection', 'confirmFtctlFence', 'releaseFtctlProtection'].includes(commandName)
     },
     updateSyncAutoRefresh () {
+      if (!this.resource?.id || !this.protectionConfigured) {
+        this.stopSyncAutoRefresh()
+        return
+      }
       const protection = String(this.protection.protectionstate || '').toLowerCase()
       const transport = String(this.protection.transportstate || '').toLowerCase()
-      if (['syncing', 'failing_back'].includes(protection) ||
-        ['copying', 'reverse_syncing', 'reverse_sync_ready', 'reverse_sync_pending'].includes(transport)) {
-        this.startSyncAutoRefresh()
-      } else {
-        this.stopSyncAutoRefresh()
-      }
+      const activeRefresh = ['syncing', 'failing_over', 'failed_over', 'failing_back'].includes(protection) ||
+        ['copying', 'reverse_syncing', 'reverse_sync_ready', 'reverse_sync_pending', 'finalizing', 'primary_restoring'].includes(transport)
+      this.startSyncAutoRefresh(activeRefresh ? 10000 : 30000)
     },
-    startSyncAutoRefresh () {
-      if (this.syncRefreshTimer) {
+    startSyncAutoRefresh (intervalMs = 30000) {
+      if (this.syncRefreshTimer && this.syncRefreshIntervalMs === intervalMs) {
         return
       }
+      this.stopSyncAutoRefresh()
+      this.syncRefreshIntervalMs = intervalMs
       this.syncRefreshTimer = setInterval(() => {
-        if (!this.loadingState && !this.refreshingProgress && this.resource?.id) {
-          this.fetchSyncProgress()
+        if (!this.loadingState && !this.backgroundRefreshing && this.resource?.id) {
+          this.fetchTabBackgroundRefresh()
         }
-      }, 10000)
+      }, intervalMs)
     },
-    async fetchSyncProgress () {
-      if (!this.resource?.id || this.refreshingProgress) {
+    async fetchTabBackgroundRefresh () {
+      if (!this.resource?.id || this.backgroundRefreshing) {
         return
       }
+      this.backgroundRefreshing = true
       this.refreshingProgress = true
       try {
-        await this.fetchEvents({ silent: true })
+        await this.fetchProtection({ silent: true, refreshRuntime: true })
+        if (this.protectionConfigured) {
+          await this.fetchRuntimeData({ silent: true })
+        }
         this.syncRefreshCount += 1
       } finally {
         this.refreshingProgress = false
+        this.backgroundRefreshing = false
         this.updateSyncAutoRefresh()
       }
     },
+    async fetchSyncProgress () {
+      await this.fetchTabBackgroundRefresh()
+    },
     stopSyncAutoRefresh () {
-      if (!this.syncRefreshTimer) {
-        return
+      if (this.syncRefreshTimer) {
+        clearInterval(this.syncRefreshTimer)
       }
-      clearInterval(this.syncRefreshTimer)
       this.syncRefreshTimer = null
+      this.syncRefreshIntervalMs = null
     }
   },
   watch: {
