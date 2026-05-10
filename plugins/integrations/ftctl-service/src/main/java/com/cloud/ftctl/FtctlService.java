@@ -40,6 +40,18 @@ public interface FtctlService extends PluggableService, Configurable {
             "Indicates whether FTCTL integration service plugin is enabled or not.",
             false);
 
+    ConfigKey<Boolean> FtctlRuntimeStateSyncEnabled = new ConfigKey<>("Advanced", Boolean.class,
+            "cloud.ftctl.runtime.state.sync.enabled",
+            "true",
+            "Indicates whether Cloud should periodically sync FTCTL runtime state through the agent.",
+            false);
+
+    ConfigKey<Integer> FtctlRuntimeStateSyncInterval = new ConfigKey<>("Advanced", Integer.class,
+            "cloud.ftctl.runtime.state.sync.interval",
+            "10",
+            "Interval in seconds for syncing FTCTL runtime state through the agent.",
+            false);
+
     FtctlProtectionResponse getFtctlProtection(GetFtctlProtectionCmd cmd) throws CloudRuntimeException;
 
     FtctlProtectionResponse registerFtctlProtection(RegisterFtctlProtectionCmd cmd) throws CloudRuntimeException;

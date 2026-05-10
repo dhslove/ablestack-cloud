@@ -104,6 +104,7 @@ import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 public class FtctlServiceImpl extends ManagerBase implements FtctlService {
@@ -114,6 +115,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     private static final int FTCTL_ACTION_LOCK_RETRY_TIMEOUT_MILLIS = 90000;
     private static final long CLOUD_MANAGED_FAILBACK_MONITOR_DELAY_MILLIS = 10000L;
     private static final long CLOUD_MANAGED_FAILBACK_MONITOR_INTERVAL_MILLIS = 10000L;
+    private static final long RUNTIME_STATE_SYNC_DELAY_MILLIS = 10000L;
+    private static final long MIN_RUNTIME_STATE_SYNC_INTERVAL_MILLIS = 5000L;
 
     public static final String DETAIL_ENABLED = "ftctl.enabled";
     public static final String DETAIL_MODE = "ftctl.mode";
@@ -173,7 +176,9 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     };
     private static final ConcurrentMap<String, Object> VM_DETAIL_LOCKS = new ConcurrentHashMap<>();
     private final ConcurrentMap<Long, Object> cloudManagedFailbackCutbackLocks = new ConcurrentHashMap<>();
+    private final AtomicBoolean runtimeStateSyncRunning = new AtomicBoolean(false);
     private Timer cloudManagedFailbackMonitorTimer;
+    private Timer runtimeStateSyncTimer;
 
     @Inject
     private VMInstanceDetailsDao vmInstanceDetailsDao;
@@ -224,6 +229,18 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
                     CLOUD_MANAGED_FAILBACK_MONITOR_DELAY_MILLIS,
                     CLOUD_MANAGED_FAILBACK_MONITOR_INTERVAL_MILLIS);
         }
+        if (runtimeStateSyncTimer == null && FtctlRuntimeStateSyncEnabled.value()) {
+            TimerTask syncTask = new ManagedContextTimerTask() {
+                @Override
+                protected void runInContext() {
+                    syncActiveProtectionRuntimeStates();
+                }
+            };
+            long intervalMillis = Math.max(MIN_RUNTIME_STATE_SYNC_INTERVAL_MILLIS,
+                    FtctlRuntimeStateSyncInterval.value() * 1000L);
+            runtimeStateSyncTimer = new Timer("FtctlRuntimeStateSync", true);
+            runtimeStateSyncTimer.schedule(syncTask, RUNTIME_STATE_SYNC_DELAY_MILLIS, intervalMillis);
+        }
         return true;
     }
 
@@ -232,6 +249,10 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         if (cloudManagedFailbackMonitorTimer != null) {
             cloudManagedFailbackMonitorTimer.cancel();
             cloudManagedFailbackMonitorTimer = null;
+        }
+        if (runtimeStateSyncTimer != null) {
+            runtimeStateSyncTimer.cancel();
+            runtimeStateSyncTimer = null;
         }
         return true;
     }
@@ -1977,6 +1998,43 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         }
     }
 
+    void syncActiveProtectionRuntimeStates() {
+        if (!FtctlServiceEnabled.value() || !FtctlRuntimeStateSyncEnabled.value() ||
+                !runtimeStateSyncRunning.compareAndSet(false, true)) {
+            return;
+        }
+        try {
+            List<FtctlProtectionVO> protections = ftctlProtectionDao.listActive();
+            if (protections == null || protections.isEmpty()) {
+                return;
+            }
+            for (FtctlProtectionVO protection : protections) {
+                syncProtectionRuntimeState(protection);
+            }
+        } catch (RuntimeException e) {
+            logger.warn("Unable to sync FTCTL runtime state", e);
+        } finally {
+            runtimeStateSyncRunning.set(false);
+        }
+    }
+
+    private void syncProtectionRuntimeState(FtctlProtectionVO protection) {
+        if (protection == null) {
+            return;
+        }
+        UserVmVO primaryVm = userVmDao.findById(protection.getPrimaryVmId());
+        if (primaryVm == null) {
+            return;
+        }
+        FtctlStatusAnswer statusAnswer = fetchRuntimeStatus(primaryVm);
+        if (statusAnswer == null) {
+            logger.debug(String.format("Skipping FTCTL runtime sync for VM %s because no agent runtime state was available",
+                    primaryVm.getUuid()));
+            return;
+        }
+        persistRuntimeState(primaryVm, statusAnswer);
+    }
+
     private boolean persistRuntimeState(UserVmVO userVm, FtctlStatusAnswer statusAnswer) {
         if (userVm == null || statusAnswer == null) {
             return false;
@@ -2421,7 +2479,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
 
     @Override
     public ConfigKey<?>[] getConfigKeys() {
-        return new ConfigKey<?>[] { FtctlServiceEnabled };
+        return new ConfigKey<?>[] { FtctlServiceEnabled, FtctlRuntimeStateSyncEnabled, FtctlRuntimeStateSyncInterval };
     }
 
     private static final class FtctlActionLockedException extends CloudRuntimeException {

@@ -89,6 +89,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.junit.MockitoJUnitRunner;
 
 import java.lang.reflect.Field;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -327,6 +328,32 @@ public class FtctlServiceImplTest {
     }
 
     @Test
+    public void testRuntimeStateSyncPersistsAgentStatusForActiveProtection() throws Exception {
+        FtctlProtectionVO protection = new FtctlProtectionVO(101L);
+        protection.setMode("ha");
+        protection.setProtectionState("syncing");
+        protection.setTransportState("copying");
+        protection.setActiveSide("primary");
+        protection.setAdminState("active");
+        protection.setFencingState("clear");
+        Mockito.when(ftctlProtectionDao.listActive()).thenReturn(Collections.singletonList(protection));
+        Mockito.when(ftctlProtectionDao.findActiveByPrimaryVmId(101L)).thenReturn(protection);
+        FtctlStatusAnswer statusAnswer = new FtctlStatusAnswer(new FtctlStatusCommand("vm-name"), true, "OK", "ok", "vm-name",
+                "ha", "protected", "mirroring", "primary", "active", "clear", "",
+                "2026-05-10T14:09:28+09:00", 0, 0);
+        Mockito.when(agentManager.send(Mockito.eq(201L), Mockito.any(Command.class))).thenReturn(statusAnswer);
+
+        ftctlService.syncActiveProtectionRuntimeStates();
+
+        Mockito.verify(agentManager).send(Mockito.eq(201L), Mockito.any(FtctlStatusCommand.class));
+        Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.last.protection.state", "protected", true);
+        Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.last.transport.state", "mirroring", true);
+        Mockito.verify(ftctlProtectionDao).update(Mockito.eq(0L), Mockito.same(protection));
+        Assert.assertEquals("protected", protection.getProtectionState());
+        Assert.assertEquals("mirroring", protection.getTransportState());
+    }
+
+    @Test
     public void testExecuteFailoverActionRecordsReadyMarkerBeforeManualFence() throws Exception {
         FtctlActionCommand actionCommand = new FtctlActionCommand(FtctlActionCommand.Action.FAILOVER, "vm-name");
         FtctlActionAnswer actionAnswer = new FtctlActionAnswer(actionCommand, true, "OK",
@@ -344,8 +371,9 @@ public class FtctlServiceImplTest {
         ftctlService.executeFtctlAction(101L, FtctlActionCommand.Action.FAILOVER, false);
 
         Assert.assertEquals("true", vmDetails.get("101:ftctl.failover.ready"));
-        Assert.assertEquals("100.0", vmDetails.get("101:ftctl.failover.ready.sync.percent"));
-        Assert.assertEquals("{\"ready\":true}", vmDetails.get("101:ftctl.failover.ready.sync.json"));
+        Assert.assertNotNull(vmDetails.get("101:ftctl.failover.ready.updated"));
+        Assert.assertNull(vmDetails.get("101:ftctl.failover.ready.sync.percent"));
+        Assert.assertNull(vmDetails.get("101:ftctl.failover.ready.sync.json"));
     }
 
     @Test
@@ -860,6 +888,7 @@ public class FtctlServiceImplTest {
 
         GetFtctlProtectionCmd cmd = new GetFtctlProtectionCmd();
         setField(cmd, "virtualMachineId", 401L);
+        setField(cmd, "refreshRuntime", true);
 
         FtctlProtectionResponse response = ftctlService.getFtctlProtection(cmd);
 
