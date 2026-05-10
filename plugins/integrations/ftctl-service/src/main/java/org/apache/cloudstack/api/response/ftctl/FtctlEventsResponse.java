@@ -44,6 +44,38 @@ public class FtctlEventsResponse extends BaseResponse {
     @Param(description = "the FTCTL event list", responseObject = FtctlEventResponse.class)
     private List<FtctlEventResponse> events;
 
+    @SerializedName("latestprogress")
+    @Param(description = "the latest FTCTL sync progress event details as JSON string")
+    private String latestProgress;
+
+    @SerializedName("syncprogresspercent")
+    @Param(description = "the latest FTCTL sync progress percentage")
+    private Double syncProgressPercent;
+
+    @SerializedName("synccopiedbytes")
+    @Param(description = "the latest FTCTL sync copied bytes")
+    private Long syncCopiedBytes;
+
+    @SerializedName("synctotalbytes")
+    @Param(description = "the latest FTCTL sync total bytes")
+    private Long syncTotalBytes;
+
+    @SerializedName("syncready")
+    @Param(description = "whether the latest FTCTL sync is ready")
+    private Boolean syncReady;
+
+    @SerializedName("syncdirection")
+    @Param(description = "the latest FTCTL sync direction")
+    private String syncDirection;
+
+    @SerializedName("syncupdated")
+    @Param(description = "the latest FTCTL sync progress update timestamp")
+    private String syncUpdated;
+
+    @SerializedName("syncprogressjson")
+    @Param(description = "the latest FTCTL sync progress JSON")
+    private String syncProgressJson;
+
     public void setVirtualMachineId(Long virtualMachineId) {
         this.virtualMachineId = virtualMachineId;
     }
@@ -82,5 +114,69 @@ public class FtctlEventsResponse extends BaseResponse {
 
     public List<FtctlEventResponse> getEvents() {
         return events;
+    }
+
+    public void setLatestProgress(String latestProgress) {
+        this.latestProgress = latestProgress;
+    }
+
+    public String getLatestProgress() {
+        return latestProgress;
+    }
+
+    public void setSyncProgressPercent(Double syncProgressPercent) {
+        this.syncProgressPercent = syncProgressPercent;
+    }
+
+    public Double getSyncProgressPercent() {
+        return syncProgressPercent;
+    }
+
+    public void setSyncCopiedBytes(Long syncCopiedBytes) {
+        this.syncCopiedBytes = syncCopiedBytes;
+    }
+
+    public Long getSyncCopiedBytes() {
+        return syncCopiedBytes;
+    }
+
+    public void setSyncTotalBytes(Long syncTotalBytes) {
+        this.syncTotalBytes = syncTotalBytes;
+    }
+
+    public Long getSyncTotalBytes() {
+        return syncTotalBytes;
+    }
+
+    public void setSyncReady(Boolean syncReady) {
+        this.syncReady = syncReady;
+    }
+
+    public Boolean getSyncReady() {
+        return syncReady;
+    }
+
+    public void setSyncDirection(String syncDirection) {
+        this.syncDirection = syncDirection;
+    }
+
+    public String getSyncDirection() {
+        return syncDirection;
+    }
+
+    public void setSyncUpdated(String syncUpdated) {
+        this.syncUpdated = syncUpdated;
+    }
+
+    public String getSyncUpdated() {
+        return syncUpdated;
+    }
+
+    public void setSyncProgressJson(String syncProgressJson) {
+        this.syncProgressJson = syncProgressJson;
+    }
+
+    public String getSyncProgressJson() {
+        return syncProgressJson;
     }
 }

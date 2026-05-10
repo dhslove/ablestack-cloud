@@ -20,6 +20,8 @@ import com.cloud.agent.AgentManager;
 import com.cloud.agent.api.Answer;
 import com.cloud.agent.api.FtctlActionAnswer;
 import com.cloud.agent.api.FtctlActionCommand;
+import com.cloud.agent.api.FtctlEventsAnswer;
+import com.cloud.agent.api.FtctlEventsCommand;
 import com.cloud.agent.api.FtctlStatusAnswer;
 import com.cloud.agent.api.FtctlStatusCommand;
 import com.cloud.agent.api.FtctlSyncAnswer;
@@ -90,9 +92,7 @@ import org.apache.cloudstack.outofbandmanagement.dao.OutOfBandManagementDao;
 
 import javax.inject.Inject;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -183,17 +183,6 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             "ftctl.failover.ready.sync.percent",
             "ftctl.failover.ready.sync.json"
     };
-    private static final List<String> FTCTL_EVENT_TYPES = Arrays.asList(
-            EventTypes.EVENT_FTCTL_PROTECTION_REGISTER,
-            EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE,
-            EventTypes.EVENT_FTCTL_PROTECTION_PAUSE,
-            EventTypes.EVENT_FTCTL_PROTECTION_RESUME,
-            EventTypes.EVENT_FTCTL_PROTECTION_FAILOVER,
-            EventTypes.EVENT_FTCTL_PROTECTION_FAILBACK,
-            EventTypes.EVENT_FTCTL_PROTECTION_PROGRESS,
-            EventTypes.EVENT_FTCTL_PROTECTION_FENCE_CONFIRM,
-            EventTypes.EVENT_FTCTL_PROTECTION_FENCE_CLEAR,
-            EventTypes.EVENT_FTCTL_PROTECTION_RELEASE);
     private static final ConcurrentMap<String, Object> VM_DETAIL_LOCKS = new ConcurrentHashMap<>();
     private final ConcurrentMap<Long, Object> cloudManagedFailbackCutbackLocks = new ConcurrentHashMap<>();
     private final AtomicBoolean runtimeStateSyncRunning = new AtomicBoolean(false);
@@ -442,16 +431,18 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     public FtctlEventsResponse getFtctlEvents(GetFtctlEventsCmd cmd) throws CloudRuntimeException {
         UserVmVO requestedVm = validateVirtualMachineExists(cmd.getVirtualMachineId());
         UserVmVO runtimeVm = resolveRuntimeVmForProtectionView(requestedVm);
-        FtctlProtectionVO protection = findActiveProtectionForVm(requestedVm.getId());
-        Long sourceVmId = protection != null ? protection.getPrimaryVmId() : runtimeVm.getId();
-        List<FtctlEventResponse> events = listCachedFtctlEvents(requestedVm, runtimeVm.getInstanceName(), sourceVmId, cmd.getLimit());
+        FtctlEventsAnswer eventsAnswer = fetchRuntimeEvents(runtimeVm, cmd.getLimit());
+        List<FtctlEventResponse> events = eventsAnswer != null ? parseEvents(eventsAnswer.getItemsJson()) : Collections.emptyList();
+        JsonObject latestProgress = findLatestProgress(events);
         FtctlEventsResponse response = new FtctlEventsResponse();
         response.setObjectName("ftctlevents");
         response.setVirtualMachineId(requestedVm.getId());
-        response.setVmName(runtimeVm.getInstanceName());
-        response.setResult("ok");
+        response.setVmName(eventsAnswer != null && StringUtils.isNotBlank(eventsAnswer.getVmName())
+                ? eventsAnswer.getVmName() : runtimeVm.getInstanceName());
+        response.setResult(eventsAnswer != null ? StringUtils.defaultIfBlank(eventsAnswer.getFtctlResult(), "ok") : "not_available");
         response.setCount(events.size());
         response.setEvents(events);
+        applyLatestProgress(response, latestProgress);
         return response;
     }
 
@@ -1959,6 +1950,22 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         }
     }
 
+    private FtctlEventsAnswer fetchRuntimeEvents(UserVmVO userVm, Integer limit) {
+        Long hostId = getExecutionHostId(userVm);
+        if (hostId == null || userVm == null) {
+            return null;
+        }
+        try {
+            Answer answer = agentManager.send(hostId, new FtctlEventsCommand(userVm.getInstanceName(), limit));
+            if (!(answer instanceof FtctlEventsAnswer) || !answer.getResult()) {
+                return null;
+            }
+            return (FtctlEventsAnswer) answer;
+        } catch (AgentUnavailableException | OperationTimedoutException ignored) {
+            return null;
+        }
+    }
+
     void syncActiveProtectionRuntimeStates() {
         if (!FtctlServiceEnabled.value() || !FtctlRuntimeStateSyncEnabled.value() ||
                 !runtimeStateSyncRunning.compareAndSet(false, true)) {
@@ -2377,42 +2384,6 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         }
     }
 
-    private List<FtctlEventResponse> listCachedFtctlEvents(UserVmVO userVm, String vmName, Long sourceVmId, Integer requestedLimit) {
-        if (userVm == null || sourceVmId == null || eventDao == null) {
-            return Collections.emptyList();
-        }
-        int limit = requestedLimit != null && requestedLimit > 0 ? requestedLimit : 20;
-        List<EventVO> cachedEvents = new ArrayList<>();
-        List<Long> accountIds = Collections.singletonList(userVm.getAccountId());
-        for (String eventType : FTCTL_EVENT_TYPES) {
-            List<EventVO> events = eventDao.listToArchiveOrDeleteEvents(null, eventType, null, null, accountIds);
-            if (events != null) {
-                cachedEvents.addAll(events);
-            }
-        }
-        return cachedEvents.stream()
-                .filter(event -> event != null && Objects.equals(event.getResourceId(), sourceVmId))
-                .filter(event -> StringUtils.isBlank(event.getResourceType()) ||
-                        StringUtils.equalsIgnoreCase(event.getResourceType(), ApiCommandResourceType.VirtualMachine.toString()))
-                .sorted(Comparator.comparing(EventVO::getCreateDate, Comparator.nullsLast(Comparator.naturalOrder())).reversed())
-                .limit(limit)
-                .map(event -> buildCachedFtctlEventResponse(event, vmName))
-                .collect(Collectors.toList());
-    }
-
-    private FtctlEventResponse buildCachedFtctlEventResponse(EventVO event, String vmName) {
-        FtctlEventResponse response = new FtctlEventResponse();
-        response.setObjectName("ftctlevent");
-        response.setTimestamp(event.getCreateDate() != null ? event.getCreateDate().toInstant().toString() : null);
-        response.setScanId(String.valueOf(event.getId()));
-        response.setVmName(vmName);
-        response.setStage("cloud");
-        response.setEvent(event.getType());
-        response.setResult(StringUtils.lowerCase(StringUtils.defaultIfBlank(event.getLevel(), EventVO.LEVEL_INFO), Locale.ROOT));
-        response.setDetails(event.getDescription());
-        return response;
-    }
-
     private List<FtctlEventResponse> parseEvents(String itemsJson) {
         List<FtctlEventResponse> events = new ArrayList<>();
         if (itemsJson == null || itemsJson.isBlank()) {
@@ -2448,6 +2419,76 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         return events;
     }
 
+    private JsonObject findLatestProgress(List<FtctlEventResponse> events) {
+        if (events == null || events.isEmpty()) {
+            return null;
+        }
+        for (int i = events.size() - 1; i >= 0; i--) {
+            FtctlEventResponse event = events.get(i);
+            if (!isProgressEvent(event)) {
+                continue;
+            }
+            JsonObject progress = parseProgressDetails(event);
+            if (progress != null && progress.has("percent")) {
+                return progress;
+            }
+        }
+        return null;
+    }
+
+    private boolean isProgressEvent(FtctlEventResponse event) {
+        if (event == null || StringUtils.isBlank(event.getEvent())) {
+            return false;
+        }
+        String eventName = StringUtils.lowerCase(event.getEvent(), Locale.ROOT);
+        return "blockcopy.progress".equals(eventName) || "reverse_sync.progress".equals(eventName);
+    }
+
+    private JsonObject parseProgressDetails(FtctlEventResponse event) {
+        JsonObject details = parseJsonObject(event.getDetails());
+        if (details == null) {
+            return null;
+        }
+        JsonObject progress = details.deepCopy();
+        if (!progress.has("direction") || progress.get("direction").isJsonNull()) {
+            progress.addProperty("direction", "reverse_sync.progress".equals(StringUtils.lowerCase(event.getEvent(), Locale.ROOT))
+                    ? "reverse" : "forward");
+        }
+        if ((!progress.has("updated") || progress.get("updated").isJsonNull()) && StringUtils.isNotBlank(event.getTimestamp())) {
+            progress.addProperty("updated", event.getTimestamp());
+        }
+        if ((!progress.has("stage") || progress.get("stage").isJsonNull()) && StringUtils.isNotBlank(event.getStage())) {
+            progress.addProperty("stage", event.getStage());
+        }
+        return progress;
+    }
+
+    private JsonObject parseJsonObject(String json) {
+        if (StringUtils.isBlank(json)) {
+            return null;
+        }
+        try {
+            JsonElement element = JsonParser.parseString(json);
+            return element != null && element.isJsonObject() ? element.getAsJsonObject() : null;
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    private void applyLatestProgress(FtctlEventsResponse response, JsonObject latestProgress) {
+        if (response == null || latestProgress == null) {
+            return;
+        }
+        response.setLatestProgress(latestProgress.toString());
+        response.setSyncProgressJson(latestProgress.toString());
+        response.setSyncProgressPercent(getJsonDouble(latestProgress, "percent"));
+        response.setSyncCopiedBytes(getJsonLong(latestProgress, "copied_bytes"));
+        response.setSyncTotalBytes(getJsonLong(latestProgress, "total_bytes"));
+        response.setSyncReady(getJsonBoolean(latestProgress, "ready"));
+        response.setSyncDirection(getJsonString(latestProgress, "direction"));
+        response.setSyncUpdated(getJsonString(latestProgress, "updated"));
+    }
+
     private String getJsonString(JsonObject object, String key) {
         if (object == null || !object.has(key) || object.get(key).isJsonNull()) {
             return null;
@@ -2461,6 +2502,39 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         }
         try {
             return object.get(key).getAsInt();
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    private Long getJsonLong(JsonObject object, String key) {
+        if (object == null || !object.has(key) || object.get(key).isJsonNull()) {
+            return null;
+        }
+        try {
+            return object.get(key).getAsLong();
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    private Double getJsonDouble(JsonObject object, String key) {
+        if (object == null || !object.has(key) || object.get(key).isJsonNull()) {
+            return null;
+        }
+        try {
+            return object.get(key).getAsDouble();
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    private Boolean getJsonBoolean(JsonObject object, String key) {
+        if (object == null || !object.has(key) || object.get(key).isJsonNull()) {
+            return null;
+        }
+        try {
+            return object.get(key).getAsBoolean();
         } catch (RuntimeException e) {
             return null;
         }

@@ -20,13 +20,13 @@ import com.cloud.agent.AgentManager;
 import com.cloud.agent.api.Command;
 import com.cloud.agent.api.FtctlActionAnswer;
 import com.cloud.agent.api.FtctlActionCommand;
+import com.cloud.agent.api.FtctlEventsAnswer;
+import com.cloud.agent.api.FtctlEventsCommand;
 import com.cloud.agent.api.FtctlStatusAnswer;
 import com.cloud.agent.api.FtctlStatusCommand;
 import com.cloud.agent.api.FtctlSyncAnswer;
 import com.cloud.agent.api.FtctlSyncClusterCommand;
 import com.cloud.agent.api.FtctlSyncProfileCommand;
-import com.cloud.event.EventTypes;
-import com.cloud.event.EventVO;
 import com.cloud.event.dao.EventDao;
 import com.cloud.exception.AgentUnavailableException;
 import com.cloud.exception.OperationTimedoutException;
@@ -87,7 +87,6 @@ import org.mockito.junit.MockitoJUnitRunner;
 
 import java.lang.reflect.Field;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -198,26 +197,18 @@ public class FtctlServiceImplTest {
     }
 
     @Test
-    public void testGetFtctlEventsReadsCachedCloudEvents() throws Exception {
+    public void testGetFtctlEventsReadsQemuRuntimeEvents() throws Exception {
         GetFtctlEventsCmd cmd = new GetFtctlEventsCmd();
         setField(cmd, "virtualMachineId", 101L);
         setField(cmd, "limit", 10);
 
-        EventVO progress = buildEvent(EventTypes.EVENT_FTCTL_PROTECTION_PROGRESS, 101L,
-                "FTCTL block copy progress for VM vm-uuid: 40.0%", new Date(2000L));
-        EventVO update = buildEvent(EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE, 101L,
-                "Updated FTCTL runtime state for VM vm-uuid", new Date(1000L));
-        Mockito.when(eventDao.listToArchiveOrDeleteEvents(Mockito.isNull(), Mockito.anyString(), Mockito.isNull(), Mockito.isNull(), Mockito.anyList()))
-                .thenAnswer(invocation -> {
-                    String type = invocation.getArgument(1);
-                    if (EventTypes.EVENT_FTCTL_PROTECTION_PROGRESS.equals(type)) {
-                        return Collections.singletonList(progress);
-                    }
-                    if (EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE.equals(type)) {
-                        return Collections.singletonList(update);
-                    }
-                    return Collections.emptyList();
-                });
+        String itemsJson = "[" +
+                "{\"ts\":\"2026-05-10T00:00:01+09:00\",\"vm\":\"vm-name\",\"stage\":\"runtime\",\"event\":\"state.update\",\"result\":\"ok\",\"details\":{\"state\":\"syncing\"}}," +
+                "{\"ts\":\"2026-05-10T00:00:02+09:00\",\"vm\":\"vm-name\",\"stage\":\"blockcopy\",\"event\":\"blockcopy.progress\",\"result\":\"ok\",\"details\":{\"direction\":\"forward\",\"percent\":40.0,\"copied_bytes\":40,\"total_bytes\":100,\"ready\":false}}" +
+                "]";
+        Mockito.when(agentManager.send(Mockito.eq(201L), Mockito.any(FtctlEventsCommand.class)))
+                .thenReturn(new FtctlEventsAnswer(new FtctlEventsCommand("vm-name", 10), true, "OK",
+                        "ok", "vm-name", 2, itemsJson));
 
         FtctlEventsResponse response = ftctlService.getFtctlEvents(cmd);
 
@@ -225,14 +216,16 @@ public class FtctlServiceImplTest {
         Assert.assertEquals("vm-name", response.getVmName());
         Assert.assertEquals("ok", response.getResult());
         Assert.assertEquals(Integer.valueOf(2), response.getCount());
+        Assert.assertEquals(Double.valueOf(40.0), response.getSyncProgressPercent());
+        Assert.assertTrue(response.getLatestProgress().contains("\"direction\":\"forward\""));
 
         List<FtctlEventResponse> events = response.getEvents();
         Assert.assertEquals(2, events.size());
-        Assert.assertEquals("cloud", events.get(0).getStage());
-        Assert.assertEquals(EventTypes.EVENT_FTCTL_PROTECTION_PROGRESS, events.get(0).getEvent());
-        Assert.assertEquals("info", events.get(0).getResult());
-        Assert.assertTrue(events.get(0).getDetails().contains("40.0%"));
-        Mockito.verify(agentManager, Mockito.never()).send(Mockito.anyLong(), Mockito.any(Command.class));
+        Assert.assertEquals("runtime", events.get(0).getStage());
+        Assert.assertEquals("blockcopy.progress", events.get(1).getEvent());
+        Assert.assertEquals("ok", events.get(1).getResult());
+        Assert.assertTrue(events.get(1).getDetails().contains("\"percent\":40.0"));
+        Mockito.verify(eventDao, Mockito.never()).listToArchiveOrDeleteEvents(Mockito.any(), Mockito.anyString(), Mockito.any(), Mockito.any(), Mockito.anyList());
     }
 
     @Test
@@ -924,11 +917,10 @@ public class FtctlServiceImplTest {
         vmDetails.put("101:ftctl.check.result", "ok");
         vmDetails.put("101:ftctl.check.inventory.result", "healthy");
         vmDetails.put("101:ftctl.health.result", "ok");
-        EventVO event = buildEvent(EventTypes.EVENT_FTCTL_PROTECTION_FAILOVER, 101L,
-                "FTCTL failover precheck completed", new Date(1000L));
-        Mockito.when(eventDao.listToArchiveOrDeleteEvents(Mockito.isNull(), Mockito.anyString(), Mockito.isNull(), Mockito.isNull(), Mockito.anyList()))
-                .thenAnswer(invocation -> EventTypes.EVENT_FTCTL_PROTECTION_FAILOVER.equals(invocation.getArgument(1))
-                        ? Collections.singletonList(event) : Collections.emptyList());
+        Mockito.when(agentManager.send(Mockito.eq(201L), Mockito.any(FtctlEventsCommand.class)))
+                .thenReturn(new FtctlEventsAnswer(new FtctlEventsCommand("vm-name", 20), true, "OK",
+                        "ok", "vm-name", 1,
+                        "[{\"ts\":\"2026-05-10T00:00:01+09:00\",\"vm\":\"vm-name\",\"stage\":\"runtime\",\"event\":\"failover.start\",\"result\":\"ok\",\"details\":{\"message\":\"FTCTL failover precheck completed\"}}]"));
 
         GetFtctlCheckCmd checkCmd = new GetFtctlCheckCmd();
         setField(checkCmd, "virtualMachineId", 401L);
@@ -952,8 +944,8 @@ public class FtctlServiceImplTest {
         Assert.assertEquals(Long.valueOf(401L), eventsResponse.getVirtualMachineId());
         Assert.assertEquals("vm-name", eventsResponse.getVmName());
         Assert.assertEquals(Integer.valueOf(1), eventsResponse.getCount());
-        Assert.assertEquals(EventTypes.EVENT_FTCTL_PROTECTION_FAILOVER, eventsResponse.getEvents().get(0).getEvent());
-        Mockito.verify(agentManager, Mockito.never()).send(Mockito.anyLong(), Mockito.any(Command.class));
+        Assert.assertEquals("failover.start", eventsResponse.getEvents().get(0).getEvent());
+        Mockito.verify(agentManager).send(Mockito.eq(201L), Mockito.any(FtctlEventsCommand.class));
     }
 
     @Test
@@ -1281,12 +1273,12 @@ public class FtctlServiceImplTest {
     }
 
     @Test
-    public void testGetFtctlEventsDoesNotCallAgent() throws Exception {
+    public void testGetFtctlEventsCallsAgent() throws Exception {
         GetFtctlEventsCmd cmd = new GetFtctlEventsCmd();
         setField(cmd, "virtualMachineId", 101L);
         FtctlEventsResponse response = ftctlService.getFtctlEvents(cmd);
         Assert.assertEquals(Integer.valueOf(0), response.getCount());
-        Mockito.verify(agentManager, Mockito.never()).send(Mockito.anyLong(), Mockito.any(Command.class));
+        Mockito.verify(agentManager).send(Mockito.eq(201L), Mockito.any(FtctlEventsCommand.class));
     }
 
     @Test
@@ -1296,17 +1288,6 @@ public class FtctlServiceImplTest {
         FtctlHealthResponse response = ftctlService.getFtctlHealth(cmd);
         Assert.assertEquals("not_available", getFieldValue(response, "result"));
         Mockito.verify(agentManager, Mockito.never()).send(Mockito.anyLong(), Mockito.any(Command.class));
-    }
-
-    private EventVO buildEvent(String type, long resourceId, String description, Date createDate) {
-        EventVO event = new EventVO();
-        event.setType(type);
-        event.setLevel(EventVO.LEVEL_INFO);
-        event.setResourceId(resourceId);
-        event.setResourceType("VirtualMachine");
-        event.setDescription(description);
-        event.setCreatedDate(createDate);
-        return event;
     }
 
     private void setField(Object target, String fieldName, Object value) {

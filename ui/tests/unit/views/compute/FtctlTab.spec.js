@@ -495,13 +495,20 @@ describe('Views > compute > FtctlTab.vue', () => {
         return Promise.resolve({
           getftctleventsresponse: {
             ftctlevents: {
+              latestprogress: JSON.stringify({
+                direction: 'forward',
+                percent,
+                copied_bytes: percent,
+                total_bytes: 100,
+                ready: false
+              }),
               events: [{
                 timestamp: `2026-05-10T00:00:${String(eventCallCount).padStart(2, '0')}+09:00`,
                 event: 'blockcopy.progress',
                 details: JSON.stringify({
                   direction: 'forward',
-                  percent,
-                  copied_bytes: percent,
+                  percent: 5,
+                  copied_bytes: 5,
                   total_bytes: 100,
                   ready: false
                 })
@@ -554,6 +561,14 @@ describe('Views > compute > FtctlTab.vue', () => {
         return Promise.resolve({
           getftctleventsresponse: {
             ftctlevents: {
+              latestprogress: JSON.stringify({
+                direction: 'forward',
+                percent: 100,
+                copied_bytes: 100,
+                total_bytes: 100,
+                ready: true,
+                updated: '2026-05-10T00:01:00+09:00'
+              }),
               events: [{
                 timestamp: '2026-05-10T00:01:00+09:00',
                 event: 'blockcopy.progress',

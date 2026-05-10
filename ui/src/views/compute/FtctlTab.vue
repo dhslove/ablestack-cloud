@@ -947,6 +947,78 @@ export default {
       }
       return undefined
     },
+    parseProgressPayload (payload) {
+      if (!payload) {
+        return null
+      }
+      if (typeof payload === 'object') {
+        return Object.assign({}, payload)
+      }
+      try {
+        const parsed = JSON.parse(payload)
+        return parsed && typeof parsed === 'object' ? parsed : null
+      } catch (e) {
+        return null
+      }
+    },
+    applyProgress (progress) {
+      if (!progress) {
+        return false
+      }
+      const percent = this.parseProgressNumber(progress.percent)
+      if (percent === undefined) {
+        return false
+      }
+      const copiedBytes = this.parseProgressNumber(progress.copied_bytes)
+      const totalBytes = this.parseProgressNumber(progress.total_bytes)
+      const ready = this.parseProgressReady(progress.ready)
+      const normalized = Object.assign({}, progress, {
+        percent,
+        copied_bytes: copiedBytes,
+        total_bytes: totalBytes,
+        ready
+      })
+      if (this.shouldApplyProgress(normalized)) {
+        this.syncProgressState = normalized
+      }
+      return true
+    },
+    applyProgressFromPayload (payload) {
+      const progress = this.parseProgressPayload(payload.latestprogress || payload.latest_progress || payload.syncprogressjson)
+      if (progress) {
+        if (progress.percent === undefined) {
+          progress.percent = payload.syncprogresspercent
+        }
+        if (progress.copied_bytes === undefined) {
+          progress.copied_bytes = payload.synccopiedbytes
+        }
+        if (progress.total_bytes === undefined) {
+          progress.total_bytes = payload.synctotalbytes
+        }
+        if (progress.ready === undefined) {
+          progress.ready = payload.syncready
+        }
+        if (!progress.direction) {
+          progress.direction = payload.syncdirection
+        }
+        if (!progress.updated) {
+          progress.updated = payload.syncupdated
+        }
+        return this.applyProgress(progress)
+      }
+      const percent = this.parseProgressNumber(payload.syncprogresspercent)
+      if (percent === undefined) {
+        return false
+      }
+      return this.applyProgress({
+        direction: payload.syncdirection || 'forward',
+        percent,
+        copied_bytes: payload.synccopiedbytes,
+        total_bytes: payload.synctotalbytes,
+        ready: payload.syncready,
+        updated: payload.syncupdated || ''
+      })
+    },
     shouldApplyProgress (progress) {
       const current = this.syncProgressState || {}
       const currentDirection = current.direction || ''
@@ -995,9 +1067,7 @@ export default {
         updated,
         stage: details.stage || progressEvent.stage || ''
       })
-      if (this.shouldApplyProgress(progress)) {
-        this.syncProgressState = progress
-      }
+      this.applyProgress(progress)
     },
     summarizeEventDetails (details) {
       if (!details) {
@@ -1129,7 +1199,9 @@ export default {
         }).sort((a, b) => {
           return String(b.timestamp || '').localeCompare(String(a.timestamp || ''))
         })
-        this.applyProgressFromEvents()
+        if (!this.applyProgressFromPayload(payload)) {
+          this.applyProgressFromEvents()
+        }
       } catch (error) {
         if (!options.silent) {
           this.events = []
