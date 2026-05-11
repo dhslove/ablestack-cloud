@@ -392,16 +392,25 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         FtctlProtectionVO protection = findActiveProtectionForVm(requestedVm.getId());
         UserVmVO runtimeVm = resolveRuntimeVmForProtectionView(requestedVm);
         Long sourceVmId = protection != null ? protection.getPrimaryVmId() : runtimeVm.getId();
+        List<FtctlEventResponse> events = fetchRuntimeEventResponses(runtimeVm, 100);
+        FtctlEventResponse latestInventoryCheck = findLatestEvent(events, "inventory.check");
+        JsonObject latestInventoryCheckDetails = parseJsonObject(latestInventoryCheck != null ? latestInventoryCheck.getDetails() : null);
+        FtctlEventResponse latestInventoryDisks = findLatestEvent(events, "inventory.disks");
         FtctlCheckResponse response = new FtctlCheckResponse();
         response.setObjectName("ftctlcheck");
         response.setVirtualMachineId(requestedVm.getId());
         response.setVmName(runtimeVm.getInstanceName());
-        response.setResult(StringUtils.defaultIfBlank(getDetailValue(sourceVmId, DETAIL_CHECK_RESULT), "not_available"));
-        response.setInventoryResult(StringUtils.defaultIfBlank(getDetailValue(sourceVmId, DETAIL_CHECK_INVENTORY_RESULT), "unknown"));
-        response.setPrimaryRc(parseIntegerDetail(getDetailValue(sourceVmId, DETAIL_CHECK_PRIMARY_RC)));
-        response.setPeerRc(parseIntegerDetail(getDetailValue(sourceVmId, DETAIL_CHECK_PEER_RC)));
-        response.setPeerDomainExpected(parseBooleanDetail(getDetailValue(sourceVmId, DETAIL_CHECK_PEER_DOMAIN_EXPECTED)));
-        response.setStandbyDomainState(getDetailValue(sourceVmId, DETAIL_CHECK_STANDBY_DOMAIN_STATE));
+        response.setResult(StringUtils.defaultIfBlank(latestInventoryCheck != null ? latestInventoryCheck.getResult() : null,
+                StringUtils.defaultIfBlank(getDetailValue(sourceVmId, DETAIL_CHECK_RESULT), "not_available")));
+        response.setInventoryResult(StringUtils.defaultIfBlank(latestInventoryDisks != null ? latestInventoryDisks.getResult() : null,
+                StringUtils.defaultIfBlank(getDetailValue(sourceVmId, DETAIL_CHECK_INVENTORY_RESULT), "unknown")));
+        response.setPrimaryRc(getJsonIntegerOrDefault(latestInventoryCheckDetails, "primary_rc", parseIntegerDetail(getDetailValue(sourceVmId, DETAIL_CHECK_PRIMARY_RC))));
+        response.setPrimaryDomainState(StringUtils.defaultIfBlank(getJsonString(latestInventoryCheckDetails, "primary_domain_state"), null));
+        response.setPeerRc(getJsonIntegerOrDefault(latestInventoryCheckDetails, "peer_rc", parseIntegerDetail(getDetailValue(sourceVmId, DETAIL_CHECK_PEER_RC))));
+        response.setPeerDomainExpected(getJsonBooleanOrDefault(latestInventoryCheckDetails, "peer_domain_expected",
+                parseBooleanDetail(getDetailValue(sourceVmId, DETAIL_CHECK_PEER_DOMAIN_EXPECTED))));
+        response.setStandbyDomainState(StringUtils.defaultIfBlank(getJsonString(latestInventoryCheckDetails, "standby_domain_state"),
+                getDetailValue(sourceVmId, DETAIL_CHECK_STANDBY_DOMAIN_STATE)));
         response.setProvisioningBackend(resolveFtctlCheckProvisioningBackend(protection, sourceVmId));
         return response;
     }
@@ -611,14 +620,20 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         FtctlProtectionVO protection = findActiveProtectionForVm(requestedVm.getId());
         Long sourceVmId = protection != null ? protection.getPrimaryVmId() : runtimeVm.getId();
         Long hostId = getExecutionHostId(runtimeVm);
+        List<FtctlEventResponse> events = fetchRuntimeEventResponses(runtimeVm, 100);
+        FtctlEventResponse latestHealth = findLatestEvent(events, "libvirt.local");
+        JsonObject latestHealthDetails = parseJsonObject(latestHealth != null ? latestHealth.getDetails() : null);
         FtctlHealthResponse response = new FtctlHealthResponse();
         response.setObjectName("ftctlhealth");
         response.setVirtualMachineId(requestedVm.getId());
         response.setHostId(hostId);
         response.setHostName(resolveHostName(hostId));
-        response.setResult(StringUtils.defaultIfBlank(getDetailValue(sourceVmId, DETAIL_HEALTH_RESULT), "not_available"));
-        response.setUri(StringUtils.defaultIfBlank(getDetailValue(sourceVmId, DETAIL_HEALTH_URI), resolvePeerUri(hostId)));
-        response.setRc(parseIntegerDetail(getDetailValue(sourceVmId, DETAIL_HEALTH_RC)));
+        response.setResult(StringUtils.defaultIfBlank(latestHealth != null ? latestHealth.getResult() : null,
+                StringUtils.defaultIfBlank(getDetailValue(sourceVmId, DETAIL_HEALTH_RESULT), "not_available")));
+        response.setUri(StringUtils.defaultIfBlank(getJsonString(latestHealthDetails, "uri"),
+                StringUtils.defaultIfBlank(getDetailValue(sourceVmId, DETAIL_HEALTH_URI), resolvePeerUri(hostId))));
+        response.setRc(latestHealth != null && latestHealth.getRc() != null
+                ? latestHealth.getRc() : parseIntegerDetail(getDetailValue(sourceVmId, DETAIL_HEALTH_RC)));
         return response;
     }
 
@@ -1998,6 +2013,11 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         }
     }
 
+    private List<FtctlEventResponse> fetchRuntimeEventResponses(UserVmVO userVm, Integer limit) {
+        FtctlEventsAnswer answer = fetchRuntimeEvents(userVm, limit);
+        return answer != null ? parseEvents(answer.getItemsJson()) : Collections.emptyList();
+    }
+
     void syncActiveProtectionRuntimeStates() {
         if (!FtctlServiceEnabled.value() || !FtctlRuntimeStateSyncEnabled.value() ||
                 !runtimeStateSyncRunning.compareAndSet(false, true)) {
@@ -2468,6 +2488,20 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         return null;
     }
 
+    private FtctlEventResponse findLatestEvent(List<FtctlEventResponse> events, String eventName) {
+        if (events == null || events.isEmpty() || StringUtils.isBlank(eventName)) {
+            return null;
+        }
+        String normalizedEventName = StringUtils.lowerCase(eventName, Locale.ROOT);
+        for (int i = events.size() - 1; i >= 0; i--) {
+            FtctlEventResponse event = events.get(i);
+            if (event != null && normalizedEventName.equals(StringUtils.lowerCase(event.getEvent(), Locale.ROOT))) {
+                return event;
+            }
+        }
+        return null;
+    }
+
     private boolean isProgressEvent(FtctlEventResponse event) {
         if (event == null || StringUtils.isBlank(event.getEvent())) {
             return false;
@@ -2539,6 +2573,11 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         }
     }
 
+    private Integer getJsonIntegerOrDefault(JsonObject object, String key, Integer defaultValue) {
+        Integer value = getJsonInteger(object, key);
+        return value != null ? value : defaultValue;
+    }
+
     private Long getJsonLong(JsonObject object, String key) {
         if (object == null || !object.has(key) || object.get(key).isJsonNull()) {
             return null;
@@ -2570,6 +2609,11 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         } catch (RuntimeException e) {
             return null;
         }
+    }
+
+    private Boolean getJsonBooleanOrDefault(JsonObject object, String key, Boolean defaultValue) {
+        Boolean value = getJsonBoolean(object, key);
+        return value != null ? value : defaultValue;
     }
 
     @Override

@@ -131,17 +131,6 @@
 
           <div class="ftctl-tab__summary">
             <div class="ftctl-tab__summary-item">
-              <div class="ftctl-tab__summary-label">Primary VM</div>
-              <a-tag :color="stateTagColor(primaryVmStateDisplay)">{{ primaryVmStateDisplay }}</a-tag>
-              <div class="ftctl-tab__summary-host">{{ primaryVmHostDisplay }}</div>
-            </div>
-            <div class="ftctl-tab__summary-item">
-              <div class="ftctl-tab__summary-label">Secondary VM</div>
-              <a-tag v-if="secondaryVmStateDisplay !== '-'" :color="stateTagColor(secondaryVmStateDisplay)">{{ secondaryVmStateDisplay }}</a-tag>
-              <span v-else>-</span>
-              <div class="ftctl-tab__summary-host">{{ secondaryVmHostDisplay }}</div>
-            </div>
-            <div class="ftctl-tab__summary-item">
               <div class="ftctl-tab__summary-label">{{ $t('label.ftctl.protection.state') }}</div>
               <a-tag v-if="protection.protectionstate" :color="stateTagColor(protection.protectionstate)">{{ protection.protectionstate }}</a-tag>
               <span v-else>-</span>
@@ -316,12 +305,14 @@
               <span v-else>-</span>
             </a-descriptions-item>
             <a-descriptions-item :label="$t('label.ftctl.primary.rc')">
-              <a-tag v-if="checkResult.primaryrc !== undefined && checkResult.primaryrc !== null && checkResult.primaryrc !== ''" :color="executionStateTagColor(primaryExecutionState)">{{ primaryExecutionState }}</a-tag>
+              <a-tag v-if="primaryExecutionState !== '-'" :color="executionStateTagColor(primaryExecutionState)">{{ primaryExecutionState }}</a-tag>
               <span v-else>-</span>
+              <span v-if="primaryDomainStateDisplay !== '-'" class="ftctl-tab__inline-meta"> / {{ primaryDomainStateDisplay }}</span>
             </a-descriptions-item>
             <a-descriptions-item :label="$t('label.ftctl.peer.rc')">
-              <a-tag v-if="checkResult.peerrc !== undefined && checkResult.peerrc !== null && checkResult.peerrc !== ''" :color="executionStateTagColor(peerExecutionState)">{{ peerExecutionState }}</a-tag>
+              <a-tag v-if="peerExecutionState !== '-'" :color="executionStateTagColor(peerExecutionState)">{{ peerExecutionState }}</a-tag>
               <span v-else>-</span>
+              <span v-if="peerDomainStateDisplay !== '-'" class="ftctl-tab__inline-meta"> / {{ peerDomainStateDisplay }}</span>
             </a-descriptions-item>
           </a-descriptions>
         </a-card>
@@ -628,10 +619,10 @@ export default {
       return details
     },
     primaryExecutionState () {
-      return this.executionStateFromReturnCode(this.checkResult.primaryrc, 'primary')
+      return this.executionStateFromDomainState(this.primaryDomainStateDisplay) || this.executionStateFromReturnCode(this.checkResult.primaryrc, 'primary')
     },
     peerExecutionState () {
-      return this.executionStateFromReturnCode(this.checkResult.peerrc, 'peer')
+      return this.executionStateFromDomainState(this.peerDomainStateDisplay) || this.executionStateFromReturnCode(this.checkResult.peerrc, 'peer')
     },
     healthExecutionState () {
       return this.executionStateFromReturnCode(this.healthResult.rc, 'health')
@@ -656,6 +647,12 @@ export default {
     },
     secondaryVmHostDisplay () {
       return this.protection.secondaryvirtualmachinehostname || this.protection.secondaryvirtualmachinehostid || '-'
+    },
+    primaryDomainStateDisplay () {
+      return this.checkResult.primarydomainstate || '-'
+    },
+    peerDomainStateDisplay () {
+      return this.checkResult.standbydomainstate || '-'
     },
     secondaryVolumeItems () {
       return this.normalizeList(this.protection.secondaryvolumes).map(volume => {
@@ -999,6 +996,22 @@ export default {
       }
       return 'Error'
     },
+    executionStateFromDomainState (value) {
+      const normalized = String(value || '').toLowerCase()
+      if (!normalized || normalized === '-') {
+        return null
+      }
+      if (['running', 'started', 'active'].includes(normalized)) {
+        return 'Started'
+      }
+      if (['not-found', 'not_defined', 'not-defined', 'not-defined-expected', 'shutoff', 'stopped', 'paused'].includes(normalized)) {
+        return 'Stopped'
+      }
+      if (['error', 'failed'].includes(normalized)) {
+        return 'Error'
+      }
+      return value
+    },
     isCloudManagedProvisioningBackend () {
       return String(this.checkResult.provisioningbackend || this.protection.provisioningbackend || '').toLowerCase() === 'cloud-managed'
     },
@@ -1018,7 +1031,11 @@ export default {
         String(this.checkResult.standbydomainstate || '').toLowerCase() === 'not-defined-expected'
     },
     expectedCloudManagedPrimaryStopped () {
-      return this.isCloudManagedFailedOver() &&
+      const protection = String(this.protection.protectionstate || '').toLowerCase()
+      const activeSide = String(this.protection.activeside || '').toLowerCase()
+      return this.isCloudManagedProvisioningBackend() &&
+        protection === 'failed_over' &&
+        activeSide === 'secondary' &&
         Number(this.checkResult.peerrc) === 0 &&
         String(this.checkResult.standbydomainstate || '').toLowerCase() === 'running'
     },

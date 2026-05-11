@@ -42,6 +42,10 @@ public class FtctlCheckResponse extends BaseResponse {
     @Param(description = "the primary inventory return code")
     private Integer primaryRc;
 
+    @SerializedName("primarydomainstate")
+    @Param(description = "the interpreted primary domain state")
+    private String primaryDomainState;
+
     @SerializedName("peerrc")
     @Param(description = "the peer inventory return code")
     private Integer peerRc;
@@ -76,6 +80,10 @@ public class FtctlCheckResponse extends BaseResponse {
 
     public void setPrimaryRc(Integer primaryRc) {
         this.primaryRc = primaryRc;
+    }
+
+    public void setPrimaryDomainState(String primaryDomainState) {
+        this.primaryDomainState = primaryDomainState;
     }
 
     public void setPeerRc(Integer peerRc) {
