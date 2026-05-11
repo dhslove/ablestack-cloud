@@ -660,11 +660,40 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         }
         validateReleaseProtectionState(primaryVm, protection, force);
 
-        FtctlActionResponse response = executeFtctlAgentAction(primaryVm, FtctlActionCommand.Action.UNPROTECT, true);
-        validateUnprotectRuntimeRelease(primaryVm, protection, response);
-        releaseCloudManagedStandbyResources(primaryVm, protection);
+        List<String> forceWarnings = new ArrayList<>();
+        FtctlActionResponse response;
+        try {
+            response = executeFtctlAgentAction(primaryVm, FtctlActionCommand.Action.UNPROTECT, force);
+        } catch (CloudRuntimeException e) {
+            if (!force) {
+                throw e;
+            }
+            addForcedReleaseWarning(primaryVm, forceWarnings,
+                    String.format("Host-side FTCTL unprotect failed; continuing forced release cleanup: %s", e.getMessage()));
+            response = buildForcedReleaseFallbackResponse(primaryVm, e.getMessage());
+        }
+        if (force) {
+            try {
+                validateUnprotectRuntimeRelease(primaryVm, protection, response);
+            } catch (CloudRuntimeException e) {
+                addForcedReleaseWarning(primaryVm, forceWarnings,
+                        String.format("Host-side FTCTL unprotect cleanup could not be fully verified: %s", e.getMessage()));
+            }
+        } else {
+            validateUnprotectRuntimeRelease(primaryVm, protection, response);
+        }
+        try {
+            releaseCloudManagedStandbyResources(primaryVm, protection);
+        } catch (CloudRuntimeException e) {
+            if (!force) {
+                throw e;
+            }
+            addForcedReleaseWarning(primaryVm, forceWarnings,
+                    String.format("Cloud-managed standby cleanup failed during forced release: %s", e.getMessage()));
+        }
         markProtectionRowsRemoved(protection);
         vmInstanceDetailsDao.removeDetailsWithPrefix(primaryVm.getId(), "ftctl.");
+        applyForcedReleaseWarnings(response, forceWarnings);
         response.setAction(FtctlActionCommand.Action.UNPROTECT.name());
         response.setProtectionState("disabled");
         response.setTransportState("stopped");
@@ -673,8 +702,39 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         response.setFencingState("clear");
         response.setLastError(null);
         publishFtctlEvent(primaryVm, EventTypes.EVENT_FTCTL_PROTECTION_RELEASE,
-                String.format("Released FTCTL protection for VM %s", primaryVm.getUuid()));
+                String.format("%s FTCTL protection for VM %s",
+                        force ? "Force released" : "Released", primaryVm.getUuid()));
         return response;
+    }
+
+    private FtctlActionResponse buildForcedReleaseFallbackResponse(UserVmVO primaryVm, String errorMessage) {
+        FtctlActionResponse response = new FtctlActionResponse();
+        response.setObjectName("ftctlaction");
+        response.setVirtualMachineId(primaryVm.getId());
+        response.setVmName(primaryVm.getInstanceName());
+        response.setAction(FtctlActionCommand.Action.UNPROTECT.name());
+        response.setResult("warn");
+        response.setOutput(String.format("Forced release continued after host-side FTCTL unprotect failure: %s",
+                StringUtils.abbreviate(StringUtils.defaultString(errorMessage), 1024)));
+        return response;
+    }
+
+    private void addForcedReleaseWarning(UserVmVO primaryVm, List<String> warnings, String warning) {
+        String message = StringUtils.abbreviate(StringUtils.defaultString(warning), 1024);
+        warnings.add(message);
+        logger.warn(message);
+        publishFtctlEvent(primaryVm, EventTypes.EVENT_FTCTL_PROTECTION_RELEASE,
+                String.format("FTCTL forced protection release warning for VM %s: %s",
+                        primaryVm.getUuid(), StringUtils.abbreviate(message, 512)));
+    }
+
+    private void applyForcedReleaseWarnings(FtctlActionResponse response, List<String> warnings) {
+        if (warnings.isEmpty()) {
+            return;
+        }
+        response.setResult("warn");
+        String warningOutput = String.format("Forced release warnings: %s", StringUtils.join(warnings, "; "));
+        response.setOutput(StringUtils.trimToEmpty(response.getOutput()) + "\n" + warningOutput);
     }
 
     private void validateReleaseProtectionState(UserVmVO primaryVm, FtctlProtectionVO protection, boolean force) {
@@ -837,6 +897,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
                     action == FtctlActionCommand.Action.FAILBACK_SYNC || action == FtctlActionCommand.Action.FAILBACK_FINALIZE ||
                     action == FtctlActionCommand.Action.FAILBACK_REPROTECT ||
                     action == FtctlActionCommand.Action.UNPROTECT);
+            actionCommand.setForceCleanup(force && action == FtctlActionCommand.Action.UNPROTECT);
             if (action == FtctlActionCommand.Action.FAILBACK ||
                     action == FtctlActionCommand.Action.FAILBACK_FINALIZE || action == FtctlActionCommand.Action.FAILBACK_REPROTECT) {
                 actionCommand.setWait(FAILBACK_ACTION_WAIT_SECONDS);

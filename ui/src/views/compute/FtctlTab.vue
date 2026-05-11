@@ -99,8 +99,19 @@
 
           <a-space v-if="canRunActions" wrap class="ftctl-tab__operations">
             <template v-for="action in actionDefinitions" :key="action.api">
+              <a-button
+                v-if="action.releaseModal"
+                size="small"
+                :danger="action.danger"
+                :disabled="action.disabled"
+                :title="action.disabled ? action.reason : null"
+                :loading="actionLoading[action.api]"
+                @click="openReleaseModal">
+                <template #icon><component :is="action.icon" /></template>
+                {{ action.label }}
+              </a-button>
               <a-popconfirm
-                v-if="action.confirm"
+                v-else-if="action.confirm"
                 placement="topRight"
                 :title="action.confirmMessage"
                 :ok-text="$t('label.yes')"
@@ -375,6 +386,45 @@
           @close-action="closeProtectionModal"
           @refresh-data="handleProtectionSaved" />
       </a-modal>
+
+      <a-modal
+        :visible="showReleaseModal"
+        :title="$t('label.ftctl.release.protection')"
+        :ok-text="$t('label.ftctl.release.protection')"
+        :cancel-text="$t('label.cancel')"
+        :confirmLoading="actionLoading.releaseFtctlProtection"
+        :ok-button-props="{ danger: true, disabled: !canSubmitReleaseProtection }"
+        :maskClosable="false"
+        width="640px"
+        @ok="confirmReleaseProtection"
+        @cancel="closeReleaseModal">
+        <a-alert
+          type="warning"
+          show-icon
+          :message="$t('message.ftctl.release.modal.desc')"
+          class="ftctl-tab__alert" />
+        <a-alert
+          v-if="!isProtectionReleaseReady()"
+          type="error"
+          show-icon
+          :message="$t('message.ftctl.release.normal.unavailable')"
+          class="ftctl-tab__alert" />
+        <a-checkbox v-model:checked="releaseForceSelected" class="ftctl-tab__release-check">
+          {{ $t('label.ftctl.force.release') }}
+        </a-checkbox>
+        <a-alert
+          v-if="releaseForceSelected"
+          type="error"
+          show-icon
+          :message="$t('message.ftctl.force.release.warning')"
+          class="ftctl-tab__alert" />
+        <a-checkbox
+          v-if="releaseForceSelected"
+          v-model:checked="releaseForceAcknowledged"
+          class="ftctl-tab__release-check">
+          {{ $t('message.ftctl.force.release.ack') }}
+        </a-checkbox>
+      </a-modal>
     </div>
   </a-spin>
 </template>
@@ -410,6 +460,9 @@ export default {
       events: [],
       syncProgressState: {},
       showProtectionModal: false,
+      showReleaseModal: false,
+      releaseForceSelected: false,
+      releaseForceAcknowledged: false,
       lastAction: {
         success: false,
         message: null,
@@ -470,6 +523,15 @@ export default {
     },
     actionInProgress () {
       return Object.values(this.actionLoading).some(loading => loading)
+    },
+    canSubmitReleaseProtection () {
+      if (this.actionLoading.releaseFtctlProtection) {
+        return false
+      }
+      if (this.releaseForceSelected) {
+        return this.releaseForceAcknowledged
+      }
+      return this.isProtectionReleaseReady()
     },
     standbyProtectionView () {
       return String(this.protection.protectionrole || '').toLowerCase() === 'standby'
@@ -752,8 +814,7 @@ export default {
           label: this.$t('label.ftctl.release.protection'),
           icon: 'DeleteOutlined',
           danger: true,
-          confirm: true,
-          confirmMessage: this.$t('message.ftctl.confirm.release'),
+          releaseModal: true,
           disabled: this.isActionDisabled('releaseFtctlProtection'),
           reason: this.actionDisabledReason('releaseFtctlProtection')
         }
@@ -769,7 +830,12 @@ export default {
   },
   methods: {
     actionAvailable (apiName) {
-      return apiName in this.$store.getters.apis && this.supportedVm && !this.standbyProtectionView && !this.unsafeVmState && this.protectionConfigured
+      const allowUnsafeVmState = apiName === 'releaseFtctlProtection'
+      return apiName in this.$store.getters.apis &&
+        this.supportedVm &&
+        !this.standbyProtectionView &&
+        (allowUnsafeVmState || !this.unsafeVmState) &&
+        this.protectionConfigured
     },
     normalizeState (value) {
       return String(value || '').trim().toLowerCase()
@@ -860,7 +926,7 @@ export default {
         case 'failbackFtctlProtection':
           return this.isFailbackStartReady() ? null : 'Failback requires failed-over secondary side and released fencing.'
         case 'releaseFtctlProtection':
-          return this.isProtectionReleaseReady() ? null : 'Protection release requires stable primary protected state.'
+          return this.protectionEnabled ? null : 'Protection release requires an enabled FTCTL protection row.'
         default:
           return null
       }
@@ -873,6 +939,25 @@ export default {
     },
     closeProtectionModal () {
       this.showProtectionModal = false
+    },
+    openReleaseModal () {
+      this.releaseForceSelected = false
+      this.releaseForceAcknowledged = false
+      this.showReleaseModal = true
+    },
+    closeReleaseModal () {
+      this.showReleaseModal = false
+      this.releaseForceSelected = false
+      this.releaseForceAcknowledged = false
+    },
+    async confirmReleaseProtection () {
+      if (!this.canSubmitReleaseProtection) {
+        this.$message.warning(this.$t('message.ftctl.force.release.ack.required'))
+        return
+      }
+      const force = this.releaseForceSelected
+      this.closeReleaseModal()
+      await this.runAction('releaseFtctlProtection', { force })
     },
     handleProtectionSaved (payload = {}) {
       this.emitKeepCurrentTab()
@@ -1422,11 +1507,11 @@ export default {
         }
       }
     },
-    async runAction (commandName) {
+    async runAction (commandName, params = {}) {
       if (!this.resource?.id || !(commandName in this.$store.getters.apis)) {
         return
       }
-      const disabledReason = this.actionDisabledReason(commandName)
+      const disabledReason = params.force === true && commandName === 'releaseFtctlProtection' ? null : this.actionDisabledReason(commandName)
       if (disabledReason) {
         this.$message.warning(disabledReason)
         return
@@ -1439,7 +1524,7 @@ export default {
         timestamp: null
       }
       try {
-        const response = await postAPI(commandName, { virtualmachineid: this.resource.id })
+        const response = await postAPI(commandName, Object.assign({ virtualmachineid: this.resource.id }, params))
         const payload = this.extractActionResponsePayload(response, commandName)
         const jobId = this.extractJobId(payload)
         if (jobId) {
@@ -1654,6 +1739,12 @@ export default {
   &__operations {
     padding-bottom: 12px;
     border-bottom: 1px solid rgba(127, 127, 127, 0.18);
+  }
+
+  &__release-check {
+    display: block;
+    margin: 10px 0;
+    line-height: 1.5;
   }
 
   &__meta {

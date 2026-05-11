@@ -52,6 +52,7 @@ public class FtctlActionCommand extends Command {
     private String peerUri;
     private String profileName;
     private boolean force;
+    private boolean forceCleanup;
     private Map<String, String> context = new HashMap<>();
 
     public FtctlActionCommand() {
@@ -100,6 +101,14 @@ public class FtctlActionCommand extends Command {
 
     public void setForce(boolean force) {
         this.force = force;
+    }
+
+    public boolean isForceCleanup() {
+        return forceCleanup;
+    }
+
+    public void setForceCleanup(boolean forceCleanup) {
+        this.forceCleanup = forceCleanup;
     }
 
     public Map<String, String> getContext() {

@@ -75,6 +75,9 @@ public class LibvirtFtctlActionCommandWrapper extends CommandWrapper<FtctlAction
         if (command.isForce()) {
             script.add("--force");
         }
+        if (command.isForceCleanup()) {
+            script.add("--force-cleanup");
+        }
         script.add("--json");
 
         OutputInterpreter.AllLinesParser parser = new FtctlAllLinesParser();
