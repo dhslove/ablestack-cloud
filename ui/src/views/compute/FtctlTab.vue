@@ -395,35 +395,38 @@
         :confirmLoading="actionLoading.releaseFtctlProtection"
         :ok-button-props="{ danger: true, disabled: !canSubmitReleaseProtection }"
         :maskClosable="false"
+        wrapClassName="ftctl-tab-release-modal"
         width="640px"
         @ok="confirmReleaseProtection"
         @cancel="closeReleaseModal">
-        <a-alert
-          type="warning"
-          show-icon
-          :message="$t('message.ftctl.release.modal.desc')"
-          class="ftctl-tab__alert" />
-        <a-alert
-          v-if="!isProtectionReleaseReady()"
-          type="error"
-          show-icon
-          :message="$t('message.ftctl.release.normal.unavailable')"
-          class="ftctl-tab__alert" />
-        <a-checkbox v-model:checked="releaseForceSelected" class="ftctl-tab__release-check">
-          {{ $t('label.ftctl.force.release') }}
-        </a-checkbox>
-        <a-alert
-          v-if="releaseForceSelected"
-          type="error"
-          show-icon
-          :message="$t('message.ftctl.force.release.warning')"
-          class="ftctl-tab__alert" />
-        <a-checkbox
-          v-if="releaseForceSelected"
-          v-model:checked="releaseForceAcknowledged"
-          class="ftctl-tab__release-check">
-          {{ $t('message.ftctl.force.release.ack') }}
-        </a-checkbox>
+        <div class="ftctl-tab__release-modal-body">
+          <a-alert
+            type="warning"
+            show-icon
+            :message="$t('message.ftctl.release.modal.desc')"
+            class="ftctl-tab__alert ftctl-tab__release-alert" />
+          <a-alert
+            v-if="!isProtectionReleaseReady()"
+            type="error"
+            show-icon
+            :message="$t('message.ftctl.release.normal.unavailable')"
+            class="ftctl-tab__alert ftctl-tab__release-alert" />
+          <a-checkbox v-model:checked="releaseForceSelected" class="ftctl-tab__release-check">
+            {{ $t('label.ftctl.force.release') }}
+          </a-checkbox>
+          <a-alert
+            v-if="releaseForceSelected"
+            type="error"
+            show-icon
+            :message="$t('message.ftctl.force.release.warning')"
+            class="ftctl-tab__alert ftctl-tab__release-alert" />
+          <a-checkbox
+            v-if="releaseForceSelected"
+            v-model:checked="releaseForceAcknowledged"
+            class="ftctl-tab__release-check">
+            {{ $t('message.ftctl.force.release.ack') }}
+          </a-checkbox>
+        </div>
       </a-modal>
     </div>
   </a-spin>
@@ -1742,9 +1745,26 @@ export default {
   }
 
   &__release-check {
-    display: block;
-    margin: 10px 0;
+    display: flex;
+    align-items: flex-start;
+    margin: 12px 0;
     line-height: 1.5;
+  }
+
+  &__release-check :deep(.ant-checkbox) {
+    flex: 0 0 auto;
+    margin-top: 3px;
+  }
+
+  &__release-check :deep(.ant-checkbox + span) {
+    min-width: 0;
+    padding-right: 0;
+    overflow-wrap: anywhere;
+  }
+
+  &__release-modal-body {
+    display: flex;
+    flex-direction: column;
   }
 
   &__meta {
@@ -1939,6 +1959,31 @@ export default {
 </style>
 
 <style lang="scss">
+.ftctl-tab-release-modal {
+  .ftctl-tab__release-alert {
+    margin-bottom: 12px;
+  }
+
+  .ftctl-tab__release-check.ant-checkbox-wrapper {
+    display: flex;
+    align-items: flex-start;
+    margin: 12px 0;
+    line-height: 1.5;
+    white-space: normal;
+  }
+
+  .ftctl-tab__release-check .ant-checkbox {
+    flex: 0 0 auto;
+    margin-top: 3px;
+  }
+
+  .ftctl-tab__release-check .ant-checkbox + span {
+    min-width: 0;
+    padding-right: 0;
+    overflow-wrap: anywhere;
+  }
+}
+
 body.dark-mode .ftctl-tab {
   color: rgba(255, 255, 255, 0.82);
 
@@ -2079,6 +2124,56 @@ body.dark-mode .ftctl-tab {
 
   .ant-empty-description {
     color: rgba(255, 255, 255, 0.62);
+  }
+}
+
+body.dark-mode .ftctl-tab-release-modal {
+  .ant-modal-content,
+  .ant-modal-header,
+  .ant-modal-body,
+  .ant-modal-footer {
+    background: #1f272f;
+    color: rgba(255, 255, 255, 0.86);
+  }
+
+  .ant-modal-header,
+  .ant-modal-footer {
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .ant-modal-title,
+  .ant-modal-close {
+    color: rgba(255, 255, 255, 0.86);
+  }
+
+  .ftctl-tab__release-alert.ant-alert-warning {
+    background: #3b2d0d;
+    border-color: #d89614;
+  }
+
+  .ftctl-tab__release-alert.ant-alert-warning .ant-alert-icon {
+    color: #ffc53d;
+  }
+
+  .ftctl-tab__release-alert.ant-alert-warning .ant-alert-message {
+    color: #fff1b8;
+  }
+
+  .ftctl-tab__release-alert.ant-alert-error {
+    background: #3a1719;
+    border-color: #ff7875;
+  }
+
+  .ftctl-tab__release-alert.ant-alert-error .ant-alert-icon {
+    color: #ff4d4f;
+  }
+
+  .ftctl-tab__release-alert.ant-alert-error .ant-alert-message {
+    color: #ffd6d6;
+  }
+
+  .ftctl-tab__release-check.ant-checkbox-wrapper {
+    color: rgba(255, 255, 255, 0.82);
   }
 }
 </style>

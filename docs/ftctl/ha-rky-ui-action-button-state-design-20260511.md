@@ -69,3 +69,13 @@ The expected HA-RKY manual-fence operator flow becomes:
 Disabled buttons expose a short reason through the button title. The click handler also checks the same reason before sending the API request and displays a warning if the action is no longer valid.
 
 This is intentionally a UI safety gate, not the final authority. Cloud backend and qemu FTCTL must still reject invalid transitions when commands are called directly or when state changes between UI refreshes.
+
+## Protection Release Modal Readability
+
+The protection release modal must make the normal release and forced release paths visually clear in both light and dark themes.
+
+- The modal receives a dedicated wrapper class so release-specific alert and checkbox styles do not affect the rest of the Fault Protection tab.
+- Warning and error alerts in dark mode use stronger foreground contrast, visible borders, and readable icon colors. Yellow or red alert backgrounds must not pair with low-contrast white text.
+- Forced release checkboxes are laid out as a single row with the checkbox immediately beside its label. Long acknowledgement text wraps from the label column, not below the checkbox.
+- Spacing follows the action order: normal release description, normal-release unavailable warning, forced-release opt-in, forced-release warning, forced-release acknowledgement.
+- The modal behavior remains unchanged: normal release is allowed only in a valid stable state, forced release requires explicit user selection and acknowledgement, and the backend remains the final state-transition authority.
