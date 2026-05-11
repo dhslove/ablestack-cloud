@@ -144,6 +144,7 @@ public class FtctlServiceImplTest {
         Mockito.lenient().when(userVm.getHostName()).thenReturn("vm-name");
         Mockito.lenient().when(userVm.getAccountId()).thenReturn(501L);
         Mockito.when(userVm.getHostId()).thenReturn(201L);
+        Mockito.lenient().when(userVm.getState()).thenReturn(VirtualMachine.State.Running);
         Mockito.lenient().when(userVm.getDataCenterId()).thenReturn(401L);
         Mockito.when(userVmDao.findById(101L)).thenReturn(userVm);
 
@@ -1055,6 +1056,9 @@ public class FtctlServiceImplTest {
         Assert.assertEquals("pool-name", getFieldValue(response, "targetStoragePoolName"));
         Assert.assertEquals("202", getFieldValue(response, "peerHostId"));
         Assert.assertEquals("host-202", getFieldValue(response, "peerHostName"));
+        Assert.assertEquals("Running", getFieldValue(response, "primaryVirtualMachineState"));
+        Assert.assertEquals(Long.valueOf(201L), getFieldValue(response, "primaryVirtualMachineHostId"));
+        Assert.assertEquals("host-201", getFieldValue(response, "primaryVirtualMachineHostName"));
         Assert.assertEquals("protected", getFieldValue(response, "protectionState"));
         Assert.assertEquals("replicating", getFieldValue(response, "transportState"));
         Assert.assertEquals("primary", getFieldValue(response, "activeSide"));
@@ -1262,6 +1266,23 @@ public class FtctlServiceImplTest {
         } finally {
             Mockito.verify(agentManager, Mockito.times(1)).send(Mockito.eq(201L), Mockito.any(Command.class));
         }
+    }
+
+    @Test
+    public void testRegisterFtctlProtectionRejectsStoppedVmBeforeProvisioning() throws Exception {
+        RegisterFtctlProtectionCmd cmd = buildRegisterCmd();
+        Mockito.when(userVm.getState()).thenReturn(VirtualMachine.State.Stopped);
+
+        try {
+            ftctlService.registerFtctlProtection(cmd);
+            Assert.fail("Expected CloudRuntimeException");
+        } catch (CloudRuntimeException e) {
+            Assert.assertTrue(e.getMessage().contains("requires VM vm-uuid to be Running"));
+        }
+
+        Mockito.verify(ftctlProtectionProvisioningService, Mockito.never()).prepareProtection(Mockito.any());
+        Mockito.verify(vmInstanceDetailsDao, Mockito.never()).addDetail(Mockito.eq(101L), Mockito.startsWith("ftctl."), Mockito.anyString(), Mockito.anyBoolean());
+        Mockito.verify(agentManager, Mockito.never()).send(Mockito.anyLong(), Mockito.any(Command.class));
     }
 
     @Test(expected = CloudRuntimeException.class)

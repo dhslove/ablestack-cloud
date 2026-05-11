@@ -24,10 +24,10 @@
         <template #extra>
           <a-space wrap>
             <a-button
-              v-if="canConfigureProtection && !protectionConfigured"
+              v-if="canShowConfigureProtection && !protectionConfigured"
               type="primary"
               @click="openProtectionModal"
-              :disabled="unsafeVmState || loadingState">
+              :disabled="protectionConfigureDisabled">
               <template #icon><SafetyCertificateOutlined /></template>
               {{ $t('label.ftctl.protection.configure') }}
             </a-button>
@@ -37,6 +37,13 @@
             </a-button>
           </a-space>
         </template>
+
+        <a-alert
+          v-if="!protectionConfigured && vmProtectionBlockedMessage"
+          type="info"
+          show-icon
+          :message="vmProtectionBlockedMessage"
+          class="ftctl-tab__alert" />
 
         <a-alert
           v-if="errorMessage"
@@ -103,6 +110,7 @@
                   size="small"
                   :danger="action.danger"
                   :disabled="action.disabled"
+                  :title="action.disabled ? action.reason : null"
                   :loading="actionLoading[action.api]">
                   <template #icon><component :is="action.icon" /></template>
                   {{ action.label }}
@@ -112,6 +120,7 @@
                 v-else
                 size="small"
                 :disabled="action.disabled"
+                :title="action.disabled ? action.reason : null"
                 :loading="actionLoading[action.api]"
                 @click="runAction(action.api)">
                 <template #icon><component :is="action.icon" /></template>
@@ -121,6 +130,17 @@
           </a-space>
 
           <div class="ftctl-tab__summary">
+            <div class="ftctl-tab__summary-item">
+              <div class="ftctl-tab__summary-label">Primary VM</div>
+              <a-tag :color="stateTagColor(primaryVmStateDisplay)">{{ primaryVmStateDisplay }}</a-tag>
+              <div class="ftctl-tab__summary-host">{{ primaryVmHostDisplay }}</div>
+            </div>
+            <div class="ftctl-tab__summary-item">
+              <div class="ftctl-tab__summary-label">Secondary VM</div>
+              <a-tag v-if="secondaryVmStateDisplay !== '-'" :color="stateTagColor(secondaryVmStateDisplay)">{{ secondaryVmStateDisplay }}</a-tag>
+              <span v-else>-</span>
+              <div class="ftctl-tab__summary-host">{{ secondaryVmHostDisplay }}</div>
+            </div>
             <div class="ftctl-tab__summary-item">
               <div class="ftctl-tab__summary-label">{{ $t('label.ftctl.protection.state') }}</div>
               <a-tag v-if="protection.protectionstate" :color="stateTagColor(protection.protectionstate)">{{ protection.protectionstate }}</a-tag>
@@ -186,6 +206,7 @@
           <div>
             <div class="ftctl-tab__empty-title">{{ $t('message.ftctl.protection.not.configured') }}</div>
             <div class="ftctl-tab__empty-description">{{ $t('message.ftctl.protection.not.configured.desc') }}</div>
+            <div class="ftctl-tab__meta">VM: {{ currentVmStateDisplay }}<span v-if="currentVmHostDisplay"> / {{ currentVmHostDisplay }}</span></div>
           </div>
         </div>
       </a-card>
@@ -204,6 +225,10 @@
                 {{ primaryVmDisplay }}
               </router-link>
               <span v-else>-</span>
+            </a-descriptions-item>
+            <a-descriptions-item label="Primary VM State">
+              <a-tag :color="stateTagColor(primaryVmStateDisplay)">{{ primaryVmStateDisplay }}</a-tag>
+              <span v-if="primaryVmHostDisplay !== '-'" class="ftctl-tab__inline-meta"> / {{ primaryVmHostDisplay }}</span>
             </a-descriptions-item>
             <a-descriptions-item :label="$t('label.enabled')">
               <a-tag :color="booleanTagColor(protection.enabled)">{{ formatBoolean(protection.enabled) }}</a-tag>
@@ -229,6 +254,11 @@
                 {{ secondaryVmDisplay }}
               </router-link>
               <span v-else>{{ secondaryVmDisplay }}</span>
+            </a-descriptions-item>
+            <a-descriptions-item label="Secondary VM State">
+              <a-tag v-if="secondaryVmStateDisplay !== '-'" :color="stateTagColor(secondaryVmStateDisplay)">{{ secondaryVmStateDisplay }}</a-tag>
+              <span v-else>-</span>
+              <span v-if="secondaryVmHostDisplay !== '-'" class="ftctl-tab__inline-meta"> / {{ secondaryVmHostDisplay }}</span>
             </a-descriptions-item>
             <a-descriptions-item :label="$t('label.ftctl.secondary.target.disk')">
               <div v-if="secondaryVolumeItems.length" class="ftctl-tab__link-list">
@@ -396,6 +426,8 @@ export default {
       },
       syncRefreshTimer: null,
       syncRefreshIntervalMs: null,
+      postRegisterRefreshTimer: null,
+      postRegisterRefreshAttempts: 0,
       refreshingProgress: false,
       runtimeRefreshing: false,
       backgroundRefreshing: false,
@@ -430,6 +462,9 @@ export default {
     unsafeVmState () {
       return ['Destroyed', 'Expunging', 'Error'].includes(this.resource?.state) || this.resource?.hostcontrolstate === 'Offline'
     },
+    vmRunningForProtection () {
+      return String(this.resource?.state || '').toLowerCase() === 'running'
+    },
     supportedVm () {
       return ['Admin'].includes(this.$store.getters.userInfo?.roletype) &&
         this.resource?.hypervisor === 'KVM' &&
@@ -441,6 +476,9 @@ export default {
     },
     protectionEnabled () {
       return this.protection.enabled === true || this.protection.enabled === 'true'
+    },
+    actionInProgress () {
+      return Object.values(this.actionLoading).some(loading => loading)
     },
     standbyProtectionView () {
       return String(this.protection.protectionrole || '').toLowerCase() === 'standby'
@@ -470,8 +508,26 @@ export default {
     protectionRoleColor () {
       return this.standbyProtectionView ? 'purple' : 'blue'
     },
-    canConfigureProtection () {
+    canShowConfigureProtection () {
       return 'registerFtctlProtection' in this.$store.getters.apis && this.supportedVm && !this.standbyProtectionView
+    },
+    canConfigureProtection () {
+      return this.canShowConfigureProtection && this.vmRunningForProtection
+    },
+    protectionConfigureDisabled () {
+      return !this.canConfigureProtection || this.unsafeVmState || this.loadingState || this.backgroundRefreshing
+    },
+    vmProtectionBlockedMessage () {
+      if (!this.canShowConfigureProtection) {
+        return null
+      }
+      if (!this.vmRunningForProtection) {
+        return `FTCTL protection can be configured only when the VM is Running. Current VM state: ${this.currentVmStateDisplay}`
+      }
+      if (this.unsafeVmState) {
+        return `FTCTL protection is unavailable while the VM is in ${this.currentVmStateDisplay} state.`
+      }
+      return null
     },
     canRunActions () {
       return ['pauseFtctlProtection', 'resumeFtctlProtection', 'failoverFtctlProtection', 'failbackFtctlProtection', 'confirmFtctlFence', 'clearFtctlFence', 'releaseFtctlProtection']
@@ -583,6 +639,24 @@ export default {
     peerHostDisplay () {
       return this.protection.peerhostname || this.protection.peerhostid || '-'
     },
+    currentVmStateDisplay () {
+      return this.resource?.state || '-'
+    },
+    currentVmHostDisplay () {
+      return this.resource?.hostname || this.resource?.host || this.resource?.hostid || ''
+    },
+    primaryVmStateDisplay () {
+      return this.protection.primaryvirtualmachinestate || this.resource?.state || '-'
+    },
+    primaryVmHostDisplay () {
+      return this.protection.primaryvirtualmachinehostname || this.protection.primaryvirtualmachinehostid || this.currentVmHostDisplay || '-'
+    },
+    secondaryVmStateDisplay () {
+      return this.protection.secondaryvirtualmachinestate || '-'
+    },
+    secondaryVmHostDisplay () {
+      return this.protection.secondaryvirtualmachinehostname || this.protection.secondaryvirtualmachinehostid || '-'
+    },
     secondaryVolumeItems () {
       return this.normalizeList(this.protection.secondaryvolumes).map(volume => {
         return {
@@ -611,22 +685,32 @@ export default {
     healthHostDisplay () {
       return this.healthResult.hostname || '-'
     },
+    ftctlActionState () {
+      return {
+        protection: this.normalizeState(this.protection.protectionstate),
+        transport: this.normalizeState(this.protection.transportstate),
+        activeSide: this.normalizeState(this.protection.activeside),
+        admin: this.normalizeState(this.protection.adminstate),
+        fencing: this.normalizeState(this.protection.fencingstate),
+        primaryVm: this.normalizeState(this.primaryVmStateDisplay),
+        secondaryVm: this.normalizeState(this.secondaryVmStateDisplay)
+      }
+    },
     actionDefinitions () {
-      const adminState = String(this.protection.adminstate || '').toLowerCase()
-      const activeSide = String(this.protection.activeside || '').toLowerCase()
-      const fencingState = String(this.protection.fencingstate || '').toLowerCase()
       return [
         {
           api: 'pauseFtctlProtection',
           label: this.$t('label.ftctl.pause'),
           icon: 'PauseCircleOutlined',
-          disabled: !this.actionAvailable('pauseFtctlProtection') || !this.protectionEnabled || adminState === 'paused'
+          disabled: this.isActionDisabled('pauseFtctlProtection'),
+          reason: this.actionDisabledReason('pauseFtctlProtection')
         },
         {
           api: 'resumeFtctlProtection',
           label: this.$t('label.ftctl.resume'),
           icon: 'PlayCircleOutlined',
-          disabled: !this.actionAvailable('resumeFtctlProtection') || !this.protectionEnabled || adminState !== 'paused'
+          disabled: this.isActionDisabled('resumeFtctlProtection'),
+          reason: this.actionDisabledReason('resumeFtctlProtection')
         },
         {
           api: 'failoverFtctlProtection',
@@ -635,7 +719,8 @@ export default {
           danger: true,
           confirm: true,
           confirmMessage: this.$t('message.ftctl.confirm.failover'),
-          disabled: !this.actionAvailable('failoverFtctlProtection') || !this.protectionEnabled || activeSide === 'secondary'
+          disabled: this.isActionDisabled('failoverFtctlProtection'),
+          reason: this.actionDisabledReason('failoverFtctlProtection')
         },
         {
           api: 'failbackFtctlProtection',
@@ -644,7 +729,8 @@ export default {
           danger: true,
           confirm: true,
           confirmMessage: this.$t('message.ftctl.confirm.failback'),
-          disabled: !this.actionAvailable('failbackFtctlProtection') || !this.protectionEnabled || activeSide !== 'secondary'
+          disabled: this.isActionDisabled('failbackFtctlProtection'),
+          reason: this.actionDisabledReason('failbackFtctlProtection')
         },
         {
           api: 'confirmFtctlFence',
@@ -652,7 +738,8 @@ export default {
           icon: 'CheckCircleOutlined',
           confirm: true,
           confirmMessage: this.$t('message.ftctl.confirm.fence'),
-          disabled: !this.actionAvailable('confirmFtctlFence') || !['required', 'failed', 'manual-required'].includes(fencingState)
+          disabled: this.isActionDisabled('confirmFtctlFence'),
+          reason: this.actionDisabledReason('confirmFtctlFence')
         },
         {
           api: 'clearFtctlFence',
@@ -660,7 +747,8 @@ export default {
           icon: 'ClearOutlined',
           confirm: true,
           confirmMessage: this.$t('message.ftctl.clear.fence'),
-          disabled: !this.actionAvailable('clearFtctlFence') || !fencingState || ['clear', 'cleared'].includes(fencingState)
+          disabled: this.isActionDisabled('clearFtctlFence'),
+          reason: this.actionDisabledReason('clearFtctlFence')
         },
         {
           api: 'releaseFtctlProtection',
@@ -669,7 +757,8 @@ export default {
           danger: true,
           confirm: true,
           confirmMessage: this.$t('message.ftctl.confirm.release'),
-          disabled: !this.actionAvailable('releaseFtctlProtection') || !this.protectionEnabled || activeSide === 'secondary'
+          disabled: this.isActionDisabled('releaseFtctlProtection'),
+          reason: this.actionDisabledReason('releaseFtctlProtection')
         }
       ]
     }
@@ -679,10 +768,108 @@ export default {
   },
   beforeUnmount () {
     this.stopSyncAutoRefresh()
+    this.stopPostRegisterAutoRefresh()
   },
   methods: {
     actionAvailable (apiName) {
       return apiName in this.$store.getters.apis && this.supportedVm && !this.standbyProtectionView && !this.unsafeVmState && this.protectionConfigured
+    },
+    normalizeState (value) {
+      return String(value || '').trim().toLowerCase()
+    },
+    stateIn (value, states) {
+      return states.includes(this.normalizeState(value))
+    },
+    isAdminActiveState (state = this.ftctlActionState.admin) {
+      return !state || ['active', 'running'].includes(state)
+    },
+    isFenceClearState (state = this.ftctlActionState.fencing) {
+      return !state || ['clear', 'cleared'].includes(state)
+    },
+    isStablePrimaryProtected () {
+      const state = this.ftctlActionState
+      return state.activeSide === 'primary' &&
+        ['protected', 'colo_running'].includes(state.protection) &&
+        ['mirroring', 'replicating'].includes(state.transport) &&
+        this.isFenceClearState(state.fencing)
+    },
+    isForwardFailoverReady () {
+      return this.isStablePrimaryProtected() && this.isAdminActiveState()
+    },
+    isManualFenceConfirmationReady () {
+      const state = this.ftctlActionState
+      return state.activeSide === 'primary' &&
+        state.protection === 'failing_over' &&
+        ['mirroring', 'failed_over'].includes(state.transport) &&
+        ['required', 'failed', 'manual-required'].includes(state.fencing) &&
+        state.primaryVm === 'stopped'
+    },
+    isManualFenceReleaseReady () {
+      const state = this.ftctlActionState
+      return state.activeSide === 'secondary' &&
+        state.protection === 'failed_over' &&
+        state.transport === 'failed_over' &&
+        ['manual-fenced', 'fenced'].includes(state.fencing)
+    },
+    isFailbackStartReady () {
+      const state = this.ftctlActionState
+      return state.activeSide === 'secondary' &&
+        state.protection === 'failed_over' &&
+        state.transport === 'failed_over' &&
+        this.isFenceClearState(state.fencing) &&
+        this.isAdminActiveState()
+    },
+    isProtectionReleaseReady () {
+      const state = this.ftctlActionState
+      return this.isStablePrimaryProtected() &&
+        this.isAdminActiveState() &&
+        state.primaryVm === 'running'
+    },
+    baseActionDisabledReason (apiName) {
+      if (!this.actionAvailable(apiName)) {
+        return 'Action is not available for the current VM or permission.'
+      }
+      if (!this.protectionEnabled) {
+        return 'FTCTL protection is not enabled.'
+      }
+      if (this.loadingState || this.actionInProgress) {
+        return 'Another FTCTL refresh or action is in progress.'
+      }
+      return null
+    },
+    actionDisabledReason (apiName) {
+      const baseReason = this.baseActionDisabledReason(apiName)
+      if (baseReason) {
+        return baseReason
+      }
+      const state = this.ftctlActionState
+      switch (apiName) {
+        case 'pauseFtctlProtection':
+          if (!this.isStablePrimaryProtected()) {
+            return 'Pause is available only in stable primary protected state.'
+          }
+          if (state.admin === 'paused') {
+            return 'FTCTL protection is already paused.'
+          }
+          return null
+        case 'resumeFtctlProtection':
+          return state.admin === 'paused' ? null : 'Resume is available only while protection is paused.'
+        case 'failoverFtctlProtection':
+          return this.isForwardFailoverReady() ? null : 'Failover requires primary active side, clear fencing, and ready mirroring.'
+        case 'confirmFtctlFence':
+          return this.isManualFenceConfirmationReady() ? null : 'Fence confirmation requires failover fencing request and stopped primary VM.'
+        case 'clearFtctlFence':
+          return this.isManualFenceReleaseReady() ? null : 'Fence release is available only after successful failed-over manual fencing.'
+        case 'failbackFtctlProtection':
+          return this.isFailbackStartReady() ? null : 'Failback requires failed-over secondary side and released fencing.'
+        case 'releaseFtctlProtection':
+          return this.isProtectionReleaseReady() ? null : 'Protection release requires stable primary protected state.'
+        default:
+          return null
+      }
+    },
+    isActionDisabled (apiName) {
+      return Boolean(this.actionDisabledReason(apiName))
     },
     openProtectionModal () {
       this.showProtectionModal = true
@@ -690,12 +877,21 @@ export default {
     closeProtectionModal () {
       this.showProtectionModal = false
     },
-    handleProtectionSaved () {
+    handleProtectionSaved (payload = {}) {
       this.emitKeepCurrentTab()
       this.closeProtectionModal()
-      this.fetchAll()
+      this.applyProtectionPayload(payload)
+      this.fetchAll({ silent: true })
+      this.startPostRegisterAutoRefresh()
       setTimeout(this.emitKeepCurrentTab, 250)
       setTimeout(this.emitKeepCurrentTab, 1000)
+    },
+    applyProtectionPayload (payload) {
+      if (!payload || typeof payload !== 'object') {
+        return
+      }
+      const protectionPayload = payload.ftctlprotection || payload
+      this.protection = Object.assign({}, this.protection, protectionPayload)
     },
     emitKeepCurrentTab () {
       this.$emit('keep-current-tab', 'ftctl')
@@ -869,7 +1065,7 @@ export default {
     },
     stateTagColor (value) {
       const normalized = String(value || '').toLowerCase()
-      if (['ok', 'protected', 'colo_running', 'mirroring', 'reachable'].includes(normalized)) {
+      if (['ok', 'protected', 'colo_running', 'mirroring', 'reachable', 'running'].includes(normalized)) {
         return 'green'
       }
       if (['warn', 'degraded', 'transient_loss', 'peer_unreachable', 'rearm_pending', 'rearm_backoff', 'failing_over', 'failing_back', 'paused', 'required'].includes(normalized)) {
@@ -881,7 +1077,7 @@ export default {
       if (['fail', 'error', 'rearm_exhausted', 'timeout', 'locked'].includes(normalized)) {
         return 'red'
       }
-      if (['clear', 'cleared', 'active'].includes(normalized)) {
+      if (['clear', 'cleared', 'active', 'stopped'].includes(normalized)) {
         return 'blue'
       }
       return 'blue'
@@ -1213,6 +1409,11 @@ export default {
       if (!this.resource?.id || !(commandName in this.$store.getters.apis)) {
         return
       }
+      const disabledReason = this.actionDisabledReason(commandName)
+      if (disabledReason) {
+        this.$message.warning(disabledReason)
+        return
+      }
       this.actionLoading[commandName] = true
       this.errorMessage = null
       this.lastAction = {
@@ -1327,6 +1528,27 @@ export default {
     shouldRefreshParentVm (commandName) {
       return ['failoverFtctlProtection', 'failbackFtctlProtection', 'confirmFtctlFence', 'releaseFtctlProtection'].includes(commandName)
     },
+    startPostRegisterAutoRefresh () {
+      this.stopPostRegisterAutoRefresh()
+      this.postRegisterRefreshAttempts = 0
+      this.postRegisterRefreshTimer = setInterval(async () => {
+        if (this.backgroundRefreshing) {
+          return
+        }
+        this.postRegisterRefreshAttempts += 1
+        await this.fetchTabBackgroundRefresh()
+        if (this.protectionConfigured || this.postRegisterRefreshAttempts >= 40) {
+          this.stopPostRegisterAutoRefresh()
+        }
+      }, 3000)
+    },
+    stopPostRegisterAutoRefresh () {
+      if (this.postRegisterRefreshTimer) {
+        clearInterval(this.postRegisterRefreshTimer)
+      }
+      this.postRegisterRefreshTimer = null
+      this.postRegisterRefreshAttempts = 0
+    },
     updateSyncAutoRefresh () {
       if (!this.resource?.id || !this.protectionConfigured) {
         this.stopSyncAutoRefresh()
@@ -1421,6 +1643,12 @@ export default {
     margin-top: 4px;
     font-size: 12px;
     opacity: 0.8;
+  }
+
+  &__inline-meta,
+  &__summary-host {
+    font-size: 12px;
+    opacity: 0.72;
   }
 
   &__summary {
@@ -1624,9 +1852,42 @@ body.dark-mode .ftctl-tab {
     border-color: rgba(64, 169, 255, 0.32);
   }
 
+  .ant-alert-warning {
+    background: rgba(250, 173, 20, 0.16);
+    border-color: rgba(250, 173, 20, 0.46);
+  }
+
+  .ant-alert-warning .ant-alert-icon {
+    color: #ffc53d;
+  }
+
+  .ant-alert-success {
+    background: rgba(82, 196, 26, 0.14);
+    border-color: rgba(82, 196, 26, 0.38);
+  }
+
+  .ant-alert-error {
+    background: rgba(255, 77, 79, 0.16);
+    border-color: rgba(255, 77, 79, 0.42);
+  }
+
   .ant-alert-message,
   .ant-alert-description {
-    color: rgba(255, 255, 255, 0.84);
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  .ant-alert .ftctl-tab__meta {
+    color: rgba(255, 255, 255, 0.68);
+    opacity: 1;
+  }
+
+  .ant-ribbon-color-gold,
+  .ant-ribbon-color-yellow,
+  .ant-ribbon-color-orange,
+  .ant-ribbon-color-gold .ant-ribbon-text,
+  .ant-ribbon-color-yellow .ant-ribbon-text,
+  .ant-ribbon-color-orange .ant-ribbon-text {
+    color: #1f1600;
   }
 
   .ant-btn:not(.ant-btn-primary):not(.ant-btn-dangerous):not([disabled]) {

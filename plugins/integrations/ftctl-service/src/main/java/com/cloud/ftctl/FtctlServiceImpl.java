@@ -280,6 +280,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     public FtctlProtectionResponse registerFtctlProtection(RegisterFtctlProtectionCmd cmd) throws CloudRuntimeException {
         UserVmVO userVm = validateVirtualMachineExists(cmd.getVirtualMachineId());
         validatePrimaryProtectionTarget(userVm);
+        validateProtectionRegistrationVmState(userVm);
         validateRegisterRequest(cmd);
         StoragePoolVO targetStoragePool = validateTargetStoragePool(cmd, userVm);
         String targetStorageScope = resolveTargetStorageScope(cmd, targetStoragePool);
@@ -1624,6 +1625,16 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         }
     }
 
+    private void validateProtectionRegistrationVmState(UserVmVO userVm) {
+        if (userVm == null) {
+            return;
+        }
+        if (userVm.getState() != VirtualMachine.State.Running) {
+            throw new CloudRuntimeException(String.format("FTCTL protection registration requires VM %s to be Running, current state is %s",
+                    userVm.getUuid(), userVm.getState()));
+        }
+    }
+
     private FtctlProtectionResponse buildProtectionResponse(UserVmVO requestedVm) {
         Long requestedVmId = requestedVm != null ? requestedVm.getId() : null;
         FtctlProtectionVO protection = findActiveProtectionForVm(requestedVmId);
@@ -1636,10 +1647,16 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         response.setPrimaryVirtualMachineId(primaryVmId);
         response.setPrimaryVirtualMachineName(resolveVmDisplayName(primaryVmId));
         response.setPrimaryVirtualMachineUuid(resolveVmUuid(primaryVmId));
+        response.setPrimaryVirtualMachineState(resolveVmState(primaryVmId));
+        response.setPrimaryVirtualMachineHostId(resolveVmHostId(primaryVmId));
+        response.setPrimaryVirtualMachineHostName(resolveVmHostName(primaryVmId));
         Long secondaryVmId = protection != null ? protection.getSecondaryVmId() : null;
         response.setSecondaryVirtualMachineId(secondaryVmId);
         response.setSecondaryVirtualMachineUuid(resolveVmUuid(secondaryVmId));
         response.setSecondaryVirtualMachineDisplayName(resolveVmDisplayName(secondaryVmId));
+        response.setSecondaryVirtualMachineState(resolveVmState(secondaryVmId));
+        response.setSecondaryVirtualMachineHostId(resolveVmHostId(secondaryVmId));
+        response.setSecondaryVirtualMachineHostName(resolveVmHostName(secondaryVmId));
         response.setEnabled(getDetailValue(sourceVmId, DETAIL_ENABLED));
         response.setMode(getDetailValue(sourceVmId, DETAIL_MODE));
         response.setBackendMode(getDetailValue(sourceVmId, DETAIL_BACKEND_MODE));
@@ -1702,6 +1719,21 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     private String resolveVmUuid(Long virtualMachineId) {
         UserVmVO vm = virtualMachineId != null ? userVmDao.findById(virtualMachineId) : null;
         return vm != null ? vm.getUuid() : null;
+    }
+
+    private String resolveVmState(Long virtualMachineId) {
+        UserVmVO vm = virtualMachineId != null ? userVmDao.findById(virtualMachineId) : null;
+        return vm != null && vm.getState() != null ? vm.getState().toString() : null;
+    }
+
+    private Long resolveVmHostId(Long virtualMachineId) {
+        UserVmVO vm = virtualMachineId != null ? userVmDao.findById(virtualMachineId) : null;
+        return vm != null ? vm.getHostId() : null;
+    }
+
+    private String resolveVmHostName(Long virtualMachineId) {
+        Long hostId = resolveVmHostId(virtualMachineId);
+        return resolveHostName(hostId);
     }
 
     private void populateCloudManagedDiskDetails(Long primaryVmId, FtctlProtectionVO protection, FtctlProtectionResponse response) {

@@ -154,7 +154,7 @@
       </a-form>
       <div class="action-button">
         <a-button @click="closeAction">{{ $t('label.cancel') }}</a-button>
-        <a-button :loading="loading" type="primary" @click="handleSubmit" ref="submit">{{ $t('label.ok') }}</a-button>
+        <a-button :loading="loading" :disabled="!vmRunningForProtection" type="primary" @click="handleSubmit" ref="submit">{{ $t('label.ok') }}</a-button>
       </div>
     </a-spin>
   </div>
@@ -187,6 +187,9 @@ export default {
     }
   },
   computed: {
+    vmRunningForProtection () {
+      return String(this.resource?.state || '').toLowerCase() === 'running'
+    },
     showFtFields () {
       return this.form?.mode === 'ft'
     },
@@ -475,6 +478,10 @@ export default {
         e.preventDefault()
       }
       if (this.loading) return
+      if (!this.vmRunningForProtection) {
+        this.$message.error(`FTCTL protection can be configured only when the VM is Running. Current VM state: ${this.resource?.state || '-'}`)
+        return
+      }
       this.formRef.value.validate().then(() => {
         const values = toRaw(this.form)
         if (!this.validateConditionalFields(values)) {
@@ -517,7 +524,7 @@ export default {
           } else {
             this.$message.success(this.$t('message.ftctl.protection.saved'))
           }
-          this.$emit('refresh-data')
+          this.$emit('refresh-data', payload)
           this.closeAction()
         }).catch((error) => {
           this.$notifyError(error)
@@ -566,6 +573,7 @@ export default {
 :global(.dark) .ftctl-auto-fields,
 :global(.night) .ftctl-auto-fields,
 :global([data-theme='dark']) .ftctl-auto-fields,
+:global(body.dark-mode) .ftctl-auto-fields,
 :global(body.dark) .ftctl-auto-fields,
 :global(body.night) .ftctl-auto-fields {
   background: rgba(64, 169, 255, 0.1);
@@ -577,6 +585,28 @@ export default {
 
   :deep(.ant-alert-description) {
     color: rgba(255, 255, 255, 0.58);
+  }
+}
+
+:global(body.dark-mode) .ftctl-auto-fields.ant-alert-warning,
+:global(body.dark) .ftctl-auto-fields.ant-alert-warning,
+:global(body.night) .ftctl-auto-fields.ant-alert-warning,
+:global(.dark) .ftctl-auto-fields.ant-alert-warning,
+:global(.night) .ftctl-auto-fields.ant-alert-warning,
+:global([data-theme='dark']) .ftctl-auto-fields.ant-alert-warning {
+  background: rgba(250, 173, 20, 0.16);
+  border-color: rgba(250, 173, 20, 0.46);
+
+  :deep(.ant-alert-icon) {
+    color: #ffc53d;
+  }
+
+  :deep(.ant-alert-message) {
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  :deep(.ant-alert-description) {
+    color: rgba(255, 255, 255, 0.68);
   }
 }
 </style>

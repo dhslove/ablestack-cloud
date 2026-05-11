@@ -44,6 +44,18 @@ public class FtctlProtectionResponse extends BaseResponse {
     @Param(description = "the FTCTL primary virtual machine UUID")
     private String primaryVirtualMachineUuid;
 
+    @SerializedName("primaryvirtualmachinestate")
+    @Param(description = "the FTCTL primary virtual machine state from Cloud DB")
+    private String primaryVirtualMachineState;
+
+    @SerializedName("primaryvirtualmachinehostid")
+    @Param(description = "the FTCTL primary virtual machine host ID from Cloud DB")
+    private Long primaryVirtualMachineHostId;
+
+    @SerializedName("primaryvirtualmachinehostname")
+    @Param(description = "the FTCTL primary virtual machine host name from Cloud DB")
+    private String primaryVirtualMachineHostName;
+
     @SerializedName("secondaryvirtualmachineid")
     @Param(description = "the FTCTL secondary virtual machine ID")
     private Long secondaryVirtualMachineId;
@@ -55,6 +67,18 @@ public class FtctlProtectionResponse extends BaseResponse {
     @SerializedName("secondaryvirtualmachinedisplayname")
     @Param(description = "the FTCTL secondary virtual machine display name")
     private String secondaryVirtualMachineDisplayName;
+
+    @SerializedName("secondaryvirtualmachinestate")
+    @Param(description = "the FTCTL secondary virtual machine state from Cloud DB")
+    private String secondaryVirtualMachineState;
+
+    @SerializedName("secondaryvirtualmachinehostid")
+    @Param(description = "the FTCTL secondary virtual machine host ID from Cloud DB")
+    private Long secondaryVirtualMachineHostId;
+
+    @SerializedName("secondaryvirtualmachinehostname")
+    @Param(description = "the FTCTL secondary virtual machine host name from Cloud DB")
+    private String secondaryVirtualMachineHostName;
 
     @SerializedName("enabled")
     @Param(description = "whether FTCTL protection is enabled")
@@ -208,6 +232,18 @@ public class FtctlProtectionResponse extends BaseResponse {
         this.primaryVirtualMachineUuid = primaryVirtualMachineUuid;
     }
 
+    public void setPrimaryVirtualMachineState(String primaryVirtualMachineState) {
+        this.primaryVirtualMachineState = primaryVirtualMachineState;
+    }
+
+    public void setPrimaryVirtualMachineHostId(Long primaryVirtualMachineHostId) {
+        this.primaryVirtualMachineHostId = primaryVirtualMachineHostId;
+    }
+
+    public void setPrimaryVirtualMachineHostName(String primaryVirtualMachineHostName) {
+        this.primaryVirtualMachineHostName = primaryVirtualMachineHostName;
+    }
+
     public void setSecondaryVirtualMachineId(Long secondaryVirtualMachineId) {
         this.secondaryVirtualMachineId = secondaryVirtualMachineId;
     }
@@ -218,6 +254,18 @@ public class FtctlProtectionResponse extends BaseResponse {
 
     public void setSecondaryVirtualMachineDisplayName(String secondaryVirtualMachineDisplayName) {
         this.secondaryVirtualMachineDisplayName = secondaryVirtualMachineDisplayName;
+    }
+
+    public void setSecondaryVirtualMachineState(String secondaryVirtualMachineState) {
+        this.secondaryVirtualMachineState = secondaryVirtualMachineState;
+    }
+
+    public void setSecondaryVirtualMachineHostId(Long secondaryVirtualMachineHostId) {
+        this.secondaryVirtualMachineHostId = secondaryVirtualMachineHostId;
+    }
+
+    public void setSecondaryVirtualMachineHostName(String secondaryVirtualMachineHostName) {
+        this.secondaryVirtualMachineHostName = secondaryVirtualMachineHostName;
     }
 
     public void setEnabled(String enabled) {
