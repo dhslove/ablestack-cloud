@@ -30,6 +30,7 @@ const createWrapper = () => {
       resource: {
         id: 'vm-1',
         name: 'vm-name',
+        state: 'Running',
         zoneid: 'zone-1',
         clusterid: 'cluster-1',
         hostid: 'host-1'
@@ -210,6 +211,7 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
     expect(postAPI).toHaveBeenCalledWith('registerFtctlProtection', {
       virtualmachineid: 'vm-1',
       mode: 'dr',
+      drpeersitetype: 'local-mold',
       provisioningbackend: 'cloud-managed',
       fencingpolicy: 'manual-block',
       backendmode: 'remote-nbd',
@@ -251,6 +253,62 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
     expect(wrapper.vm.$message.success).toHaveBeenCalledWith(expect.stringContaining('label.started'))
     expect(wrapper.emitted('refresh-data')).toBeTruthy()
     expect(wrapper.emitted('close-action')).toBeTruthy()
+  })
+
+  it('submits DR remote Mold registration without local peer host or storage IDs', async () => {
+    mockGetApi()
+    postAPI.mockResolvedValue({ registerftctlprotectionresponse: { success: true } })
+
+    const wrapper = createWrapper()
+    await flushPromises()
+
+    wrapper.vm.form.mode = 'dr'
+    wrapper.vm.form.drpeersitetype = 'remote-mold'
+    wrapper.vm.handleDrPeerSiteTypeChange()
+    wrapper.vm.form.remotemoldapiurl = 'https://remote.example/client/api'
+    wrapper.vm.form.remotemoldapikey = 'api-key'
+    wrapper.vm.form.remotemoldsecretkey = 'secret-key'
+    wrapper.vm.form.remotepeerhostuuid = 'remote-host-1'
+    wrapper.vm.form.remotepeerhostname = 'remote-host'
+    wrapper.vm.form.remotepeerhostaddress = '10.20.0.12'
+    wrapper.vm.form.remotepeerhostblockcopyaddress = '10.30.0.12'
+    wrapper.vm.form.remotepeerlibvirturi = 'qemu+ssh://10.20.0.12/system'
+    wrapper.vm.form.remotetargetstoragepooluuid = 'remote-pool-1'
+    wrapper.vm.form.remotetargetstoragepoolname = 'remote-pool'
+    wrapper.vm.form.remotetargetstoragepoolpath = '/remote/ftctl'
+    wrapper.vm.form.remotetargetstoragepooltype = 'Filesystem'
+    wrapper.vm.form.secondaryvmname = 'vm-name-standby'
+    wrapper.vm.form.secondarytargetdir = '/remote/ftctl'
+    wrapper.vm.form.remotenbdexportaddr = '10.30.0.12:10809'
+    wrapper.vm.formRef.value = {
+      validate: jest.fn().mockResolvedValue(true),
+      scrollToField: jest.fn()
+    }
+
+    await wrapper.vm.handleSubmit({ preventDefault: jest.fn() })
+    await flushPromises()
+
+    expect(postAPI).toHaveBeenCalledWith('registerFtctlProtection', expect.objectContaining({
+      virtualmachineid: 'vm-1',
+      mode: 'dr',
+      drpeersitetype: 'remote-mold',
+      provisioningbackend: 'libvirt-managed',
+      backendmode: 'remote-nbd',
+      targetstoragescope: 'secondary-local',
+      remotemoldapiurl: 'https://remote.example/client/api',
+      remotepeerhostuuid: 'remote-host-1',
+      remotepeerhostaddress: '10.20.0.12',
+      remotepeerhostblockcopyaddress: '10.30.0.12',
+      remotepeerlibvirturi: 'qemu+ssh://10.20.0.12/system',
+      remotetargetstoragepooluuid: 'remote-pool-1',
+      remotetargetstoragepoolpath: '/remote/ftctl',
+      secondarytargetdir: '/remote/ftctl',
+      remotenbdexportaddr: '10.30.0.12:10809'
+    }))
+    expect(postAPI.mock.calls[0][1]).not.toHaveProperty('peerhostid')
+    expect(postAPI.mock.calls[0][1]).not.toHaveProperty('targetstoragepoolid')
+    expect(postAPI.mock.calls[0][1]).not.toHaveProperty('remotemoldapikey')
+    expect(postAPI.mock.calls[0][1]).not.toHaveProperty('remotemoldsecretkey')
   })
 
   it('submits FT registerFtctlProtection with target storage pool and endpoints', async () => {

@@ -23,12 +23,18 @@ import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlCheckCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlEventsCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlHealthCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlProtectionCmd;
+import org.apache.cloudstack.api.command.admin.ftctl.ListFtctlRemoteMoldHostsCmd;
+import org.apache.cloudstack.api.command.admin.ftctl.ListFtctlRemoteMoldStoragePoolsCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.RegisterFtctlProtectionCmd;
+import org.apache.cloudstack.api.command.admin.ftctl.ValidateFtctlRemoteMoldConnectionCmd;
 import org.apache.cloudstack.api.response.ftctl.FtctlActionResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlCheckResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlEventsResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlHealthResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlProtectionResponse;
+import org.apache.cloudstack.api.response.ftctl.FtctlRemoteMoldConnectionResponse;
+import org.apache.cloudstack.api.response.ftctl.FtctlRemoteMoldHostsResponse;
+import org.apache.cloudstack.api.response.ftctl.FtctlRemoteMoldStoragePoolsResponse;
 import org.apache.cloudstack.framework.config.ConfigKey;
 import org.apache.cloudstack.framework.config.Configurable;
 
@@ -55,6 +61,12 @@ public interface FtctlService extends PluggableService, Configurable {
     FtctlProtectionResponse getFtctlProtection(GetFtctlProtectionCmd cmd) throws CloudRuntimeException;
 
     FtctlProtectionResponse registerFtctlProtection(RegisterFtctlProtectionCmd cmd) throws CloudRuntimeException;
+
+    FtctlRemoteMoldConnectionResponse validateFtctlRemoteMoldConnection(ValidateFtctlRemoteMoldConnectionCmd cmd) throws CloudRuntimeException;
+
+    FtctlRemoteMoldHostsResponse listFtctlRemoteMoldHosts(ListFtctlRemoteMoldHostsCmd cmd) throws CloudRuntimeException;
+
+    FtctlRemoteMoldStoragePoolsResponse listFtctlRemoteMoldStoragePools(ListFtctlRemoteMoldStoragePoolsCmd cmd) throws CloudRuntimeException;
 
     FtctlCheckResponse getFtctlCheck(GetFtctlCheckCmd cmd) throws CloudRuntimeException;
 

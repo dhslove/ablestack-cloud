@@ -68,8 +68,11 @@ import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlCheckCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlEventsCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlHealthCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlProtectionCmd;
+import org.apache.cloudstack.api.command.admin.ftctl.ListFtctlRemoteMoldHostsCmd;
+import org.apache.cloudstack.api.command.admin.ftctl.ListFtctlRemoteMoldStoragePoolsCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.RegisterFtctlProtectionCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.ReleaseFtctlProtectionCmd;
+import org.apache.cloudstack.api.command.admin.ftctl.ValidateFtctlRemoteMoldConnectionCmd;
 import org.apache.cloudstack.api.response.ftctl.FtctlActionResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlCheckResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlEventResponse;
@@ -77,6 +80,11 @@ import org.apache.cloudstack.api.response.ftctl.FtctlEventsResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlHealthResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlProtectionResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlProtectionVolumeResponse;
+import org.apache.cloudstack.api.response.ftctl.FtctlRemoteMoldConnectionResponse;
+import org.apache.cloudstack.api.response.ftctl.FtctlRemoteMoldHostResponse;
+import org.apache.cloudstack.api.response.ftctl.FtctlRemoteMoldHostsResponse;
+import org.apache.cloudstack.api.response.ftctl.FtctlRemoteMoldStoragePoolResponse;
+import org.apache.cloudstack.api.response.ftctl.FtctlRemoteMoldStoragePoolsResponse;
 import org.apache.cloudstack.context.CallContext;
 import org.apache.cloudstack.framework.config.ConfigKey;
 import org.apache.cloudstack.managed.context.ManagedContextTimerTask;
@@ -91,8 +99,20 @@ import org.apache.cloudstack.outofbandmanagement.OutOfBandManagement;
 import org.apache.cloudstack.outofbandmanagement.dao.OutOfBandManagementDao;
 
 import javax.inject.Inject;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.io.UnsupportedEncodingException;
+import java.net.URI;
+import java.net.URLEncoder;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -124,6 +144,17 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     public static final String DETAIL_TARGET_STORAGE_SCOPE = "ftctl.target.storage.scope";
     public static final String DETAIL_TARGET_STORAGE_POOL_ID = "ftctl.target.storage.pool.id";
     public static final String DETAIL_TARGET_STORAGE_POOL_NAME = "ftctl.target.storage.pool.name";
+    public static final String DETAIL_DR_PEER_SITE_TYPE = "ftctl.dr.peer.site.type";
+    public static final String DETAIL_REMOTE_MOLD_API_URL = "ftctl.dr.remote.mold.api.url";
+    public static final String DETAIL_REMOTE_PEER_HOST_ID = "ftctl.dr.remote.peer.host.id";
+    public static final String DETAIL_REMOTE_PEER_HOST_NAME = "ftctl.dr.remote.peer.host.name";
+    public static final String DETAIL_REMOTE_PEER_HOST_ADDRESS = "ftctl.dr.remote.peer.host.address";
+    public static final String DETAIL_REMOTE_PEER_HOST_BLOCKCOPY_ADDRESS = "ftctl.dr.remote.peer.host.blockcopy.address";
+    public static final String DETAIL_REMOTE_PEER_LIBVIRT_URI = "ftctl.dr.remote.peer.libvirt.uri";
+    public static final String DETAIL_REMOTE_TARGET_STORAGE_POOL_ID = "ftctl.dr.remote.target.storage.pool.id";
+    public static final String DETAIL_REMOTE_TARGET_STORAGE_POOL_NAME = "ftctl.dr.remote.target.storage.pool.name";
+    public static final String DETAIL_REMOTE_TARGET_STORAGE_POOL_PATH = "ftctl.dr.remote.target.storage.pool.path";
+    public static final String DETAIL_REMOTE_TARGET_STORAGE_POOL_TYPE = "ftctl.dr.remote.target.storage.pool.type";
     public static final String DETAIL_FENCING_POLICY = "ftctl.fencing.policy";
     public static final String DETAIL_FENCING_IPMI_PRIMARY_HOST = "ftctl.fencing.ipmi.primary.host";
     public static final String DETAIL_FENCING_IPMI_SECONDARY_HOST = "ftctl.fencing.ipmi.secondary.host";
@@ -171,6 +202,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     private static final String FENCING_POLICY_IPMI = "ipmi";
     private static final String OOBM_DRIVER_IPMITOOL = "ipmitool";
     private static final String DEFAULT_IPMI_INTERFACE = "lanplus";
+    private static final String DR_PEER_SITE_TYPE_LOCAL_MOLD = "local-mold";
+    private static final String DR_PEER_SITE_TYPE_REMOTE_MOLD = "remote-mold";
     private static final String[] LEGACY_PROGRESS_DETAIL_KEYS = {
             "ftctl.sync.progress.percent",
             "ftctl.sync.copied.bytes",
@@ -282,6 +315,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         validatePrimaryProtectionTarget(userVm);
         validateProtectionRegistrationVmState(userVm);
         validateRegisterRequest(cmd);
+        boolean remoteMoldDr = isRemoteMoldDr(cmd);
         StoragePoolVO targetStoragePool = validateTargetStoragePool(cmd, userVm);
         String targetStorageScope = resolveTargetStorageScope(cmd, targetStoragePool);
         String backendMode = resolveBackendMode(cmd, targetStoragePool);
@@ -311,6 +345,11 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         if (targetStoragePool != null) {
             putVmDetail(cmd.getVirtualMachineId(), DETAIL_TARGET_STORAGE_POOL_ID, targetStoragePool.getUuid());
             putVmDetail(cmd.getVirtualMachineId(), DETAIL_TARGET_STORAGE_POOL_NAME, targetStoragePool.getName());
+        }
+        if (remoteMoldDr) {
+            persistRemoteMoldDrDetails(cmd);
+        } else if ("dr".equalsIgnoreCase(cmd.getMode())) {
+            putVmDetail(cmd.getVirtualMachineId(), DETAIL_DR_PEER_SITE_TYPE, DR_PEER_SITE_TYPE_LOCAL_MOLD);
         }
         if (cmd.getFencingPolicy() != null) {
             putVmDetail(cmd.getVirtualMachineId(), DETAIL_FENCING_POLICY, cmd.getFencingPolicy());
@@ -345,9 +384,9 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         if (hostId != null) {
             try {
                 syncFtctlContext(userVm, cmd, targetStoragePool, targetStorageScope, backendMode, secondaryTargetDir, remoteNbdExportAddr, ipmiFencingConfig, provisioningContext);
-                String peerUri = resolvePeerUri(cmd.getPeerHostId());
+                String peerUri = remoteMoldDr ? cmd.getRemotePeerLibvirtUri() : resolvePeerUri(cmd.getPeerHostId());
                 if (peerUri == null || peerUri.isBlank()) {
-                    throw new CloudRuntimeException(String.format("Missing FTCTL peer libvirt URI on host %s", cmd.getPeerHostId()));
+                    throw new CloudRuntimeException(String.format("Missing FTCTL peer libvirt URI on %s", remoteMoldDr ? "remote Mold host" : String.format("host %s", cmd.getPeerHostId())));
                 }
                 FtctlActionCommand actionCommand = new FtctlActionCommand(FtctlActionCommand.Action.PROTECT, userVm.getInstanceName());
                 actionCommand.setMode(cmd.getMode());
@@ -384,6 +423,214 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
                 String.format("Registered FTCTL protection for VM %s", userVm.getUuid()));
         response.setObjectName("ftctlprotection");
         return response;
+    }
+
+    @Override
+    public FtctlRemoteMoldConnectionResponse validateFtctlRemoteMoldConnection(ValidateFtctlRemoteMoldConnectionCmd cmd) throws CloudRuntimeException {
+        JsonObject response = callRemoteMoldApi(cmd.getRemoteMoldApiUrl(), cmd.getRemoteMoldApiKey(), cmd.getRemoteMoldSecretKey(),
+                "listCapabilities", Collections.emptyMap());
+        FtctlRemoteMoldConnectionResponse result = new FtctlRemoteMoldConnectionResponse();
+        result.setObjectName("ftctlremotemoldconnection");
+        boolean success = response != null && response.has("listcapabilitiesresponse");
+        result.setSuccess(success);
+        result.setMessage(success ? "OK" : "Unable to validate remote Mold connection");
+        return result;
+    }
+
+    @Override
+    public FtctlRemoteMoldHostsResponse listFtctlRemoteMoldHosts(ListFtctlRemoteMoldHostsCmd cmd) throws CloudRuntimeException {
+        Map<String, String> params = new HashMap<>();
+        params.put("type", "Routing");
+        params.put("state", "Up");
+        params.put("details", "all");
+        params.put("listall", "true");
+        params.put("page", "1");
+        params.put("pagesize", "500");
+        putIfNotBlank(params, "zoneid", cmd.getZoneId());
+        putIfNotBlank(params, "clusterid", cmd.getClusterId());
+        JsonObject json = callRemoteMoldApi(cmd.getRemoteMoldApiUrl(), cmd.getRemoteMoldApiKey(), cmd.getRemoteMoldSecretKey(),
+                "listHosts", params);
+        JsonArray array = getResponseArray(json, "listhostsresponse", "host");
+        List<FtctlRemoteMoldHostResponse> hosts = new ArrayList<>();
+        if (array != null) {
+            for (JsonElement element : array) {
+                if (element == null || !element.isJsonObject()) {
+                    continue;
+                }
+                JsonObject object = element.getAsJsonObject();
+                if (!"KVM".equalsIgnoreCase(getJsonString(object, "hypervisor"))) {
+                    continue;
+                }
+                FtctlRemoteMoldHostResponse host = new FtctlRemoteMoldHostResponse();
+                host.setObjectName("host");
+                host.setId(getJsonString(object, "id"));
+                host.setName(getJsonString(object, "name"));
+                host.setIpAddress(getJsonString(object, "ipaddress"));
+                host.setMigrationIp(getJsonString(object, "migrationip"));
+                host.setClusterId(getJsonString(object, "clusterid"));
+                host.setClusterName(getJsonString(object, "clustername"));
+                host.setHypervisor(getJsonString(object, "hypervisor"));
+                hosts.add(host);
+            }
+        }
+        FtctlRemoteMoldHostsResponse response = new FtctlRemoteMoldHostsResponse();
+        response.setObjectName("ftctlremotemoldhosts");
+        response.setHosts(hosts);
+        return response;
+    }
+
+    @Override
+    public FtctlRemoteMoldStoragePoolsResponse listFtctlRemoteMoldStoragePools(ListFtctlRemoteMoldStoragePoolsCmd cmd) throws CloudRuntimeException {
+        Map<String, String> params = new HashMap<>();
+        params.put("listall", "true");
+        params.put("page", "1");
+        params.put("pagesize", "500");
+        putIfNotBlank(params, "zoneid", cmd.getZoneId());
+        putIfNotBlank(params, "clusterid", cmd.getClusterId());
+        putIfNotBlank(params, "hostid", cmd.getHostId());
+        JsonObject json = callRemoteMoldApi(cmd.getRemoteMoldApiUrl(), cmd.getRemoteMoldApiKey(), cmd.getRemoteMoldSecretKey(),
+                "listStoragePools", params);
+        JsonArray array = getResponseArray(json, "liststoragepoolsresponse", "storagepool");
+        List<FtctlRemoteMoldStoragePoolResponse> storagePools = new ArrayList<>();
+        if (array != null) {
+            for (JsonElement element : array) {
+                if (element == null || !element.isJsonObject()) {
+                    continue;
+                }
+                JsonObject object = element.getAsJsonObject();
+                String state = getJsonString(object, "state");
+                if (StringUtils.isNotBlank(state) && !"Up".equalsIgnoreCase(state)) {
+                    continue;
+                }
+                FtctlRemoteMoldStoragePoolResponse storagePool = new FtctlRemoteMoldStoragePoolResponse();
+                storagePool.setObjectName("storagepool");
+                storagePool.setId(getJsonString(object, "id"));
+                storagePool.setName(getJsonString(object, "name"));
+                storagePool.setPath(StringUtils.defaultIfBlank(getJsonString(object, "path"), getJsonString(object, "url")));
+                storagePool.setScope(getJsonString(object, "scope"));
+                storagePool.setType(StringUtils.defaultIfBlank(getJsonString(object, "type"),
+                        StringUtils.defaultIfBlank(getJsonString(object, "storagetype"), getJsonString(object, "pooltype"))));
+                storagePool.setClusterId(getJsonString(object, "clusterid"));
+                storagePool.setClusterName(getJsonString(object, "clustername"));
+                storagePool.setState(state);
+                storagePools.add(storagePool);
+            }
+        }
+        FtctlRemoteMoldStoragePoolsResponse response = new FtctlRemoteMoldStoragePoolsResponse();
+        response.setObjectName("ftctlremotemoldstoragepools");
+        response.setStoragePools(storagePools);
+        return response;
+    }
+
+    private void putIfNotBlank(Map<String, String> params, String key, String value) {
+        if (StringUtils.isNotBlank(value)) {
+            params.put(key, value);
+        }
+    }
+
+    private JsonArray getResponseArray(JsonObject json, String responseKey, String arrayKey) {
+        if (json == null || !json.has(responseKey) || !json.get(responseKey).isJsonObject()) {
+            return null;
+        }
+        JsonObject response = json.getAsJsonObject(responseKey);
+        if (!response.has(arrayKey) || !response.get(arrayKey).isJsonArray()) {
+            return null;
+        }
+        return response.getAsJsonArray(arrayKey);
+    }
+
+    private JsonObject callRemoteMoldApi(String apiUrl, String apiKey, String secretKey, String command, Map<String, String> params) {
+        if (StringUtils.isAnyBlank(apiUrl, apiKey, secretKey, command)) {
+            throw new CloudRuntimeException("Remote Mold API URL, API key, secret key, and command are required");
+        }
+        try {
+            String requestUrl = buildRemoteMoldSignedUrl(apiUrl, apiKey, secretKey, command, params);
+            HttpClient client = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(10))
+                    .build();
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(requestUrl))
+                    .timeout(Duration.ofSeconds(30))
+                    .GET()
+                    .build();
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                throw new CloudRuntimeException(String.format("Remote Mold API %s failed with HTTP %s", command, response.statusCode()));
+            }
+            JsonObject json = JsonParser.parseString(response.body()).getAsJsonObject();
+            JsonObject error = findRemoteMoldError(json);
+            if (error != null) {
+                String message = StringUtils.defaultIfBlank(getJsonString(error, "errortext"), getJsonString(error, "errorcode"));
+                throw new CloudRuntimeException(String.format("Remote Mold API %s failed: %s", command, message));
+            }
+            return json;
+        } catch (CloudRuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new CloudRuntimeException(String.format("Unable to call remote Mold API %s: %s", command, e.getMessage()), e);
+        }
+    }
+
+    private JsonObject findRemoteMoldError(JsonObject json) {
+        if (json == null) {
+            return null;
+        }
+        for (Map.Entry<String, JsonElement> entry : json.entrySet()) {
+            if (entry.getKey().endsWith("response") && entry.getValue().isJsonObject()) {
+                JsonObject object = entry.getValue().getAsJsonObject();
+                if (object.has("errorcode") || object.has("errortext")) {
+                    return object;
+                }
+            }
+        }
+        return null;
+    }
+
+    private String buildRemoteMoldSignedUrl(String apiUrl, String apiKey, String secretKey, String command, Map<String, String> params)
+            throws UnsupportedEncodingException {
+        Map<String, String> requestParams = new HashMap<>();
+        requestParams.put("command", command);
+        requestParams.put("response", "json");
+        if (params != null) {
+            for (Map.Entry<String, String> entry : params.entrySet()) {
+                if (StringUtils.isNotBlank(entry.getKey()) && StringUtils.isNotBlank(entry.getValue())) {
+                    requestParams.put(entry.getKey(), entry.getValue());
+                }
+            }
+        }
+        String apiParams = buildQueryString(requestParams, false);
+        Map<String, String> signedParams = new HashMap<>(requestParams);
+        signedParams.put("apikey", apiKey);
+        String signatureBase = buildQueryString(signedParams, true);
+        String signature = signRemoteMoldRequest(signatureBase, secretKey);
+        String separator = apiUrl.contains("?") ? "&" : "?";
+        return apiUrl + separator + apiParams + "&apiKey=" + encode(apiKey) + "&signature=" + encode(signature);
+    }
+
+    private String buildQueryString(Map<String, String> params, boolean lowerCaseForSignature) throws UnsupportedEncodingException {
+        List<Map.Entry<String, String>> entries = new ArrayList<>(params.entrySet());
+        entries.sort(Comparator.comparing(entry -> entry.getKey().toLowerCase(Locale.ROOT)));
+        List<String> parts = new ArrayList<>();
+        for (Map.Entry<String, String> entry : entries) {
+            String key = lowerCaseForSignature ? entry.getKey().toLowerCase(Locale.ROOT) : entry.getKey();
+            String value = lowerCaseForSignature ? entry.getValue().toLowerCase(Locale.ROOT) : entry.getValue();
+            parts.add(key + "=" + encode(value));
+        }
+        return StringUtils.join(parts, "&");
+    }
+
+    private String signRemoteMoldRequest(String request, String secretKey) {
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(secretKey.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            return Base64.getEncoder().encodeToString(mac.doFinal(request.getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception e) {
+            throw new CloudRuntimeException("Unable to sign remote Mold API request", e);
+        }
+    }
+
+    private String encode(String value) throws UnsupportedEncodingException {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8.name()).replace("+", "%20");
     }
 
     @Override
@@ -460,8 +707,23 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         if (cmd.getMode() == null || cmd.getMode().isBlank()) {
             throw new CloudRuntimeException("FTCTL mode is required");
         }
+        if (hasRemoteMoldParameters(cmd) && !"dr".equalsIgnoreCase(cmd.getMode())) {
+            throw new CloudRuntimeException("FTCTL remote Mold parameters are allowed only for DR mode");
+        }
+        boolean remoteMoldDr = isRemoteMoldDr(cmd);
+        if (remoteMoldDr) {
+            validateRemoteMoldDrRegisterRequest(cmd);
+            return;
+        }
+        if ("dr".equalsIgnoreCase(cmd.getMode()) && hasRemoteMoldParameters(cmd)) {
+            throw new CloudRuntimeException("FTCTL DR remote Mold parameters require drpeersitetype=remote-mold");
+        }
         if (isProtectionModeWithTargetStorage(cmd.getMode()) && cmd.getTargetStoragePoolId() == null) {
             throw new CloudRuntimeException("FTCTL target primary storage pool is required for HA/DR/FT");
+        }
+        if (("ha".equalsIgnoreCase(cmd.getMode()) || "dr".equalsIgnoreCase(cmd.getMode()) || "ft".equalsIgnoreCase(cmd.getMode()))
+                && cmd.getPeerHostId() == null) {
+            throw new CloudRuntimeException("FTCTL peer host is required for local Mold HA/DR/FT");
         }
         if ("ft".equalsIgnoreCase(cmd.getMode()) &&
                 (isBlank(cmd.getXcoloProxyEndpoint()) || isBlank(cmd.getXcoloNbdEndpoint()) || isBlank(cmd.getXcoloMigrateUri()))) {
@@ -470,11 +732,60 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     }
 
     private void validateResolvedRegisterRequest(RegisterFtctlProtectionCmd cmd, String backendMode, String secondaryTargetDir, String remoteNbdExportAddr) {
+        if (isRemoteMoldDr(cmd) && !"remote-nbd".equalsIgnoreCase(backendMode)) {
+            throw new CloudRuntimeException("FTCTL DR remote Mold requires remote-nbd backend mode");
+        }
         if ("remote-nbd".equalsIgnoreCase(backendMode) && (isBlank(secondaryTargetDir) || isBlank(remoteNbdExportAddr))) {
             throw new CloudRuntimeException("FTCTL remote-nbd requires secondary target directory and export address");
         }
         if ("ft".equalsIgnoreCase(cmd.getMode()) && cmd.getTargetStoragePoolId() == null) {
             throw new CloudRuntimeException("FTCTL FT mode requires a target primary storage pool");
+        }
+    }
+
+    private boolean isRemoteMoldDr(RegisterFtctlProtectionCmd cmd) {
+        return "dr".equalsIgnoreCase(cmd.getMode()) &&
+                DR_PEER_SITE_TYPE_REMOTE_MOLD.equalsIgnoreCase(StringUtils.defaultIfBlank(cmd.getDrPeerSiteType(), DR_PEER_SITE_TYPE_LOCAL_MOLD));
+    }
+
+    private boolean hasRemoteMoldParameters(RegisterFtctlProtectionCmd cmd) {
+        return DR_PEER_SITE_TYPE_REMOTE_MOLD.equalsIgnoreCase(StringUtils.trimToEmpty(cmd.getDrPeerSiteType())) ||
+                hasAnyText(cmd.getRemoteMoldApiUrl(), cmd.getRemoteMoldApiKey(), cmd.getRemoteMoldSecretKey(),
+                        cmd.getRemotePeerHostUuid(), cmd.getRemotePeerHostName(), cmd.getRemotePeerHostAddress(),
+                        cmd.getRemotePeerHostBlockcopyAddress(), cmd.getRemotePeerLibvirtUri(), cmd.getRemoteTargetStoragePoolUuid(),
+                        cmd.getRemoteTargetStoragePoolName(), cmd.getRemoteTargetStoragePoolPath(), cmd.getRemoteTargetStoragePoolType());
+    }
+
+    private boolean hasAnyText(String... values) {
+        if (values == null) {
+            return false;
+        }
+        for (String value : values) {
+            if (StringUtils.isNotBlank(value)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void validateRemoteMoldDrRegisterRequest(RegisterFtctlProtectionCmd cmd) {
+        if (hasAnyText(cmd.getRemoteMoldApiKey(), cmd.getRemoteMoldSecretKey())) {
+            throw new CloudRuntimeException("FTCTL DR remote Mold registration must not include remote Mold API key or secret key; use the lookup APIs before registration");
+        }
+        if (StringUtils.isAnyBlank(cmd.getRemotePeerHostUuid(), cmd.getRemotePeerHostAddress(), cmd.getRemotePeerLibvirtUri())) {
+            throw new CloudRuntimeException("FTCTL DR remote Mold requires a resolved remote peer host UUID, address, and libvirt URI");
+        }
+        if (StringUtils.isAnyBlank(cmd.getRemoteTargetStoragePoolUuid(), cmd.getRemoteTargetStoragePoolPath())) {
+            throw new CloudRuntimeException("FTCTL DR remote Mold requires a resolved remote target storage pool UUID and path");
+        }
+        if (StringUtils.isNotBlank(cmd.getBackendMode()) && !"remote-nbd".equalsIgnoreCase(cmd.getBackendMode())) {
+            throw new CloudRuntimeException("FTCTL DR remote Mold supports only remote-nbd backend mode");
+        }
+        if (StringUtils.isNotBlank(cmd.getTargetStorageScope()) && !"secondary-local".equalsIgnoreCase(cmd.getTargetStorageScope())) {
+            throw new CloudRuntimeException("FTCTL DR remote Mold requires target storage scope secondary-local");
+        }
+        if (FENCING_POLICY_IPMI.equalsIgnoreCase(StringUtils.trimToEmpty(cmd.getFencingPolicy()))) {
+            throw new CloudRuntimeException("FTCTL DR remote Mold does not support local OOBM/IPMI fencing lookup yet");
         }
     }
 
@@ -487,6 +798,9 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     }
 
     private String resolveProvisioningBackend(RegisterFtctlProtectionCmd cmd) {
+        if (isRemoteMoldDr(cmd)) {
+            return FtctlProtectionProvisioningService.BACKEND_LIBVIRT_MANAGED;
+        }
         return StringUtils.defaultIfBlank(cmd.getProvisioningBackend(), FtctlProtectionProvisioningService.BACKEND_LIBVIRT_MANAGED);
     }
 
@@ -508,6 +822,21 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         putVmDetail(virtualMachineId, DETAIL_PROVISIONING_BACKEND, provisioningBackend);
         putVmDetail(virtualMachineId, DETAIL_PROVISIONING_STATE, FtctlProtectionProvisioningService.STATE_PROVISIONING_FAILED);
         putVmDetail(virtualMachineId, DETAIL_LAST_ERROR, e.getMessage());
+    }
+
+    private void persistRemoteMoldDrDetails(RegisterFtctlProtectionCmd cmd) {
+        Long virtualMachineId = cmd.getVirtualMachineId();
+        putVmDetail(virtualMachineId, DETAIL_DR_PEER_SITE_TYPE, DR_PEER_SITE_TYPE_REMOTE_MOLD);
+        putVmDetailIfNotBlank(virtualMachineId, DETAIL_REMOTE_MOLD_API_URL, cmd.getRemoteMoldApiUrl());
+        putVmDetailIfNotBlank(virtualMachineId, DETAIL_REMOTE_PEER_HOST_ID, cmd.getRemotePeerHostUuid());
+        putVmDetailIfNotBlank(virtualMachineId, DETAIL_REMOTE_PEER_HOST_NAME, cmd.getRemotePeerHostName());
+        putVmDetailIfNotBlank(virtualMachineId, DETAIL_REMOTE_PEER_HOST_ADDRESS, cmd.getRemotePeerHostAddress());
+        putVmDetailIfNotBlank(virtualMachineId, DETAIL_REMOTE_PEER_HOST_BLOCKCOPY_ADDRESS, cmd.getRemotePeerHostBlockcopyAddress());
+        putVmDetailIfNotBlank(virtualMachineId, DETAIL_REMOTE_PEER_LIBVIRT_URI, cmd.getRemotePeerLibvirtUri());
+        putVmDetailIfNotBlank(virtualMachineId, DETAIL_REMOTE_TARGET_STORAGE_POOL_ID, cmd.getRemoteTargetStoragePoolUuid());
+        putVmDetailIfNotBlank(virtualMachineId, DETAIL_REMOTE_TARGET_STORAGE_POOL_NAME, cmd.getRemoteTargetStoragePoolName());
+        putVmDetailIfNotBlank(virtualMachineId, DETAIL_REMOTE_TARGET_STORAGE_POOL_PATH, cmd.getRemoteTargetStoragePoolPath());
+        putVmDetailIfNotBlank(virtualMachineId, DETAIL_REMOTE_TARGET_STORAGE_POOL_TYPE, cmd.getRemoteTargetStoragePoolType());
     }
 
     private void persistRegistrationFailure(UserVmVO userVm, CloudRuntimeException e) {
@@ -542,6 +871,9 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         if (!isProtectionModeWithTargetStorage(cmd.getMode())) {
             return null;
         }
+        if (isRemoteMoldDr(cmd)) {
+            return null;
+        }
         StoragePoolVO storagePool = primaryDataStoreDao.findById(cmd.getTargetStoragePoolId());
         if (storagePool == null) {
             throw new CloudRuntimeException(String.format("Unable to find FTCTL target primary storage pool with id %s", cmd.getTargetStoragePoolId()));
@@ -554,6 +886,9 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     }
 
     private String resolveTargetStorageScope(RegisterFtctlProtectionCmd cmd, StoragePoolVO storagePool) {
+        if (isRemoteMoldDr(cmd)) {
+            return "secondary-local";
+        }
         if (storagePool != null && storagePool.getScope() != null) {
             switch (storagePool.getScope()) {
                 case HOST:
@@ -569,6 +904,9 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     }
 
     private String resolveBackendMode(RegisterFtctlProtectionCmd cmd, StoragePoolVO storagePool) {
+        if (isRemoteMoldDr(cmd)) {
+            return "remote-nbd";
+        }
         if (isHostScopedStoragePool(storagePool)) {
             return "remote-nbd";
         }
@@ -581,6 +919,9 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     private String resolveSecondaryTargetDir(RegisterFtctlProtectionCmd cmd, StoragePoolVO storagePool, String backendMode) {
         if (!isBlank(cmd.getSecondaryTargetDir())) {
             return cmd.getSecondaryTargetDir();
+        }
+        if (isRemoteMoldDr(cmd)) {
+            return StringUtils.removeEnd(cmd.getRemoteTargetStoragePoolPath(), "/");
         }
         if (!"remote-nbd".equalsIgnoreCase(backendMode)) {
             return cmd.getSecondaryTargetDir();
@@ -597,6 +938,13 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         }
         if (!"remote-nbd".equalsIgnoreCase(backendMode)) {
             return cmd.getRemoteNbdExportAddr();
+        }
+        if (isRemoteMoldDr(cmd)) {
+            String exportAddress = StringUtils.defaultIfBlank(cmd.getRemotePeerHostBlockcopyAddress(), cmd.getRemotePeerHostAddress());
+            if (isBlank(exportAddress)) {
+                throw new CloudRuntimeException("Unable to resolve FTCTL remote-nbd export address for remote Mold peer host");
+            }
+            return String.format("%s:10809", exportAddress);
         }
         HostVO peerHost = hostDao.findById(cmd.getPeerHostId());
         if (peerHost == null) {
@@ -1739,12 +2087,16 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         response.setProvisioningBackend(getDetailValue(sourceVmId, DETAIL_PROVISIONING_BACKEND));
         response.setProvisioningState(getDetailValue(sourceVmId, DETAIL_PROVISIONING_STATE));
         response.setTargetStorageScope(getDetailValue(sourceVmId, DETAIL_TARGET_STORAGE_SCOPE));
-        response.setTargetStoragePoolId(getDetailValue(sourceVmId, DETAIL_TARGET_STORAGE_POOL_ID));
-        response.setTargetStoragePoolName(getDetailValue(sourceVmId, DETAIL_TARGET_STORAGE_POOL_NAME));
+        boolean remoteMoldDr = DR_PEER_SITE_TYPE_REMOTE_MOLD.equalsIgnoreCase(getDetailValue(sourceVmId, DETAIL_DR_PEER_SITE_TYPE));
+        response.setTargetStoragePoolId(StringUtils.defaultIfBlank(getDetailValue(sourceVmId, DETAIL_TARGET_STORAGE_POOL_ID),
+                remoteMoldDr ? getDetailValue(sourceVmId, DETAIL_REMOTE_TARGET_STORAGE_POOL_ID) : null));
+        response.setTargetStoragePoolName(StringUtils.defaultIfBlank(getDetailValue(sourceVmId, DETAIL_TARGET_STORAGE_POOL_NAME),
+                remoteMoldDr ? getDetailValue(sourceVmId, DETAIL_REMOTE_TARGET_STORAGE_POOL_NAME) : null));
         response.setFencingPolicy(getDetailValue(sourceVmId, DETAIL_FENCING_POLICY));
-        String peerHostId = getDetailValue(sourceVmId, DETAIL_PEER_HOST_ID);
+        String peerHostId = StringUtils.defaultIfBlank(getDetailValue(sourceVmId, DETAIL_PEER_HOST_ID),
+                remoteMoldDr ? getDetailValue(sourceVmId, DETAIL_REMOTE_PEER_HOST_ID) : null);
         response.setPeerHostId(peerHostId);
-        response.setPeerHostName(resolvePeerHostName(peerHostId));
+        response.setPeerHostName(remoteMoldDr ? getDetailValue(sourceVmId, DETAIL_REMOTE_PEER_HOST_NAME) : resolvePeerHostName(peerHostId));
         response.setSecondaryVmName(StringUtils.defaultIfBlank(protection != null ? protection.getSecondaryVmName() : null,
                 getDetailValue(sourceVmId, DETAIL_SECONDARY_VM_NAME)));
         response.setSecondaryTargetDir(getDetailValue(sourceVmId, DETAIL_SECONDARY_TARGET_DIR));
@@ -1979,6 +2331,12 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         synchronized (lock) {
             vmInstanceDetailsDao.removeDetail(virtualMachineId, key);
             vmInstanceDetailsDao.addDetail(virtualMachineId, key, value, true);
+        }
+    }
+
+    private void putVmDetailIfNotBlank(Long virtualMachineId, String key, String value) {
+        if (StringUtils.isNotBlank(value)) {
+            putVmDetail(virtualMachineId, key, value);
         }
     }
 
@@ -2281,11 +2639,19 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
                                   FtctlProtectionProvisioningContext provisioningContext) {
         Long localHostId = requireExecutionHostId(userVm);
         HostVO localHost = hostDao.findById(localHostId);
-        HostVO peerHost = hostDao.findById(cmd.getPeerHostId());
-        if (localHost == null || peerHost == null) {
-            throw new CloudRuntimeException(String.format("Unable to resolve local or peer host for VM %s", userVm.getUuid()));
+        if (localHost == null) {
+            throw new CloudRuntimeException(String.format("Unable to resolve local host for VM %s", userVm.getUuid()));
         }
-        validateFtctlHosts(localHost, peerHost, userVm);
+        boolean remoteMoldDr = isRemoteMoldDr(cmd);
+        HostVO peerHost = remoteMoldDr ? null : hostDao.findById(cmd.getPeerHostId());
+        if (!remoteMoldDr && peerHost == null) {
+            throw new CloudRuntimeException(String.format("Unable to resolve peer host for VM %s", userVm.getUuid()));
+        }
+        if (remoteMoldDr) {
+            validateLocalFtctlHost(localHost, userVm);
+        } else {
+            validateFtctlHosts(localHost, peerHost, userVm);
+        }
 
         FtctlSyncClusterCommand clusterCommand = new FtctlSyncClusterCommand();
         clusterCommand.setClusterName(buildClusterName(localHost, userVm));
@@ -2297,16 +2663,31 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         clusterCommand.setLocalBlockcopyIp(resolveHostField(localHost, HOST_DETAIL_BLOCKCOPY_IP, localHost.getPrivateIpAddress()));
         clusterCommand.setLocalXcoloControlIp(resolveHostField(localHost, HOST_DETAIL_XCOLO_CONTROL_IP, localHost.getPrivateIpAddress()));
         clusterCommand.setLocalXcoloDataIp(resolveHostField(localHost, HOST_DETAIL_XCOLO_DATA_IP, localHost.getPrivateIpAddress()));
-        clusterCommand.setPeerHostId(String.valueOf(cmd.getPeerHostId()));
-        clusterCommand.setPeerRole("secondary");
-        clusterCommand.setPeerManagementIp(resolveHostField(peerHost, HOST_DETAIL_MANAGEMENT_IP, peerHost.getPrivateIpAddress()));
-        clusterCommand.setPeerLibvirtUri(resolveHostField(peerHost, HOST_DETAIL_LIBVIRT_URI,
-                String.format("qemu+ssh://%s/system", peerHost.getPrivateIpAddress())));
-        clusterCommand.setPeerBlockcopyIp(resolveHostField(peerHost, HOST_DETAIL_BLOCKCOPY_IP, peerHost.getPrivateIpAddress()));
-        clusterCommand.setPeerXcoloControlIp(resolveHostField(peerHost, HOST_DETAIL_XCOLO_CONTROL_IP, peerHost.getPrivateIpAddress()));
-        clusterCommand.setPeerXcoloDataIp(resolveHostField(peerHost, HOST_DETAIL_XCOLO_DATA_IP, peerHost.getPrivateIpAddress()));
+        String peerLibvirtUri;
+        if (remoteMoldDr) {
+            String peerAddress = cmd.getRemotePeerHostAddress();
+            String peerBlockcopyAddress = StringUtils.defaultIfBlank(cmd.getRemotePeerHostBlockcopyAddress(), peerAddress);
+            peerLibvirtUri = cmd.getRemotePeerLibvirtUri();
+            clusterCommand.setPeerHostId(cmd.getRemotePeerHostUuid());
+            clusterCommand.setPeerRole("secondary");
+            clusterCommand.setPeerManagementIp(peerAddress);
+            clusterCommand.setPeerLibvirtUri(peerLibvirtUri);
+            clusterCommand.setPeerBlockcopyIp(peerBlockcopyAddress);
+            clusterCommand.setPeerXcoloControlIp(peerAddress);
+            clusterCommand.setPeerXcoloDataIp(peerBlockcopyAddress);
+        } else {
+            clusterCommand.setPeerHostId(String.valueOf(cmd.getPeerHostId()));
+            clusterCommand.setPeerRole("secondary");
+            clusterCommand.setPeerManagementIp(resolveHostField(peerHost, HOST_DETAIL_MANAGEMENT_IP, peerHost.getPrivateIpAddress()));
+            peerLibvirtUri = resolveHostField(peerHost, HOST_DETAIL_LIBVIRT_URI,
+                    String.format("qemu+ssh://%s/system", peerHost.getPrivateIpAddress()));
+            clusterCommand.setPeerLibvirtUri(peerLibvirtUri);
+            clusterCommand.setPeerBlockcopyIp(resolveHostField(peerHost, HOST_DETAIL_BLOCKCOPY_IP, peerHost.getPrivateIpAddress()));
+            clusterCommand.setPeerXcoloControlIp(resolveHostField(peerHost, HOST_DETAIL_XCOLO_CONTROL_IP, peerHost.getPrivateIpAddress()));
+            clusterCommand.setPeerXcoloDataIp(resolveHostField(peerHost, HOST_DETAIL_XCOLO_DATA_IP, peerHost.getPrivateIpAddress()));
+        }
 
-        FtctlSyncProfileCommand profileCommand = new FtctlSyncProfileCommand(userVm.getInstanceName(), cmd.getMode(), clusterCommand.getPeerLibvirtUri());
+        FtctlSyncProfileCommand profileCommand = new FtctlSyncProfileCommand(userVm.getInstanceName(), cmd.getMode(), peerLibvirtUri);
         profileCommand.setProfileName(userVm.getUuid());
         profileCommand.setBackendMode(backendMode);
         profileCommand.setProvisioningBackend(provisioningContext.getProvisioningBackend());
@@ -2319,6 +2700,11 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             if (targetStoragePool.getPoolType() != null) {
                 profileCommand.setTargetStoragePoolType(targetStoragePool.getPoolType().name());
             }
+        } else if (remoteMoldDr) {
+            profileCommand.setTargetStoragePoolId(cmd.getRemoteTargetStoragePoolUuid());
+            profileCommand.setTargetStoragePoolName(cmd.getRemoteTargetStoragePoolName());
+            profileCommand.setTargetStoragePoolPath(cmd.getRemoteTargetStoragePoolPath());
+            profileCommand.setTargetStoragePoolType(cmd.getRemoteTargetStoragePoolType());
         }
         String diskMap = provisioningContext.getDiskMap();
         validateCloudManagedDiskMap(provisioningContext, backendMode, diskMap);
@@ -2398,12 +2784,21 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         if (localHost.getId() == peerHost.getId()) {
             throw new CloudRuntimeException(String.format("FTCTL peer host must differ from execution host for VM %s", userVm.getUuid()));
         }
+        validateLocalFtctlHost(localHost, userVm);
         if (localHost.getType() != Host.Type.Routing || peerHost.getType() != Host.Type.Routing) {
             throw new CloudRuntimeException(String.format("FTCTL requires routing hosts for VM %s", userVm.getUuid()));
         }
-        if (!"KVM".equalsIgnoreCase(String.valueOf(localHost.getHypervisorType())) ||
-                !"KVM".equalsIgnoreCase(String.valueOf(peerHost.getHypervisorType()))) {
+        if (!"KVM".equalsIgnoreCase(String.valueOf(peerHost.getHypervisorType()))) {
             throw new CloudRuntimeException(String.format("FTCTL requires KVM hosts for VM %s", userVm.getUuid()));
+        }
+    }
+
+    private void validateLocalFtctlHost(HostVO localHost, UserVmVO userVm) {
+        if (localHost.getType() != Host.Type.Routing) {
+            throw new CloudRuntimeException(String.format("FTCTL requires a routing execution host for VM %s", userVm.getUuid()));
+        }
+        if (!"KVM".equalsIgnoreCase(String.valueOf(localHost.getHypervisorType()))) {
+            throw new CloudRuntimeException(String.format("FTCTL requires a KVM execution host for VM %s", userVm.getUuid()));
         }
     }
 
@@ -2685,6 +3080,9 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         }
         cmdList.add(GetFtctlProtectionCmd.class);
         cmdList.add(RegisterFtctlProtectionCmd.class);
+        cmdList.add(ValidateFtctlRemoteMoldConnectionCmd.class);
+        cmdList.add(ListFtctlRemoteMoldHostsCmd.class);
+        cmdList.add(ListFtctlRemoteMoldStoragePoolsCmd.class);
         cmdList.add(GetFtctlCheckCmd.class);
         cmdList.add(GetFtctlEventsCmd.class);
         cmdList.add(GetFtctlHealthCmd.class);

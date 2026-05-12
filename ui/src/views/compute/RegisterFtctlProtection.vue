@@ -35,7 +35,16 @@
             <a-select-option value="ft">FT</a-select-option>
           </a-select>
         </a-form-item>
-        <a-form-item name="peerhostid">
+        <a-form-item name="drpeersitetype" v-if="showDrPeerSiteType">
+          <template #label>
+            <tooltip-label :title="$t('label.ftctl.dr.peer.site.type')" :tooltip="$t('placeholder.ftctl.dr.peer.site.type')" />
+          </template>
+          <a-radio-group v-model:value="form.drpeersitetype" @change="handleDrPeerSiteTypeChange">
+            <a-radio-button value="local-mold">{{ $t('label.ftctl.dr.peer.site.local.mold') }}</a-radio-button>
+            <a-radio-button value="remote-mold">{{ $t('label.ftctl.dr.peer.site.remote.mold') }}</a-radio-button>
+          </a-radio-group>
+        </a-form-item>
+        <a-form-item name="peerhostid" v-if="showLocalMoldPeerFields">
           <template #label>
             <tooltip-label :title="$t('label.ftctl.peer.host.id')" :tooltip="$t('placeholder.ftctl.peer.host.id')" />
           </template>
@@ -56,7 +65,7 @@
             </a-select-option>
           </a-select>
         </a-form-item>
-        <a-form-item name="targetstoragepoolid" v-if="showStorageFields">
+        <a-form-item name="targetstoragepoolid" v-if="showLocalStorageFields">
           <template #label>
             <tooltip-label :title="$t('label.ftctl.target.storage.scope')" :tooltip="$t('placeholder.ftctl.target.storage.scope')" />
           </template>
@@ -77,6 +86,76 @@
             </a-select-option>
           </a-select>
         </a-form-item>
+        <div v-if="showRemoteMoldFields" class="ftctl-remote-mold-fields">
+          <a-form-item name="remotemoldapiurl">
+            <template #label>
+              <tooltip-label :title="$t('label.ftctl.remote.mold.api.url')" :tooltip="$t('placeholder.ftctl.remote.mold.api.url')" />
+            </template>
+            <a-input v-model:value="form.remotemoldapiurl" placeholder="https://remote-mold.example.com/client/api" />
+          </a-form-item>
+          <a-form-item name="remotemoldapikey">
+            <template #label>
+              <tooltip-label :title="$t('label.ftctl.remote.mold.api.key')" :tooltip="$t('placeholder.ftctl.remote.mold.api.key')" />
+            </template>
+            <a-input v-model:value="form.remotemoldapikey" />
+          </a-form-item>
+          <a-form-item name="remotemoldsecretkey">
+            <template #label>
+              <tooltip-label :title="$t('label.ftctl.remote.mold.secret.key')" :tooltip="$t('placeholder.ftctl.remote.mold.secret.key')" />
+            </template>
+            <a-input-password v-model:value="form.remotemoldsecretkey" />
+          </a-form-item>
+          <div class="ftctl-remote-mold-actions">
+            <a-button :loading="remoteMoldLoading" @click="validateRemoteMoldConnection">
+              {{ $t('label.ftctl.remote.mold.test.connection') }}
+            </a-button>
+            <a-button :loading="remoteMoldHostsLoading || remoteMoldStoragePoolsLoading" @click="fetchRemoteMoldInventory">
+              {{ $t('label.refresh') }}
+            </a-button>
+          </div>
+          <a-form-item name="remotepeerhostuuid">
+            <template #label>
+              <tooltip-label :title="$t('label.ftctl.remote.peer.host')" :tooltip="$t('placeholder.ftctl.remote.peer.host')" />
+            </template>
+            <a-select
+              v-model:value="form.remotepeerhostuuid"
+              :loading="remoteMoldHostsLoading"
+              :placeholder="$t('placeholder.ftctl.remote.peer.host')"
+              showSearch
+              optionFilterProp="label"
+              @change="handleRemotePeerHostChange"
+              :filterOption="(input, option) => option.label.toLowerCase().indexOf(input.toLowerCase()) >= 0">
+              <a-select-option
+                v-for="host in remoteMoldHosts"
+                :key="host.id"
+                :value="host.id"
+                :label="formatHostLabel(host)">
+                {{ formatHostLabel(host) }}
+              </a-select-option>
+            </a-select>
+          </a-form-item>
+          <a-form-item name="remotetargetstoragepooluuid">
+            <template #label>
+              <tooltip-label :title="$t('label.ftctl.remote.target.storage.pool')" :tooltip="$t('placeholder.ftctl.remote.target.storage.pool')" />
+            </template>
+            <a-select
+              v-model:value="form.remotetargetstoragepooluuid"
+              :loading="remoteMoldStoragePoolsLoading"
+              :placeholder="$t('placeholder.ftctl.remote.target.storage.pool')"
+              showSearch
+              optionFilterProp="label"
+              @change="handleRemoteStoragePoolChange"
+              :filterOption="(input, option) => option.label.toLowerCase().indexOf(input.toLowerCase()) >= 0">
+              <a-select-option
+                v-for="pool in remoteMoldStoragePools"
+                :key="pool.id"
+                :value="pool.id"
+                :label="formatStoragePoolLabel(pool)">
+                {{ formatStoragePoolLabel(pool) }}
+              </a-select-option>
+            </a-select>
+          </a-form-item>
+        </div>
         <a-form-item name="secondaryvmname">
           <template #label>
             <tooltip-label :title="$t('label.ftctl.secondary.vm.name')" :tooltip="$t('placeholder.ftctl.secondary.vm.name')" />
@@ -183,6 +262,11 @@ export default {
       hosts: [],
       storagePoolsLoading: false,
       storagePools: [],
+      remoteMoldLoading: false,
+      remoteMoldHostsLoading: false,
+      remoteMoldStoragePoolsLoading: false,
+      remoteMoldHosts: [],
+      remoteMoldStoragePools: [],
       manualXcoloEndpoints: false
     }
   },
@@ -196,14 +280,29 @@ export default {
     showBackendFields () {
       return this.form?.mode === 'ha' || this.form?.mode === 'dr'
     },
+    showDrPeerSiteType () {
+      return this.form?.mode === 'dr'
+    },
+    isDrRemoteMold () {
+      return this.form?.mode === 'dr' && this.form?.drpeersitetype === 'remote-mold'
+    },
+    showRemoteMoldFields () {
+      return this.isDrRemoteMold
+    },
+    showLocalMoldPeerFields () {
+      return !this.isDrRemoteMold
+    },
     showStorageFields () {
       return this.form?.mode === 'ha' || this.form?.mode === 'dr' || this.form?.mode === 'ft'
+    },
+    showLocalStorageFields () {
+      return this.showStorageFields && !this.isDrRemoteMold
     },
     showRemoteNbdFields () {
       return this.showBackendFields && this.form?.backendmode === 'remote-nbd'
     },
     requiresRemoteNbdBackend () {
-      return this.showBackendFields && this.form?.targetstoragescope === 'secondary-local'
+      return this.isDrRemoteMold || (this.showBackendFields && this.form?.targetstoragescope === 'secondary-local')
     },
     ftEndpointSummary () {
       if (!this.form?.peerhostid) {
@@ -255,6 +354,7 @@ export default {
       this.formRef = ref()
       this.form = reactive({
         mode: 'ha',
+        drpeersitetype: 'local-mold',
         backendmode: 'shared-blockcopy',
         targetstoragescope: 'shared',
         targetstoragepoolid: null,
@@ -263,18 +363,43 @@ export default {
         secondaryvmname: this.resource?.name ? `${this.resource.name}-standby` : null,
         secondarytargetdir: null,
         remotenbdexportaddr: null,
+        remotemoldapiurl: null,
+        remotemoldapikey: null,
+        remotemoldsecretkey: null,
+        remotepeerhostuuid: null,
+        remotepeerhostname: null,
+        remotepeerhostaddress: null,
+        remotepeerhostblockcopyaddress: null,
+        remotepeerlibvirturi: null,
+        remotetargetstoragepooluuid: null,
+        remotetargetstoragepoolname: null,
+        remotetargetstoragepoolpath: null,
+        remotetargetstoragepooltype: null,
         xcoloproxyendpoint: null,
         xcolonbdendpoint: null,
         xcolomigrateuri: null
       })
       this.rules = reactive({
         mode: [{ required: true, message: `${this.$t('label.required')}` }],
-        targetstoragepoolid: [{ required: true, message: `${this.$t('label.required')}` }],
-        peerhostid: [{ required: true, message: `${this.$t('label.required')}` }]
+        targetstoragepoolid: [{ validator: this.validateLocalStorageRule, trigger: 'change' }],
+        peerhostid: [{ validator: this.validateLocalPeerHostRule, trigger: 'change' }]
       })
+    },
+    validateLocalPeerHostRule () {
+      if (this.showLocalMoldPeerFields && !this.form.peerhostid) {
+        return Promise.reject(new Error(this.$t('label.required')))
+      }
+      return Promise.resolve()
+    },
+    validateLocalStorageRule () {
+      if (this.showLocalStorageFields && !this.form.targetstoragepoolid) {
+        return Promise.reject(new Error(this.$t('label.required')))
+      }
+      return Promise.resolve()
     },
     handleModeChange (mode) {
       if (mode === 'ft') {
+        this.form.drpeersitetype = 'local-mold'
         this.form.backendmode = null
         this.form.secondarytargetdir = null
         this.form.remotenbdexportaddr = null
@@ -287,6 +412,10 @@ export default {
         this.fetchStoragePools(this.form.peerhostid)
         this.applyPeerHostDefaults(this.form.peerhostid)
       } else {
+        if (mode !== 'dr') {
+          this.form.drpeersitetype = 'local-mold'
+          this.clearRemoteMoldSelection()
+        }
         if (!this.form.backendmode) {
           this.form.backendmode = 'shared-blockcopy'
         }
@@ -300,6 +429,22 @@ export default {
         this.form.xcoloproxyendpoint = null
         this.form.xcolonbdendpoint = null
         this.form.xcolomigrateuri = null
+      }
+    },
+    handleDrPeerSiteTypeChange () {
+      if (this.isDrRemoteMold) {
+        this.form.backendmode = 'remote-nbd'
+        this.form.targetstoragescope = 'secondary-local'
+        this.form.peerhostid = null
+        this.form.targetstoragepoolid = null
+        this.applyRemotePeerHostDefaults(this.form.remotepeerhostuuid)
+      } else {
+        this.clearRemoteMoldSelection()
+        this.form.targetstoragescope = 'shared'
+        if (!this.form.backendmode) {
+          this.form.backendmode = 'shared-blockcopy'
+        }
+        this.fetchStoragePools(this.form.peerhostid)
       }
     },
     handleBackendModeChange (backendMode) {
@@ -319,7 +464,7 @@ export default {
       }
     },
     fetchStoragePools (peerHostId = this.form?.peerhostid) {
-      if (!this.resource?.zoneid) {
+      if (!this.resource?.zoneid || this.isDrRemoteMold) {
         return
       }
       this.storagePoolsLoading = true
@@ -398,6 +543,113 @@ export default {
       const migrationIp = host?.migrationip ? ` / ${host.migrationip}` : ''
       return `${name}${migrationIp} (${host.id})`
     },
+    validateRemoteMoldConnection () {
+      if (!this.validateRemoteMoldCredentials()) {
+        return
+      }
+      this.remoteMoldLoading = true
+      getAPI('validateFtctlRemoteMoldConnection', this.buildRemoteMoldCredentialParams()).then(() => {
+        this.$message.success(this.$t('message.ftctl.remote.mold.connection.ok'))
+      }).catch((error) => {
+        this.$notifyError(error)
+      }).finally(() => {
+        this.remoteMoldLoading = false
+      })
+    },
+    fetchRemoteMoldInventory () {
+      if (!this.validateRemoteMoldCredentials()) {
+        return
+      }
+      this.fetchRemoteMoldHosts()
+      this.fetchRemoteMoldStoragePools()
+    },
+    fetchRemoteMoldHosts () {
+      this.remoteMoldHostsLoading = true
+      getAPI('listFtctlRemoteMoldHosts', this.buildRemoteMoldCredentialParams()).then((json) => {
+        const hosts = json?.listftctlremotemoldhostsresponse?.host || []
+        this.remoteMoldHosts = hosts
+        if (hosts.length === 1) {
+          this.handleRemotePeerHostChange(hosts[0].id)
+        }
+      }).catch((error) => {
+        this.$notifyError(error)
+      }).finally(() => {
+        this.remoteMoldHostsLoading = false
+      })
+    },
+    fetchRemoteMoldStoragePools () {
+      this.remoteMoldStoragePoolsLoading = true
+      const params = this.buildRemoteMoldCredentialParams()
+      if (this.form.remotepeerhostuuid) {
+        params.hostid = this.form.remotepeerhostuuid
+      }
+      getAPI('listFtctlRemoteMoldStoragePools', params).then((json) => {
+        const pools = json?.listftctlremotemoldstoragepoolsresponse?.storagepool || []
+        this.remoteMoldStoragePools = pools
+        if (pools.length === 1) {
+          this.handleRemoteStoragePoolChange(pools[0].id)
+        }
+      }).catch((error) => {
+        this.$notifyError(error)
+      }).finally(() => {
+        this.remoteMoldStoragePoolsLoading = false
+      })
+    },
+    validateRemoteMoldCredentials () {
+      if (!this.form.remotemoldapiurl || !this.form.remotemoldapikey || !this.form.remotemoldsecretkey) {
+        this.$message.error(this.$t('message.ftctl.validation.remote.mold.credentials.required'))
+        return false
+      }
+      return true
+    },
+    buildRemoteMoldCredentialParams () {
+      return {
+        remotemoldapiurl: this.form.remotemoldapiurl,
+        remotemoldapikey: this.form.remotemoldapikey,
+        remotemoldsecretkey: this.form.remotemoldsecretkey
+      }
+    },
+    handleRemotePeerHostChange (hostId) {
+      this.form.remotepeerhostuuid = hostId
+      this.applyRemotePeerHostDefaults(hostId)
+      this.fetchRemoteMoldStoragePools()
+    },
+    applyRemotePeerHostDefaults (hostId) {
+      const peerHost = this.remoteMoldHosts.find(host => host.id === hostId)
+      if (!peerHost) {
+        return
+      }
+      const managementAddress = peerHost.ipaddress || peerHost.name
+      const blockcopyAddress = peerHost.migrationip || peerHost.ipaddress || peerHost.name
+      this.form.remotepeerhostname = peerHost.name || null
+      this.form.remotepeerhostaddress = managementAddress
+      this.form.remotepeerhostblockcopyaddress = blockcopyAddress
+      this.form.remotepeerlibvirturi = managementAddress ? `qemu+ssh://${managementAddress}/system` : null
+      this.form.remotenbdexportaddr = this.buildHostPortEndpoint(blockcopyAddress, 10809)
+    },
+    handleRemoteStoragePoolChange (poolId) {
+      const pool = this.remoteMoldStoragePools.find(item => item.id === poolId)
+      this.form.remotetargetstoragepooluuid = poolId
+      this.form.remotetargetstoragepoolname = pool?.name || null
+      this.form.remotetargetstoragepoolpath = pool?.path || pool?.url || null
+      this.form.remotetargetstoragepooltype = pool?.type || pool?.storagetype || pool?.pooltype || null
+      this.form.targetstoragescope = 'secondary-local'
+      this.form.backendmode = 'remote-nbd'
+      this.form.secondarytargetdir = this.form.remotetargetstoragepoolpath
+    },
+    clearRemoteMoldSelection () {
+      this.remoteMoldHosts = []
+      this.remoteMoldStoragePools = []
+      this.form.remotepeerhostuuid = null
+      this.form.remotepeerhostname = null
+      this.form.remotepeerhostaddress = null
+      this.form.remotepeerhostblockcopyaddress = null
+      this.form.remotepeerlibvirturi = null
+      this.form.remotetargetstoragepooluuid = null
+      this.form.remotetargetstoragepoolname = null
+      this.form.remotetargetstoragepoolpath = null
+      this.form.remotetargetstoragepooltype = null
+    },
     fetchHosts () {
       this.hostsLoading = true
       const params = {
@@ -455,6 +707,14 @@ export default {
       this.$emit('close-action')
     },
     validateConditionalFields (values) {
+      if (this.isDrRemoteMold) {
+        if (!values.remotemoldapiurl || !values.remotemoldapikey || !values.remotemoldsecretkey ||
+            !values.remotepeerhostuuid || !values.remotepeerhostaddress || !values.remotepeerlibvirturi ||
+            !values.remotetargetstoragepooluuid || !values.remotetargetstoragepoolpath) {
+          this.$message.error(this.$t('message.ftctl.validation.remote.mold.required'))
+          return false
+        }
+      }
       if (this.showRemoteNbdFields && (!values.secondarytargetdir || !values.remotenbdexportaddr)) {
         this.$message.error(this.$t('message.ftctl.validation.remote.nbd.required'))
         return false
@@ -463,7 +723,7 @@ export default {
         this.$message.error(this.$t('message.ftctl.validation.ft.required'))
         return false
       }
-      if (this.showStorageFields && (!values.targetstoragepoolid || !values.targetstoragescope)) {
+      if (this.showLocalStorageFields && (!values.targetstoragepoolid || !values.targetstoragescope)) {
         this.$message.error(this.$t('message.ftctl.validation.target.storage.required'))
         return false
       }
@@ -490,18 +750,36 @@ export default {
         const params = {
           virtualmachineid: this.resource.id,
           mode: values.mode,
-          provisioningbackend: 'cloud-managed',
+          provisioningbackend: this.isDrRemoteMold ? 'libvirt-managed' : 'cloud-managed',
           fencingpolicy: values.fencingpolicy
+        }
+        if (this.showDrPeerSiteType) {
+          params.drpeersitetype = values.drpeersitetype || 'local-mold'
         }
         if (this.showBackendFields) {
           params.backendmode = values.backendmode
         }
-        if (this.showStorageFields) {
+        if (this.showLocalStorageFields) {
           params.targetstoragescope = values.targetstoragescope
           params.targetstoragepoolid = values.targetstoragepoolid
         }
-        if (values.peerhostid) {
+        if (values.peerhostid && !this.isDrRemoteMold) {
           params.peerhostid = values.peerhostid
+        }
+        if (this.isDrRemoteMold) {
+          Object.assign(params, {
+            targetstoragescope: 'secondary-local',
+            remotemoldapiurl: values.remotemoldapiurl,
+            remotepeerhostuuid: values.remotepeerhostuuid,
+            remotepeerhostname: values.remotepeerhostname,
+            remotepeerhostaddress: values.remotepeerhostaddress,
+            remotepeerhostblockcopyaddress: values.remotepeerhostblockcopyaddress,
+            remotepeerlibvirturi: values.remotepeerlibvirturi,
+            remotetargetstoragepooluuid: values.remotetargetstoragepooluuid,
+            remotetargetstoragepoolname: values.remotetargetstoragepoolname,
+            remotetargetstoragepoolpath: values.remotetargetstoragepoolpath,
+            remotetargetstoragepooltype: values.remotetargetstoragepooltype
+          })
         }
         if (values.secondaryvmname) {
           params.secondaryvmname = values.secondaryvmname
@@ -568,6 +846,17 @@ export default {
   :deep(.ant-alert-icon) {
     font-size: 14px;
   }
+}
+
+.ftctl-remote-mold-fields {
+  margin-bottom: 16px;
+}
+
+.ftctl-remote-mold-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: -4px 0 16px;
 }
 
 :global(.dark) .ftctl-auto-fields,

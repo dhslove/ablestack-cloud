@@ -62,6 +62,58 @@ public class RegisterFtctlProtectionCmd extends BaseAsyncCmd {
             description = "the target primary storage pool ID for FTCTL HA/DR/FT protection")
     private Long targetStoragePoolId;
 
+    @Parameter(name = "drpeersitetype", type = CommandType.STRING,
+            description = "the DR peer site management type: local-mold or remote-mold")
+    private String drPeerSiteType;
+
+    @Parameter(name = "remotemoldapiurl", type = CommandType.STRING,
+            description = "the remote Mold API URL used only for DR remote site lookup")
+    private String remoteMoldApiUrl;
+
+    @Parameter(name = "remotemoldapikey", type = CommandType.STRING,
+            description = "the remote Mold API key used only by Cloud backend for DR remote site lookup")
+    private String remoteMoldApiKey;
+
+    @Parameter(name = "remotemoldsecretkey", type = CommandType.STRING,
+            description = "the remote Mold secret key used only by Cloud backend for DR remote site lookup")
+    private String remoteMoldSecretKey;
+
+    @Parameter(name = "remotepeerhostuuid", type = CommandType.STRING,
+            description = "the remote Mold peer host UUID for DR")
+    private String remotePeerHostUuid;
+
+    @Parameter(name = "remotepeerhostname", type = CommandType.STRING,
+            description = "the remote Mold peer host name for DR")
+    private String remotePeerHostName;
+
+    @Parameter(name = "remotepeerhostaddress", type = CommandType.STRING,
+            description = "the remote Mold peer host management address for DR")
+    private String remotePeerHostAddress;
+
+    @Parameter(name = "remotepeerhostblockcopyaddress", type = CommandType.STRING,
+            description = "the remote Mold peer host blockcopy/data-transfer address for DR")
+    private String remotePeerHostBlockcopyAddress;
+
+    @Parameter(name = "remotepeerlibvirturi", type = CommandType.STRING,
+            description = "the resolved remote peer libvirt URI for DR")
+    private String remotePeerLibvirtUri;
+
+    @Parameter(name = "remotetargetstoragepooluuid", type = CommandType.STRING,
+            description = "the remote Mold target storage pool UUID for DR")
+    private String remoteTargetStoragePoolUuid;
+
+    @Parameter(name = "remotetargetstoragepoolname", type = CommandType.STRING,
+            description = "the remote Mold target storage pool name for DR")
+    private String remoteTargetStoragePoolName;
+
+    @Parameter(name = "remotetargetstoragepoolpath", type = CommandType.STRING,
+            description = "the remote Mold target storage pool path for DR")
+    private String remoteTargetStoragePoolPath;
+
+    @Parameter(name = "remotetargetstoragepooltype", type = CommandType.STRING,
+            description = "the remote Mold target storage pool type for DR")
+    private String remoteTargetStoragePoolType;
+
     @Parameter(name = "provisioningbackend", type = CommandType.STRING,
             description = "the FTCTL standby VM and volume provisioning backend")
     private String provisioningBackend;
@@ -70,7 +122,6 @@ public class RegisterFtctlProtectionCmd extends BaseAsyncCmd {
     private String fencingPolicy;
 
     @Parameter(name = "peerhostid", type = CommandType.UUID, entityType = HostResponse.class,
-            required = true,
             description = "the FTCTL peer host ID")
     private Long peerHostId;
 
@@ -110,6 +161,58 @@ public class RegisterFtctlProtectionCmd extends BaseAsyncCmd {
 
     public Long getTargetStoragePoolId() {
         return targetStoragePoolId;
+    }
+
+    public String getDrPeerSiteType() {
+        return drPeerSiteType;
+    }
+
+    public String getRemoteMoldApiUrl() {
+        return remoteMoldApiUrl;
+    }
+
+    public String getRemoteMoldApiKey() {
+        return remoteMoldApiKey;
+    }
+
+    public String getRemoteMoldSecretKey() {
+        return remoteMoldSecretKey;
+    }
+
+    public String getRemotePeerHostUuid() {
+        return remotePeerHostUuid;
+    }
+
+    public String getRemotePeerHostName() {
+        return remotePeerHostName;
+    }
+
+    public String getRemotePeerHostAddress() {
+        return remotePeerHostAddress;
+    }
+
+    public String getRemotePeerHostBlockcopyAddress() {
+        return remotePeerHostBlockcopyAddress;
+    }
+
+    public String getRemotePeerLibvirtUri() {
+        return remotePeerLibvirtUri;
+    }
+
+    public String getRemoteTargetStoragePoolUuid() {
+        return remoteTargetStoragePoolUuid;
+    }
+
+    public String getRemoteTargetStoragePoolName() {
+        return remoteTargetStoragePoolName;
+    }
+
+    public String getRemoteTargetStoragePoolPath() {
+        return remoteTargetStoragePoolPath;
+    }
+
+    public String getRemoteTargetStoragePoolType() {
+        return remoteTargetStoragePoolType;
     }
 
     public String getProvisioningBackend() {
