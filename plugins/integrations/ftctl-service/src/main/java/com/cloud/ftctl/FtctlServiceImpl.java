@@ -694,13 +694,12 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
                 }
             }
         }
+        requestParams.put("apiKey", apiKey);
         String apiParams = buildQueryString(requestParams, false);
-        Map<String, String> signedParams = new HashMap<>(requestParams);
-        signedParams.put("apikey", apiKey);
-        String signatureBase = buildQueryString(signedParams, true);
+        String signatureBase = buildQueryString(requestParams, true);
         String signature = signRemoteMoldRequest(signatureBase, secretKey);
         String separator = apiUrl.contains("?") ? "&" : "?";
-        return apiUrl + separator + apiParams + "&apiKey=" + encode(apiKey) + "&signature=" + encode(signature);
+        return apiUrl + separator + apiParams + "&signature=" + encode(signature);
     }
 
     private String buildQueryString(Map<String, String> params, boolean lowerCaseForSignature) throws UnsupportedEncodingException {
@@ -708,11 +707,10 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         entries.sort(Comparator.comparing(entry -> entry.getKey().toLowerCase(Locale.ROOT)));
         List<String> parts = new ArrayList<>();
         for (Map.Entry<String, String> entry : entries) {
-            String key = lowerCaseForSignature ? entry.getKey().toLowerCase(Locale.ROOT) : entry.getKey();
-            String value = lowerCaseForSignature ? entry.getValue().toLowerCase(Locale.ROOT) : entry.getValue();
-            parts.add(key + "=" + encode(value));
+            parts.add(entry.getKey() + "=" + encode(entry.getValue()));
         }
-        return StringUtils.join(parts, "&");
+        String queryString = StringUtils.join(parts, "&");
+        return lowerCaseForSignature ? queryString.toLowerCase(Locale.ROOT) : queryString;
     }
 
     private String signRemoteMoldRequest(String request, String secretKey) {
