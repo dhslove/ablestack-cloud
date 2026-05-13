@@ -23,7 +23,6 @@ public class FtctlRemotePreflightCommand extends Command {
     private String peerUri;
     private String secondaryTargetDir;
     private String remoteNbdExportAddr;
-    private int wait;
 
     public FtctlRemotePreflightCommand() {
     }
@@ -60,14 +59,6 @@ public class FtctlRemotePreflightCommand extends Command {
 
     public void setRemoteNbdExportAddr(String remoteNbdExportAddr) {
         this.remoteNbdExportAddr = remoteNbdExportAddr;
-    }
-
-    public int getWait() {
-        return wait;
-    }
-
-    public void setWait(int wait) {
-        this.wait = wait;
     }
 
     @Override

@@ -30,7 +30,6 @@ public class FtctlDrSshAccessCommand extends Command {
     private String keyComment;
     private String sshUser;
     private boolean applyFirewall;
-    private int wait;
 
     public FtctlDrSshAccessCommand() {
     }
@@ -78,14 +77,6 @@ public class FtctlDrSshAccessCommand extends Command {
 
     public void setApplyFirewall(boolean applyFirewall) {
         this.applyFirewall = applyFirewall;
-    }
-
-    public int getWait() {
-        return wait;
-    }
-
-    public void setWait(int wait) {
-        this.wait = wait;
     }
 
     @Override
