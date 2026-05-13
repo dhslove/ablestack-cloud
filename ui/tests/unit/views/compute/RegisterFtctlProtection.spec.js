@@ -307,6 +307,7 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
       remotepeersshuser: 'root',
       remotepeersshport: '22',
       remotepeersshoverride: false,
+      remotepeersshautosetup: false,
       remotepeerlibvirturi: 'qemu+ssh://root@10.20.0.12:22/system',
       remotetargetstoragepooluuid: 'remote-pool-1',
       remotetargetstoragepoolpath: '/remote/ftctl',
@@ -315,6 +316,56 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
     }))
     expect(postAPI.mock.calls[0][1]).not.toHaveProperty('peerhostid')
     expect(postAPI.mock.calls[0][1]).not.toHaveProperty('targetstoragepoolid')
+    expect(postAPI.mock.calls[0][1]).not.toHaveProperty('remotemoldapikey')
+    expect(postAPI.mock.calls[0][1]).not.toHaveProperty('remotemoldsecretkey')
+  })
+
+  it('prepares DR remote Mold SSH access before registration when auto setup is enabled', async () => {
+    mockGetApi()
+    postAPI.mockResolvedValue({ registerftctlprotectionresponse: { success: true } })
+
+    const wrapper = createWrapper()
+    await flushPromises()
+
+    wrapper.vm.form.mode = 'dr'
+    wrapper.vm.form.drpeersitetype = 'remote-mold'
+    wrapper.vm.handleDrPeerSiteTypeChange()
+    wrapper.vm.remotePeerSshAutoSetup = true
+    wrapper.vm.form.remotemoldapiurl = 'https://remote.example/client/api'
+    wrapper.vm.form.remotemoldapikey = 'api-key'
+    wrapper.vm.form.remotemoldsecretkey = 'secret-key'
+    wrapper.vm.form.remotepeerhostuuid = 'remote-host-1'
+    wrapper.vm.form.remotepeerhostaddress = '10.20.0.12'
+    wrapper.vm.form.remotepeerhostblockcopyaddress = '10.30.0.12'
+    wrapper.vm.form.remotepeersshuser = 'root'
+    wrapper.vm.form.remotepeersshport = '22'
+    wrapper.vm.form.remotepeerlibvirturi = 'qemu+ssh://root@10.20.0.12:22/system'
+    wrapper.vm.form.remotetargetstoragepooluuid = 'remote-pool-1'
+    wrapper.vm.form.remotetargetstoragepoolpath = '/remote/ftctl'
+    wrapper.vm.form.secondarytargetdir = '/remote/ftctl'
+    wrapper.vm.form.remotenbdexportaddr = '10.30.0.12:10809'
+    wrapper.vm.formRef.value = {
+      validate: jest.fn().mockResolvedValue(true),
+      scrollToField: jest.fn()
+    }
+
+    await wrapper.vm.handleSubmit({ preventDefault: jest.fn() })
+    await flushPromises()
+
+    expect(getAPI).toHaveBeenCalledWith('prepareFtctlDrRemoteSshAccess', expect.objectContaining({
+      virtualmachineid: 'vm-1',
+      remotemoldapiurl: 'https://remote.example/client/api',
+      remotemoldapikey: 'api-key',
+      remotemoldsecretkey: 'secret-key',
+      remotepeerhostuuid: 'remote-host-1',
+      remotepeerhostaddress: '10.20.0.12',
+      remotepeerlibvirturi: 'qemu+ssh://root@10.20.0.12:22/system',
+      secondarytargetdir: '/remote/ftctl',
+      remotenbdexportaddr: '10.30.0.12:10809'
+    }))
+    expect(postAPI).toHaveBeenCalledWith('registerFtctlProtection', expect.objectContaining({
+      remotepeersshautosetup: true
+    }))
     expect(postAPI.mock.calls[0][1]).not.toHaveProperty('remotemoldapikey')
     expect(postAPI.mock.calls[0][1]).not.toHaveProperty('remotemoldsecretkey')
   })

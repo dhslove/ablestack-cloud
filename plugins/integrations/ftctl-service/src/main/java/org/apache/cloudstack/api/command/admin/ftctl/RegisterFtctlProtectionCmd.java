@@ -106,6 +106,10 @@ public class RegisterFtctlProtectionCmd extends BaseAsyncCmd {
             description = "whether remote peer SSH connection values were explicitly edited by the user")
     private Boolean remotePeerSshOverride;
 
+    @Parameter(name = "remotepeersshautosetup", type = CommandType.BOOLEAN,
+            description = "whether Cloud pre-prepared source-to-remote SSH access before DR registration")
+    private Boolean remotePeerSshAutoSetup;
+
     @Parameter(name = "remotepeerlibvirturi", type = CommandType.STRING,
             description = "the resolved remote peer libvirt URI for DR")
     private String remotePeerLibvirtUri;
@@ -217,6 +221,10 @@ public class RegisterFtctlProtectionCmd extends BaseAsyncCmd {
 
     public Boolean getRemotePeerSshOverride() {
         return remotePeerSshOverride;
+    }
+
+    public Boolean getRemotePeerSshAutoSetup() {
+        return remotePeerSshAutoSetup;
     }
 
     public String getRemotePeerLibvirtUri() {

@@ -160,6 +160,11 @@
               {{ $t('label.ftctl.remote.peer.ssh.override') }}
             </a-checkbox>
           </a-form-item>
+          <a-form-item name="remotepeersshautosetup">
+            <a-checkbox v-model:checked="remotePeerSshAutoSetup">
+              {{ $t('label.ftctl.remote.peer.ssh.auto.setup') }}
+            </a-checkbox>
+          </a-form-item>
           <div v-if="remotePeerSshOverride" class="ftctl-remote-peer-ssh-fields">
             <a-form-item name="remotepeersshuser">
               <template #label>
@@ -293,6 +298,7 @@ export default {
       remoteMoldHosts: [],
       remoteMoldStoragePools: [],
       remotePeerSshOverride: false,
+      remotePeerSshAutoSetup: false,
       manualXcoloEndpoints: false
     }
   },
@@ -401,6 +407,7 @@ export default {
         remotepeerhostblockcopyaddress: null,
         remotepeersshuser: 'root',
         remotepeersshport: '22',
+        remotepeersshautosetup: false,
         remotepeerlibvirturi: null,
         remotetargetstoragepooluuid: null,
         remotetargetstoragepoolname: null,
@@ -747,6 +754,7 @@ export default {
       this.form.remotepeersshport = '22'
       this.form.remotepeerlibvirturi = null
       this.remotePeerSshOverride = false
+      this.remotePeerSshAutoSetup = false
       this.form.remotetargetstoragepooluuid = null
       this.form.remotetargetstoragepoolname = null
       this.form.remotetargetstoragepoolpath = null
@@ -883,6 +891,7 @@ export default {
             remotepeersshuser: values.remotepeersshuser,
             remotepeersshport: values.remotepeersshport,
             remotepeersshoverride: this.remotePeerSshOverride,
+            remotepeersshautosetup: this.remotePeerSshAutoSetup,
             remotepeerlibvirturi: values.remotepeerlibvirturi,
             remotetargetstoragepooluuid: values.remotetargetstoragepooluuid,
             remotetargetstoragepoolname: values.remotetargetstoragepoolname,
@@ -903,7 +912,25 @@ export default {
           params.xcolomigrateuri = values.xcolomigrateuri
         }
         this.loading = true
-        postAPI('registerFtctlProtection', params).then((json) => {
+        const prepareRemoteSshAccess = () => {
+          if (!this.isDrRemoteMold || !this.remotePeerSshAutoSetup) {
+            return Promise.resolve()
+          }
+          return getAPI('prepareFtctlDrRemoteSshAccess', {
+            virtualmachineid: this.resource.id,
+            remotemoldapiurl: values.remotemoldapiurl,
+            remotemoldapikey: values.remotemoldapikey,
+            remotemoldsecretkey: values.remotemoldsecretkey,
+            remotepeerhostuuid: values.remotepeerhostuuid,
+            remotepeerhostaddress: values.remotepeerhostaddress,
+            remotepeersshuser: values.remotepeersshuser,
+            remotepeersshport: values.remotepeersshport,
+            remotepeerlibvirturi: values.remotepeerlibvirturi,
+            secondarytargetdir: values.secondarytargetdir,
+            remotenbdexportaddr: values.remotenbdexportaddr
+          })
+        }
+        prepareRemoteSshAccess().then(() => postAPI('registerFtctlProtection', params)).then((json) => {
           const payload = this.extractRegisterPayload(json)
           const jobId = this.extractJobId(payload)
           if (jobId) {
