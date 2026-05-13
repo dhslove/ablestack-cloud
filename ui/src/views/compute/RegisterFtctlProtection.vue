@@ -124,7 +124,7 @@
               showSearch
               optionFilterProp="label"
               @change="handleRemotePeerHostChange"
-              :filterOption="(input, option) => option.label.toLowerCase().indexOf(input.toLowerCase()) >= 0">
+              :filterOption="filterRemoteInventoryOption">
               <a-select-option
                 v-for="host in remoteMoldHosts"
                 :key="host.id"
@@ -145,7 +145,7 @@
               showSearch
               optionFilterProp="label"
               @change="handleRemoteStoragePoolChange"
-              :filterOption="(input, option) => option.label.toLowerCase().indexOf(input.toLowerCase()) >= 0">
+              :filterOption="filterRemoteInventoryOption">
               <a-select-option
                 v-for="pool in remoteMoldStoragePools"
                 :key="pool.id"
@@ -155,6 +155,31 @@
               </a-select-option>
             </a-select>
           </a-form-item>
+          <a-form-item name="remotepeersshoverride">
+            <a-checkbox v-model:checked="remotePeerSshOverride" @change="handleRemotePeerSshOverrideChange">
+              {{ $t('label.ftctl.remote.peer.ssh.override') }}
+            </a-checkbox>
+          </a-form-item>
+          <div v-if="remotePeerSshOverride" class="ftctl-remote-peer-ssh-fields">
+            <a-form-item name="remotepeersshuser">
+              <template #label>
+                <tooltip-label :title="$t('label.ftctl.remote.peer.ssh.user')" :tooltip="$t('placeholder.ftctl.remote.peer.ssh.user')" />
+              </template>
+              <a-input v-model:value="form.remotepeersshuser" placeholder="root" @change="rebuildRemotePeerLibvirtUri" />
+            </a-form-item>
+            <a-form-item name="remotepeersshport">
+              <template #label>
+                <tooltip-label :title="$t('label.ftctl.remote.peer.ssh.port')" :tooltip="$t('placeholder.ftctl.remote.peer.ssh.port')" />
+              </template>
+              <a-input v-model:value="form.remotepeersshport" placeholder="22" @change="rebuildRemotePeerLibvirtUri" />
+            </a-form-item>
+            <a-form-item name="remotepeerlibvirturi">
+              <template #label>
+                <tooltip-label :title="$t('label.ftctl.remote.peer.libvirt.uri')" :tooltip="$t('placeholder.ftctl.remote.peer.libvirt.uri')" />
+              </template>
+              <a-input v-model:value="form.remotepeerlibvirturi" placeholder="qemu+ssh://root@10.0.0.12:22/system" />
+            </a-form-item>
+          </div>
         </div>
         <a-form-item name="secondaryvmname">
           <template #label>
@@ -198,7 +223,7 @@
           <template #label>
             <tooltip-label :title="$t('label.ftctl.remote.nbd.export.address')" :tooltip="$t('placeholder.ftctl.remote.nbd.export.address')" />
           </template>
-          <a-input v-model:value="form.remotenbdexportaddr" placeholder="10.0.0.12:10809" />
+          <a-input v-model:value="form.remotenbdexportaddr" :disabled="remoteNbdExportAddressReadOnly" placeholder="10.0.0.12:10809" />
         </a-form-item>
         <a-alert
           v-if="showFtFields"
@@ -267,6 +292,7 @@ export default {
       remoteMoldStoragePoolsLoading: false,
       remoteMoldHosts: [],
       remoteMoldStoragePools: [],
+      remotePeerSshOverride: false,
       manualXcoloEndpoints: false
     }
   },
@@ -303,6 +329,9 @@ export default {
     },
     requiresRemoteNbdBackend () {
       return this.isDrRemoteMold || (this.showBackendFields && this.form?.targetstoragescope === 'secondary-local')
+    },
+    remoteNbdExportAddressReadOnly () {
+      return this.isDrRemoteMold && !this.remotePeerSshOverride
     },
     ftEndpointSummary () {
       if (!this.form?.peerhostid) {
@@ -370,6 +399,8 @@ export default {
         remotepeerhostname: null,
         remotepeerhostaddress: null,
         remotepeerhostblockcopyaddress: null,
+        remotepeersshuser: 'root',
+        remotepeersshport: '22',
         remotepeerlibvirturi: null,
         remotetargetstoragepooluuid: null,
         remotetargetstoragepoolname: null,
@@ -532,16 +563,16 @@ export default {
       return String(path).replace(/\/+$/, '')
     },
     formatStoragePoolLabel (pool) {
-      const name = pool?.name || pool?.id
+      const name = pool?.name || pool?.path || pool?.id || '-'
       const scope = pool?.scope || '-'
       const type = pool?.type || pool?.storagetype || pool?.pooltype || '-'
       const cluster = pool?.clustername ? ` / ${pool.clustername}` : ''
       return `${name} (${scope}${cluster}, ${type})`
     },
     formatHostLabel (host) {
-      const name = host?.name || host?.ipaddress || host?.id
+      const name = host?.name || host?.ipaddress || host?.id || '-'
       const migrationIp = host?.migrationip ? ` / ${host.migrationip}` : ''
-      return `${name}${migrationIp} (${host.id})`
+      return host?.id ? `${name}${migrationIp} (${host.id})` : `${name}${migrationIp}`
     },
     validateRemoteMoldConnection () {
       if (!this.validateRemoteMoldCredentials()) {
@@ -550,6 +581,7 @@ export default {
       this.remoteMoldLoading = true
       getAPI('validateFtctlRemoteMoldConnection', this.buildRemoteMoldCredentialParams()).then(() => {
         this.$message.success(this.$t('message.ftctl.remote.mold.connection.ok'))
+        this.fetchRemoteMoldInventory()
       }).catch((error) => {
         this.$notifyError(error)
       }).finally(() => {
@@ -566,7 +598,13 @@ export default {
     fetchRemoteMoldHosts () {
       this.remoteMoldHostsLoading = true
       getAPI('listFtctlRemoteMoldHosts', this.buildRemoteMoldCredentialParams()).then((json) => {
-        const hosts = json?.listftctlremotemoldhostsresponse?.host || []
+        const response = json?.listftctlremotemoldhostsresponse || {}
+        const hosts = this.normalizeResponseItems(response, [
+          'host',
+          'hosts',
+          'ftctlremotemoldhost',
+          'ftctlremotemoldhosts'
+        ])
         this.remoteMoldHosts = hosts
         if (hosts.length === 1) {
           this.handleRemotePeerHostChange(hosts[0].id)
@@ -584,7 +622,13 @@ export default {
         params.hostid = this.form.remotepeerhostuuid
       }
       getAPI('listFtctlRemoteMoldStoragePools', params).then((json) => {
-        const pools = json?.listftctlremotemoldstoragepoolsresponse?.storagepool || []
+        const response = json?.listftctlremotemoldstoragepoolsresponse || {}
+        const pools = this.normalizeResponseItems(response, [
+          'storagepool',
+          'storagepools',
+          'ftctlremotemoldstoragepool',
+          'ftctlremotemoldstoragepools'
+        ])
         this.remoteMoldStoragePools = pools
         if (pools.length === 1) {
           this.handleRemoteStoragePoolChange(pools[0].id)
@@ -609,6 +653,37 @@ export default {
         remotemoldsecretkey: this.form.remotemoldsecretkey
       }
     },
+    normalizeResponseItems (response, keys) {
+      if (Array.isArray(response)) {
+        return response
+      }
+      if (!response || typeof response !== 'object') {
+        return []
+      }
+      for (const key of keys) {
+        const value = response?.[key]
+        if (Array.isArray(value)) {
+          return value
+        }
+        if (value && typeof value === 'object') {
+          const nestedItems = this.normalizeResponseItems(value, keys)
+          if (nestedItems.length > 0) {
+            return nestedItems
+          }
+          if (this.hasInventoryIdentity(value)) {
+            return [value]
+          }
+        }
+      }
+      return []
+    },
+    hasInventoryIdentity (item) {
+      return !!(item?.id || item?.name || item?.ipaddress || item?.path || item?.url)
+    },
+    filterRemoteInventoryOption (input, option) {
+      const label = String(option?.label || option?.value || '')
+      return label.toLowerCase().indexOf(String(input || '').toLowerCase()) >= 0
+    },
     handleRemotePeerHostChange (hostId) {
       this.form.remotepeerhostuuid = hostId
       this.applyRemotePeerHostDefaults(hostId)
@@ -624,8 +699,32 @@ export default {
       this.form.remotepeerhostname = peerHost.name || null
       this.form.remotepeerhostaddress = managementAddress
       this.form.remotepeerhostblockcopyaddress = blockcopyAddress
-      this.form.remotepeerlibvirturi = managementAddress ? `qemu+ssh://${managementAddress}/system` : null
-      this.form.remotenbdexportaddr = this.buildHostPortEndpoint(blockcopyAddress, 10809)
+      if (!this.remotePeerSshOverride) {
+        this.form.remotepeersshuser = 'root'
+        this.form.remotepeersshport = '22'
+        this.rebuildRemotePeerLibvirtUri()
+        this.form.remotenbdexportaddr = this.buildHostPortEndpoint(blockcopyAddress, 10809)
+      }
+    },
+    handleRemotePeerSshOverrideChange () {
+      if (!this.remotePeerSshOverride) {
+        this.applyRemotePeerHostDefaults(this.form.remotepeerhostuuid)
+      } else {
+        this.form.remotepeersshuser = this.form.remotepeersshuser || 'root'
+        this.form.remotepeersshport = this.form.remotepeersshport || '22'
+        this.rebuildRemotePeerLibvirtUri()
+      }
+    },
+    rebuildRemotePeerLibvirtUri () {
+      const host = this.form.remotepeerhostaddress
+      if (!host) {
+        this.form.remotepeerlibvirturi = null
+        return
+      }
+      const user = this.form.remotepeersshuser || 'root'
+      const port = this.form.remotepeersshport || '22'
+      const authority = user ? `${user}@${host}` : host
+      this.form.remotepeerlibvirturi = port ? `qemu+ssh://${authority}:${port}/system` : `qemu+ssh://${authority}/system`
     },
     handleRemoteStoragePoolChange (poolId) {
       const pool = this.remoteMoldStoragePools.find(item => item.id === poolId)
@@ -644,7 +743,10 @@ export default {
       this.form.remotepeerhostname = null
       this.form.remotepeerhostaddress = null
       this.form.remotepeerhostblockcopyaddress = null
+      this.form.remotepeersshuser = 'root'
+      this.form.remotepeersshport = '22'
       this.form.remotepeerlibvirturi = null
+      this.remotePeerSshOverride = false
       this.form.remotetargetstoragepooluuid = null
       this.form.remotetargetstoragepoolname = null
       this.form.remotetargetstoragepoolpath = null
@@ -714,6 +816,10 @@ export default {
           this.$message.error(this.$t('message.ftctl.validation.remote.mold.required'))
           return false
         }
+        if (values.remotepeersshport && !/^[0-9]+$/.test(String(values.remotepeersshport))) {
+          this.$message.error(this.$t('message.ftctl.validation.remote.peer.ssh.port.required'))
+          return false
+        }
       }
       if (this.showRemoteNbdFields && (!values.secondarytargetdir || !values.remotenbdexportaddr)) {
         this.$message.error(this.$t('message.ftctl.validation.remote.nbd.required'))
@@ -774,6 +880,9 @@ export default {
             remotepeerhostname: values.remotepeerhostname,
             remotepeerhostaddress: values.remotepeerhostaddress,
             remotepeerhostblockcopyaddress: values.remotepeerhostblockcopyaddress,
+            remotepeersshuser: values.remotepeersshuser,
+            remotepeersshport: values.remotepeersshport,
+            remotepeersshoverride: this.remotePeerSshOverride,
             remotepeerlibvirturi: values.remotepeerlibvirturi,
             remotetargetstoragepooluuid: values.remotetargetstoragepooluuid,
             remotetargetstoragepoolname: values.remotetargetstoragepoolname,

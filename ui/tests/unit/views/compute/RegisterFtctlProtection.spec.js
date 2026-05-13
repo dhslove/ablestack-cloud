@@ -57,9 +57,12 @@ const createWrapper = () => {
         'a-select': { template: '<select><slot /></select>' },
         'a-select-option': { template: '<option><slot /></option>' },
         'a-input': { template: '<input />' },
-        'a-alert': { template: '<div />' },
-        'a-checkbox': { template: '<input type="checkbox" />' },
-        'a-button': { template: '<button><slot /></button>' }
+      'a-alert': { template: '<div />' },
+      'a-checkbox': { template: '<input type="checkbox" />' },
+      'a-input-password': { template: '<input />' },
+      'a-radio-button': { template: '<button><slot /></button>' },
+      'a-radio-group': { template: '<div><slot /></div>' },
+      'a-button': { template: '<button><slot /></button>' }
       }
     }
   })
@@ -272,7 +275,9 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
     wrapper.vm.form.remotepeerhostname = 'remote-host'
     wrapper.vm.form.remotepeerhostaddress = '10.20.0.12'
     wrapper.vm.form.remotepeerhostblockcopyaddress = '10.30.0.12'
-    wrapper.vm.form.remotepeerlibvirturi = 'qemu+ssh://10.20.0.12/system'
+    wrapper.vm.form.remotepeersshuser = 'root'
+    wrapper.vm.form.remotepeersshport = '22'
+    wrapper.vm.form.remotepeerlibvirturi = 'qemu+ssh://root@10.20.0.12:22/system'
     wrapper.vm.form.remotetargetstoragepooluuid = 'remote-pool-1'
     wrapper.vm.form.remotetargetstoragepoolname = 'remote-pool'
     wrapper.vm.form.remotetargetstoragepoolpath = '/remote/ftctl'
@@ -299,7 +304,10 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
       remotepeerhostuuid: 'remote-host-1',
       remotepeerhostaddress: '10.20.0.12',
       remotepeerhostblockcopyaddress: '10.30.0.12',
-      remotepeerlibvirturi: 'qemu+ssh://10.20.0.12/system',
+      remotepeersshuser: 'root',
+      remotepeersshport: '22',
+      remotepeersshoverride: false,
+      remotepeerlibvirturi: 'qemu+ssh://root@10.20.0.12:22/system',
       remotetargetstoragepooluuid: 'remote-pool-1',
       remotetargetstoragepoolpath: '/remote/ftctl',
       secondarytargetdir: '/remote/ftctl',
@@ -309,6 +317,45 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
     expect(postAPI.mock.calls[0][1]).not.toHaveProperty('targetstoragepoolid')
     expect(postAPI.mock.calls[0][1]).not.toHaveProperty('remotemoldapikey')
     expect(postAPI.mock.calls[0][1]).not.toHaveProperty('remotemoldsecretkey')
+  })
+
+  it('auto-generates remote Mold SSH execution values and allows manual override', async () => {
+    mockGetApi()
+    const wrapper = createWrapper()
+    await flushPromises()
+
+    wrapper.vm.remoteMoldHosts = [{
+      id: 'remote-host-1',
+      name: 'remote-host',
+      ipaddress: '10.20.0.12',
+      migrationip: '10.30.0.12'
+    }]
+
+    wrapper.vm.handleRemotePeerHostChange('remote-host-1')
+
+    expect(wrapper.vm.form.remotepeersshuser).toBe('root')
+    expect(wrapper.vm.form.remotepeersshport).toBe('22')
+    expect(wrapper.vm.form.remotepeerlibvirturi).toBe('qemu+ssh://root@10.20.0.12:22/system')
+    expect(wrapper.vm.form.remotenbdexportaddr).toBe('10.30.0.12:10809')
+    expect(wrapper.vm.remoteNbdExportAddressReadOnly).toBe(false)
+
+    wrapper.vm.form.mode = 'dr'
+    wrapper.vm.form.drpeersitetype = 'remote-mold'
+    wrapper.vm.remotePeerSshOverride = true
+    wrapper.vm.form.remotepeersshuser = 'admin'
+    wrapper.vm.form.remotepeersshport = '2222'
+    wrapper.vm.rebuildRemotePeerLibvirtUri()
+
+    expect(wrapper.vm.form.remotepeerlibvirturi).toBe('qemu+ssh://admin@10.20.0.12:2222/system')
+    expect(wrapper.vm.remoteNbdExportAddressReadOnly).toBe(false)
+
+    wrapper.vm.remotePeerSshOverride = false
+    wrapper.vm.handleRemotePeerSshOverrideChange()
+
+    expect(wrapper.vm.form.remotepeersshuser).toBe('root')
+    expect(wrapper.vm.form.remotepeersshport).toBe('22')
+    expect(wrapper.vm.form.remotepeerlibvirturi).toBe('qemu+ssh://root@10.20.0.12:22/system')
+    expect(wrapper.vm.remoteNbdExportAddressReadOnly).toBe(true)
   })
 
   it('submits FT registerFtctlProtection with target storage pool and endpoints', async () => {

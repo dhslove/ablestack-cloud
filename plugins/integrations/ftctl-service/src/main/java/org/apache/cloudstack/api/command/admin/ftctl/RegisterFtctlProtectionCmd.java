@@ -94,6 +94,18 @@ public class RegisterFtctlProtectionCmd extends BaseAsyncCmd {
             description = "the remote Mold peer host blockcopy/data-transfer address for DR")
     private String remotePeerHostBlockcopyAddress;
 
+    @Parameter(name = "remotepeersshuser", type = CommandType.STRING,
+            description = "the SSH user used by the source host to reach the remote peer host for DR")
+    private String remotePeerSshUser;
+
+    @Parameter(name = "remotepeersshport", type = CommandType.STRING,
+            description = "the SSH port used by the source host to reach the remote peer host for DR")
+    private String remotePeerSshPort;
+
+    @Parameter(name = "remotepeersshoverride", type = CommandType.BOOLEAN,
+            description = "whether remote peer SSH connection values were explicitly edited by the user")
+    private Boolean remotePeerSshOverride;
+
     @Parameter(name = "remotepeerlibvirturi", type = CommandType.STRING,
             description = "the resolved remote peer libvirt URI for DR")
     private String remotePeerLibvirtUri;
@@ -193,6 +205,18 @@ public class RegisterFtctlProtectionCmd extends BaseAsyncCmd {
 
     public String getRemotePeerHostBlockcopyAddress() {
         return remotePeerHostBlockcopyAddress;
+    }
+
+    public String getRemotePeerSshUser() {
+        return remotePeerSshUser;
+    }
+
+    public String getRemotePeerSshPort() {
+        return remotePeerSshPort;
+    }
+
+    public Boolean getRemotePeerSshOverride() {
+        return remotePeerSshOverride;
     }
 
     public String getRemotePeerLibvirtUri() {
