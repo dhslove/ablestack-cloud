@@ -8,6 +8,8 @@ Remote Mold DR must follow the same ownership model as the validated HA cloud-ma
 
 Cloud owns VM and volume lifecycle. qemu FTCTL owns replication and disaster-recovery data-plane actions. Mold Agent delivers commands and returns logs/status/events. Remote Mold DR must not shift replica VM or RBD/volume creation into qemu FTCTL.
 
+This document is remote-Mold focused. The cross-cutting DR provisioning contract for both current Mold and remote Mold is defined in `200-dr-current-remote-mold-common-provisioning-design-20260514.md` and must be treated as the governing design for new DR changes.
+
 ## 2. Required Boundary
 
 Cloud responsibilities:
@@ -45,11 +47,13 @@ The remote Mold DR path currently stores remote host/storage metadata and can pr
 
 ## 4. New Cloud Design
 
-Add a remote provisioning strategy behind FTCTL protection registration:
+Add a remote provisioning strategy behind FTCTL protection registration. This strategy must be a peer of the current-Mold provisioning path, not a special case:
 
 - local Mold path: use the existing Cloud-managed provisioning service.
 - remote Mold path: use a new remote Mold DR provisioning strategy.
 - registration defaults to `cloud-managed` for both local/current Mold and remote Mold; `libvirt-managed` is an explicit legacy/standalone choice, not the implicit Cloud UI/API path.
+
+Both paths must return the same canonical replica resource model before source-side FTCTL protection state is persisted.
 
 The remote strategy calls a remote Mold-side API such as `prepareFtctlDrReplicaResources`.
 

@@ -58,6 +58,8 @@ import com.cloud.vm.dao.NicDao;
 import com.cloud.vm.dao.UserVmDao;
 import com.cloud.vm.dao.VMInstanceDetailsDao;
 import com.cloud.utils.Pair;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import org.apache.cloudstack.storage.datastore.db.PrimaryDataStoreDao;
 import org.apache.cloudstack.storage.datastore.db.StoragePoolVO;
 import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlCheckCmd;
@@ -86,6 +88,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.junit.MockitoJUnitRunner;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -1103,6 +1107,74 @@ public class FtctlServiceImplTest {
     }
 
     @Test
+    public void testParseRemoteReplicaResourcesAcceptsFlatPayload() {
+        Object resources = parseRemoteReplicaResources("{" +
+                "\"prepareftctldrreplicaresourcesresponse\":{" +
+                "\"remotevirtualmachineid\":\"remote-vm-uuid\"," +
+                "\"remotevirtualmachinename\":\"dr-w22-01-standby\"," +
+                "\"remotevirtualmachineinstancename\":\"i-2-16-VM\"," +
+                "\"diskmap\":\"sda=rbd/root;sdb=rbd/data\"," +
+                "\"volume\":[" +
+                "{\"id\":\"root-volume-uuid\",\"name\":\"root\",\"path\":\"rbd/root\",\"disklabel\":\"root-0\",\"sourcevolumeid\":\"479\",\"sourcedisktarget\":\"sda\"}," +
+                "{\"id\":\"data-volume-uuid\",\"name\":\"data\",\"path\":\"rbd/data\",\"disklabel\":\"data-1\",\"sourcevolumeid\":\"480\",\"sourcedisktarget\":\"sdb\"}" +
+                "]" +
+                "}" +
+                "}");
+
+        Assert.assertEquals("remote-vm-uuid", getFieldValue(resources, "vmId"));
+        Assert.assertEquals("dr-w22-01-standby", getFieldValue(resources, "name"));
+        Assert.assertEquals("i-2-16-VM", getFieldValue(resources, "instanceName"));
+        Assert.assertEquals("sda=rbd/root;sdb=rbd/data", getFieldValue(resources, "diskMap"));
+        List<?> volumes = (List<?>) getFieldValue(resources, "volumes");
+        Assert.assertEquals(2, volumes.size());
+        Assert.assertEquals("479", getFieldValue(volumes.get(0), "sourceVolumeId"));
+        Assert.assertEquals("rbd/root", getFieldValue(volumes.get(0), "path"));
+    }
+
+    @Test
+    public void testParseRemoteReplicaResourcesAcceptsNestedPayloadAndRebuildsDiskMap() {
+        Object resources = parseRemoteReplicaResources("{" +
+                "\"prepareftctldrreplicaresourcesresponse\":{" +
+                "\"ftctldrreplicaresources\":{" +
+                "\"remotevirtualmachineid\":\"remote-vm-uuid\"," +
+                "\"remotevirtualmachinename\":\"dr-w22-01-standby\"," +
+                "\"remotevirtualmachineinstancename\":\"i-2-16-VM\"," +
+                "\"volume\":[" +
+                "{\"ftctldrreplicavolume\":{\"id\":\"root-volume-uuid\",\"name\":\"root\",\"path\":\"rbd/root\",\"disklabel\":\"root-0\",\"sourcevolumeid\":\"479\",\"sourcedisktarget\":\"sda\"}}," +
+                "{\"ftctldrreplicavolume\":{\"id\":\"data-volume-uuid\",\"name\":\"data\",\"path\":\"rbd/data\",\"disklabel\":\"data-1\",\"sourcevolumeid\":\"480\",\"sourcedisktarget\":\"sdb\"}}" +
+                "]" +
+                "}" +
+                "}" +
+                "}");
+
+        Assert.assertEquals("remote-vm-uuid", getFieldValue(resources, "vmId"));
+        Assert.assertEquals("sda=rbd/root;sdb=rbd/data", getFieldValue(resources, "diskMap"));
+        List<?> volumes = (List<?>) getFieldValue(resources, "volumes");
+        Assert.assertEquals(2, volumes.size());
+        Assert.assertEquals("root-volume-uuid", getFieldValue(volumes.get(0), "id"));
+        Assert.assertEquals("sda", getFieldValue(volumes.get(0), "sourceDiskTarget"));
+        Assert.assertEquals("rbd/data", getFieldValue(volumes.get(1), "path"));
+    }
+
+    @Test
+    public void testParseRemoteReplicaResourcesRejectsIncompleteVolumeMetadata() {
+        try {
+            parseRemoteReplicaResources("{" +
+                    "\"prepareftctldrreplicaresourcesresponse\":{" +
+                    "\"ftctldrreplicaresources\":{" +
+                    "\"remotevirtualmachineid\":\"remote-vm-uuid\"," +
+                    "\"diskmap\":\"sda=rbd/root\"," +
+                    "\"volume\":[{\"ftctldrreplicavolume\":{\"id\":\"root-volume-uuid\",\"sourcevolumeid\":\"479\",\"sourcedisktarget\":\"sda\"}}]" +
+                    "}" +
+                    "}" +
+                    "}");
+            Assert.fail("Expected CloudRuntimeException");
+        } catch (CloudRuntimeException e) {
+            Assert.assertTrue(e.getMessage().contains("incomplete FTCTL DR replica volume metadata"));
+        }
+    }
+
+    @Test
     public void testRegisterFtctlProtectionNormalizesHostStorageToRemoteNbd() throws Exception {
         RegisterFtctlProtectionCmd cmd = buildRegisterCmd();
         setField(cmd, "mode", "ha");
@@ -1329,6 +1401,22 @@ public class FtctlServiceImplTest {
             return field.get(target);
         } catch (ReflectiveOperationException e) {
             throw new AssertionError("Unable to read field " + fieldName, e);
+        }
+    }
+
+    private Object parseRemoteReplicaResources(String jsonText) {
+        try {
+            Method method = FtctlServiceImpl.class.getDeclaredMethod("parseRemoteReplicaResources", JsonObject.class);
+            method.setAccessible(true);
+            return method.invoke(ftctlService, JsonParser.parseString(jsonText).getAsJsonObject());
+        } catch (InvocationTargetException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof CloudRuntimeException) {
+                throw (CloudRuntimeException) cause;
+            }
+            throw new AssertionError("Unable to parse remote replica resources", cause);
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError("Unable to invoke parseRemoteReplicaResources", e);
         }
     }
 

@@ -1118,24 +1118,22 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         if (response == null) {
             throw new CloudRuntimeException("Remote Mold did not return FTCTL DR replica resources");
         }
+        JsonObject payload = unwrapRemoteReplicaResourcesPayload(response);
         RemoteReplicaResources resources = new RemoteReplicaResources();
-        resources.vmId = getJsonString(response, "remotevirtualmachineid");
-        resources.name = getJsonString(response, "remotevirtualmachinename");
-        resources.instanceName = getJsonString(response, "remotevirtualmachineinstancename");
-        resources.diskMap = getJsonString(response, "diskmap");
-        if (StringUtils.isAnyBlank(resources.vmId, resources.diskMap)) {
-            throw new CloudRuntimeException("Remote Mold returned incomplete FTCTL DR replica resources");
-        }
+        resources.vmId = getJsonString(payload, "remotevirtualmachineid");
+        resources.name = getJsonString(payload, "remotevirtualmachinename");
+        resources.instanceName = getJsonString(payload, "remotevirtualmachineinstancename");
+        resources.diskMap = getJsonString(payload, "diskmap");
         JsonArray volumes = null;
-        if (response.has("volume") && response.get("volume").isJsonArray()) {
-            volumes = response.getAsJsonArray("volume");
+        if (payload.has("volume") && payload.get("volume").isJsonArray()) {
+            volumes = payload.getAsJsonArray("volume");
         }
         if (volumes != null) {
             for (JsonElement element : volumes) {
                 if (element == null || !element.isJsonObject()) {
                     continue;
                 }
-                JsonObject object = element.getAsJsonObject();
+                JsonObject object = unwrapRemoteReplicaVolumePayload(element.getAsJsonObject());
                 RemoteReplicaVolume volume = new RemoteReplicaVolume();
                 volume.id = getJsonString(object, "id");
                 volume.name = getJsonString(object, "name");
@@ -1149,7 +1147,47 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         if (resources.volumes.isEmpty()) {
             throw new CloudRuntimeException("Remote Mold returned no FTCTL DR replica volumes");
         }
+        validateRemoteReplicaVolumeMetadata(resources);
+        if (StringUtils.isBlank(resources.diskMap)) {
+            resources.diskMap = buildRemoteReplicaDiskMap(resources.volumes);
+        }
+        if (StringUtils.isAnyBlank(resources.vmId, resources.diskMap)) {
+            throw new CloudRuntimeException("Remote Mold returned incomplete FTCTL DR replica resources");
+        }
         return resources;
+    }
+
+    private JsonObject unwrapRemoteReplicaResourcesPayload(JsonObject response) {
+        if (response != null && response.has("ftctldrreplicaresources") && response.get("ftctldrreplicaresources").isJsonObject()) {
+            return response.getAsJsonObject("ftctldrreplicaresources");
+        }
+        return response;
+    }
+
+    private JsonObject unwrapRemoteReplicaVolumePayload(JsonObject volume) {
+        if (volume != null && volume.has("ftctldrreplicavolume") && volume.get("ftctldrreplicavolume").isJsonObject()) {
+            return volume.getAsJsonObject("ftctldrreplicavolume");
+        }
+        return volume;
+    }
+
+    private void validateRemoteReplicaVolumeMetadata(RemoteReplicaResources resources) {
+        for (RemoteReplicaVolume volume : resources.volumes) {
+            if (StringUtils.isAnyBlank(volume.sourceVolumeId, volume.path)) {
+                throw new CloudRuntimeException("Remote Mold returned incomplete FTCTL DR replica volume metadata");
+            }
+            if (StringUtils.isBlank(resources.diskMap) && StringUtils.isBlank(volume.sourceDiskTarget)) {
+                throw new CloudRuntimeException("Remote Mold returned incomplete FTCTL DR replica resources");
+            }
+        }
+    }
+
+    private String buildRemoteReplicaDiskMap(List<RemoteReplicaVolume> volumes) {
+        List<String> diskMapEntries = new ArrayList<>();
+        for (RemoteReplicaVolume volume : volumes) {
+            diskMapEntries.add(String.format("%s=%s", volume.sourceDiskTarget, volume.path));
+        }
+        return StringUtils.join(diskMapEntries, ";");
     }
 
     private JsonObject getResponseObject(JsonObject json, String responseKey) {
