@@ -297,10 +297,12 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
       virtualmachineid: 'vm-1',
       mode: 'dr',
       drpeersitetype: 'remote-mold',
-      provisioningbackend: 'libvirt-managed',
+      provisioningbackend: 'cloud-managed',
       backendmode: 'remote-nbd',
       targetstoragescope: 'secondary-local',
       remotemoldapiurl: 'https://remote.example/client/api',
+      remotemoldapikey: 'api-key',
+      remotemoldsecretkey: 'secret-key',
       remotepeerhostuuid: 'remote-host-1',
       remotepeerhostaddress: '10.20.0.12',
       remotepeerhostblockcopyaddress: '10.30.0.12',
@@ -316,8 +318,6 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
     }))
     expect(postAPI.mock.calls[0][1]).not.toHaveProperty('peerhostid')
     expect(postAPI.mock.calls[0][1]).not.toHaveProperty('targetstoragepoolid')
-    expect(postAPI.mock.calls[0][1]).not.toHaveProperty('remotemoldapikey')
-    expect(postAPI.mock.calls[0][1]).not.toHaveProperty('remotemoldsecretkey')
   })
 
   it('prepares DR remote Mold SSH access before registration when auto setup is enabled', async () => {
@@ -364,10 +364,10 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
       remotenbdexportaddr: '10.30.0.12:10809'
     }))
     expect(postAPI).toHaveBeenCalledWith('registerFtctlProtection', expect.objectContaining({
-      remotepeersshautosetup: true
+      remotepeersshautosetup: true,
+      remotemoldapikey: 'api-key',
+      remotemoldsecretkey: 'secret-key'
     }))
-    expect(postAPI.mock.calls[0][1]).not.toHaveProperty('remotemoldapikey')
-    expect(postAPI.mock.calls[0][1]).not.toHaveProperty('remotemoldsecretkey')
   })
 
   it('auto-generates remote Mold SSH execution values and allows manual override', async () => {

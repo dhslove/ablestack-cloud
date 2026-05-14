@@ -26,11 +26,13 @@ import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlProtectionCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.ListFtctlRemoteMoldHostsCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.ListFtctlRemoteMoldStoragePoolsCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.InstallFtctlDrRemoteSshKeyCmd;
+import org.apache.cloudstack.api.command.admin.ftctl.PrepareFtctlDrReplicaResourcesCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.PrepareFtctlDrRemoteSshAccessCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.RegisterFtctlProtectionCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.ValidateFtctlRemoteMoldConnectionCmd;
 import org.apache.cloudstack.api.response.ftctl.FtctlActionResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlCheckResponse;
+import org.apache.cloudstack.api.response.ftctl.FtctlDrReplicaResourcesResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlEventsResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlHealthResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlProtectionResponse;
@@ -69,6 +71,8 @@ public interface FtctlService extends PluggableService, Configurable {
     FtctlRemoteMoldHostsResponse listFtctlRemoteMoldHosts(ListFtctlRemoteMoldHostsCmd cmd) throws CloudRuntimeException;
 
     FtctlRemoteMoldStoragePoolsResponse listFtctlRemoteMoldStoragePools(ListFtctlRemoteMoldStoragePoolsCmd cmd) throws CloudRuntimeException;
+
+    FtctlDrReplicaResourcesResponse prepareFtctlDrReplicaResources(PrepareFtctlDrReplicaResourcesCmd cmd) throws CloudRuntimeException;
 
     FtctlActionResponse prepareFtctlDrRemoteSshAccess(PrepareFtctlDrRemoteSshAccessCmd cmd) throws CloudRuntimeException;
 

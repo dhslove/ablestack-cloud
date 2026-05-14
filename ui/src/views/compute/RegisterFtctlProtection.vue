@@ -864,7 +864,7 @@ export default {
         const params = {
           virtualmachineid: this.resource.id,
           mode: values.mode,
-          provisioningbackend: this.isDrRemoteMold ? 'libvirt-managed' : 'cloud-managed',
+          provisioningbackend: 'cloud-managed',
           fencingpolicy: values.fencingpolicy
         }
         if (this.showDrPeerSiteType) {
@@ -884,6 +884,8 @@ export default {
           Object.assign(params, {
             targetstoragescope: 'secondary-local',
             remotemoldapiurl: values.remotemoldapiurl,
+            remotemoldapikey: values.remotemoldapikey,
+            remotemoldsecretkey: values.remotemoldsecretkey,
             remotepeerhostuuid: values.remotepeerhostuuid,
             remotepeerhostname: values.remotepeerhostname,
             remotepeerhostaddress: values.remotepeerhostaddress,

@@ -259,7 +259,7 @@ public class FtctlServiceImplTest {
         Assert.assertEquals("not-defined-expected", getFieldValue(response, "standbyDomainState"));
         Assert.assertEquals("cloud-managed", getFieldValue(response, "provisioningBackend"));
 
-        Mockito.verify(agentManager, Mockito.never()).send(Mockito.anyLong(), Mockito.any(Command.class));
+        Mockito.verify(agentManager).send(Mockito.eq(201L), Mockito.any(FtctlEventsCommand.class));
     }
 
     @Test
@@ -278,7 +278,7 @@ public class FtctlServiceImplTest {
         Assert.assertEquals("ok", getFieldValue(response, "result"));
         Assert.assertEquals("qemu+ssh://10.0.0.11/system", getFieldValue(response, "uri"));
         Assert.assertEquals(Integer.valueOf(0), getFieldValue(response, "rc"));
-        Mockito.verify(agentManager, Mockito.never()).send(Mockito.anyLong(), Mockito.any(Command.class));
+        Mockito.verify(agentManager).send(Mockito.eq(201L), Mockito.any(FtctlEventsCommand.class));
     }
 
     @Test
@@ -946,7 +946,7 @@ public class FtctlServiceImplTest {
         Assert.assertEquals("vm-name", eventsResponse.getVmName());
         Assert.assertEquals(Integer.valueOf(1), eventsResponse.getCount());
         Assert.assertEquals("failover.start", eventsResponse.getEvents().get(0).getEvent());
-        Mockito.verify(agentManager).send(Mockito.eq(201L), Mockito.any(FtctlEventsCommand.class));
+        Mockito.verify(agentManager, Mockito.times(3)).send(Mockito.eq(201L), Mockito.any(FtctlEventsCommand.class));
     }
 
     @Test
@@ -1081,6 +1081,7 @@ public class FtctlServiceImplTest {
     @Test
     public void testRegisterCloudManagedRemoteNbdRejectsRelativeDiskMap() throws Exception {
         RegisterFtctlProtectionCmd cmd = buildRegisterCmd();
+        setField(cmd, "provisioningBackend", FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED);
         HostVO localHost = mockHost(201L, 301L, "10.0.0.11");
         HostVO peerHost = mockHost(202L, 301L, "10.0.0.12");
         Mockito.when(hostDao.findById(201L)).thenReturn(localHost);
@@ -1185,9 +1186,9 @@ public class FtctlServiceImplTest {
     }
 
     @Test
-    public void testRegisterFtctlProtectionStopsCloudManagedBeforeAgentSyncWhenProvisioningIsNotReady() throws Exception {
+    public void testRegisterFtctlProtectionDefaultsToCloudManagedBeforeAgentSyncWhenProvisioningIsNotReady() throws Exception {
         RegisterFtctlProtectionCmd cmd = buildRegisterCmd();
-        setField(cmd, "provisioningBackend", "cloud-managed");
+        setField(cmd, "provisioningBackend", null);
         Mockito.doThrow(new CloudRuntimeException("not ready")).when(ftctlProtectionProvisioningService)
                 .prepareProtection(Mockito.any(FtctlProtectionProvisioningRequest.class));
 
@@ -1303,12 +1304,12 @@ public class FtctlServiceImplTest {
     }
 
     @Test
-    public void testGetFtctlHealthDoesNotCallAgent() throws Exception {
+    public void testGetFtctlHealthFallsBackWhenRuntimeEventsUnavailable() throws Exception {
         GetFtctlHealthCmd cmd = new GetFtctlHealthCmd();
         setField(cmd, "virtualMachineId", 101L);
         FtctlHealthResponse response = ftctlService.getFtctlHealth(cmd);
         Assert.assertEquals("not_available", getFieldValue(response, "result"));
-        Mockito.verify(agentManager, Mockito.never()).send(Mockito.anyLong(), Mockito.any(Command.class));
+        Mockito.verify(agentManager).send(Mockito.eq(201L), Mockito.any(FtctlEventsCommand.class));
     }
 
     private void setField(Object target, String fieldName, Object value) {
@@ -1338,6 +1339,7 @@ public class FtctlServiceImplTest {
         setField(cmd, "backendMode", "remote-nbd");
         setField(cmd, "targetStorageScope", "host");
         setField(cmd, "targetStoragePoolId", 501L);
+        setField(cmd, "provisioningBackend", FtctlProtectionProvisioningService.BACKEND_LIBVIRT_MANAGED);
         setField(cmd, "fencingPolicy", "manual-block");
         setField(cmd, "peerHostId", 202L);
         setField(cmd, "secondaryVmName", "vm-name-secondary");

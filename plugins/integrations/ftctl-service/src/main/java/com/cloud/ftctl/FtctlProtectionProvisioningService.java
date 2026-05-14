@@ -18,6 +18,8 @@ package com.cloud.ftctl;
 
 import com.cloud.utils.component.Manager;
 import com.cloud.utils.exception.CloudRuntimeException;
+import org.apache.cloudstack.api.command.admin.ftctl.PrepareFtctlDrReplicaResourcesCmd;
+import org.apache.cloudstack.api.response.ftctl.FtctlDrReplicaResourcesResponse;
 
 public interface FtctlProtectionProvisioningService extends Manager {
 
@@ -29,4 +31,6 @@ public interface FtctlProtectionProvisioningService extends Manager {
     String STATE_PROVISIONING_FAILED = "ProvisioningFailed";
 
     FtctlProtectionProvisioningContext prepareProtection(FtctlProtectionProvisioningRequest request) throws CloudRuntimeException;
+
+    FtctlDrReplicaResourcesResponse prepareDrReplicaResources(PrepareFtctlDrReplicaResourcesCmd cmd) throws CloudRuntimeException;
 }

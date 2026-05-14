@@ -32,6 +32,7 @@ import com.cloud.agent.api.FtctlSyncProfileCommand;
 import com.cloud.event.ActionEventUtils;
 import com.cloud.event.EventTypes;
 import com.cloud.event.EventVO;
+import com.cloud.event.UsageEventVO;
 import com.cloud.event.dao.EventDao;
 import com.cloud.exception.AgentUnavailableException;
 import com.cloud.exception.ConcurrentOperationException;
@@ -46,6 +47,8 @@ import com.cloud.host.DetailVO;
 import com.cloud.host.HostVO;
 import com.cloud.host.dao.HostDao;
 import com.cloud.host.dao.HostDetailsDao;
+import com.cloud.service.ServiceOfferingVO;
+import com.cloud.service.dao.ServiceOfferingDao;
 import com.cloud.storage.Storage;
 import com.cloud.storage.Volume;
 import com.cloud.storage.VolumeApiService;
@@ -65,6 +68,7 @@ import com.cloud.vm.VmDetailConstants;
 import com.cloud.vm.dao.NicDao;
 import com.cloud.vm.dao.UserVmDao;
 import com.cloud.vm.dao.VMInstanceDetailsDao;
+import org.apache.cloudstack.api.ApiConstants;
 import org.apache.cloudstack.api.ApiCommandResourceType;
 import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlCheckCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlEventsCmd;
@@ -73,12 +77,14 @@ import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlProtectionCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.InstallFtctlDrRemoteSshKeyCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.ListFtctlRemoteMoldHostsCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.ListFtctlRemoteMoldStoragePoolsCmd;
+import org.apache.cloudstack.api.command.admin.ftctl.PrepareFtctlDrReplicaResourcesCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.PrepareFtctlDrRemoteSshAccessCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.RegisterFtctlProtectionCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.ReleaseFtctlProtectionCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.ValidateFtctlRemoteMoldConnectionCmd;
 import org.apache.cloudstack.api.response.ftctl.FtctlActionResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlCheckResponse;
+import org.apache.cloudstack.api.response.ftctl.FtctlDrReplicaResourcesResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlEventResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlEventsResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlHealthResponse;
@@ -163,6 +169,10 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     public static final String DETAIL_REMOTE_TARGET_STORAGE_POOL_NAME = "ftctl.dr.remote.target.storage.pool.name";
     public static final String DETAIL_REMOTE_TARGET_STORAGE_POOL_PATH = "ftctl.dr.remote.target.storage.pool.path";
     public static final String DETAIL_REMOTE_TARGET_STORAGE_POOL_TYPE = "ftctl.dr.remote.target.storage.pool.type";
+    public static final String DETAIL_REMOTE_REPLICA_VM_ID = "ftctl.dr.remote.replica.vm.id";
+    public static final String DETAIL_REMOTE_REPLICA_VM_NAME = "ftctl.dr.remote.replica.vm.name";
+    public static final String DETAIL_REMOTE_REPLICA_VM_INSTANCE_NAME = "ftctl.dr.remote.replica.vm.instance.name";
+    public static final String DETAIL_REMOTE_REPLICA_VOLUME_PREFIX = "ftctl.dr.remote.replica.volume.";
     public static final String DETAIL_FENCING_POLICY = "ftctl.fencing.policy";
     public static final String DETAIL_FENCING_IPMI_PRIMARY_HOST = "ftctl.fencing.ipmi.primary.host";
     public static final String DETAIL_FENCING_IPMI_SECONDARY_HOST = "ftctl.fencing.ipmi.secondary.host";
@@ -264,6 +274,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     private VolumeApiService volumeApiService;
     @Inject
     private EventDao eventDao;
+    @Inject
+    private ServiceOfferingDao serviceOfferingDao;
 
     @Override
     public boolean start() {
@@ -533,6 +545,11 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         response.setObjectName("ftctlremotemoldstoragepools");
         response.setStoragePools(storagePools);
         return response;
+    }
+
+    @Override
+    public FtctlDrReplicaResourcesResponse prepareFtctlDrReplicaResources(PrepareFtctlDrReplicaResourcesCmd cmd) throws CloudRuntimeException {
+        return ftctlProtectionProvisioningService.prepareDrReplicaResources(cmd);
     }
 
     @Override
@@ -864,8 +881,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     }
 
     private void validateRemoteMoldDrRegisterRequest(RegisterFtctlProtectionCmd cmd) {
-        if (hasAnyText(cmd.getRemoteMoldApiKey(), cmd.getRemoteMoldSecretKey())) {
-            throw new CloudRuntimeException("FTCTL DR remote Mold registration must not include remote Mold API key or secret key; use the lookup APIs before registration");
+        if (StringUtils.isAnyBlank(cmd.getRemoteMoldApiUrl(), cmd.getRemoteMoldApiKey(), cmd.getRemoteMoldSecretKey())) {
+            throw new CloudRuntimeException("FTCTL DR remote Mold registration requires remote Mold API URL, API key, and secret key for Cloud-managed replica provisioning");
         }
         if (StringUtils.isAnyBlank(cmd.getRemotePeerHostUuid(), cmd.getRemotePeerHostAddress())) {
             throw new CloudRuntimeException("FTCTL DR remote Mold requires a resolved remote peer host UUID and address");
@@ -980,13 +997,16 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
 
     private String resolveProvisioningBackend(RegisterFtctlProtectionCmd cmd) {
         if (isRemoteMoldDr(cmd)) {
-            return FtctlProtectionProvisioningService.BACKEND_LIBVIRT_MANAGED;
+            return FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED;
         }
-        return StringUtils.defaultIfBlank(cmd.getProvisioningBackend(), FtctlProtectionProvisioningService.BACKEND_LIBVIRT_MANAGED);
+        return StringUtils.defaultIfBlank(cmd.getProvisioningBackend(), FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED);
     }
 
     private FtctlProtectionProvisioningContext prepareProtection(UserVmVO userVm, RegisterFtctlProtectionCmd cmd, StoragePoolVO targetStoragePool,
                                                                 String backendMode, String provisioningBackend) {
+        if (isRemoteMoldDr(cmd) && FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED.equalsIgnoreCase(provisioningBackend)) {
+            return prepareRemoteMoldCloudManagedProtection(userVm, cmd, backendMode);
+        }
         FtctlProtectionProvisioningRequest request = new FtctlProtectionProvisioningRequest(
                 userVm,
                 cmd.getPeerHostId(),
@@ -997,6 +1017,225 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
                 cmd.getFencingPolicy(),
                 cmd.getSecondaryVmName());
         return ftctlProtectionProvisioningService.prepareProtection(request);
+    }
+
+    private FtctlProtectionProvisioningContext prepareRemoteMoldCloudManagedProtection(UserVmVO userVm, RegisterFtctlProtectionCmd cmd, String backendMode) {
+        Map<String, String> params = new HashMap<>();
+        params.put("sourcevirtualmachineid", userVm.getUuid());
+        params.put("sourcevirtualmachinename", resolveVmDisplayName(userVm.getId()));
+        params.put("sourcevirtualmachineinstancename", userVm.getInstanceName());
+        params.put("secondaryvmname", resolveSecondaryVmName(userVm, cmd));
+        params.put("remotepeerhostuuid", cmd.getRemotePeerHostUuid());
+        params.put("remotetargetstoragepooluuid", cmd.getRemoteTargetStoragePoolUuid());
+        params.put("sourcehypervisor", userVm.getHypervisorType() != null ? userVm.getHypervisorType().name() : "KVM");
+        params.put("sourcevmdetails", buildSourceVmDetailsJson(userVm).toString());
+        params.put("sourcevolumes", buildSourceVolumesJson(userVm).toString());
+
+        JsonObject json = callRemoteMoldApi(cmd.getRemoteMoldApiUrl(), cmd.getRemoteMoldApiKey(), cmd.getRemoteMoldSecretKey(),
+                PrepareFtctlDrReplicaResourcesCmd.APINAME, params);
+        RemoteReplicaResources resources = parseRemoteReplicaResources(json);
+        persistRemoteReplicaProtection(userVm, cmd, backendMode, resources);
+        persistRemoteReplicaDetails(userVm.getId(), resources);
+        return new FtctlProtectionProvisioningContext(FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED,
+                FtctlProtectionProvisioningService.STATE_READY,
+                StringUtils.defaultIfBlank(resources.instanceName, resources.name),
+                resources.diskMap);
+    }
+
+    private JsonObject buildSourceVmDetailsJson(UserVmVO userVm) {
+        JsonObject details = new JsonObject();
+        if (userVm != null) {
+            userVmDao.loadDetails(userVm);
+            Map<String, String> vmDetails = userVm.getDetails();
+            if (vmDetails != null) {
+                for (Map.Entry<String, String> entry : vmDetails.entrySet()) {
+                    if (StringUtils.isNotBlank(entry.getKey()) && StringUtils.isNotBlank(entry.getValue()) &&
+                            !StringUtils.startsWith(entry.getKey(), "ftctl.")) {
+                        details.addProperty(entry.getKey(), entry.getValue());
+                    }
+                }
+            }
+            ServiceOfferingVO offering = serviceOfferingDao.findById(userVm.getServiceOfferingId());
+            if (offering != null) {
+                if (offering.getCpu() != null) {
+                    details.addProperty(UsageEventVO.DynamicParameters.cpuNumber.name(), String.valueOf(offering.getCpu()));
+                    details.addProperty(ApiConstants.CPU_NUMBER, String.valueOf(offering.getCpu()));
+                }
+                if (offering.getSpeed() != null) {
+                    details.addProperty(UsageEventVO.DynamicParameters.cpuSpeed.name(), String.valueOf(offering.getSpeed()));
+                    details.addProperty(ApiConstants.CPU_SPEED, String.valueOf(offering.getSpeed()));
+                }
+                if (offering.getRamSize() != null) {
+                    details.addProperty(UsageEventVO.DynamicParameters.memory.name(), String.valueOf(offering.getRamSize()));
+                    details.addProperty(ApiConstants.MEMORY, String.valueOf(offering.getRamSize()));
+                }
+            }
+        }
+        return details;
+    }
+
+    private JsonArray buildSourceVolumesJson(UserVmVO userVm) {
+        List<VolumeVO> volumes = volumeDao.findByInstance(userVm.getId());
+        if (volumes == null || volumes.isEmpty()) {
+            throw new CloudRuntimeException(String.format("Unable to find source volumes for FTCTL DR remote Mold VM %s", userVm.getUuid()));
+        }
+        JsonArray array = new JsonArray();
+        for (VolumeVO volume : volumes.stream()
+                .filter(this::isProtectedVolumeType)
+                .sorted((left, right) -> Long.compare(resolveDeviceIdForSort(left), resolveDeviceIdForSort(right)))
+                .collect(Collectors.toList())) {
+            JsonObject object = new JsonObject();
+            object.addProperty("sourcevolumeid", String.valueOf(volume.getId()));
+            object.addProperty("sourcevolumeuuid", volume.getUuid());
+            object.addProperty("sourcedisktarget", resolveKvmDiskTarget(userVm.getId(), volume.getId()));
+            object.addProperty("disklabel", resolveDiskLabel(volume));
+            object.addProperty("type", volume.getVolumeType() != null ? volume.getVolumeType().name() : null);
+            if (volume.getDeviceId() != null) {
+                object.addProperty("deviceid", volume.getDeviceId());
+            }
+            object.addProperty("size", volume.getSize());
+            if (volume.getMinIops() != null) {
+                object.addProperty("miniops", volume.getMinIops());
+            }
+            if (volume.getMaxIops() != null) {
+                object.addProperty("maxiops", volume.getMaxIops());
+            }
+            array.add(object);
+        }
+        if (array.size() == 0) {
+            throw new CloudRuntimeException(String.format("FTCTL DR remote Mold VM %s has no protected ROOT/DATADISK volumes", userVm.getUuid()));
+        }
+        return array;
+    }
+
+    private String resolveSecondaryVmName(UserVmVO userVm, RegisterFtctlProtectionCmd cmd) {
+        return StringUtils.defaultIfBlank(cmd.getSecondaryVmName(), String.format("%s-standby",
+                StringUtils.defaultIfBlank(userVm.getHostName(), resolveVmDisplayName(userVm.getId()))));
+    }
+
+    private RemoteReplicaResources parseRemoteReplicaResources(JsonObject json) {
+        JsonObject response = getResponseObject(json, "prepareftctldrreplicaresourcesresponse");
+        if (response == null) {
+            throw new CloudRuntimeException("Remote Mold did not return FTCTL DR replica resources");
+        }
+        RemoteReplicaResources resources = new RemoteReplicaResources();
+        resources.vmId = getJsonString(response, "remotevirtualmachineid");
+        resources.name = getJsonString(response, "remotevirtualmachinename");
+        resources.instanceName = getJsonString(response, "remotevirtualmachineinstancename");
+        resources.diskMap = getJsonString(response, "diskmap");
+        if (StringUtils.isAnyBlank(resources.vmId, resources.diskMap)) {
+            throw new CloudRuntimeException("Remote Mold returned incomplete FTCTL DR replica resources");
+        }
+        JsonArray volumes = null;
+        if (response.has("volume") && response.get("volume").isJsonArray()) {
+            volumes = response.getAsJsonArray("volume");
+        }
+        if (volumes != null) {
+            for (JsonElement element : volumes) {
+                if (element == null || !element.isJsonObject()) {
+                    continue;
+                }
+                JsonObject object = element.getAsJsonObject();
+                RemoteReplicaVolume volume = new RemoteReplicaVolume();
+                volume.id = getJsonString(object, "id");
+                volume.name = getJsonString(object, "name");
+                volume.path = getJsonString(object, "path");
+                volume.diskLabel = getJsonString(object, "disklabel");
+                volume.sourceVolumeId = getJsonString(object, "sourcevolumeid");
+                volume.sourceDiskTarget = getJsonString(object, "sourcedisktarget");
+                resources.volumes.add(volume);
+            }
+        }
+        if (resources.volumes.isEmpty()) {
+            throw new CloudRuntimeException("Remote Mold returned no FTCTL DR replica volumes");
+        }
+        return resources;
+    }
+
+    private JsonObject getResponseObject(JsonObject json, String responseKey) {
+        if (json == null || !json.has(responseKey) || !json.get(responseKey).isJsonObject()) {
+            return null;
+        }
+        return json.getAsJsonObject(responseKey);
+    }
+
+    private void persistRemoteReplicaProtection(UserVmVO userVm, RegisterFtctlProtectionCmd cmd, String backendMode,
+                                                RemoteReplicaResources resources) {
+        FtctlProtectionVO protection = ftctlProtectionDao.findActiveByPrimaryVmId(userVm.getId());
+        boolean existingRecord = protection != null;
+        if (protection == null) {
+            protection = new FtctlProtectionVO(userVm.getId());
+        }
+        protection.setMode(cmd.getMode());
+        protection.setBackendMode(backendMode);
+        protection.setProvisioningBackend(FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED);
+        protection.setProvisioningState(FtctlProtectionProvisioningService.STATE_READY);
+        protection.setFencingPolicy(cmd.getFencingPolicy());
+        protection.setPeerHostId(null);
+        protection.setTargetStoragePoolId(null);
+        protection.setSecondaryVmId(null);
+        protection.setSecondaryVmName(StringUtils.defaultIfBlank(resources.instanceName, resources.name));
+        protection.setLastError(null);
+        protection.markUpdated();
+        if (existingRecord) {
+            ftctlProtectionDao.update(protection.getId(), protection);
+        } else {
+            protection = ftctlProtectionDao.persist(protection);
+        }
+        persistRemoteReplicaVolumeMappings(userVm, protection, resources);
+    }
+
+    private void persistRemoteReplicaVolumeMappings(UserVmVO userVm, FtctlProtectionVO protection, RemoteReplicaResources resources) {
+        List<VolumeVO> primaryVolumes = volumeDao.findByInstance(userVm.getId());
+        if (primaryVolumes == null || primaryVolumes.isEmpty()) {
+            return;
+        }
+        Map<String, RemoteReplicaVolume> remoteVolumesByPrimaryId = new HashMap<>();
+        for (RemoteReplicaVolume remoteVolume : resources.volumes) {
+            if (StringUtils.isNotBlank(remoteVolume.sourceVolumeId)) {
+                remoteVolumesByPrimaryId.put(remoteVolume.sourceVolumeId, remoteVolume);
+            }
+        }
+        for (VolumeVO primaryVolume : primaryVolumes) {
+            if (!isProtectedVolumeType(primaryVolume)) {
+                continue;
+            }
+            RemoteReplicaVolume remoteVolume = remoteVolumesByPrimaryId.get(String.valueOf(primaryVolume.getId()));
+            if (remoteVolume == null || StringUtils.isBlank(remoteVolume.path)) {
+                throw new CloudRuntimeException(String.format("Remote Mold did not return a replica disk path for primary volume %s", primaryVolume.getUuid()));
+            }
+            FtctlProtectionVolumeVO protectionVolume = ftctlProtectionVolumeDao.findActiveByProtectionIdAndPrimaryVolumeId(protection.getId(), primaryVolume.getId());
+            boolean existingRecord = protectionVolume != null;
+            if (protectionVolume == null) {
+                protectionVolume = new FtctlProtectionVolumeVO(protection.getId(), primaryVolume.getId());
+            }
+            protectionVolume.setPrimaryDiskPath(primaryVolume.getPath());
+            protectionVolume.setDiskLabel(StringUtils.defaultIfBlank(remoteVolume.diskLabel, resolveDiskLabel(primaryVolume)));
+            protectionVolume.setSecondaryVolumeId(null);
+            protectionVolume.setSecondaryDiskPath(remoteVolume.path);
+            protectionVolume.markUpdated();
+            if (existingRecord) {
+                ftctlProtectionVolumeDao.update(protectionVolume.getId(), protectionVolume);
+            } else {
+                ftctlProtectionVolumeDao.persist(protectionVolume);
+            }
+        }
+    }
+
+    private void persistRemoteReplicaDetails(Long virtualMachineId, RemoteReplicaResources resources) {
+        putVmDetailIfNotBlank(virtualMachineId, DETAIL_REMOTE_REPLICA_VM_ID, resources.vmId);
+        putVmDetailIfNotBlank(virtualMachineId, DETAIL_REMOTE_REPLICA_VM_NAME, resources.name);
+        putVmDetailIfNotBlank(virtualMachineId, DETAIL_REMOTE_REPLICA_VM_INSTANCE_NAME, resources.instanceName);
+        for (RemoteReplicaVolume volume : resources.volumes) {
+            if (StringUtils.isBlank(volume.sourceVolumeId)) {
+                continue;
+            }
+            String prefix = DETAIL_REMOTE_REPLICA_VOLUME_PREFIX + volume.sourceVolumeId + ".";
+            putVmDetailIfNotBlank(virtualMachineId, prefix + "id", volume.id);
+            putVmDetailIfNotBlank(virtualMachineId, prefix + "name", volume.name);
+            putVmDetailIfNotBlank(virtualMachineId, prefix + "path", volume.path);
+            putVmDetailIfNotBlank(virtualMachineId, prefix + "disk.label", volume.diskLabel);
+        }
     }
 
     private void persistProvisioningFailure(Long virtualMachineId, String provisioningBackend, CloudRuntimeException e) {
@@ -2277,6 +2516,10 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         response.setProvisioningState(getDetailValue(sourceVmId, DETAIL_PROVISIONING_STATE));
         response.setTargetStorageScope(getDetailValue(sourceVmId, DETAIL_TARGET_STORAGE_SCOPE));
         boolean remoteMoldDr = DR_PEER_SITE_TYPE_REMOTE_MOLD.equalsIgnoreCase(getDetailValue(sourceVmId, DETAIL_DR_PEER_SITE_TYPE));
+        if (remoteMoldDr && secondaryVmId == null) {
+            response.setSecondaryVirtualMachineUuid(getDetailValue(sourceVmId, DETAIL_REMOTE_REPLICA_VM_ID));
+            response.setSecondaryVirtualMachineDisplayName(getDetailValue(sourceVmId, DETAIL_REMOTE_REPLICA_VM_NAME));
+        }
         response.setTargetStoragePoolId(StringUtils.defaultIfBlank(getDetailValue(sourceVmId, DETAIL_TARGET_STORAGE_POOL_ID),
                 remoteMoldDr ? getDetailValue(sourceVmId, DETAIL_REMOTE_TARGET_STORAGE_POOL_ID) : null));
         response.setTargetStoragePoolName(StringUtils.defaultIfBlank(getDetailValue(sourceVmId, DETAIL_TARGET_STORAGE_POOL_NAME),
@@ -2371,12 +2614,15 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         for (FtctlProtectionVolumeVO volume : volumes) {
             String secondaryPath = resolveFtctlSecondaryDiskPath(targetStoragePool, volume.getSecondaryDiskPath());
             VolumeVO secondaryVolume = volume.getSecondaryVolumeId() != null ? volumeDao.findById(volume.getSecondaryVolumeId()) : null;
-            if (secondaryVolume != null) {
+            String remoteVolumePrefix = DETAIL_REMOTE_REPLICA_VOLUME_PREFIX + volume.getPrimaryVolumeId() + ".";
+            String remoteVolumeId = primaryVmId != null ? getDetailValue(primaryVmId, remoteVolumePrefix + "id") : null;
+            if (secondaryVolume != null || StringUtils.isNotBlank(remoteVolumeId)) {
                 FtctlProtectionVolumeResponse volumeResponse = new FtctlProtectionVolumeResponse();
                 volumeResponse.setObjectName("ftctlprotectionvolume");
-                volumeResponse.setId(secondaryVolume.getUuid());
-                volumeResponse.setName(resolveVolumeDisplayName(secondaryVolume.getId()));
-                volumeResponse.setPath(StringUtils.defaultIfBlank(secondaryPath, secondaryVolume.getPath()));
+                volumeResponse.setId(secondaryVolume != null ? secondaryVolume.getUuid() : remoteVolumeId);
+                volumeResponse.setName(secondaryVolume != null ? resolveVolumeDisplayName(secondaryVolume.getId()) : getDetailValue(primaryVmId, remoteVolumePrefix + "name"));
+                volumeResponse.setPath(StringUtils.defaultIfBlank(secondaryPath,
+                        secondaryVolume != null ? secondaryVolume.getPath() : getDetailValue(primaryVmId, remoteVolumePrefix + "path")));
                 volumeResponse.setDiskLabel(volume.getDiskLabel());
                 secondaryVolumes.add(volumeResponse);
             }
@@ -2440,6 +2686,27 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             return String.valueOf(volumeId);
         }
         return StringUtils.defaultIfBlank(volume.getName(), StringUtils.defaultIfBlank(volume.getPath(), String.valueOf(volumeId)));
+    }
+
+    private boolean isProtectedVolumeType(VolumeVO volume) {
+        return volume != null && (volume.getVolumeType() == Volume.Type.ROOT || volume.getVolumeType() == Volume.Type.DATADISK);
+    }
+
+    private long resolveDeviceIdForSort(VolumeVO volume) {
+        return volume != null && volume.getDeviceId() != null ? volume.getDeviceId() : Long.MAX_VALUE;
+    }
+
+    private String resolveDiskLabel(VolumeVO volume) {
+        String volumeType = "volume";
+        if (volume.getVolumeType() == Volume.Type.ROOT) {
+            volumeType = "root";
+        } else if (volume.getVolumeType() == Volume.Type.DATADISK) {
+            volumeType = "data";
+        } else if (volume.getVolumeType() != null) {
+            volumeType = volume.getVolumeType().name().toLowerCase(Locale.ROOT);
+        }
+        String deviceId = volume.getDeviceId() != null ? String.valueOf(volume.getDeviceId()) : String.valueOf(volume.getId());
+        return String.format("%s-%s", volumeType, deviceId);
     }
 
     private String resolveKvmDiskTarget(Long virtualMachineId, long volumeId) {
@@ -3081,6 +3348,23 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         }
     }
 
+    private static final class RemoteReplicaResources {
+        private String vmId;
+        private String name;
+        private String instanceName;
+        private String diskMap;
+        private final List<RemoteReplicaVolume> volumes = new ArrayList<>();
+    }
+
+    private static final class RemoteReplicaVolume {
+        private String id;
+        private String name;
+        private String path;
+        private String diskLabel;
+        private String sourceVolumeId;
+        private String sourceDiskTarget;
+    }
+
     private List<FtctlEventResponse> parseEvents(String itemsJson) {
         List<FtctlEventResponse> events = new ArrayList<>();
         if (itemsJson == null || itemsJson.isBlank()) {
@@ -3289,6 +3573,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         cmdList.add(ValidateFtctlRemoteMoldConnectionCmd.class);
         cmdList.add(ListFtctlRemoteMoldHostsCmd.class);
         cmdList.add(ListFtctlRemoteMoldStoragePoolsCmd.class);
+        cmdList.add(PrepareFtctlDrReplicaResourcesCmd.class);
         cmdList.add(PrepareFtctlDrRemoteSshAccessCmd.class);
         cmdList.add(InstallFtctlDrRemoteSshKeyCmd.class);
         cmdList.add(GetFtctlCheckCmd.class);

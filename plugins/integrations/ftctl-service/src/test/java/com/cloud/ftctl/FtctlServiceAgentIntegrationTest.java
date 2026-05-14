@@ -40,6 +40,7 @@ import com.cloud.storage.dao.VolumeDao;
 import com.cloud.utils.exception.CloudRuntimeException;
 import com.cloud.vm.VMInstanceDetailVO;
 import com.cloud.vm.UserVmVO;
+import com.cloud.vm.VirtualMachine;
 import com.cloud.vm.dao.UserVmDao;
 import com.cloud.vm.dao.VMInstanceDetailsDao;
 import org.apache.cloudstack.storage.datastore.db.PrimaryDataStoreDao;
@@ -106,6 +107,7 @@ public class FtctlServiceAgentIntegrationTest {
         Mockito.when(userVm.getUuid()).thenReturn("vm-uuid");
         Mockito.when(userVm.getInstanceName()).thenReturn("vm-name");
         Mockito.when(userVm.getHostId()).thenReturn(201L);
+        Mockito.when(userVm.getState()).thenReturn(VirtualMachine.State.Running);
         Mockito.lenient().when(userVm.getDataCenterId()).thenReturn(401L);
         Mockito.when(userVmDao.findById(101L)).thenReturn(userVm);
 
@@ -391,6 +393,7 @@ public class FtctlServiceAgentIntegrationTest {
         setField(cmd, "backendMode", "remote-nbd");
         setField(cmd, "targetStorageScope", "host");
         setField(cmd, "targetStoragePoolId", 501L);
+        setField(cmd, "provisioningBackend", FtctlProtectionProvisioningService.BACKEND_LIBVIRT_MANAGED);
         setField(cmd, "fencingPolicy", "manual-block");
         setField(cmd, "peerHostId", 202L);
         setField(cmd, "secondaryVmName", "vm-name-secondary");
