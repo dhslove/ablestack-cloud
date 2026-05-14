@@ -364,6 +364,53 @@ describe('Views > compute > FtctlTab.vue', () => {
     expect(wrapper.vm.operationalSummary.type).toBe('info')
   })
 
+  it('enables manual fence confirmation for cloud-managed failover-required state', async () => {
+    getAPI.mockImplementation((command) => {
+      switch (command) {
+        case 'getFtctlProtection':
+          return Promise.resolve({
+            getftctlprotectionresponse: {
+              ftctlprotection: {
+                enabled: 'true',
+                mode: 'dr',
+                provisioningbackend: 'cloud-managed',
+                protectionstate: 'failover_required',
+                transportstate: 'mirroring',
+                activeside: 'primary',
+                adminstate: 'active',
+                fencingstate: 'required',
+                primaryvirtualmachinestate: 'Stopped'
+              }
+            }
+          })
+        case 'getFtctlCheck':
+          return Promise.resolve({ getftctlcheckresponse: {} })
+        case 'getFtctlHealth':
+          return Promise.resolve({ getftctlhealthresponse: {} })
+        case 'getFtctlEvents':
+          return Promise.resolve({ getftctleventsresponse: { events: [] } })
+        default:
+          return Promise.resolve({})
+      }
+    })
+
+    const wrapper = createWrapper({
+      getFtctlCheck: true,
+      getFtctlHealth: true,
+      getFtctlEvents: true,
+      confirmFtctlFence: true
+    })
+
+    await flushPromises()
+
+    const confirmAction = wrapper.vm.actionDefinitions.find(action => action.api === 'confirmFtctlFence')
+    expect(wrapper.vm.isManualFenceConfirmationReady()).toBe(true)
+    expect(confirmAction.disabled).toBe(false)
+    expect(confirmAction.reason).toBeNull()
+    expect(wrapper.vm.stateTagColor('failover_required')).toBe('orange')
+    wrapper.unmount()
+  })
+
   it('runs action, applies payload and emits refresh event', async () => {
     let protectionState = {
       enabled: 'true',

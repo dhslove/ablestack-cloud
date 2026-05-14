@@ -925,7 +925,7 @@ export default {
     isManualFenceConfirmationReady () {
       const state = this.ftctlActionState
       return state.activeSide === 'primary' &&
-        state.protection === 'failing_over' &&
+        ['failing_over', 'failover_required'].includes(state.protection) &&
         ['mirroring', 'failed_over'].includes(state.transport) &&
         ['required', 'failed', 'manual-required'].includes(state.fencing) &&
         state.primaryVm === 'stopped'
@@ -1261,7 +1261,7 @@ export default {
       if (['ok', 'protected', 'colo_running', 'mirroring', 'reachable', 'running'].includes(normalized)) {
         return 'green'
       }
-      if (['warn', 'degraded', 'transient_loss', 'peer_unreachable', 'rearm_pending', 'rearm_backoff', 'failing_over', 'failing_back', 'paused', 'required'].includes(normalized)) {
+      if (['warn', 'degraded', 'transient_loss', 'peer_unreachable', 'rearm_pending', 'rearm_backoff', 'failing_over', 'failover_required', 'failing_back', 'paused', 'required'].includes(normalized)) {
         return 'orange'
       }
       if (normalized === 'failed_over') {
@@ -1749,7 +1749,7 @@ export default {
       }
       const protection = String(this.protection.protectionstate || '').toLowerCase()
       const transport = String(this.protection.transportstate || '').toLowerCase()
-      const activeRefresh = ['syncing', 'failing_over', 'failed_over', 'failing_back'].includes(protection) ||
+      const activeRefresh = ['syncing', 'failing_over', 'failover_required', 'failed_over', 'failing_back'].includes(protection) ||
         ['copying', 'reverse_syncing', 'reverse_sync_ready', 'reverse_sync_pending', 'finalizing', 'primary_restoring'].includes(transport)
       this.startSyncAutoRefresh(activeRefresh ? 10000 : 30000)
     },
