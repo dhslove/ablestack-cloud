@@ -34,6 +34,10 @@ public class FtctlProtectionVolumeResponse extends BaseResponse {
     @Param(description = "the secondary volume storage path")
     private String path;
 
+    @SerializedName("state")
+    @Param(description = "the secondary volume state from Cloud")
+    private String state;
+
     @SerializedName("disklabel")
     @Param(description = "the FTCTL disk label")
     private String diskLabel;
@@ -48,6 +52,10 @@ public class FtctlProtectionVolumeResponse extends BaseResponse {
 
     public void setPath(String path) {
         this.path = path;
+    }
+
+    public void setState(String state) {
+        this.state = state;
     }
 
     public void setDiskLabel(String diskLabel) {

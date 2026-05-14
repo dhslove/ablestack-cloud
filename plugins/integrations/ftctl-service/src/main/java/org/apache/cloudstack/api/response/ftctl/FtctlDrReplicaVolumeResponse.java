@@ -34,6 +34,10 @@ public class FtctlDrReplicaVolumeResponse extends BaseResponse {
     @Param(description = "the remote Cloud-managed disk path used by FTCTL")
     private String path;
 
+    @SerializedName("state")
+    @Param(description = "the remote replica volume state")
+    private String state;
+
     @SerializedName("disklabel")
     @Param(description = "the FTCTL disk label")
     private String diskLabel;
@@ -64,6 +68,10 @@ public class FtctlDrReplicaVolumeResponse extends BaseResponse {
 
     public void setPath(String path) {
         this.path = path;
+    }
+
+    public void setState(String state) {
+        this.state = state;
     }
 
     public void setDiskLabel(String diskLabel) {

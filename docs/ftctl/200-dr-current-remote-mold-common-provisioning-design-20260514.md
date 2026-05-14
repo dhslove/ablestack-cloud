@@ -72,11 +72,14 @@ Current-Mold and remote-Mold DR provisioning must both return a canonical `DrRep
 - replica VM UUID
 - replica VM display name
 - replica VM hypervisor instance name
+- replica VM Cloud state snapshot
+- replica VM target host ID/name snapshot when available in that Mold context
 - target host UUID/address
 - target storage pool UUID/name/type/path
 - source volume ID/UUID
 - source disk target, such as `sda` or `sdb`
 - replica volume UUID/name/path
+- replica volume Cloud state snapshot
 - disk label
 - canonical disk map, such as `sda=<replica-path>;sdb=<replica-path>`
 
@@ -175,5 +178,6 @@ Runtime verification:
 - retry after this incident reuses the existing remote `dr-w22-01-standby`.
 - source Mold creates active protection state.
 - source FTCTL tab no longer shows "not protected".
+- source FTCTL tab projects the remote replica VM and volume state through the same fields used by the current-Mold path.
 - qemu profile contains Cloud-created target paths.
 - qemu events show replication action, not VM/volume creation.

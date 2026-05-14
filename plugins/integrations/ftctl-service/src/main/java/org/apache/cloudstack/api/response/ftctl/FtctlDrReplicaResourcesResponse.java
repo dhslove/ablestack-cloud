@@ -36,6 +36,22 @@ public class FtctlDrReplicaResourcesResponse extends BaseResponse {
     @Param(description = "the remote replica VM hypervisor instance name")
     private String remoteVirtualMachineInstanceName;
 
+    @SerializedName("remotevirtualmachinestate")
+    @Param(description = "the remote replica VM state from the remote Mold")
+    private String remoteVirtualMachineState;
+
+    @SerializedName("remotevirtualmachinehostid")
+    @Param(description = "the remote replica VM target host ID from the remote Mold")
+    private String remoteVirtualMachineHostId;
+
+    @SerializedName("remotevirtualmachinehostname")
+    @Param(description = "the remote replica VM target host name from the remote Mold")
+    private String remoteVirtualMachineHostName;
+
+    @SerializedName("remotevirtualmachinestateupdated")
+    @Param(description = "the timestamp when the remote replica VM state snapshot was created")
+    private String remoteVirtualMachineStateUpdated;
+
     @SerializedName("diskmap")
     @Param(description = "the explicit source target to remote Cloud-managed disk map")
     private String diskMap;
@@ -54,6 +70,22 @@ public class FtctlDrReplicaResourcesResponse extends BaseResponse {
 
     public void setRemoteVirtualMachineInstanceName(String remoteVirtualMachineInstanceName) {
         this.remoteVirtualMachineInstanceName = remoteVirtualMachineInstanceName;
+    }
+
+    public void setRemoteVirtualMachineState(String remoteVirtualMachineState) {
+        this.remoteVirtualMachineState = remoteVirtualMachineState;
+    }
+
+    public void setRemoteVirtualMachineHostId(String remoteVirtualMachineHostId) {
+        this.remoteVirtualMachineHostId = remoteVirtualMachineHostId;
+    }
+
+    public void setRemoteVirtualMachineHostName(String remoteVirtualMachineHostName) {
+        this.remoteVirtualMachineHostName = remoteVirtualMachineHostName;
+    }
+
+    public void setRemoteVirtualMachineStateUpdated(String remoteVirtualMachineStateUpdated) {
+        this.remoteVirtualMachineStateUpdated = remoteVirtualMachineStateUpdated;
     }
 
     public void setDiskMap(String diskMap) {

@@ -119,6 +119,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
@@ -172,6 +173,10 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     public static final String DETAIL_REMOTE_REPLICA_VM_ID = "ftctl.dr.remote.replica.vm.id";
     public static final String DETAIL_REMOTE_REPLICA_VM_NAME = "ftctl.dr.remote.replica.vm.name";
     public static final String DETAIL_REMOTE_REPLICA_VM_INSTANCE_NAME = "ftctl.dr.remote.replica.vm.instance.name";
+    public static final String DETAIL_REMOTE_REPLICA_VM_STATE = "ftctl.dr.remote.replica.vm.state";
+    public static final String DETAIL_REMOTE_REPLICA_VM_HOST_ID = "ftctl.dr.remote.replica.vm.host.id";
+    public static final String DETAIL_REMOTE_REPLICA_VM_HOST_NAME = "ftctl.dr.remote.replica.vm.host.name";
+    public static final String DETAIL_REMOTE_REPLICA_VM_STATE_UPDATED = "ftctl.dr.remote.replica.vm.state.updated";
     public static final String DETAIL_REMOTE_REPLICA_VOLUME_PREFIX = "ftctl.dr.remote.replica.volume.";
     public static final String DETAIL_FENCING_POLICY = "ftctl.fencing.policy";
     public static final String DETAIL_FENCING_IPMI_PRIMARY_HOST = "ftctl.fencing.ipmi.primary.host";
@@ -1123,6 +1128,10 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         resources.vmId = getJsonString(payload, "remotevirtualmachineid");
         resources.name = getJsonString(payload, "remotevirtualmachinename");
         resources.instanceName = getJsonString(payload, "remotevirtualmachineinstancename");
+        resources.state = getJsonString(payload, "remotevirtualmachinestate");
+        resources.hostId = getJsonString(payload, "remotevirtualmachinehostid");
+        resources.hostName = getJsonString(payload, "remotevirtualmachinehostname");
+        resources.stateUpdated = getJsonString(payload, "remotevirtualmachinestateupdated");
         resources.diskMap = getJsonString(payload, "diskmap");
         JsonArray volumes = null;
         if (payload.has("volume") && payload.get("volume").isJsonArray()) {
@@ -1138,6 +1147,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
                 volume.id = getJsonString(object, "id");
                 volume.name = getJsonString(object, "name");
                 volume.path = getJsonString(object, "path");
+                volume.state = getJsonString(object, "state");
                 volume.diskLabel = getJsonString(object, "disklabel");
                 volume.sourceVolumeId = getJsonString(object, "sourcevolumeid");
                 volume.sourceDiskTarget = getJsonString(object, "sourcedisktarget");
@@ -1264,6 +1274,13 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         putVmDetailIfNotBlank(virtualMachineId, DETAIL_REMOTE_REPLICA_VM_ID, resources.vmId);
         putVmDetailIfNotBlank(virtualMachineId, DETAIL_REMOTE_REPLICA_VM_NAME, resources.name);
         putVmDetailIfNotBlank(virtualMachineId, DETAIL_REMOTE_REPLICA_VM_INSTANCE_NAME, resources.instanceName);
+        putVmDetailIfNotBlank(virtualMachineId, DETAIL_REMOTE_REPLICA_VM_STATE, resources.state);
+        putVmDetailIfNotBlank(virtualMachineId, DETAIL_REMOTE_REPLICA_VM_HOST_ID, resources.hostId);
+        putVmDetailIfNotBlank(virtualMachineId, DETAIL_REMOTE_REPLICA_VM_HOST_NAME, resources.hostName);
+        if (hasRemoteReplicaStateSnapshot(resources)) {
+            putVmDetailIfNotBlank(virtualMachineId, DETAIL_REMOTE_REPLICA_VM_STATE_UPDATED,
+                    StringUtils.defaultIfBlank(resources.stateUpdated, Instant.now().toString()));
+        }
         for (RemoteReplicaVolume volume : resources.volumes) {
             if (StringUtils.isBlank(volume.sourceVolumeId)) {
                 continue;
@@ -1272,8 +1289,15 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             putVmDetailIfNotBlank(virtualMachineId, prefix + "id", volume.id);
             putVmDetailIfNotBlank(virtualMachineId, prefix + "name", volume.name);
             putVmDetailIfNotBlank(virtualMachineId, prefix + "path", volume.path);
+            putVmDetailIfNotBlank(virtualMachineId, prefix + "state", volume.state);
             putVmDetailIfNotBlank(virtualMachineId, prefix + "disk.label", volume.diskLabel);
         }
+    }
+
+    private boolean hasRemoteReplicaStateSnapshot(RemoteReplicaResources resources) {
+        return resources != null && (StringUtils.isNotBlank(resources.state) ||
+                StringUtils.isNotBlank(resources.hostId) ||
+                StringUtils.isNotBlank(resources.hostName));
     }
 
     private void persistProvisioningFailure(Long virtualMachineId, String provisioningBackend, CloudRuntimeException e) {
@@ -2555,8 +2579,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         response.setTargetStorageScope(getDetailValue(sourceVmId, DETAIL_TARGET_STORAGE_SCOPE));
         boolean remoteMoldDr = DR_PEER_SITE_TYPE_REMOTE_MOLD.equalsIgnoreCase(getDetailValue(sourceVmId, DETAIL_DR_PEER_SITE_TYPE));
         if (remoteMoldDr && secondaryVmId == null) {
-            response.setSecondaryVirtualMachineUuid(getDetailValue(sourceVmId, DETAIL_REMOTE_REPLICA_VM_ID));
-            response.setSecondaryVirtualMachineDisplayName(getDetailValue(sourceVmId, DETAIL_REMOTE_REPLICA_VM_NAME));
+            populateRemoteReplicaVmSnapshot(sourceVmId, response);
         }
         response.setTargetStoragePoolId(StringUtils.defaultIfBlank(getDetailValue(sourceVmId, DETAIL_TARGET_STORAGE_POOL_ID),
                 remoteMoldDr ? getDetailValue(sourceVmId, DETAIL_REMOTE_TARGET_STORAGE_POOL_ID) : null));
@@ -2661,6 +2684,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
                 volumeResponse.setName(secondaryVolume != null ? resolveVolumeDisplayName(secondaryVolume.getId()) : getDetailValue(primaryVmId, remoteVolumePrefix + "name"));
                 volumeResponse.setPath(StringUtils.defaultIfBlank(secondaryPath,
                         secondaryVolume != null ? secondaryVolume.getPath() : getDetailValue(primaryVmId, remoteVolumePrefix + "path")));
+                volumeResponse.setState(secondaryVolume != null && secondaryVolume.getState() != null ?
+                        secondaryVolume.getState().toString() : getDetailValue(primaryVmId, remoteVolumePrefix + "state"));
                 volumeResponse.setDiskLabel(volume.getDiskLabel());
                 secondaryVolumes.add(volumeResponse);
             }
@@ -2676,6 +2701,28 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         }
         if (!secondaryVolumes.isEmpty()) {
             response.setSecondaryVolumes(secondaryVolumes);
+        }
+    }
+
+    private void populateRemoteReplicaVmSnapshot(Long sourceVmId, FtctlProtectionResponse response) {
+        if (sourceVmId == null || response == null) {
+            return;
+        }
+        response.setSecondaryVirtualMachineUuid(getDetailValue(sourceVmId, DETAIL_REMOTE_REPLICA_VM_ID));
+        response.setSecondaryVirtualMachineDisplayName(getDetailValue(sourceVmId, DETAIL_REMOTE_REPLICA_VM_NAME));
+        response.setSecondaryVirtualMachineState(getDetailValue(sourceVmId, DETAIL_REMOTE_REPLICA_VM_STATE));
+        response.setSecondaryVirtualMachineHostId(parseOptionalLong(getDetailValue(sourceVmId, DETAIL_REMOTE_REPLICA_VM_HOST_ID)));
+        response.setSecondaryVirtualMachineHostName(getDetailValue(sourceVmId, DETAIL_REMOTE_REPLICA_VM_HOST_NAME));
+    }
+
+    private Long parseOptionalLong(String value) {
+        if (StringUtils.isBlank(value)) {
+            return null;
+        }
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException ignored) {
+            return null;
         }
     }
 
@@ -3390,6 +3437,10 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         private String vmId;
         private String name;
         private String instanceName;
+        private String state;
+        private String hostId;
+        private String hostName;
+        private String stateUpdated;
         private String diskMap;
         private final List<RemoteReplicaVolume> volumes = new ArrayList<>();
     }
@@ -3398,6 +3449,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         private String id;
         private String name;
         private String path;
+        private String state;
         private String diskLabel;
         private String sourceVolumeId;
         private String sourceDiskTarget;

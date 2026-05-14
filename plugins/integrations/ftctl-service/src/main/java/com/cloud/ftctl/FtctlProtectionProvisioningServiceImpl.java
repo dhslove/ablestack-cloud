@@ -16,6 +16,7 @@
 // under the License.
 package com.cloud.ftctl;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -246,6 +247,7 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
             volumeResponse.setId(replicaVolume.getUuid());
             volumeResponse.setName(resolveVolumeName(replicaVolume));
             volumeResponse.setPath(targetPath);
+            volumeResponse.setState(replicaVolume.getState() != null ? replicaVolume.getState().toString() : null);
             volumeResponse.setDiskLabel(spec.diskLabel);
             volumeResponse.setSourceVolumeId(spec.sourceVolumeId);
             volumeResponse.setSourceDiskTarget(spec.sourceDiskTarget);
@@ -259,6 +261,10 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
         response.setRemoteVirtualMachineId(replicaVm.getUuid());
         response.setRemoteVirtualMachineName(resolveVmName(replicaVm));
         response.setRemoteVirtualMachineInstanceName(StringUtils.defaultIfBlank(replicaVm.getInstanceName(), resolveVmName(replicaVm)));
+        response.setRemoteVirtualMachineState(replicaVm.getState() != null ? replicaVm.getState().toString() : null);
+        response.setRemoteVirtualMachineHostId(String.valueOf(targetHost.getId()));
+        response.setRemoteVirtualMachineHostName(targetHost.getName());
+        response.setRemoteVirtualMachineStateUpdated(Instant.now().toString());
         response.setDiskMap(StringUtils.join(diskMapEntries, ";"));
         response.setVolumes(volumeResponses);
         return response;

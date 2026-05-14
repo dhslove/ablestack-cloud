@@ -907,6 +907,50 @@ public class FtctlServiceImplTest {
     }
 
     @Test
+    public void testGetFtctlProtectionProjectsRemoteMoldReplicaSnapshot() throws Exception {
+        FtctlProtectionVO protection = new FtctlProtectionVO(101L);
+        protection.setProvisioningBackend(FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED);
+        protection.setSecondaryVmName("i-2-20-VM");
+        Mockito.when(ftctlProtectionDao.findActiveByPrimaryVmId(101L)).thenReturn(protection);
+
+        FtctlProtectionVolumeVO rootMapping = new FtctlProtectionVolumeVO(0L, 301L);
+        rootMapping.setDiskLabel("root-0");
+        rootMapping.setSecondaryDiskPath("/dev/rbd/rbd/remote-root");
+        Mockito.when(ftctlProtectionVolumeDao.listActiveByProtectionId(0L)).thenReturn(Collections.singletonList(rootMapping));
+        VolumeVO primaryRoot = Mockito.mock(VolumeVO.class);
+        Mockito.when(primaryRoot.getDeviceId()).thenReturn(0L);
+        Mockito.when(volumeDao.findById(301L)).thenReturn(primaryRoot);
+
+        vmDetails.put("101:ftctl.dr.peer.site.type", "remote-mold");
+        vmDetails.put("101:ftctl.provisioning.backend", FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED);
+        vmDetails.put("101:ftctl.provisioning.state", FtctlProtectionProvisioningService.STATE_READY);
+        vmDetails.put("101:ftctl.dr.remote.replica.vm.id", "remote-vm-uuid");
+        vmDetails.put("101:ftctl.dr.remote.replica.vm.name", "dr-w22-01-standby");
+        vmDetails.put("101:ftctl.dr.remote.replica.vm.state", "Stopped");
+        vmDetails.put("101:ftctl.dr.remote.replica.vm.host.id", "3");
+        vmDetails.put("101:ftctl.dr.remote.replica.vm.host.name", "ablecube32-1");
+        vmDetails.put("101:ftctl.dr.remote.replica.volume.301.id", "remote-root-volume-uuid");
+        vmDetails.put("101:ftctl.dr.remote.replica.volume.301.name", "dr-w22-01-standby-root");
+        vmDetails.put("101:ftctl.dr.remote.replica.volume.301.path", "/dev/rbd/rbd/remote-root");
+        vmDetails.put("101:ftctl.dr.remote.replica.volume.301.state", "Ready");
+
+        GetFtctlProtectionCmd cmd = new GetFtctlProtectionCmd();
+        setField(cmd, "virtualMachineId", 101L);
+
+        FtctlProtectionResponse response = ftctlService.getFtctlProtection(cmd);
+
+        Assert.assertEquals("remote-vm-uuid", getFieldValue(response, "secondaryVirtualMachineUuid"));
+        Assert.assertEquals("dr-w22-01-standby", getFieldValue(response, "secondaryVirtualMachineDisplayName"));
+        Assert.assertEquals("Stopped", getFieldValue(response, "secondaryVirtualMachineState"));
+        Assert.assertEquals(Long.valueOf(3L), getFieldValue(response, "secondaryVirtualMachineHostId"));
+        Assert.assertEquals("ablecube32-1", getFieldValue(response, "secondaryVirtualMachineHostName"));
+        List<?> secondaryVolumes = (List<?>) getFieldValue(response, "secondaryVolumes");
+        Assert.assertEquals(1, secondaryVolumes.size());
+        Assert.assertEquals("remote-root-volume-uuid", getFieldValue(secondaryVolumes.get(0), "id"));
+        Assert.assertEquals("Ready", getFieldValue(secondaryVolumes.get(0), "state"));
+    }
+
+    @Test
     public void testReadOnlyRuntimeApisForStandbyVmUsePrimaryRuntimeProfile() throws Exception {
         UserVmVO standbyVm = Mockito.mock(UserVmVO.class);
         Mockito.when(standbyVm.getId()).thenReturn(401L);
@@ -1113,10 +1157,13 @@ public class FtctlServiceImplTest {
                 "\"remotevirtualmachineid\":\"remote-vm-uuid\"," +
                 "\"remotevirtualmachinename\":\"dr-w22-01-standby\"," +
                 "\"remotevirtualmachineinstancename\":\"i-2-16-VM\"," +
+                "\"remotevirtualmachinestate\":\"Stopped\"," +
+                "\"remotevirtualmachinehostid\":\"3\"," +
+                "\"remotevirtualmachinehostname\":\"ablecube32-1\"," +
                 "\"diskmap\":\"sda=rbd/root;sdb=rbd/data\"," +
                 "\"volume\":[" +
-                "{\"id\":\"root-volume-uuid\",\"name\":\"root\",\"path\":\"rbd/root\",\"disklabel\":\"root-0\",\"sourcevolumeid\":\"479\",\"sourcedisktarget\":\"sda\"}," +
-                "{\"id\":\"data-volume-uuid\",\"name\":\"data\",\"path\":\"rbd/data\",\"disklabel\":\"data-1\",\"sourcevolumeid\":\"480\",\"sourcedisktarget\":\"sdb\"}" +
+                "{\"id\":\"root-volume-uuid\",\"name\":\"root\",\"path\":\"rbd/root\",\"state\":\"Ready\",\"disklabel\":\"root-0\",\"sourcevolumeid\":\"479\",\"sourcedisktarget\":\"sda\"}," +
+                "{\"id\":\"data-volume-uuid\",\"name\":\"data\",\"path\":\"rbd/data\",\"state\":\"Ready\",\"disklabel\":\"data-1\",\"sourcevolumeid\":\"480\",\"sourcedisktarget\":\"sdb\"}" +
                 "]" +
                 "}" +
                 "}");
@@ -1124,11 +1171,15 @@ public class FtctlServiceImplTest {
         Assert.assertEquals("remote-vm-uuid", getFieldValue(resources, "vmId"));
         Assert.assertEquals("dr-w22-01-standby", getFieldValue(resources, "name"));
         Assert.assertEquals("i-2-16-VM", getFieldValue(resources, "instanceName"));
+        Assert.assertEquals("Stopped", getFieldValue(resources, "state"));
+        Assert.assertEquals("3", getFieldValue(resources, "hostId"));
+        Assert.assertEquals("ablecube32-1", getFieldValue(resources, "hostName"));
         Assert.assertEquals("sda=rbd/root;sdb=rbd/data", getFieldValue(resources, "diskMap"));
         List<?> volumes = (List<?>) getFieldValue(resources, "volumes");
         Assert.assertEquals(2, volumes.size());
         Assert.assertEquals("479", getFieldValue(volumes.get(0), "sourceVolumeId"));
         Assert.assertEquals("rbd/root", getFieldValue(volumes.get(0), "path"));
+        Assert.assertEquals("Ready", getFieldValue(volumes.get(0), "state"));
     }
 
     @Test
@@ -1139,21 +1190,27 @@ public class FtctlServiceImplTest {
                 "\"remotevirtualmachineid\":\"remote-vm-uuid\"," +
                 "\"remotevirtualmachinename\":\"dr-w22-01-standby\"," +
                 "\"remotevirtualmachineinstancename\":\"i-2-16-VM\"," +
+                "\"remotevirtualmachinestate\":\"Stopped\"," +
+                "\"remotevirtualmachinehostid\":\"3\"," +
+                "\"remotevirtualmachinehostname\":\"ablecube32-1\"," +
                 "\"volume\":[" +
-                "{\"ftctldrreplicavolume\":{\"id\":\"root-volume-uuid\",\"name\":\"root\",\"path\":\"rbd/root\",\"disklabel\":\"root-0\",\"sourcevolumeid\":\"479\",\"sourcedisktarget\":\"sda\"}}," +
-                "{\"ftctldrreplicavolume\":{\"id\":\"data-volume-uuid\",\"name\":\"data\",\"path\":\"rbd/data\",\"disklabel\":\"data-1\",\"sourcevolumeid\":\"480\",\"sourcedisktarget\":\"sdb\"}}" +
+                "{\"ftctldrreplicavolume\":{\"id\":\"root-volume-uuid\",\"name\":\"root\",\"path\":\"rbd/root\",\"state\":\"Ready\",\"disklabel\":\"root-0\",\"sourcevolumeid\":\"479\",\"sourcedisktarget\":\"sda\"}}," +
+                "{\"ftctldrreplicavolume\":{\"id\":\"data-volume-uuid\",\"name\":\"data\",\"path\":\"rbd/data\",\"state\":\"Ready\",\"disklabel\":\"data-1\",\"sourcevolumeid\":\"480\",\"sourcedisktarget\":\"sdb\"}}" +
                 "]" +
                 "}" +
                 "}" +
                 "}");
 
         Assert.assertEquals("remote-vm-uuid", getFieldValue(resources, "vmId"));
+        Assert.assertEquals("Stopped", getFieldValue(resources, "state"));
+        Assert.assertEquals("ablecube32-1", getFieldValue(resources, "hostName"));
         Assert.assertEquals("sda=rbd/root;sdb=rbd/data", getFieldValue(resources, "diskMap"));
         List<?> volumes = (List<?>) getFieldValue(resources, "volumes");
         Assert.assertEquals(2, volumes.size());
         Assert.assertEquals("root-volume-uuid", getFieldValue(volumes.get(0), "id"));
         Assert.assertEquals("sda", getFieldValue(volumes.get(0), "sourceDiskTarget"));
         Assert.assertEquals("rbd/data", getFieldValue(volumes.get(1), "path"));
+        Assert.assertEquals("Ready", getFieldValue(volumes.get(1), "state"));
     }
 
     @Test
