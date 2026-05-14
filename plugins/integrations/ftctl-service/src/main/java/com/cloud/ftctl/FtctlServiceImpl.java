@@ -76,6 +76,7 @@ import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlHealthCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlProtectionCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.InstallFtctlDrRemoteSshKeyCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.ListFtctlRemoteMoldHostsCmd;
+import org.apache.cloudstack.api.command.admin.ftctl.ListFtctlRemoteMoldNetworksCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.ListFtctlRemoteMoldStoragePoolsCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.PrepareFtctlDrReplicaResourcesCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.PrepareFtctlDrRemoteSshAccessCmd;
@@ -93,6 +94,8 @@ import org.apache.cloudstack.api.response.ftctl.FtctlProtectionVolumeResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlRemoteMoldConnectionResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlRemoteMoldHostResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlRemoteMoldHostsResponse;
+import org.apache.cloudstack.api.response.ftctl.FtctlRemoteMoldNetworkResponse;
+import org.apache.cloudstack.api.response.ftctl.FtctlRemoteMoldNetworksResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlRemoteMoldStoragePoolResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlRemoteMoldStoragePoolsResponse;
 import org.apache.cloudstack.context.CallContext;
@@ -106,6 +109,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.cloudstack.outofbandmanagement.OutOfBandManagement;
+import org.apache.cloudstack.outofbandmanagement.OutOfBandManagementService;
 import org.apache.cloudstack.outofbandmanagement.dao.OutOfBandManagementDao;
 
 import javax.inject.Inject;
@@ -146,6 +150,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     private static final long CLOUD_MANAGED_FAILBACK_MONITOR_INTERVAL_MILLIS = 10000L;
     private static final long RUNTIME_STATE_SYNC_DELAY_MILLIS = 10000L;
     private static final long MIN_RUNTIME_STATE_SYNC_INTERVAL_MILLIS = 5000L;
+    private static final long CLOUD_MANAGED_FAILOVER_MONITOR_DELAY_MILLIS = 10000L;
+    private static final long MIN_CLOUD_MANAGED_FAILOVER_MONITOR_INTERVAL_MILLIS = 5000L;
     private static final long REMOTE_MOLD_VM_START_POLL_INTERVAL_MILLIS = 5000L;
     private static final long REMOTE_MOLD_VM_START_TIMEOUT_MILLIS = 300000L;
 
@@ -157,6 +163,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     public static final String DETAIL_TARGET_STORAGE_SCOPE = "ftctl.target.storage.scope";
     public static final String DETAIL_TARGET_STORAGE_POOL_ID = "ftctl.target.storage.pool.id";
     public static final String DETAIL_TARGET_STORAGE_POOL_NAME = "ftctl.target.storage.pool.name";
+    public static final String DETAIL_TARGET_NETWORK_IDS = "ftctl.target.network.ids";
     public static final String DETAIL_DR_PEER_SITE_TYPE = "ftctl.dr.peer.site.type";
     public static final String DETAIL_REMOTE_MOLD_API_URL = "ftctl.dr.remote.mold.api.url";
     public static final String DETAIL_REMOTE_PEER_HOST_ID = "ftctl.dr.remote.peer.host.id";
@@ -221,6 +228,11 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     public static final String DETAIL_HEALTH_UPDATED = "ftctl.health.updated";
     public static final String DETAIL_FAILOVER_READY = "ftctl.failover.ready";
     public static final String DETAIL_FAILOVER_READY_UPDATED = "ftctl.failover.ready.updated";
+    public static final String DETAIL_AUTO_FAILOVER_FAILURE_COUNT = "ftctl.auto.failover.failure.count";
+    public static final String DETAIL_AUTO_FAILOVER_UPDATED = "ftctl.auto.failover.updated";
+    public static final String DETAIL_AUTO_FAILOVER_REASON = "ftctl.auto.failover.reason";
+    public static final String DETAIL_FENCING_RESULT = "ftctl.fencing.result";
+    public static final String DETAIL_FENCING_REASON = "ftctl.fencing.reason";
     public static final String DETAIL_NIC_IDENTITY_STATE = "ftctl.nic.identity.state";
     public static final String DETAIL_NIC_IDENTITY_PRIMARY_PREFIX = "ftctl.nic.identity.primary.";
     public static final String DETAIL_NIC_IDENTITY_SECONDARY_PREFIX = "ftctl.nic.identity.secondary.";
@@ -237,6 +249,13 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     private static final String DR_PEER_SITE_TYPE_REMOTE_MOLD = "remote-mold";
     private static final String DEFAULT_REMOTE_PEER_SSH_USER = "root";
     private static final String DEFAULT_REMOTE_PEER_SSH_PORT = "22";
+    private static final String LAST_ERROR_CLOUD_MANAGED_FAILOVER_CANDIDATE = "cloud_managed_failover_candidate";
+    private static final String LAST_ERROR_CLOUD_MANAGED_FAILOVER_SUSPECT = "cloud_managed_failover_suspect";
+    private static final String LAST_ERROR_CLOUD_MANAGED_FAILOVER_MANUAL_REQUIRED = "cloud_managed_failover_manual_required";
+    private static final String FENCING_RESULT_MANUAL_REQUIRED = "manual-required";
+    private static final String FENCING_RESULT_IPMI_CONFIRMED = "ipmi_confirmed_fenced";
+    private static final String FENCING_RESULT_IPMI_UNKNOWN_ASSUMED = "ipmi_unknown_assumed_fenced";
+    private static final String FENCING_RESULT_IPMI_FAILED_ASSUMED = "ipmi_failed_assumed_fenced";
     private static final String[] LEGACY_PROGRESS_DETAIL_KEYS = {
             "ftctl.sync.progress.percent",
             "ftctl.sync.copied.bytes",
@@ -251,8 +270,11 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     };
     private static final ConcurrentMap<String, Object> VM_DETAIL_LOCKS = new ConcurrentHashMap<>();
     private final ConcurrentMap<Long, Object> cloudManagedFailbackCutbackLocks = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Long, Object> cloudManagedFailoverLocks = new ConcurrentHashMap<>();
     private final AtomicBoolean runtimeStateSyncRunning = new AtomicBoolean(false);
+    private final AtomicBoolean cloudManagedFailoverRunning = new AtomicBoolean(false);
     private Timer cloudManagedFailbackMonitorTimer;
+    private Timer cloudManagedFailoverMonitorTimer;
     private Timer runtimeStateSyncTimer;
 
     @Inject
@@ -275,6 +297,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     private PrimaryDataStoreDao primaryDataStoreDao;
     @Inject
     private OutOfBandManagementDao outOfBandManagementDao;
+    @Inject
+    private OutOfBandManagementService outOfBandManagementService;
     @Inject
     private FtctlProtectionProvisioningService ftctlProtectionProvisioningService;
     @Inject
@@ -320,6 +344,18 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             runtimeStateSyncTimer = new Timer("FtctlRuntimeStateSync", true);
             runtimeStateSyncTimer.schedule(syncTask, RUNTIME_STATE_SYNC_DELAY_MILLIS, intervalMillis);
         }
+        if (cloudManagedFailoverMonitorTimer == null && FtctlCloudManagedFailoverMonitorEnabled.value()) {
+            TimerTask monitorTask = new ManagedContextTimerTask() {
+                @Override
+                protected void runInContext() {
+                    reconcileCloudManagedFailovers();
+                }
+            };
+            long intervalMillis = Math.max(MIN_CLOUD_MANAGED_FAILOVER_MONITOR_INTERVAL_MILLIS,
+                    FtctlCloudManagedFailoverMonitorInterval.value() * 1000L);
+            cloudManagedFailoverMonitorTimer = new Timer("FtctlCloudManagedFailoverMonitor", true);
+            cloudManagedFailoverMonitorTimer.schedule(monitorTask, CLOUD_MANAGED_FAILOVER_MONITOR_DELAY_MILLIS, intervalMillis);
+        }
         return true;
     }
 
@@ -332,6 +368,10 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         if (runtimeStateSyncTimer != null) {
             runtimeStateSyncTimer.cancel();
             runtimeStateSyncTimer = null;
+        }
+        if (cloudManagedFailoverMonitorTimer != null) {
+            cloudManagedFailoverMonitorTimer.cancel();
+            cloudManagedFailoverMonitorTimer = null;
         }
         return true;
     }
@@ -358,6 +398,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         String secondaryTargetDir = resolveSecondaryTargetDir(cmd, targetStoragePool, backendMode);
         String remoteNbdExportAddr = resolveRemoteNbdExportAddr(cmd, backendMode);
         validateResolvedRegisterRequest(cmd, backendMode, secondaryTargetDir, remoteNbdExportAddr);
+        validateDrCloudManagedTargetNetworks(cmd, provisioningBackend);
         FtctlIpmiFencingConfig ipmiFencingConfig = resolveIpmiFencingConfig(userVm, cmd);
         if (remoteMoldDr) {
             validateRemoteExecutionPath(userVm, cmd, secondaryTargetDir, remoteNbdExportAddr);
@@ -383,6 +424,9 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         if (targetStoragePool != null) {
             putVmDetail(cmd.getVirtualMachineId(), DETAIL_TARGET_STORAGE_POOL_ID, targetStoragePool.getUuid());
             putVmDetail(cmd.getVirtualMachineId(), DETAIL_TARGET_STORAGE_POOL_NAME, targetStoragePool.getName());
+        }
+        if (StringUtils.isNotBlank(cmd.getNetworkIds())) {
+            putVmDetail(cmd.getVirtualMachineId(), DETAIL_TARGET_NETWORK_IDS, cmd.getNetworkIds());
         }
         if (remoteMoldDr) {
             persistRemoteMoldDrDetails(cmd);
@@ -507,6 +551,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
                 host.setMigrationIp(getJsonString(object, "migrationip"));
                 host.setClusterId(getJsonString(object, "clusterid"));
                 host.setClusterName(getJsonString(object, "clustername"));
+                host.setZoneId(getJsonString(object, "zoneid"));
+                host.setZoneName(getJsonString(object, "zonename"));
                 host.setHypervisor(getJsonString(object, "hypervisor"));
                 hosts.add(host);
             }
@@ -514,6 +560,47 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         FtctlRemoteMoldHostsResponse response = new FtctlRemoteMoldHostsResponse();
         response.setObjectName("ftctlremotemoldhosts");
         response.setHosts(hosts);
+        return response;
+    }
+
+    @Override
+    public FtctlRemoteMoldNetworksResponse listFtctlRemoteMoldNetworks(ListFtctlRemoteMoldNetworksCmd cmd) throws CloudRuntimeException {
+        Map<String, String> params = new HashMap<>();
+        params.put("listall", "true");
+        params.put("page", "1");
+        params.put("pagesize", "500");
+        params.put("canusefordeploy", "true");
+        params.put("traffictype", "Guest");
+        params.put("type", "all");
+        params.put("networkfilter", "all");
+        putIfNotBlank(params, "zoneid", cmd.getZoneId());
+        JsonObject json = callRemoteMoldApi(cmd.getRemoteMoldApiUrl(), cmd.getRemoteMoldApiKey(), cmd.getRemoteMoldSecretKey(),
+                "listNetworks", params);
+        JsonArray array = getResponseArray(json, "listnetworksresponse", "network");
+        List<FtctlRemoteMoldNetworkResponse> networks = new ArrayList<>();
+        if (array != null) {
+            for (JsonElement element : array) {
+                if (element == null || !element.isJsonObject()) {
+                    continue;
+                }
+                JsonObject object = element.getAsJsonObject();
+                FtctlRemoteMoldNetworkResponse network = new FtctlRemoteMoldNetworkResponse();
+                network.setObjectName("network");
+                network.setId(getJsonString(object, "id"));
+                network.setName(getJsonString(object, "name"));
+                network.setDisplayText(getJsonString(object, "displaytext"));
+                network.setZoneId(getJsonString(object, "zoneid"));
+                network.setZoneName(getJsonString(object, "zonename"));
+                network.setType(getJsonString(object, "type"));
+                network.setTrafficType(getJsonString(object, "traffictype"));
+                network.setState(getJsonString(object, "state"));
+                network.setCidr(getJsonString(object, "cidr"));
+                networks.add(network);
+            }
+        }
+        FtctlRemoteMoldNetworksResponse response = new FtctlRemoteMoldNetworksResponse();
+        response.setObjectName("ftctlremotemoldnetworks");
+        response.setNetworks(networks);
         return response;
     }
 
@@ -880,6 +967,16 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         }
     }
 
+    private void validateDrCloudManagedTargetNetworks(RegisterFtctlProtectionCmd cmd, String provisioningBackend) {
+        if (!"dr".equalsIgnoreCase(cmd.getMode()) ||
+                !FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED.equalsIgnoreCase(provisioningBackend)) {
+            return;
+        }
+        if (StringUtils.isBlank(cmd.getNetworkIds())) {
+            throw new CloudRuntimeException("FTCTL DR cloud-managed registration requires target network IDs for standby VM creation");
+        }
+    }
+
     private boolean isRemoteMoldDr(RegisterFtctlProtectionCmd cmd) {
         return "dr".equalsIgnoreCase(cmd.getMode()) &&
                 DR_PEER_SITE_TYPE_REMOTE_MOLD.equalsIgnoreCase(StringUtils.defaultIfBlank(cmd.getDrPeerSiteType(), DR_PEER_SITE_TYPE_LOCAL_MOLD));
@@ -923,9 +1020,6 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         }
         if (StringUtils.isNotBlank(cmd.getTargetStorageScope()) && !"secondary-local".equalsIgnoreCase(cmd.getTargetStorageScope())) {
             throw new CloudRuntimeException("FTCTL DR remote Mold requires target storage scope secondary-local");
-        }
-        if (FENCING_POLICY_IPMI.equalsIgnoreCase(StringUtils.trimToEmpty(cmd.getFencingPolicy()))) {
-            throw new CloudRuntimeException("FTCTL DR remote Mold does not support local OOBM/IPMI fencing lookup yet");
         }
     }
 
@@ -1041,7 +1135,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
                 backendMode,
                 provisioningBackend,
                 cmd.getFencingPolicy(),
-                cmd.getSecondaryVmName());
+                cmd.getSecondaryVmName(),
+                cmd.getNetworkIds());
         return ftctlProtectionProvisioningService.prepareProtection(request);
     }
 
@@ -1056,6 +1151,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         params.put("sourcehypervisor", userVm.getHypervisorType() != null ? userVm.getHypervisorType().name() : "KVM");
         params.put("sourcevmdetails", buildSourceVmDetailsJson(userVm).toString());
         params.put("sourcevolumes", buildSourceVolumesJson(userVm).toString());
+        params.put("networkids", cmd.getNetworkIds());
 
         JsonObject json = callRemoteMoldApi(cmd.getRemoteMoldApiUrl(), cmd.getRemoteMoldApiKey(), cmd.getRemoteMoldSecretKey(),
                 PrepareFtctlDrReplicaResourcesCmd.APINAME, params);
@@ -2042,6 +2138,309 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         }
     }
 
+    void reconcileCloudManagedFailovers() {
+        if (!FtctlServiceEnabled.value() || !FtctlCloudManagedFailoverMonitorEnabled.value() ||
+                !cloudManagedFailoverRunning.compareAndSet(false, true)) {
+            return;
+        }
+        try {
+            List<FtctlProtectionVO> protections = ftctlProtectionDao.listActive();
+            if (protections == null || protections.isEmpty()) {
+                return;
+            }
+            for (FtctlProtectionVO protection : protections) {
+                reconcileCloudManagedFailover(protection);
+            }
+        } catch (RuntimeException e) {
+            logger.warn("Unable to reconcile FTCTL cloud-managed failover candidates", e);
+        } finally {
+            cloudManagedFailoverRunning.set(false);
+        }
+    }
+
+    private void reconcileCloudManagedFailover(FtctlProtectionVO protection) {
+        if (!isCloudManagedAutomaticFailoverProtection(protection)) {
+            return;
+        }
+        UserVmVO primaryVm = userVmDao.findById(protection.getPrimaryVmId());
+        if (primaryVm == null || primaryVm.getRemoved() != null) {
+            return;
+        }
+        Object marker = new Object();
+        if (cloudManagedFailoverLocks.putIfAbsent(protection.getId(), marker) != null) {
+            return;
+        }
+        try {
+            FtctlStatusAnswer statusAnswer = fetchRuntimeStatus(primaryVm);
+            if (statusAnswer != null) {
+                persistRuntimeState(primaryVm, statusAnswer);
+            }
+            FtctlProtectionVO latestProtection = refreshProtection(primaryVm);
+            if (!isCloudManagedAutomaticFailoverProtection(latestProtection)) {
+                clearCloudManagedFailoverCandidate(primaryVm.getId());
+                return;
+            }
+            CloudManagedFailoverSignal signal = detectCloudManagedFailoverSignal(primaryVm, latestProtection, statusAnswer);
+            if (!signal.candidate) {
+                clearCloudManagedFailoverCandidate(primaryVm.getId());
+                return;
+            }
+            int failureCount = incrementCloudManagedFailoverFailureCount(primaryVm.getId(), signal.reason);
+            int requiredCount = Math.max(1, FtctlCloudManagedFailoverConfirmations.value());
+            if (failureCount < requiredCount) {
+                markCloudManagedFailoverSuspect(primaryVm, latestProtection, signal.reason, failureCount, requiredCount);
+                return;
+            }
+            handleConfirmedCloudManagedFailover(primaryVm, latestProtection, signal, statusAnswer);
+        } catch (RuntimeException e) {
+            logger.warn(String.format("Unable to reconcile cloud-managed FTCTL failover candidate for VM %s", primaryVm.getUuid()), e);
+        } finally {
+            cloudManagedFailoverLocks.remove(protection.getId(), marker);
+        }
+    }
+
+    private boolean isCloudManagedAutomaticFailoverProtection(FtctlProtectionVO protection) {
+        if (!isCloudManagedProvisioning(protection)) {
+            return false;
+        }
+        String mode = StringUtils.trimToEmpty(protection.getMode()).toLowerCase(Locale.ROOT);
+        if (!"ha".equals(mode) && !"dr".equals(mode)) {
+            return false;
+        }
+        String activeSide = StringUtils.trimToEmpty(protection.getActiveSide()).toLowerCase(Locale.ROOT);
+        if (StringUtils.isNotBlank(activeSide) && !"primary".equals(activeSide)) {
+            return false;
+        }
+        String adminState = StringUtils.trimToEmpty(protection.getAdminState()).toLowerCase(Locale.ROOT);
+        if ("paused".equals(adminState) || "inactive".equals(adminState)) {
+            return false;
+        }
+        String protectionState = StringUtils.trimToEmpty(protection.getProtectionState()).toLowerCase(Locale.ROOT);
+        return !"failed_over".equals(protectionState) && !"failing_back".equals(protectionState) &&
+                !"disabled".equals(protectionState) && !"error".equals(protectionState);
+    }
+
+    private CloudManagedFailoverSignal detectCloudManagedFailoverSignal(UserVmVO primaryVm, FtctlProtectionVO protection,
+                                                                        FtctlStatusAnswer statusAnswer) {
+        String detailLastError = getDetailValue(primaryVm.getId(), DETAIL_LAST_ERROR);
+        if (isCloudManagedFailoverRuntimeCandidate(detailLastError) ||
+                isCloudManagedFailoverRuntimeCandidate(protection.getLastError())) {
+            return new CloudManagedFailoverSignal(true,
+                    StringUtils.defaultIfBlank(getDetailValue(primaryVm.getId(), DETAIL_AUTO_FAILOVER_REASON), "primary_domain_missing"));
+        }
+        if (isCloudManagedFailoverSuspect(protection)) {
+            return new CloudManagedFailoverSignal(true,
+                    StringUtils.defaultIfBlank(getDetailValue(primaryVm.getId(), DETAIL_AUTO_FAILOVER_REASON), "previous_failover_suspect"));
+        }
+        if (primaryVm.getState() != VirtualMachine.State.Running) {
+            return new CloudManagedFailoverSignal(true, "primary_vm_not_running");
+        }
+        HostVO sourceHost = resolveExecutionHost(primaryVm);
+        if (sourceHost != null && sourceHost.getStatus() != null && sourceHost.getStatus().lostConnection()) {
+            return new CloudManagedFailoverSignal(true, "primary_host_lost_connection");
+        }
+        if (statusAnswer == null && sourceHost != null && sourceHost.getStatus() != null && sourceHost.getStatus().lostConnection()) {
+            return new CloudManagedFailoverSignal(true, "runtime_unavailable_and_primary_host_lost_connection");
+        }
+        return new CloudManagedFailoverSignal(false, null);
+    }
+
+    private boolean isCloudManagedFailoverRuntimeCandidate(String lastError) {
+        String value = StringUtils.trimToEmpty(lastError);
+        return LAST_ERROR_CLOUD_MANAGED_FAILOVER_CANDIDATE.equalsIgnoreCase(value) ||
+                LAST_ERROR_CLOUD_MANAGED_FAILOVER_SUSPECT.equalsIgnoreCase(value);
+    }
+
+    private boolean isCloudManagedFailoverSuspect(FtctlProtectionVO protection) {
+        return protection != null &&
+                ("failover_suspect".equalsIgnoreCase(StringUtils.trimToEmpty(protection.getProtectionState())) ||
+                        LAST_ERROR_CLOUD_MANAGED_FAILOVER_SUSPECT.equalsIgnoreCase(StringUtils.trimToEmpty(protection.getLastError())));
+    }
+
+    private HostVO resolveExecutionHost(UserVmVO userVm) {
+        Long hostId = getExecutionHostId(userVm);
+        return hostId != null ? hostDao.findById(hostId) : null;
+    }
+
+    private int incrementCloudManagedFailoverFailureCount(Long virtualMachineId, String reason) {
+        Integer current = parseIntegerDetail(getDetailValue(virtualMachineId, DETAIL_AUTO_FAILOVER_FAILURE_COUNT));
+        int next = current != null ? current + 1 : 1;
+        putVmDetail(virtualMachineId, DETAIL_AUTO_FAILOVER_FAILURE_COUNT, String.valueOf(next));
+        putVmDetail(virtualMachineId, DETAIL_AUTO_FAILOVER_UPDATED, Instant.now().toString());
+        putVmDetail(virtualMachineId, DETAIL_AUTO_FAILOVER_REASON, StringUtils.defaultIfBlank(reason, "unknown"));
+        return next;
+    }
+
+    private void clearCloudManagedFailoverCandidate(Long virtualMachineId) {
+        removeVmDetail(virtualMachineId, DETAIL_AUTO_FAILOVER_FAILURE_COUNT);
+        removeVmDetail(virtualMachineId, DETAIL_AUTO_FAILOVER_UPDATED);
+        removeVmDetail(virtualMachineId, DETAIL_AUTO_FAILOVER_REASON);
+    }
+
+    private void markCloudManagedFailoverSuspect(UserVmVO primaryVm, FtctlProtectionVO protection, String reason,
+                                                 int failureCount, int requiredCount) {
+        updateCloudManagedFailoverState(primaryVm, protection,
+                "failover_suspect",
+                StringUtils.defaultIfBlank(protection.getTransportState(), "mirroring"),
+                "primary",
+                StringUtils.defaultIfBlank(protection.getFencingState(), "clear"),
+                LAST_ERROR_CLOUD_MANAGED_FAILOVER_SUSPECT,
+                null,
+                reason);
+        publishFtctlEvent(primaryVm, EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE,
+                String.format("Cloud-managed FTCTL failover candidate observed for VM %s (%s/%s): %s",
+                        primaryVm.getUuid(), failureCount, requiredCount, reason));
+    }
+
+    private void handleConfirmedCloudManagedFailover(UserVmVO primaryVm, FtctlProtectionVO protection,
+                                                     CloudManagedFailoverSignal signal, FtctlStatusAnswer statusAnswer) {
+        String mode = StringUtils.trimToEmpty(protection.getMode()).toLowerCase(Locale.ROOT);
+        if (isRemoteMoldDrProtection(primaryVm, protection)) {
+            markCloudManagedFailoverManualRequired(primaryVm, protection,
+                    "remote_mold_automatic_orchestration_requires_target_site_controller", signal.reason);
+            return;
+        }
+        if ("ha".equals(mode)) {
+            markCloudManagedFailoverManualRequired(primaryVm, protection,
+                    "ha_cloud_managed_automatic_cutover_requires_cloud_ha_controller_integration", signal.reason);
+            return;
+        }
+        if (!"dr".equals(mode)) {
+            markCloudManagedFailoverManualRequired(primaryVm, protection, "unsupported_mode", signal.reason);
+            return;
+        }
+        if (!FENCING_POLICY_IPMI.equalsIgnoreCase(StringUtils.trimToEmpty(protection.getFencingPolicy()))) {
+            markCloudManagedFailoverManualRequired(primaryVm, protection, "automatic_fencing_requires_ipmi_policy", signal.reason);
+            return;
+        }
+        CloudManagedFencingDecision decision = decideCloudManagedIpmiFencing(primaryVm);
+        if (!decision.fenced) {
+            markCloudManagedFailoverManualRequired(primaryVm, protection, "automatic_fencing_not_confirmed",
+                    decision.result, decision.reason);
+            return;
+        }
+        if (!FtctlCloudManagedFailoverStartEnabled.value()) {
+            markCloudManagedFailoverManualRequired(primaryVm, protection, "automatic_start_disabled", decision.result, decision.reason);
+            return;
+        }
+        if (statusAnswer == null) {
+            markCloudManagedFailoverManualRequired(primaryVm, protection, "primary_host_agent_unavailable_for_qemu_cutover",
+                    decision.result, decision.reason);
+            return;
+        }
+        executeCloudManagedLocalMoldDrFailover(primaryVm, protection, decision);
+    }
+
+    private CloudManagedFencingDecision decideCloudManagedIpmiFencing(UserVmVO primaryVm) {
+        Long hostId = getExecutionHostId(primaryVm);
+        HostVO host = hostId != null ? hostDao.findById(hostId) : null;
+        OutOfBandManagement oobm = hostId != null ? outOfBandManagementDao.findByHost(hostId) : null;
+        if (!isUsableIpmiOobm(oobm)) {
+            return new CloudManagedFencingDecision(true, FENCING_RESULT_IPMI_UNKNOWN_ASSUMED,
+                    "source_host_oobm_unknown");
+        }
+        try {
+            outOfBandManagementService.executePowerOperation(host, OutOfBandManagement.PowerOperation.OFF, null);
+            return new CloudManagedFencingDecision(true, FENCING_RESULT_IPMI_CONFIRMED,
+                    "source_host_power_off_requested");
+        } catch (RuntimeException e) {
+            logger.warn(String.format("FTCTL IPMI fencing command failed for VM %s on host %s; assuming fenced for DR disaster handling",
+                    primaryVm.getUuid(), hostId), e);
+            return new CloudManagedFencingDecision(true, FENCING_RESULT_IPMI_FAILED_ASSUMED,
+                    StringUtils.abbreviate(StringUtils.defaultIfBlank(e.getMessage(), "ipmi_power_off_failed"), 512));
+        }
+    }
+
+    private boolean isUsableIpmiOobm(OutOfBandManagement oobm) {
+        return oobm != null && oobm.isEnabled() &&
+                OOBM_DRIVER_IPMITOOL.equalsIgnoreCase(StringUtils.trimToEmpty(oobm.getDriver())) &&
+                !StringUtils.isAnyBlank(oobm.getAddress(), oobm.getUsername(), oobm.getPassword());
+    }
+
+    private void markCloudManagedFailoverManualRequired(UserVmVO primaryVm, FtctlProtectionVO protection,
+                                                        String reason, String candidateReason) {
+        putVmDetail(primaryVm.getId(), DETAIL_AUTO_FAILOVER_REASON, StringUtils.defaultIfBlank(candidateReason, reason));
+        markCloudManagedFailoverManualRequired(primaryVm, protection, reason,
+                FENCING_RESULT_MANUAL_REQUIRED,
+                reason);
+    }
+
+    private void markCloudManagedFailoverManualRequired(UserVmVO primaryVm, FtctlProtectionVO protection,
+                                                        String reason, String fencingResult, String fencingReason) {
+        putVmDetail(primaryVm.getId(), DETAIL_FENCING_RESULT, fencingResult);
+        putVmDetail(primaryVm.getId(), DETAIL_FENCING_REASON, StringUtils.defaultIfBlank(fencingReason, reason));
+        updateCloudManagedFailoverState(primaryVm, protection,
+                "failover_required",
+                StringUtils.defaultIfBlank(protection.getTransportState(), "mirroring"),
+                "primary",
+                "required",
+                LAST_ERROR_CLOUD_MANAGED_FAILOVER_MANUAL_REQUIRED,
+                fencingResult,
+                StringUtils.defaultIfBlank(fencingReason, reason));
+        publishFtctlEvent(primaryVm, EventTypes.EVENT_FTCTL_PROTECTION_FAILOVER,
+                String.format("Cloud-managed FTCTL failover for VM %s requires operator action: %s",
+                        primaryVm.getUuid(), reason));
+    }
+
+    private void executeCloudManagedLocalMoldDrFailover(UserVmVO primaryVm, FtctlProtectionVO protection,
+                                                        CloudManagedFencingDecision decision) {
+        try {
+            executeFtctlAgentAction(primaryVm, FtctlActionCommand.Action.FAILOVER, true);
+            executeFtctlAgentAction(primaryVm, FtctlActionCommand.Action.FENCE_CONFIRM, false);
+            executeFtctlAgentAction(primaryVm, FtctlActionCommand.Action.FAILOVER_PREPARE, true);
+            FtctlProtectionVO latestProtection = refreshProtection(primaryVm);
+            UserVmVO secondaryVm = resolveSecondaryVmForManualFailover(primaryVm, latestProtection);
+            handoffNicIdentityToSecondaryIfNeeded(primaryVm, secondaryVm, latestProtection);
+            startSecondaryVmForManualFailover(primaryVm, secondaryVm);
+            FtctlActionResponse response = executeFtctlAgentAction(primaryVm, FtctlActionCommand.Action.FAILOVER, true);
+            putVmDetail(primaryVm.getId(), DETAIL_FENCING_RESULT, decision.result);
+            putVmDetail(primaryVm.getId(), DETAIL_FENCING_REASON, decision.reason);
+            clearCloudManagedFailoverCandidate(primaryVm.getId());
+            publishFtctlEvent(primaryVm, EventTypes.EVENT_FTCTL_PROTECTION_FAILOVER,
+                    String.format("Executed Cloud-managed FTCTL DR automatic failover for VM %s: %s",
+                            primaryVm.getUuid(), response.getOutput()));
+        } catch (RuntimeException e) {
+            markCloudManagedFailoverManualRequired(primaryVm, protection,
+                    "automatic_failover_execution_failed", FENCING_RESULT_MANUAL_REQUIRED,
+                    StringUtils.abbreviate(StringUtils.defaultIfBlank(e.getMessage(), "automatic_failover_execution_failed"), 512));
+            throw e;
+        }
+    }
+
+    private void updateCloudManagedFailoverState(UserVmVO primaryVm, FtctlProtectionVO protection,
+                                                 String protectionState, String transportState, String activeSide,
+                                                 String fencingState, String lastError, String fencingResult,
+                                                 String reason) {
+        if (protectionState != null) {
+            protection.setProtectionState(protectionState);
+            putVmDetail(primaryVm.getId(), DETAIL_LAST_PROTECTION_STATE, protectionState);
+        }
+        if (transportState != null) {
+            protection.setTransportState(transportState);
+            putVmDetail(primaryVm.getId(), DETAIL_LAST_TRANSPORT_STATE, transportState);
+        }
+        if (activeSide != null) {
+            protection.setActiveSide(activeSide);
+            putVmDetail(primaryVm.getId(), DETAIL_LAST_ACTIVE_SIDE, activeSide);
+        }
+        protection.setAdminState(StringUtils.defaultIfBlank(protection.getAdminState(), "active"));
+        putVmDetail(primaryVm.getId(), DETAIL_LAST_ADMIN_STATE, protection.getAdminState());
+        if (fencingState != null) {
+            protection.setFencingState(fencingState);
+            putVmDetail(primaryVm.getId(), DETAIL_LAST_FENCING_STATE, fencingState);
+        }
+        protection.setLastError(lastError);
+        putVmDetail(primaryVm.getId(), DETAIL_LAST_ERROR, StringUtils.defaultString(lastError));
+        if (StringUtils.isNotBlank(fencingResult)) {
+            putVmDetail(primaryVm.getId(), DETAIL_FENCING_RESULT, fencingResult);
+        }
+        if (StringUtils.isNotBlank(reason)) {
+            putVmDetail(primaryVm.getId(), DETAIL_FENCING_REASON, reason);
+        }
+        protection.markUpdated();
+        ftctlProtectionDao.update(protection.getId(), protection);
+    }
+
     @Override
     public FtctlActionResponse confirmFtctlFence(Long virtualMachineId) throws CloudRuntimeException {
         return confirmFtctlFence(virtualMachineId, null, null, null);
@@ -2529,13 +2928,17 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     }
 
     private NicVO findMatchingSecondaryNic(NicVO primaryNic, List<NicVO> secondaryNics) {
+        NicVO deviceMatch = null;
         for (NicVO secondaryNic : secondaryNics) {
             if (Objects.equals(secondaryNic.getNetworkId(), primaryNic.getNetworkId()) &&
                     Objects.equals(secondaryNic.getDeviceId(), primaryNic.getDeviceId())) {
                 return secondaryNic;
             }
+            if (Objects.equals(secondaryNic.getDeviceId(), primaryNic.getDeviceId())) {
+                deviceMatch = secondaryNic;
+            }
         }
-        return null;
+        return deviceMatch;
     }
 
     private void persistCloudManagedNicIdentities(UserVmVO primaryVm) {
@@ -2791,6 +3194,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         response.setActiveSide(getDetailValue(sourceVmId, DETAIL_LAST_ACTIVE_SIDE));
         response.setAdminState(getDetailValue(sourceVmId, DETAIL_LAST_ADMIN_STATE));
         response.setFencingState(getDetailValue(sourceVmId, DETAIL_LAST_FENCING_STATE));
+        response.setFencingResult(getDetailValue(sourceVmId, DETAIL_FENCING_RESULT));
+        response.setFencingReason(getDetailValue(sourceVmId, DETAIL_FENCING_REASON));
         response.setLastError(getDetailValue(sourceVmId, DETAIL_LAST_ERROR));
         purgeLegacyProgressDetails(sourceVmId);
         return response;
@@ -2823,6 +3228,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         response.setActiveSide("primary");
         response.setAdminState("read-only");
         response.setFencingState("not_available");
+        response.setFencingResult(getDetailValue(standbyVmId, DETAIL_FENCING_RESULT));
+        response.setFencingReason(getDetailValue(standbyVmId, DETAIL_FENCING_REASON));
         response.setSecondaryVmName(standbyVm != null ? standbyVm.getInstanceName() : null);
         populateRemoteMoldStandbyVolumes(standbyVmId, response);
         return response;
@@ -3655,28 +4062,38 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             return null;
         }
         Long localHostId = requireExecutionHostId(userVm);
-        Long peerHostId = cmd.getPeerHostId();
-        if (peerHostId == null) {
-            throw new CloudRuntimeException("FTCTL IPMI fencing requires a peer host");
-        }
         FtctlIpmiEndpoint primary = resolveIpmiEndpoint(localHostId, "primary");
-        FtctlIpmiEndpoint secondary = resolveIpmiEndpoint(peerHostId, "peer");
+        FtctlIpmiEndpoint secondary;
+        if (isRemoteMoldDr(cmd)) {
+            secondary = unknownIpmiEndpoint();
+        } else {
+            Long peerHostId = cmd.getPeerHostId();
+            if (peerHostId == null) {
+                throw new CloudRuntimeException("FTCTL IPMI fencing requires a peer host");
+            }
+            secondary = resolveIpmiEndpoint(peerHostId, "peer");
+        }
         return new FtctlIpmiFencingConfig(primary, secondary);
     }
 
     private FtctlIpmiEndpoint resolveIpmiEndpoint(Long hostId, String role) {
         OutOfBandManagement oobm = hostId == null ? null : outOfBandManagementDao.findByHost(hostId);
         if (oobm == null) {
-            throw new CloudRuntimeException(String.format("FTCTL IPMI fencing requires OOBM configuration on %s host %s", role, hostId));
+            logger.warn(String.format("FTCTL IPMI fencing has no OOBM configuration on %s host %s; recording IPMI UNKNOWN", role, hostId));
+            return unknownIpmiEndpoint();
         }
         if (!oobm.isEnabled()) {
-            throw new CloudRuntimeException(String.format("FTCTL IPMI fencing requires enabled OOBM on %s host %s", role, hostId));
+            logger.warn(String.format("FTCTL IPMI fencing has disabled OOBM on %s host %s; recording IPMI UNKNOWN", role, hostId));
+            return unknownIpmiEndpoint();
         }
         if (!OOBM_DRIVER_IPMITOOL.equalsIgnoreCase(StringUtils.trimToEmpty(oobm.getDriver()))) {
-            throw new CloudRuntimeException(String.format("FTCTL IPMI fencing requires ipmitool OOBM driver on %s host %s", role, hostId));
+            logger.warn(String.format("FTCTL IPMI fencing requires ipmitool OOBM driver on %s host %s; recording IPMI UNKNOWN", role, hostId));
+            return unknownIpmiEndpoint();
         }
         if (StringUtils.isAnyBlank(oobm.getAddress(), oobm.getUsername(), oobm.getPassword())) {
-            throw new CloudRuntimeException(String.format("FTCTL IPMI fencing requires OOBM address, username and password on %s host %s", role, hostId));
+            logger.warn(String.format("FTCTL IPMI fencing has incomplete OOBM address, username, or password on %s host %s; recording IPMI UNKNOWN",
+                    role, hostId));
+            return unknownIpmiEndpoint();
         }
         return new FtctlIpmiEndpoint(
                 oobm.getAddress(),
@@ -3684,6 +4101,10 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
                 oobm.getUsername(),
                 oobm.getPassword(),
                 DEFAULT_IPMI_INTERFACE);
+    }
+
+    private FtctlIpmiEndpoint unknownIpmiEndpoint() {
+        return new FtctlIpmiEndpoint("UNKNOWN", null, "", "", DEFAULT_IPMI_INTERFACE);
     }
 
     private void persistIpmiFencingDetails(Long virtualMachineId, FtctlIpmiFencingConfig config) {
@@ -3981,6 +4402,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         cmdList.add(RegisterFtctlProtectionCmd.class);
         cmdList.add(ValidateFtctlRemoteMoldConnectionCmd.class);
         cmdList.add(ListFtctlRemoteMoldHostsCmd.class);
+        cmdList.add(ListFtctlRemoteMoldNetworksCmd.class);
         cmdList.add(ListFtctlRemoteMoldStoragePoolsCmd.class);
         cmdList.add(PrepareFtctlDrReplicaResourcesCmd.class);
         cmdList.add(PrepareFtctlDrRemoteSshAccessCmd.class);
@@ -4005,7 +4427,37 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
 
     @Override
     public ConfigKey<?>[] getConfigKeys() {
-        return new ConfigKey<?>[] { FtctlServiceEnabled, FtctlRuntimeStateSyncEnabled, FtctlRuntimeStateSyncInterval };
+        return new ConfigKey<?>[] {
+                FtctlServiceEnabled,
+                FtctlRuntimeStateSyncEnabled,
+                FtctlRuntimeStateSyncInterval,
+                FtctlCloudManagedFailoverMonitorEnabled,
+                FtctlCloudManagedFailoverMonitorInterval,
+                FtctlCloudManagedFailoverConfirmations,
+                FtctlCloudManagedFailoverStartEnabled
+        };
+    }
+
+    private static final class CloudManagedFailoverSignal {
+        private final boolean candidate;
+        private final String reason;
+
+        private CloudManagedFailoverSignal(boolean candidate, String reason) {
+            this.candidate = candidate;
+            this.reason = reason;
+        }
+    }
+
+    private static final class CloudManagedFencingDecision {
+        private final boolean fenced;
+        private final String result;
+        private final String reason;
+
+        private CloudManagedFencingDecision(boolean fenced, String result, String reason) {
+            this.fenced = fenced;
+            this.result = result;
+            this.reason = reason;
+        }
     }
 
     private static final class FtctlActionLockedException extends CloudRuntimeException {

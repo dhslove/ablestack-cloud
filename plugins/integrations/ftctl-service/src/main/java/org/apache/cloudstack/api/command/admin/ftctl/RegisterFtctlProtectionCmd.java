@@ -144,6 +144,10 @@ public class RegisterFtctlProtectionCmd extends BaseAsyncCmd {
     @Parameter(name = "secondaryvmname", type = CommandType.STRING, description = "the FTCTL secondary VM name")
     private String secondaryVmName;
 
+    @Parameter(name = "networkids", type = CommandType.STRING,
+            description = "comma-separated target network IDs or UUIDs used for Cloud-managed DR standby VM creation")
+    private String networkIds;
+
     @Parameter(name = "secondarytargetdir", type = CommandType.STRING, description = "the FTCTL secondary target directory for remote-nbd")
     private String secondaryTargetDir;
 
@@ -261,6 +265,10 @@ public class RegisterFtctlProtectionCmd extends BaseAsyncCmd {
 
     public String getSecondaryVmName() {
         return secondaryVmName;
+    }
+
+    public String getNetworkIds() {
+        return networkIds;
     }
 
     public String getSecondaryTargetDir() {

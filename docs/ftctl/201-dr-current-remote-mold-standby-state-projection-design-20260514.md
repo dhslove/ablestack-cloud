@@ -31,7 +31,8 @@ The UI already renders `secondaryvirtualmachinestate` when the backend supplies 
 
 - Current Mold and remote Mold DR must both satisfy the same public protection response contract.
 - Cloud owns Cloud-managed replica VM and volume lifecycle and Cloud state lookup.
-- qemu FTCTL owns DR replication, NBD/blockcopy, failover/failback data-plane actions, events, and progress.
+- qemu FTCTL owns DR replication, NBD/blockcopy, Cloud-requested failover/failback data-plane actions, events, and progress.
+- Cloud owns Cloud-managed automatic fencing decisions and standby VM lifecycle orchestration. See `204-cloud-managed-ha-dr-automatic-fencing-orchestration-design-20260514.md`.
 - Mold Agent only forwards qemu commands and returns qemu logs/status/events.
 - Remote Mold API keys remain transient request inputs and must not be persisted in VM details, FTCTL profiles, host files, or logs.
 - Existing HA cloud-managed behavior must not change.

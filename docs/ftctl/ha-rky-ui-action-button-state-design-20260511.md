@@ -68,7 +68,7 @@ The expected HA-RKY manual-fence operator flow becomes:
 
 Disabled buttons expose a short reason through the button title. The click handler also checks the same reason before sending the API request and displays a warning if the action is no longer valid.
 
-This is intentionally a UI safety gate, not the final authority. Cloud backend and qemu FTCTL must still reject invalid transitions when commands are called directly or when state changes between UI refreshes.
+This is intentionally a UI safety gate, not the final authority. Cloud backend and qemu FTCTL must still reject invalid transitions when commands are called directly or when state changes between UI refreshes. For Cloud-managed automatic HA/DR, the Cloud backend is also the automatic fencing and VM lifecycle orchestration authority; qemu FTCTL remains the replication/data-plane executor.
 
 ## Protection Release Modal Readability
 

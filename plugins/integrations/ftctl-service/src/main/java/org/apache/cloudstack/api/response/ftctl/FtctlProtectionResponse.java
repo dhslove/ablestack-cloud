@@ -188,6 +188,14 @@ public class FtctlProtectionResponse extends BaseResponse {
     @Param(description = "the current FTCTL fencing state")
     private String fencingState;
 
+    @SerializedName("fencingresult")
+    @Param(description = "the current FTCTL fencing result classification")
+    private String fencingResult;
+
+    @SerializedName("fencingreason")
+    @Param(description = "the current FTCTL fencing result reason")
+    private String fencingReason;
+
     @SerializedName("lasterror")
     @Param(description = "the last known FTCTL error")
     private String lastError;
@@ -382,6 +390,14 @@ public class FtctlProtectionResponse extends BaseResponse {
 
     public void setFencingState(String fencingState) {
         this.fencingState = fencingState;
+    }
+
+    public void setFencingResult(String fencingResult) {
+        this.fencingResult = fencingResult;
+    }
+
+    public void setFencingReason(String fencingReason) {
+        this.fencingReason = fencingReason;
     }
 
     public void setLastError(String lastError) {

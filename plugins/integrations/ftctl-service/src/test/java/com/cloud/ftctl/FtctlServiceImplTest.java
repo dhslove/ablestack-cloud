@@ -75,6 +75,7 @@ import org.apache.cloudstack.api.response.ftctl.FtctlHealthResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlProtectionResponse;
 import org.apache.cloudstack.context.CallContext;
 import org.apache.cloudstack.outofbandmanagement.OutOfBandManagement;
+import org.apache.cloudstack.outofbandmanagement.OutOfBandManagementService;
 import org.apache.cloudstack.outofbandmanagement.dao.OutOfBandManagementDao;
 import org.junit.Assert;
 import org.junit.Before;
@@ -118,6 +119,8 @@ public class FtctlServiceImplTest {
     private PrimaryDataStoreDao primaryDataStoreDao;
     @Mock
     private OutOfBandManagementDao outOfBandManagementDao;
+    @Mock
+    private OutOfBandManagementService outOfBandManagementService;
     @Mock
     private FtctlProtectionProvisioningService ftctlProtectionProvisioningService;
     @Mock
@@ -355,6 +358,44 @@ public class FtctlServiceImplTest {
         Mockito.verify(ftctlProtectionDao).update(Mockito.eq(0L), Mockito.same(protection));
         Assert.assertEquals("protected", protection.getProtectionState());
         Assert.assertEquals("mirroring", protection.getTransportState());
+    }
+
+    @Test
+    public void testCloudManagedFailoverMonitorConvertsRepeatedCandidateToManualRequired() throws Exception {
+        FtctlProtectionVO protection = new FtctlProtectionVO(101L);
+        setField(protection, "id", 801L);
+        protection.setMode("dr");
+        protection.setBackendMode("remote-nbd");
+        protection.setProvisioningBackend(FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED);
+        protection.setProvisioningState(FtctlProtectionProvisioningService.STATE_READY);
+        protection.setProtectionState("protected");
+        protection.setTransportState("mirroring");
+        protection.setActiveSide("primary");
+        protection.setAdminState("active");
+        protection.setFencingState("clear");
+        protection.setFencingPolicy("manual-block");
+        Mockito.when(ftctlProtectionDao.listActive()).thenReturn(Collections.singletonList(protection));
+        Mockito.when(ftctlProtectionDao.findActiveByPrimaryVmId(101L)).thenReturn(protection);
+        vmDetails.put("101:ftctl.last.error", "cloud_managed_failover_candidate");
+
+        ftctlService.reconcileCloudManagedFailovers();
+
+        Assert.assertEquals("failover_suspect", protection.getProtectionState());
+        Assert.assertEquals("cloud_managed_failover_suspect", protection.getLastError());
+        Assert.assertEquals("1", vmDetails.get("101:ftctl.auto.failover.failure.count"));
+
+        ftctlService.reconcileCloudManagedFailovers();
+
+        Assert.assertEquals("failover_required", protection.getProtectionState());
+        Assert.assertEquals("mirroring", protection.getTransportState());
+        Assert.assertEquals("primary", protection.getActiveSide());
+        Assert.assertEquals("required", protection.getFencingState());
+        Assert.assertEquals("cloud_managed_failover_manual_required", protection.getLastError());
+        Assert.assertEquals("2", vmDetails.get("101:ftctl.auto.failover.failure.count"));
+        Assert.assertEquals("manual-required", vmDetails.get("101:ftctl.fencing.result"));
+        Assert.assertEquals("automatic_fencing_requires_ipmi_policy", vmDetails.get("101:ftctl.fencing.reason"));
+        Mockito.verify(userVmManager, Mockito.never()).startVirtualMachine(Mockito.anyLong(), Mockito.<Long>any(),
+                Mockito.<Map<VirtualMachineProfile.Param, Object>>any(), Mockito.<String>any());
     }
 
     @Test
@@ -1308,6 +1349,7 @@ public class FtctlServiceImplTest {
     public void testRegisterCloudManagedRemoteNbdRejectsRelativeDiskMap() throws Exception {
         RegisterFtctlProtectionCmd cmd = buildRegisterCmd();
         setField(cmd, "provisioningBackend", FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED);
+        setField(cmd, "networkIds", "network-uuid");
         HostVO localHost = mockHost(201L, 301L, "10.0.0.11");
         HostVO peerHost = mockHost(202L, 301L, "10.0.0.12");
         Mockito.when(hostDao.findById(201L)).thenReturn(localHost);
@@ -1496,6 +1538,7 @@ public class FtctlServiceImplTest {
     public void testRegisterFtctlProtectionDefaultsToCloudManagedBeforeAgentSyncWhenProvisioningIsNotReady() throws Exception {
         RegisterFtctlProtectionCmd cmd = buildRegisterCmd();
         setField(cmd, "provisioningBackend", null);
+        setField(cmd, "networkIds", "network-uuid");
         Mockito.doThrow(new CloudRuntimeException("not ready")).when(ftctlProtectionProvisioningService)
                 .prepareProtection(Mockito.any(FtctlProtectionProvisioningRequest.class));
 

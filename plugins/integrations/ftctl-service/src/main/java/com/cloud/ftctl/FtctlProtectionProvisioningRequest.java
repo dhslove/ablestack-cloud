@@ -17,6 +17,7 @@
 package com.cloud.ftctl;
 
 import com.cloud.vm.UserVmVO;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.cloudstack.storage.datastore.db.StoragePoolVO;
 
 public class FtctlProtectionProvisioningRequest {
@@ -29,10 +30,17 @@ public class FtctlProtectionProvisioningRequest {
     private final String provisioningBackend;
     private final String fencingPolicy;
     private final String secondaryVmName;
+    private final String networkIds;
 
     public FtctlProtectionProvisioningRequest(UserVmVO primaryVm, Long peerHostId, StoragePoolVO targetStoragePool,
-                                              String mode, String backendMode, String provisioningBackend,
-                                              String fencingPolicy, String secondaryVmName) {
+                                               String mode, String backendMode, String provisioningBackend,
+                                               String fencingPolicy, String secondaryVmName) {
+        this(primaryVm, peerHostId, targetStoragePool, mode, backendMode, provisioningBackend, fencingPolicy, secondaryVmName, null);
+    }
+
+    public FtctlProtectionProvisioningRequest(UserVmVO primaryVm, Long peerHostId, StoragePoolVO targetStoragePool,
+                                               String mode, String backendMode, String provisioningBackend,
+                                               String fencingPolicy, String secondaryVmName, String networkIds) {
         this.primaryVm = primaryVm;
         this.peerHostId = peerHostId;
         this.targetStoragePool = targetStoragePool;
@@ -41,6 +49,7 @@ public class FtctlProtectionProvisioningRequest {
         this.provisioningBackend = provisioningBackend;
         this.fencingPolicy = fencingPolicy;
         this.secondaryVmName = secondaryVmName;
+        this.networkIds = StringUtils.trimToNull(networkIds);
     }
 
     public UserVmVO getPrimaryVm() {
@@ -73,5 +82,9 @@ public class FtctlProtectionProvisioningRequest {
 
     public String getSecondaryVmName() {
         return secondaryVmName;
+    }
+
+    public String getNetworkIds() {
+        return networkIds;
     }
 }

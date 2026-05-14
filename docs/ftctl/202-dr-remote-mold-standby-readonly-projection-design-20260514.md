@@ -11,7 +11,8 @@ The current remote standby VM detail page still falls back to "not protected" be
 1. Preserve the HA ownership model.
    - Cloud creates and manages VMs and volumes through Cloud APIs.
    - Mold Agent relays FTCTL commands and returns qemu-side status or events.
-   - qemu FTCTL performs DR replication and failure actions.
+   - qemu FTCTL performs DR replication and Cloud-requested data-plane transition actions.
+   - Cloud owns Cloud-managed automatic fencing decisions and standby VM lifecycle orchestration. See `204-cloud-managed-ha-dr-automatic-fencing-orchestration-design-20260514.md`.
    - Cloud reads qemu events/status asynchronously and projects them to the UI.
 
 2. Do not duplicate protection ownership across Mold services.

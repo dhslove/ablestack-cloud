@@ -6,7 +6,9 @@ Date: 2026-05-14
 
 Remote Mold DR must follow the same ownership model as the validated HA cloud-managed path.
 
-Cloud owns VM and volume lifecycle. qemu FTCTL owns replication and disaster-recovery data-plane actions. Mold Agent delivers commands and returns logs/status/events. Remote Mold DR must not shift replica VM or RBD/volume creation into qemu FTCTL.
+Cloud owns VM and volume lifecycle. qemu FTCTL owns replication and Cloud-requested disaster-recovery data-plane actions. Mold Agent delivers commands and returns logs/status/events. Remote Mold DR must not shift replica VM or RBD/volume creation into qemu FTCTL.
+
+For Cloud-managed automatic HA/DR, Cloud also owns the automatic fencing decision and standby VM lifecycle orchestration. qemu FTCTL may report candidate/runtime evidence and execute explicit data-plane commands, but it must not be the automatic failover controller. The governing automatic-fencing design is `204-cloud-managed-ha-dr-automatic-fencing-orchestration-design-20260514.md`.
 
 This document is remote-Mold focused. The cross-cutting DR provisioning contract for both current Mold and remote Mold is defined in `200-dr-current-remote-mold-common-provisioning-design-20260514.md` and must be treated as the governing design for new DR changes.
 
@@ -34,10 +36,11 @@ qemu FTCTL responsibilities:
 - SSH/libvirt/NBD preflight
 - remote-nbd export handling
 - blockcopy and reverse sync
-- failover/failback data-plane checks
+- Cloud-requested failover/failback data-plane checks
 - events.log/progress/status production
 
 qemu FTCTL must not create, define, start, stop, delete, attach, detach, resize, or format Cloud-managed VMs or volumes.
+For Cloud-managed automatic flows, qemu FTCTL must also not decide automatic failover from a single libvirt/domain observation or start Cloud-managed standby VMs.
 
 ## 3. Current Cloud Gap
 
@@ -136,4 +139,5 @@ Additional remote Cloud provisioning choices may be needed for zone, network, se
 - qemu profile contains explicit Cloud-created paths.
 - qemu events/logs show replication actions only.
 - release/forced-release cleans remote Cloud-created resources through Cloud APIs.
-- existing HA cloud-managed tests remain unchanged.
+- existing HA cloud-managed manual/operator tests remain unchanged.
+- Cloud-managed automatic HA/DR tests follow `204-cloud-managed-ha-dr-automatic-fencing-orchestration-design-20260514.md`.

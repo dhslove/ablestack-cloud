@@ -24,6 +24,7 @@ import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlEventsCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlHealthCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlProtectionCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.ListFtctlRemoteMoldHostsCmd;
+import org.apache.cloudstack.api.command.admin.ftctl.ListFtctlRemoteMoldNetworksCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.ListFtctlRemoteMoldStoragePoolsCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.InstallFtctlDrRemoteSshKeyCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.PrepareFtctlDrReplicaResourcesCmd;
@@ -38,6 +39,7 @@ import org.apache.cloudstack.api.response.ftctl.FtctlHealthResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlProtectionResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlRemoteMoldConnectionResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlRemoteMoldHostsResponse;
+import org.apache.cloudstack.api.response.ftctl.FtctlRemoteMoldNetworksResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlRemoteMoldStoragePoolsResponse;
 import org.apache.cloudstack.framework.config.ConfigKey;
 import org.apache.cloudstack.framework.config.Configurable;
@@ -62,6 +64,30 @@ public interface FtctlService extends PluggableService, Configurable {
             "Interval in seconds for syncing FTCTL runtime state through the agent.",
             false);
 
+    ConfigKey<Boolean> FtctlCloudManagedFailoverMonitorEnabled = new ConfigKey<>("Advanced", Boolean.class,
+            "cloud.ftctl.cloud.managed.failover.monitor.enabled",
+            "true",
+            "Indicates whether Cloud should reconcile Cloud-managed FTCTL automatic failover candidates.",
+            false);
+
+    ConfigKey<Integer> FtctlCloudManagedFailoverMonitorInterval = new ConfigKey<>("Advanced", Integer.class,
+            "cloud.ftctl.cloud.managed.failover.monitor.interval",
+            "10",
+            "Interval in seconds for reconciling Cloud-managed FTCTL automatic failover candidates.",
+            false);
+
+    ConfigKey<Integer> FtctlCloudManagedFailoverConfirmations = new ConfigKey<>("Advanced", Integer.class,
+            "cloud.ftctl.cloud.managed.failover.confirmations",
+            "2",
+            "Number of consecutive Cloud-managed FTCTL failover candidate observations required before fencing handling.",
+            false);
+
+    ConfigKey<Boolean> FtctlCloudManagedFailoverStartEnabled = new ConfigKey<>("Advanced", Boolean.class,
+            "cloud.ftctl.cloud.managed.failover.start.enabled",
+            "false",
+            "Allows Cloud to start a Cloud-managed FTCTL standby VM automatically after a confirmed automatic failover candidate. Disabled by default.",
+            false);
+
     FtctlProtectionResponse getFtctlProtection(GetFtctlProtectionCmd cmd) throws CloudRuntimeException;
 
     FtctlProtectionResponse registerFtctlProtection(RegisterFtctlProtectionCmd cmd) throws CloudRuntimeException;
@@ -69,6 +95,8 @@ public interface FtctlService extends PluggableService, Configurable {
     FtctlRemoteMoldConnectionResponse validateFtctlRemoteMoldConnection(ValidateFtctlRemoteMoldConnectionCmd cmd) throws CloudRuntimeException;
 
     FtctlRemoteMoldHostsResponse listFtctlRemoteMoldHosts(ListFtctlRemoteMoldHostsCmd cmd) throws CloudRuntimeException;
+
+    FtctlRemoteMoldNetworksResponse listFtctlRemoteMoldNetworks(ListFtctlRemoteMoldNetworksCmd cmd) throws CloudRuntimeException;
 
     FtctlRemoteMoldStoragePoolsResponse listFtctlRemoteMoldStoragePools(ListFtctlRemoteMoldStoragePoolsCmd cmd) throws CloudRuntimeException;
 

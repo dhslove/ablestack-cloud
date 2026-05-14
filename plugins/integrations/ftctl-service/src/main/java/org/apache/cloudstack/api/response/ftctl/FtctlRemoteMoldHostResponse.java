@@ -46,6 +46,14 @@ public class FtctlRemoteMoldHostResponse extends BaseResponse {
     @Param(description = "the remote Mold host cluster name")
     private String clusterName;
 
+    @SerializedName("zoneid")
+    @Param(description = "the remote Mold host zone ID")
+    private String zoneId;
+
+    @SerializedName("zonename")
+    @Param(description = "the remote Mold host zone name")
+    private String zoneName;
+
     @SerializedName("hypervisor")
     @Param(description = "the remote Mold host hypervisor")
     private String hypervisor;
@@ -72,6 +80,14 @@ public class FtctlRemoteMoldHostResponse extends BaseResponse {
 
     public void setClusterName(String clusterName) {
         this.clusterName = clusterName;
+    }
+
+    public void setZoneId(String zoneId) {
+        this.zoneId = zoneId;
+    }
+
+    public void setZoneName(String zoneName) {
+        this.zoneName = zoneName;
     }
 
     public void setHypervisor(String hypervisor) {

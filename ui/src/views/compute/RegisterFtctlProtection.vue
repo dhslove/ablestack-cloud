@@ -86,6 +86,27 @@
             </a-select-option>
           </a-select>
         </a-form-item>
+        <a-form-item name="networkids" v-if="showLocalTargetNetworkFields">
+          <template #label>
+            <tooltip-label :title="$t('label.ftctl.target.networks')" :tooltip="$t('placeholder.ftctl.target.networks')" />
+          </template>
+          <a-select
+            v-model:value="form.networkids"
+            mode="multiple"
+            :loading="networksLoading"
+            :placeholder="$t('placeholder.ftctl.target.networks')"
+            showSearch
+            optionFilterProp="label"
+            :filterOption="filterRemoteInventoryOption">
+            <a-select-option
+              v-for="network in networks"
+              :key="network.id"
+              :value="network.id"
+              :label="formatNetworkLabel(network)">
+              {{ formatNetworkLabel(network) }}
+            </a-select-option>
+          </a-select>
+        </a-form-item>
         <div v-if="showRemoteMoldFields" class="ftctl-remote-mold-fields">
           <a-form-item name="remotemoldapiurl">
             <template #label>
@@ -109,7 +130,7 @@
             <a-button :loading="remoteMoldLoading" @click="validateRemoteMoldConnection">
               {{ $t('label.ftctl.remote.mold.test.connection') }}
             </a-button>
-            <a-button :loading="remoteMoldHostsLoading || remoteMoldStoragePoolsLoading" @click="fetchRemoteMoldInventory">
+            <a-button :loading="remoteMoldHostsLoading || remoteMoldStoragePoolsLoading || remoteMoldNetworksLoading" @click="fetchRemoteMoldInventory">
               {{ $t('label.refresh') }}
             </a-button>
           </div>
@@ -152,6 +173,27 @@
                 :value="pool.id"
                 :label="formatStoragePoolLabel(pool)">
                 {{ formatStoragePoolLabel(pool) }}
+              </a-select-option>
+            </a-select>
+          </a-form-item>
+          <a-form-item name="networkids" v-if="showRemoteTargetNetworkFields">
+            <template #label>
+              <tooltip-label :title="$t('label.ftctl.remote.target.networks')" :tooltip="$t('placeholder.ftctl.remote.target.networks')" />
+            </template>
+            <a-select
+              v-model:value="form.networkids"
+              mode="multiple"
+              :loading="remoteMoldNetworksLoading"
+              :placeholder="$t('placeholder.ftctl.remote.target.networks')"
+              showSearch
+              optionFilterProp="label"
+              :filterOption="filterRemoteInventoryOption">
+              <a-select-option
+                v-for="network in remoteMoldNetworks"
+                :key="network.id"
+                :value="network.id"
+                :label="formatNetworkLabel(network)">
+                {{ formatNetworkLabel(network) }}
               </a-select-option>
             </a-select>
           </a-form-item>
@@ -292,11 +334,15 @@ export default {
       hosts: [],
       storagePoolsLoading: false,
       storagePools: [],
+      networksLoading: false,
+      networks: [],
       remoteMoldLoading: false,
       remoteMoldHostsLoading: false,
       remoteMoldStoragePoolsLoading: false,
+      remoteMoldNetworksLoading: false,
       remoteMoldHosts: [],
       remoteMoldStoragePools: [],
+      remoteMoldNetworks: [],
       remotePeerSshOverride: false,
       remotePeerSshAutoSetup: false,
       manualXcoloEndpoints: false
@@ -329,6 +375,15 @@ export default {
     },
     showLocalStorageFields () {
       return this.showStorageFields && !this.isDrRemoteMold
+    },
+    showTargetNetworkFields () {
+      return this.form?.mode === 'dr'
+    },
+    showLocalTargetNetworkFields () {
+      return this.showTargetNetworkFields && !this.isDrRemoteMold
+    },
+    showRemoteTargetNetworkFields () {
+      return this.showTargetNetworkFields && this.isDrRemoteMold
     },
     showRemoteNbdFields () {
       return this.showBackendFields && this.form?.backendmode === 'remote-nbd'
@@ -393,6 +448,7 @@ export default {
         backendmode: 'shared-blockcopy',
         targetstoragescope: 'shared',
         targetstoragepoolid: null,
+        networkids: [],
         fencingpolicy: 'manual-block',
         peerhostid: null,
         secondaryvmname: this.resource?.name ? `${this.resource.name}-standby` : null,
@@ -441,6 +497,7 @@ export default {
         this.form.backendmode = null
         this.form.secondarytargetdir = null
         this.form.remotenbdexportaddr = null
+        this.form.networkids = []
         if (this.form.targetstoragepoolid) {
           this.applySelectedStoragePool(this.form.targetstoragepoolid)
         } else if (this.storagePools.length === 1) {
@@ -452,6 +509,7 @@ export default {
       } else {
         if (mode !== 'dr') {
           this.form.drpeersitetype = 'local-mold'
+          this.form.networkids = []
           this.clearRemoteMoldSelection()
         }
         if (!this.form.backendmode) {
@@ -464,10 +522,14 @@ export default {
           this.applySelectedStoragePool(this.storagePools[0].id)
         }
         this.fetchStoragePools(this.form.peerhostid)
+        if (mode === 'dr' && !this.isDrRemoteMold) {
+          this.fetchTargetNetworks(this.form.peerhostid)
+        }
         this.form.xcoloproxyendpoint = null
         this.form.xcolonbdendpoint = null
         this.form.xcolomigrateuri = null
       }
+      this.fetchHosts()
     },
     handleDrPeerSiteTypeChange () {
       if (this.isDrRemoteMold) {
@@ -475,6 +537,7 @@ export default {
         this.form.targetstoragescope = 'secondary-local'
         this.form.peerhostid = null
         this.form.targetstoragepoolid = null
+        this.form.networkids = []
         this.applyRemotePeerHostDefaults(this.form.remotepeerhostuuid)
       } else {
         this.clearRemoteMoldSelection()
@@ -482,7 +545,9 @@ export default {
         if (!this.form.backendmode) {
           this.form.backendmode = 'shared-blockcopy'
         }
+        this.fetchHosts()
         this.fetchStoragePools(this.form.peerhostid)
+        this.fetchTargetNetworks(this.form.peerhostid)
       }
     },
     handleBackendModeChange (backendMode) {
@@ -507,8 +572,9 @@ export default {
       }
       this.storagePoolsLoading = true
       const peerHost = this.hosts.find(host => host.id === peerHostId)
+      const targetZoneId = this.resolveLocalTargetZoneId(peerHost)
       const params = {
-        zoneid: this.resource.zoneid,
+        zoneid: targetZoneId,
         listall: true,
         page: 1,
         pagesize: 500
@@ -539,6 +605,38 @@ export default {
       }).finally(() => {
         this.storagePoolsLoading = false
       })
+    },
+    fetchTargetNetworks (peerHostId = this.form?.peerhostid) {
+      if (!this.showLocalTargetNetworkFields || !this.resource?.zoneid) {
+        return
+      }
+      this.networksLoading = true
+      const peerHost = this.hosts.find(host => host.id === peerHostId)
+      const params = {
+        zoneid: this.resolveLocalTargetZoneId(peerHost),
+        listall: true,
+        page: 1,
+        pagesize: 500,
+        canusefordeploy: true,
+        traffictype: 'Guest',
+        type: 'all',
+        networkfilter: 'all'
+      }
+      getAPI('listNetworks', params).then((json) => {
+        const networks = json?.listnetworksresponse?.network || []
+        this.networks = networks
+        this.applyNetworkSelectionDefaults(this.networks)
+      }).catch((error) => {
+        this.$notifyError(error)
+      }).finally(() => {
+        this.networksLoading = false
+      })
+    },
+    resolveLocalTargetZoneId (peerHost) {
+      if (this.form?.mode === 'dr' && peerHost?.zoneid) {
+        return peerHost.zoneid
+      }
+      return this.resource.zoneid
     },
     handleStoragePoolChange (poolId) {
       this.applySelectedStoragePool(poolId)
@@ -576,10 +674,30 @@ export default {
       const cluster = pool?.clustername ? ` / ${pool.clustername}` : ''
       return `${name} (${scope}${cluster}, ${type})`
     },
+    formatNetworkLabel (network) {
+      const name = network?.name || network?.displaytext || network?.id || '-'
+      const type = network?.type || network?.guesttype || '-'
+      const zone = network?.zonename ? ` / ${network.zonename}` : ''
+      const cidr = network?.cidr ? `, ${network.cidr}` : ''
+      return network?.id ? `${name}${zone} (${type}${cidr}, ${network.id})` : `${name}${zone}`
+    },
+    applyNetworkSelectionDefaults (networks) {
+      const current = Array.isArray(this.form.networkids) ? this.form.networkids : []
+      const availableIds = new Set((networks || []).map(network => network.id))
+      const stillValid = current.filter(id => availableIds.has(id))
+      if (stillValid.length > 0) {
+        this.form.networkids = stillValid
+      } else if ((networks || []).length === 1 && this.showTargetNetworkFields) {
+        this.form.networkids = [networks[0].id]
+      } else if (this.showTargetNetworkFields) {
+        this.form.networkids = []
+      }
+    },
     formatHostLabel (host) {
       const name = host?.name || host?.ipaddress || host?.id || '-'
       const migrationIp = host?.migrationip ? ` / ${host.migrationip}` : ''
-      return host?.id ? `${name}${migrationIp} (${host.id})` : `${name}${migrationIp}`
+      const zone = host?.zonename ? ` / ${host.zonename}` : ''
+      return host?.id ? `${name}${migrationIp}${zone} (${host.id})` : `${name}${migrationIp}${zone}`
     },
     validateRemoteMoldConnection () {
       if (!this.validateRemoteMoldCredentials()) {
@@ -601,6 +719,7 @@ export default {
       }
       this.fetchRemoteMoldHosts()
       this.fetchRemoteMoldStoragePools()
+      this.fetchRemoteMoldNetworks()
     },
     fetchRemoteMoldHosts () {
       this.remoteMoldHostsLoading = true
@@ -644,6 +763,32 @@ export default {
         this.$notifyError(error)
       }).finally(() => {
         this.remoteMoldStoragePoolsLoading = false
+      })
+    },
+    fetchRemoteMoldNetworks () {
+      if (!this.validateRemoteMoldCredentials()) {
+        return
+      }
+      this.remoteMoldNetworksLoading = true
+      const params = this.buildRemoteMoldCredentialParams()
+      const remotePeerHost = this.remoteMoldHosts.find(host => host.id === this.form.remotepeerhostuuid)
+      if (remotePeerHost?.zoneid) {
+        params.zoneid = remotePeerHost.zoneid
+      }
+      getAPI('listFtctlRemoteMoldNetworks', params).then((json) => {
+        const response = json?.listftctlremotemoldnetworksresponse || {}
+        const networks = this.normalizeResponseItems(response, [
+          'network',
+          'networks',
+          'ftctlremotemoldnetwork',
+          'ftctlremotemoldnetworks'
+        ])
+        this.remoteMoldNetworks = networks
+        this.applyNetworkSelectionDefaults(this.remoteMoldNetworks)
+      }).catch((error) => {
+        this.$notifyError(error)
+      }).finally(() => {
+        this.remoteMoldNetworksLoading = false
       })
     },
     validateRemoteMoldCredentials () {
@@ -693,8 +838,10 @@ export default {
     },
     handleRemotePeerHostChange (hostId) {
       this.form.remotepeerhostuuid = hostId
+      this.form.networkids = []
       this.applyRemotePeerHostDefaults(hostId)
       this.fetchRemoteMoldStoragePools()
+      this.fetchRemoteMoldNetworks()
     },
     applyRemotePeerHostDefaults (hostId) {
       const peerHost = this.remoteMoldHosts.find(host => host.id === hostId)
@@ -746,6 +893,7 @@ export default {
     clearRemoteMoldSelection () {
       this.remoteMoldHosts = []
       this.remoteMoldStoragePools = []
+      this.remoteMoldNetworks = []
       this.form.remotepeerhostuuid = null
       this.form.remotepeerhostname = null
       this.form.remotepeerhostaddress = null
@@ -759,17 +907,20 @@ export default {
       this.form.remotetargetstoragepoolname = null
       this.form.remotetargetstoragepoolpath = null
       this.form.remotetargetstoragepooltype = null
+      this.form.networkids = []
     },
     fetchHosts () {
       this.hostsLoading = true
       const params = {
-        zoneid: this.resource.zoneid,
         type: 'Routing',
         state: 'Up',
         listall: true,
         details: 'all'
       }
-      if (this.resource.clusterid) {
+      if (!(this.form?.mode === 'dr' && !this.isDrRemoteMold)) {
+        params.zoneid = this.resource.zoneid
+      }
+      if (this.resource.clusterid && !(this.form?.mode === 'dr' && !this.isDrRemoteMold)) {
         params.clusterid = this.resource.clusterid
       }
       getAPI('listHosts', params).then((json) => {
@@ -786,9 +937,13 @@ export default {
     },
     handlePeerHostChange (peerHostId) {
       this.form.peerhostid = peerHostId
+      this.form.networkids = []
       this.applyPeerHostDefaults(peerHostId)
       if (this.showStorageFields) {
         this.fetchStoragePools(peerHostId)
+      }
+      if (this.showLocalTargetNetworkFields) {
+        this.fetchTargetNetworks(peerHostId)
       }
     },
     applyPeerHostDefaults (peerHostId) {
@@ -828,6 +983,10 @@ export default {
           this.$message.error(this.$t('message.ftctl.validation.remote.peer.ssh.port.required'))
           return false
         }
+      }
+      if (this.showTargetNetworkFields && (!Array.isArray(values.networkids) || values.networkids.length === 0)) {
+        this.$message.error(this.$t('message.ftctl.validation.target.network.required'))
+        return false
       }
       if (this.showRemoteNbdFields && (!values.secondarytargetdir || !values.remotenbdexportaddr)) {
         this.$message.error(this.$t('message.ftctl.validation.remote.nbd.required'))
@@ -903,6 +1062,9 @@ export default {
         }
         if (values.secondaryvmname) {
           params.secondaryvmname = values.secondaryvmname
+        }
+        if (Array.isArray(values.networkids) && values.networkids.length > 0) {
+          params.networkids = values.networkids.join(',')
         }
         if (this.showRemoteNbdFields) {
           params.secondarytargetdir = values.secondarytargetdir

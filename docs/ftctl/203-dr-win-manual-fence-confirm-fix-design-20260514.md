@@ -1,5 +1,11 @@
 # DR-WIN Manual Fence Confirmation Fix Design - 2026-05-14
 
+## Scope
+
+This document covers the operator-driven `manual-block` DR-WIN fence confirmation flow.
+
+It does not define Cloud-managed automatic fencing or automatic failover ownership. For automatic HA/DR, Cloud must own the fencing decision and Cloud VM lifecycle orchestration, while qemu FTCTL remains the replication/data-plane executor. See `204-cloud-managed-ha-dr-automatic-fencing-orchestration-design-20260514.md`.
+
 ## Background
 
 During DR-WIN validation, the operator completed pause, resume, failover request, and then stopped the primary VM. The UI could not proceed with fence confirmation. Runtime state had already changed to `protection_state=error`, `transport_state=rearm_exhausted`, `active_side=primary`, `fencing_state=required`, and `last_error=rearm_attempts_exhausted`.
@@ -15,12 +21,14 @@ During DR-WIN validation, the operator completed pause, resume, failover request
 - Preserve the HA-proven responsibility split:
   - Cloud owns VM, volume, and lifecycle API calls.
   - Mold agent relays ftctl commands and status/log collection.
-  - qemu FTCTL performs replication, NBD export release, failover/failback data-plane transitions, and runtime state persistence.
+  - qemu FTCTL performs replication, NBD export release, Cloud-requested failover/failback data-plane transitions, and runtime state persistence.
 - Apply DR behavior consistently for both current Mold and remote Mold.
 - Do not persist remote Mold API or secret keys. Remote API URL may be stored as a non-secret endpoint, but API key and secret key must be action-scoped only.
 - Do not weaken the already validated HA flow.
 
 ## qemu FTCTL Changes
+
+These qemu changes are scoped to preserving a manual/operator failover state. They must not be interpreted as qemu-owned Cloud-managed automatic failover orchestration.
 
 - Extend blockcopy-ready precheck from HA to DR for `remote-nbd` and `shared-blockcopy`.
 - Record `failover_ready=1` before entering manual fencing wait in DR.

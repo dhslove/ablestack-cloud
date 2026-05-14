@@ -19,6 +19,7 @@ package com.cloud.ftctl;
 import com.cloud.ftctl.dao.FtctlProtectionDao;
 import com.cloud.ftctl.dao.FtctlProtectionVolumeDao;
 import com.cloud.hypervisor.Hypervisor.HypervisorType;
+import com.cloud.network.dao.NetworkDao;
 import com.cloud.service.ServiceOfferingVO;
 import com.cloud.service.dao.ServiceOfferingDao;
 import com.cloud.storage.DiskOfferingVO;
@@ -71,6 +72,8 @@ public class FtctlProtectionProvisioningServiceImplTest {
     private VMInstanceDao vmInstanceDao;
     @Mock
     private NicDao nicDao;
+    @Mock
+    private NetworkDao networkDao;
     @Mock
     private AccountDao accountDao;
     @Mock
@@ -446,6 +449,7 @@ public class FtctlProtectionProvisioningServiceImplTest {
     private StoragePoolVO mockTargetStoragePool() {
         StoragePoolVO targetStoragePool = Mockito.mock(StoragePoolVO.class);
         Mockito.lenient().when(targetStoragePool.getId()).thenReturn(501L);
+        Mockito.lenient().when(targetStoragePool.getDataCenterId()).thenReturn(401L);
         Mockito.lenient().when(targetStoragePool.getPoolType()).thenReturn(Storage.StoragePoolType.RBD);
         Mockito.lenient().when(targetStoragePool.getPath()).thenReturn("rbd");
         return targetStoragePool;
@@ -454,6 +458,7 @@ public class FtctlProtectionProvisioningServiceImplTest {
     private StoragePoolVO mockLocalTargetStoragePool() {
         StoragePoolVO targetStoragePool = Mockito.mock(StoragePoolVO.class);
         Mockito.lenient().when(targetStoragePool.getId()).thenReturn(501L);
+        Mockito.lenient().when(targetStoragePool.getDataCenterId()).thenReturn(401L);
         Mockito.lenient().when(targetStoragePool.getPoolType()).thenReturn(Storage.StoragePoolType.Filesystem);
         Mockito.lenient().when(targetStoragePool.getPath()).thenReturn("/var/lib/libvirt/images");
         return targetStoragePool;

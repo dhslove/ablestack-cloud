@@ -75,8 +75,8 @@ public class PrepareFtctlDrReplicaResourcesCmd extends BaseCmd {
             description = "JSON array containing source volume specifications")
     private String sourceVolumes;
 
-    @Parameter(name = "networkids", type = CommandType.STRING,
-            description = "optional comma-separated remote network IDs")
+    @Parameter(name = "networkids", type = CommandType.STRING, required = true,
+            description = "comma-separated remote network IDs or UUIDs used for replica VM creation")
     private String networkIds;
 
     public String getSourceVirtualMachineId() {

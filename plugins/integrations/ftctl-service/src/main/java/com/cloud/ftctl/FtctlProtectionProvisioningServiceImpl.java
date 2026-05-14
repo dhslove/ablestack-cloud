@@ -45,6 +45,8 @@ import com.cloud.event.UsageEventVO;
 import com.cloud.ftctl.dao.FtctlProtectionDao;
 import com.cloud.ftctl.dao.FtctlProtectionVolumeDao;
 import com.cloud.hypervisor.Hypervisor.HypervisorType;
+import com.cloud.network.dao.NetworkDao;
+import com.cloud.network.dao.NetworkVO;
 import com.cloud.offering.DiskOffering;
 import com.cloud.service.ServiceOfferingVO;
 import com.cloud.service.dao.ServiceOfferingDao;
@@ -133,6 +135,8 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
     private VMInstanceDao vmInstanceDao;
     @Inject
     private NicDao nicDao;
+    @Inject
+    private NetworkDao networkDao;
     @Inject
     private AccountDao accountDao;
     @Inject
@@ -376,7 +380,7 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
                 computeOffering.getId(),
                 cmd.getSecondaryVmName(),
                 cmd.getSecondaryVmName(),
-                parseNetworkIds(cmd.getNetworkIds()),
+                resolveNetworkIds(cmd.getNetworkIds(), targetStoragePool.getDataCenterId()),
                 targetHost.getId(),
                 resolveHypervisor(cmd.getSourceHypervisor()),
                 rootVolume.getId(),
@@ -477,7 +481,7 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
         }
     }
 
-    private List<Long> parseNetworkIds(String networkIds) {
+    private List<Long> resolveNetworkIds(String networkIds, Long expectedZoneId) {
         if (StringUtils.isBlank(networkIds)) {
             return Collections.emptyList();
         }
@@ -485,10 +489,30 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
         for (String part : StringUtils.split(networkIds, ',')) {
             String normalized = StringUtils.trimToNull(part);
             if (normalized != null) {
-                result.add(Long.valueOf(normalized));
+                NetworkVO network = resolveNetwork(normalized);
+                if (network == null) {
+                    throw new CloudRuntimeException(String.format("Unable to find FTCTL target network %s", normalized));
+                }
+                if (expectedZoneId != null && network.getDataCenterId() != expectedZoneId) {
+                    throw new CloudRuntimeException(String.format("FTCTL target network %s is in zone %s, expected zone %s",
+                            normalized, network.getDataCenterId(), expectedZoneId));
+                }
+                result.add(network.getId());
             }
         }
         return result;
+    }
+
+    private NetworkVO resolveNetwork(String networkIdOrUuid) {
+        try {
+            Long id = Long.valueOf(networkIdOrUuid);
+            NetworkVO network = networkDao.findById(id);
+            if (network != null) {
+                return network;
+            }
+        } catch (NumberFormatException ignored) {
+        }
+        return networkDao.findByUuid(networkIdOrUuid);
     }
 
     private HypervisorType resolveHypervisor(String sourceHypervisor) {
@@ -665,7 +689,7 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
             }
         }
         String standbyVmName = resolveSecondaryVmName(request);
-        VMInstanceVO vm = vmInstanceDao.findVMByHostNameInZone(standbyVmName, request.getPrimaryVm().getDataCenterId());
+        VMInstanceVO vm = vmInstanceDao.findVMByHostNameInZone(standbyVmName, resolveCloudManagedTargetZoneId(request));
         if (vm == null) {
             return null;
         }
@@ -681,15 +705,16 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
         }
         Map<String, String> standbyVmDetails = buildStandbyVmDetails(primaryVm);
         standbyVmDetails.put(VmDetailConstants.ROOT_DISK_SIZE, String.valueOf(bytesToGiBRoundedUp(primaryRootVolume.getSize())));
+        Long targetZoneId = resolveCloudManagedTargetZoneId(request);
         FtctlStandbyDeployVMVolumeCmd deployCmd = new FtctlStandbyDeployVMVolumeCmd(
                 owner.getId(),
                 owner.getAccountName(),
                 owner.getDomainId(),
-                primaryVm.getDataCenterId(),
+                targetZoneId,
                 computeOffering.getId(),
                 resolveSecondaryVmName(request),
                 resolveSecondaryVmName(request),
-                listPrimaryVmNetworkIds(primaryVm),
+                resolveCloudManagedStandbyNetworkIds(request),
                 request.getPeerHostId(),
                 primaryVm.getHypervisorType(),
                 standbyRootVolume.getId(),
@@ -1008,6 +1033,22 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
 
     private String resolveSecondaryVmName(FtctlProtectionProvisioningRequest request) {
         return StringUtils.defaultIfBlank(request.getSecondaryVmName(), String.format("%s-standby", request.getPrimaryVm().getHostName()));
+    }
+
+    private Long resolveCloudManagedTargetZoneId(FtctlProtectionProvisioningRequest request) {
+        StoragePoolVO targetStoragePool = request.getTargetStoragePool();
+        if (targetStoragePool != null) {
+            return targetStoragePool.getDataCenterId();
+        }
+        return request.getPrimaryVm().getDataCenterId();
+    }
+
+    private List<Long> resolveCloudManagedStandbyNetworkIds(FtctlProtectionProvisioningRequest request) {
+        List<Long> requestedNetworkIds = resolveNetworkIds(request.getNetworkIds(), resolveCloudManagedTargetZoneId(request));
+        if (!requestedNetworkIds.isEmpty()) {
+            return requestedNetworkIds;
+        }
+        return listPrimaryVmNetworkIds(request.getPrimaryVm());
     }
 
     private List<Long> listPrimaryVmNetworkIds(UserVmVO primaryVm) {

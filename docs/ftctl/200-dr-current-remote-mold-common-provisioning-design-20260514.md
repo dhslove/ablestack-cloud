@@ -128,7 +128,22 @@ The parser must also be defensive about volume entries:
 - require `sourcedisktarget` when `diskmap` is absent.
 - rebuild `diskmap` from `sourcedisktarget=path` pairs when the remote response omits `diskmap`.
 
-## 7. Idempotency Requirements
+## 7. Target Network Selection
+
+The original DR-WIN failure class was a Cloud-managed replica VM created without an explicit target network. That allowed Cloud VM allocation to succeed far enough to create inventory, but the standby VM could not be started because the target site network allocation was invalid or absent.
+
+For `mode=dr` and `provisioningbackend=cloud-managed`, target network selection is mandatory for both supported peer-site models:
+
+- current Mold: the UI lists deployable Guest networks in the selected target host's Zone and passes the selected network IDs to `registerFtctlProtection`.
+- remote Mold: the UI asks the source Mold backend to list deployable Guest networks from the remote Mold, scoped by the selected remote target host's Zone, and passes the selected remote network IDs to `registerFtctlProtection`.
+- source VM network IDs must not be copied blindly for DR. They are valid only when the target site intentionally uses the same Mold network object, which cannot be assumed.
+- the selected network IDs flow through `registerFtctlProtection` into the local Cloud-managed provisioning request or into the remote `prepareFtctlDrReplicaResources` call.
+- the Cloud side that owns the replica VM resolves the selected network UUIDs/IDs locally before calling the Cloud VM creation API.
+- if no target network is selected for DR Cloud-managed registration, Cloud rejects the registration before creating or reusing replica resources.
+
+For multi-NIC VMs, the selected network order is the intended target NIC order. NIC identity bookkeeping may match by device order when the DR target network differs from the source network, while the selected target network remains the Cloud-owned allocation source.
+
+## 8. Idempotency Requirements
 
 Both current-Mold and remote-Mold resource preparation must be idempotent:
 
@@ -140,18 +155,19 @@ Both current-Mold and remote-Mold resource preparation must be idempotent:
 
 This incident is exactly that partial-success case.
 
-## 8. Persistence Requirements
+## 9. Persistence Requirements
 
 After canonical resources are available, source Mold persists:
 
 - active `ftctl_protection`
 - active `ftctl_protection_volume` rows
 - source VM `ftctl.*` details for remote/current replica metadata
+- selected target network IDs used for DR Cloud-managed replica creation
 - complete disk map for qemu profile sync
 
 If canonical resource normalization fails, Cloud records `ProvisioningFailed` and `ftctl.last.error`, but it must not silently mark protection active.
 
-## 9. qemu FTCTL Boundary
+## 10. qemu FTCTL Boundary
 
 qemu FTCTL receives the explicit disk map and performs replication/data-plane actions only.
 
@@ -164,7 +180,9 @@ It must not:
 
 This preserves the HA principle: Cloud owns VM/volume lifecycle and asynchronous state lookup; Mold Agent forwards FTCTL commands and status; qemu FTCTL performs the DR action.
 
-## 10. Verification
+For Cloud-managed automatic HA/DR, this boundary is stricter: Cloud also owns the automatic fencing decision and standby VM lifecycle orchestration. qemu FTCTL may report replication/runtime evidence and execute Cloud-requested data-plane steps, but it must not decide automatic failover from a single libvirt/domain observation or start Cloud-managed standby VMs. The governing automatic-fencing design is `204-cloud-managed-ha-dr-automatic-fencing-orchestration-design-20260514.md`.
+
+## 11. Verification
 
 Code verification:
 
@@ -172,6 +190,9 @@ Code verification:
 - nested remote response parses successfully.
 - missing `diskmap` is reconstructed from volume entries.
 - missing volume path or source volume ID fails clearly.
+- DR Cloud-managed registration without selected target network IDs fails before replica creation.
+- current-Mold DR passes selected local target network IDs into the standby VM creation command.
+- remote-Mold DR passes selected remote target network IDs into `prepareFtctlDrReplicaResources`, where the remote Mold resolves them before replica VM creation.
 
 Runtime verification:
 
@@ -179,5 +200,6 @@ Runtime verification:
 - source Mold creates active protection state.
 - source FTCTL tab no longer shows "not protected".
 - source FTCTL tab projects the remote replica VM and volume state through the same fields used by the current-Mold path.
+- standby/replica VM has at least one NIC on the selected target network and can be started by the owning Mold when fencing/failover flow reaches the VM lifecycle step.
 - qemu profile contains Cloud-created target paths.
 - qemu events show replication action, not VM/volume creation.
