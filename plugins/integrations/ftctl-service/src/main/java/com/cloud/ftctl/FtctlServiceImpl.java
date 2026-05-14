@@ -178,6 +178,12 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     public static final String DETAIL_REMOTE_REPLICA_VM_HOST_NAME = "ftctl.dr.remote.replica.vm.host.name";
     public static final String DETAIL_REMOTE_REPLICA_VM_STATE_UPDATED = "ftctl.dr.remote.replica.vm.state.updated";
     public static final String DETAIL_REMOTE_REPLICA_VOLUME_PREFIX = "ftctl.dr.remote.replica.volume.";
+    public static final String DETAIL_REMOTE_STANDBY_VM = "ftctl.standby.vm";
+    public static final String DETAIL_REMOTE_PRIMARY_VM_ID = "ftctl.primary.vm.id";
+    public static final String DETAIL_REMOTE_MOLD_REPLICA_VM = "ftctl.remote.replica.vm";
+    public static final String DETAIL_REMOTE_SOURCE_VM_UUID = "ftctl.remote.source.vm.uuid";
+    public static final String DETAIL_REMOTE_SOURCE_VM_NAME = "ftctl.remote.source.vm.name";
+    public static final String DETAIL_REMOTE_SOURCE_VM_INSTANCE_NAME = "ftctl.remote.source.vm.instance.name";
     public static final String DETAIL_FENCING_POLICY = "ftctl.fencing.policy";
     public static final String DETAIL_FENCING_IPMI_PRIMARY_HOST = "ftctl.fencing.ipmi.primary.host";
     public static final String DETAIL_FENCING_IPMI_SECONDARY_HOST = "ftctl.fencing.ipmi.secondary.host";
@@ -752,6 +758,9 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     @Override
     public FtctlCheckResponse getFtctlCheck(GetFtctlCheckCmd cmd) throws CloudRuntimeException {
         UserVmVO requestedVm = validateVirtualMachineExists(cmd.getVirtualMachineId());
+        if (isRemoteMoldReplicaStandbyVm(requestedVm.getId())) {
+            return buildRemoteMoldStandbyCheckResponse(requestedVm);
+        }
         FtctlProtectionVO protection = findActiveProtectionForVm(requestedVm.getId());
         UserVmVO runtimeVm = resolveRuntimeVmForProtectionView(requestedVm);
         Long sourceVmId = protection != null ? protection.getPrimaryVmId() : runtimeVm.getId();
@@ -803,6 +812,9 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     @Override
     public FtctlEventsResponse getFtctlEvents(GetFtctlEventsCmd cmd) throws CloudRuntimeException {
         UserVmVO requestedVm = validateVirtualMachineExists(cmd.getVirtualMachineId());
+        if (isRemoteMoldReplicaStandbyVm(requestedVm.getId())) {
+            return buildRemoteMoldStandbyEventsResponse(requestedVm);
+        }
         UserVmVO runtimeVm = resolveRuntimeVmForProtectionView(requestedVm);
         FtctlEventsAnswer eventsAnswer = fetchRuntimeEvents(runtimeVm, cmd.getLimit());
         List<FtctlEventResponse> events = eventsAnswer != null ? parseEvents(eventsAnswer.getItemsJson()) : Collections.emptyList();
@@ -1454,6 +1466,9 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     @Override
     public FtctlHealthResponse getFtctlHealth(GetFtctlHealthCmd cmd) throws CloudRuntimeException {
         UserVmVO requestedVm = validateVirtualMachineExists(cmd.getVirtualMachineId());
+        if (isRemoteMoldReplicaStandbyVm(requestedVm.getId())) {
+            return buildRemoteMoldStandbyHealthResponse(requestedVm);
+        }
         UserVmVO runtimeVm = resolveRuntimeVmForProtectionView(requestedVm);
         FtctlProtectionVO protection = findActiveProtectionForVm(requestedVm.getId());
         Long sourceVmId = protection != null ? protection.getPrimaryVmId() : runtimeVm.getId();
@@ -2552,6 +2567,9 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     private FtctlProtectionResponse buildProtectionResponse(UserVmVO requestedVm) {
         Long requestedVmId = requestedVm != null ? requestedVm.getId() : null;
         FtctlProtectionVO protection = findActiveProtectionForVm(requestedVmId);
+        if (protection == null && isRemoteMoldReplicaStandbyVm(requestedVmId)) {
+            return buildRemoteMoldStandbyProtectionResponse(requestedVm);
+        }
         boolean standbyView = isStandbyProtectionVm(requestedVmId, protection);
         Long primaryVmId = protection != null ? protection.getPrimaryVmId() : requestedVmId;
         Long sourceVmId = primaryVmId;
@@ -2606,6 +2624,114 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         response.setLastError(getDetailValue(sourceVmId, DETAIL_LAST_ERROR));
         purgeLegacyProgressDetails(sourceVmId);
         return response;
+    }
+
+    private FtctlProtectionResponse buildRemoteMoldStandbyProtectionResponse(UserVmVO standbyVm) {
+        FtctlProtectionResponse response = new FtctlProtectionResponse();
+        Long standbyVmId = standbyVm != null ? standbyVm.getId() : null;
+        response.setVirtualMachineId(standbyVmId);
+        response.setProtectionRole("standby");
+        response.setPrimaryVirtualMachineUuid(StringUtils.defaultIfBlank(getDetailValue(standbyVmId, DETAIL_REMOTE_SOURCE_VM_UUID),
+                getDetailValue(standbyVmId, DETAIL_REMOTE_PRIMARY_VM_ID)));
+        response.setPrimaryVirtualMachineName(StringUtils.defaultIfBlank(getDetailValue(standbyVmId, DETAIL_REMOTE_SOURCE_VM_NAME),
+                getDetailValue(standbyVmId, DETAIL_REMOTE_SOURCE_VM_INSTANCE_NAME)));
+        response.setSecondaryVirtualMachineId(standbyVmId);
+        response.setSecondaryVirtualMachineUuid(standbyVm != null ? standbyVm.getUuid() : null);
+        response.setSecondaryVirtualMachineDisplayName(standbyVm != null ? StringUtils.defaultIfBlank(standbyVm.getDisplayName(), standbyVm.getHostName()) : null);
+        response.setSecondaryVirtualMachineState(standbyVm != null && standbyVm.getState() != null ? standbyVm.getState().toString() : null);
+        Long hostId = getExecutionHostId(standbyVm);
+        response.setSecondaryVirtualMachineHostId(hostId);
+        response.setSecondaryVirtualMachineHostName(resolveHostName(hostId));
+        response.setEnabled("true");
+        response.setMode("dr");
+        response.setBackendMode("remote-nbd");
+        response.setProvisioningBackend(FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED);
+        response.setProvisioningState(FtctlProtectionProvisioningService.STATE_READY);
+        response.setProtectionState("protected");
+        response.setTransportState("not_available");
+        response.setActiveSide("primary");
+        response.setAdminState("read-only");
+        response.setFencingState("not_available");
+        response.setSecondaryVmName(standbyVm != null ? standbyVm.getInstanceName() : null);
+        populateRemoteMoldStandbyVolumes(standbyVmId, response);
+        return response;
+    }
+
+    private FtctlCheckResponse buildRemoteMoldStandbyCheckResponse(UserVmVO standbyVm) {
+        FtctlCheckResponse response = new FtctlCheckResponse();
+        response.setObjectName("ftctlcheck");
+        response.setVirtualMachineId(standbyVm != null ? standbyVm.getId() : null);
+        response.setVmName(standbyVm != null ? standbyVm.getInstanceName() : null);
+        response.setResult("not_available");
+        response.setInventoryResult("not_available");
+        response.setStandbyDomainState("not_available");
+        response.setProvisioningBackend(FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED);
+        return response;
+    }
+
+    private FtctlHealthResponse buildRemoteMoldStandbyHealthResponse(UserVmVO standbyVm) {
+        FtctlHealthResponse response = new FtctlHealthResponse();
+        response.setObjectName("ftctlhealth");
+        response.setVirtualMachineId(standbyVm != null ? standbyVm.getId() : null);
+        Long hostId = getExecutionHostId(standbyVm);
+        response.setHostId(hostId);
+        response.setHostName(resolveHostName(hostId));
+        response.setResult("not_available");
+        return response;
+    }
+
+    private FtctlEventsResponse buildRemoteMoldStandbyEventsResponse(UserVmVO standbyVm) {
+        FtctlEventsResponse response = new FtctlEventsResponse();
+        response.setObjectName("ftctlevents");
+        response.setVirtualMachineId(standbyVm != null ? standbyVm.getId() : null);
+        response.setVmName(standbyVm != null ? standbyVm.getInstanceName() : null);
+        response.setResult("not_available");
+        response.setCount(0);
+        response.setEvents(Collections.emptyList());
+        return response;
+    }
+
+    private boolean isRemoteMoldReplicaStandbyVm(Long virtualMachineId) {
+        return isTrueDetail(virtualMachineId, DETAIL_REMOTE_MOLD_REPLICA_VM) &&
+                isTrueDetail(virtualMachineId, DETAIL_REMOTE_STANDBY_VM);
+    }
+
+    private boolean isTrueDetail(Long virtualMachineId, String key) {
+        return "true".equalsIgnoreCase(StringUtils.trimToEmpty(getDetailValue(virtualMachineId, key)));
+    }
+
+    private void populateRemoteMoldStandbyVolumes(Long standbyVmId, FtctlProtectionResponse response) {
+        if (standbyVmId == null || response == null) {
+            return;
+        }
+        List<VolumeVO> volumes = volumeDao.findByInstance(standbyVmId);
+        if (volumes == null || volumes.isEmpty()) {
+            return;
+        }
+        List<FtctlProtectionVolumeResponse> secondaryVolumes = new ArrayList<>();
+        List<String> secondaryDiskEntries = new ArrayList<>();
+        volumes.stream()
+                .filter(volume -> volume != null && volume.getRemoved() == null && isProtectedVolumeType(volume))
+                .sorted(Comparator.comparingLong(this::resolveDeviceIdForSort))
+                .forEach(volume -> {
+                    FtctlProtectionVolumeResponse volumeResponse = new FtctlProtectionVolumeResponse();
+                    volumeResponse.setObjectName("ftctlprotectionvolume");
+                    volumeResponse.setId(volume.getUuid());
+                    volumeResponse.setName(resolveVolumeDisplayName(volume));
+                    volumeResponse.setPath(volume.getPath());
+                    volumeResponse.setState(volume.getState() != null ? volume.getState().toString() : null);
+                    volumeResponse.setDiskLabel(resolveDiskLabel(volume));
+                    secondaryVolumes.add(volumeResponse);
+                    if (StringUtils.isNotBlank(volume.getPath())) {
+                        secondaryDiskEntries.add(String.format("%s=%s", resolveDiskLabel(volume), volume.getPath()));
+                    }
+                });
+        if (!secondaryVolumes.isEmpty()) {
+            response.setSecondaryVolumes(secondaryVolumes);
+        }
+        if (!secondaryDiskEntries.isEmpty()) {
+            response.setSecondaryTargetDisk(secondaryDiskEntries.stream().collect(Collectors.joining(";")));
+        }
     }
 
     private FtctlProtectionVO findActiveProtectionForVm(Long virtualMachineId) {
@@ -2770,7 +2896,14 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         if (volume == null) {
             return String.valueOf(volumeId);
         }
-        return StringUtils.defaultIfBlank(volume.getName(), StringUtils.defaultIfBlank(volume.getPath(), String.valueOf(volumeId)));
+        return resolveVolumeDisplayName(volume);
+    }
+
+    private String resolveVolumeDisplayName(VolumeVO volume) {
+        if (volume == null) {
+            return null;
+        }
+        return StringUtils.defaultIfBlank(volume.getName(), StringUtils.defaultIfBlank(volume.getPath(), String.valueOf(volume.getId())));
     }
 
     private boolean isProtectedVolumeType(VolumeVO volume) {
@@ -2860,6 +2993,9 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     }
 
     private String getDetailValue(Long virtualMachineId, String key) {
+        if (virtualMachineId == null || StringUtils.isBlank(key)) {
+            return null;
+        }
         VMInstanceDetailVO detail = vmInstanceDetailsDao.findDetail(virtualMachineId, key);
         return detail != null ? detail.getValue() : null;
     }

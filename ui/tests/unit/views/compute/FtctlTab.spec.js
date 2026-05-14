@@ -55,7 +55,8 @@ const createWrapper = (apis = {}) => {
         },
         $message: {
           success: jest.fn(),
-          error: jest.fn()
+          error: jest.fn(),
+          warning: jest.fn()
         },
         $pollJob: jest.fn(),
         $t: (key) => key
@@ -112,6 +113,8 @@ describe('Views > compute > FtctlTab.vue', () => {
                 ],
                 targetstoragepoolname: 'Primary Storage',
                 protectionstate: 'protected',
+                transportstate: 'mirroring',
+                activeside: 'primary',
                 adminstate: 'running',
                 fencingstate: 'clear'
               }
@@ -433,9 +436,9 @@ describe('Views > compute > FtctlTab.vue', () => {
             ftctlprotection: {
               enabled: 'true',
               mode: 'ha',
-              protectionstate: 'protected',
-              transportstate: 'mirroring',
-              activeside: 'primary',
+              protectionstate: 'failed_over',
+              transportstate: 'failed_over',
+              activeside: 'secondary',
               adminstate: 'active',
               fencingstate: 'clear'
             }

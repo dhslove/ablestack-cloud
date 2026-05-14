@@ -77,6 +77,7 @@
                 :to="{ path: '/vm/' + primaryVmRouteId }">
                 {{ primaryVmDisplay }}
               </router-link>
+              <span v-else-if="primaryVmDisplay !== '-'">{{ primaryVmDisplay }}</span>
             </div>
           </template>
         </a-alert>
@@ -224,7 +225,7 @@
                 :to="{ path: '/vm/' + primaryVmRouteId }">
                 {{ primaryVmDisplay }}
               </router-link>
-              <span v-else>-</span>
+              <span v-else>{{ primaryVmDisplay }}</span>
             </a-descriptions-item>
             <a-descriptions-item label="Primary VM State">
               <a-tag :color="stateTagColor(primaryVmStateDisplay)">{{ primaryVmStateDisplay }}</a-tag>

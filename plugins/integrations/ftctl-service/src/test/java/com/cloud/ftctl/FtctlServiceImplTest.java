@@ -951,6 +951,102 @@ public class FtctlServiceImplTest {
     }
 
     @Test
+    public void testGetFtctlProtectionProjectsRemoteMoldStandbyVmWithoutLocalProtectionRow() throws Exception {
+        UserVmVO standbyVm = Mockito.mock(UserVmVO.class);
+        Mockito.when(standbyVm.getId()).thenReturn(451L);
+        Mockito.when(standbyVm.getUuid()).thenReturn("remote-standby-vm-uuid");
+        Mockito.when(standbyVm.getInstanceName()).thenReturn("i-2-21-VM");
+        Mockito.lenient().when(standbyVm.getDisplayName()).thenReturn("dr-w22-01-standby");
+        Mockito.lenient().when(standbyVm.getHostName()).thenReturn("dr-w22-01-standby");
+        Mockito.when(standbyVm.getState()).thenReturn(VirtualMachine.State.Stopped);
+        Mockito.when(standbyVm.getHostId()).thenReturn(null);
+        Mockito.when(standbyVm.getLastHostId()).thenReturn(301L);
+        Mockito.when(userVmDao.findById(451L)).thenReturn(standbyVm);
+
+        HostVO host = Mockito.mock(HostVO.class);
+        Mockito.when(host.getName()).thenReturn("ablecube32-1");
+        Mockito.when(hostDao.findById(301L)).thenReturn(host);
+
+        vmDetails.put("451:ftctl.remote.replica.vm", "true");
+        vmDetails.put("451:ftctl.standby.vm", "true");
+        vmDetails.put("451:ftctl.remote.source.vm.uuid", "source-vm-uuid");
+        vmDetails.put("451:ftctl.remote.source.vm.name", "dr-w22-01");
+        vmDetails.put("451:ftctl.remote.source.vm.instance.name", "i-2-381-VM");
+
+        VolumeVO rootVolume = Mockito.mock(VolumeVO.class);
+        Mockito.when(rootVolume.getId()).thenReturn(551L);
+        Mockito.when(rootVolume.getUuid()).thenReturn("remote-root-volume-uuid");
+        Mockito.when(rootVolume.getName()).thenReturn("dr-w22-01-standby-root");
+        Mockito.when(rootVolume.getPath()).thenReturn("/dev/rbd/rbd/remote-root");
+        Mockito.when(rootVolume.getVolumeType()).thenReturn(Volume.Type.ROOT);
+        Mockito.when(rootVolume.getDeviceId()).thenReturn(0L);
+        Mockito.when(rootVolume.getState()).thenReturn(Volume.State.Ready);
+        Mockito.when(rootVolume.getRemoved()).thenReturn(null);
+
+        VolumeVO dataVolume = Mockito.mock(VolumeVO.class);
+        Mockito.when(dataVolume.getId()).thenReturn(552L);
+        Mockito.when(dataVolume.getUuid()).thenReturn("remote-data-volume-uuid");
+        Mockito.when(dataVolume.getName()).thenReturn("dr-w22-01-standby-data-1");
+        Mockito.when(dataVolume.getPath()).thenReturn("/dev/rbd/rbd/remote-data");
+        Mockito.when(dataVolume.getVolumeType()).thenReturn(Volume.Type.DATADISK);
+        Mockito.when(dataVolume.getDeviceId()).thenReturn(1L);
+        Mockito.when(dataVolume.getState()).thenReturn(Volume.State.Ready);
+        Mockito.when(dataVolume.getRemoved()).thenReturn(null);
+        Mockito.when(volumeDao.findByInstance(451L)).thenReturn(List.of(rootVolume, dataVolume));
+
+        GetFtctlProtectionCmd protectionCmd = new GetFtctlProtectionCmd();
+        setField(protectionCmd, "virtualMachineId", 451L);
+
+        FtctlProtectionResponse protectionResponse = ftctlService.getFtctlProtection(protectionCmd);
+
+        Assert.assertEquals(Long.valueOf(451L), getFieldValue(protectionResponse, "virtualMachineId"));
+        Assert.assertEquals("standby", getFieldValue(protectionResponse, "protectionRole"));
+        Assert.assertEquals("source-vm-uuid", getFieldValue(protectionResponse, "primaryVirtualMachineUuid"));
+        Assert.assertEquals("dr-w22-01", getFieldValue(protectionResponse, "primaryVirtualMachineName"));
+        Assert.assertEquals(Long.valueOf(451L), getFieldValue(protectionResponse, "secondaryVirtualMachineId"));
+        Assert.assertEquals("remote-standby-vm-uuid", getFieldValue(protectionResponse, "secondaryVirtualMachineUuid"));
+        Assert.assertEquals("dr-w22-01-standby", getFieldValue(protectionResponse, "secondaryVirtualMachineDisplayName"));
+        Assert.assertEquals("Stopped", getFieldValue(protectionResponse, "secondaryVirtualMachineState"));
+        Assert.assertEquals(Long.valueOf(301L), getFieldValue(protectionResponse, "secondaryVirtualMachineHostId"));
+        Assert.assertEquals("ablecube32-1", getFieldValue(protectionResponse, "secondaryVirtualMachineHostName"));
+        Assert.assertEquals("true", getFieldValue(protectionResponse, "enabled"));
+        Assert.assertEquals("dr", getFieldValue(protectionResponse, "mode"));
+        Assert.assertEquals("remote-nbd", getFieldValue(protectionResponse, "backendMode"));
+        Assert.assertEquals(FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED, getFieldValue(protectionResponse, "provisioningBackend"));
+        Assert.assertEquals(FtctlProtectionProvisioningService.STATE_READY, getFieldValue(protectionResponse, "provisioningState"));
+        Assert.assertEquals("protected", getFieldValue(protectionResponse, "protectionState"));
+        Assert.assertEquals("not_available", getFieldValue(protectionResponse, "transportState"));
+        Assert.assertEquals("primary", getFieldValue(protectionResponse, "activeSide"));
+        Assert.assertEquals("read-only", getFieldValue(protectionResponse, "adminState"));
+        List<?> secondaryVolumes = (List<?>) getFieldValue(protectionResponse, "secondaryVolumes");
+        Assert.assertEquals(2, secondaryVolumes.size());
+        Assert.assertEquals("remote-root-volume-uuid", getFieldValue(secondaryVolumes.get(0), "id"));
+        Assert.assertEquals("Ready", getFieldValue(secondaryVolumes.get(0), "state"));
+
+        GetFtctlCheckCmd checkCmd = new GetFtctlCheckCmd();
+        setField(checkCmd, "virtualMachineId", 451L);
+        FtctlCheckResponse checkResponse = ftctlService.getFtctlCheck(checkCmd);
+        Assert.assertEquals("not_available", getFieldValue(checkResponse, "result"));
+        Assert.assertEquals(FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED, getFieldValue(checkResponse, "provisioningBackend"));
+
+        GetFtctlHealthCmd healthCmd = new GetFtctlHealthCmd();
+        setField(healthCmd, "virtualMachineId", 451L);
+        FtctlHealthResponse healthResponse = ftctlService.getFtctlHealth(healthCmd);
+        Assert.assertEquals("not_available", getFieldValue(healthResponse, "result"));
+        Assert.assertEquals(Long.valueOf(301L), getFieldValue(healthResponse, "hostId"));
+
+        GetFtctlEventsCmd eventsCmd = new GetFtctlEventsCmd();
+        setField(eventsCmd, "virtualMachineId", 451L);
+        setField(eventsCmd, "limit", 100);
+        FtctlEventsResponse eventsResponse = ftctlService.getFtctlEvents(eventsCmd);
+        Assert.assertEquals("not_available", eventsResponse.getResult());
+        Assert.assertEquals(Integer.valueOf(0), eventsResponse.getCount());
+        Assert.assertTrue(eventsResponse.getEvents().isEmpty());
+        Mockito.verify(agentManager, Mockito.never()).send(Mockito.anyLong(), Mockito.any(Command.class));
+        Mockito.verify(ftctlProtectionDao, Mockito.never()).update(Mockito.anyLong(), Mockito.any(FtctlProtectionVO.class));
+    }
+
+    @Test
     public void testReadOnlyRuntimeApisForStandbyVmUsePrimaryRuntimeProfile() throws Exception {
         UserVmVO standbyVm = Mockito.mock(UserVmVO.class);
         Mockito.when(standbyVm.getId()).thenReturn(401L);
