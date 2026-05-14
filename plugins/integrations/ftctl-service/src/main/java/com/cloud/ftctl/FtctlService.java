@@ -89,4 +89,7 @@ public interface FtctlService extends PluggableService, Configurable {
     FtctlActionResponse releaseFtctlProtection(Long virtualMachineId, boolean force) throws CloudRuntimeException;
 
     FtctlActionResponse confirmFtctlFence(Long virtualMachineId) throws CloudRuntimeException;
+
+    FtctlActionResponse confirmFtctlFence(Long virtualMachineId, String remoteMoldApiUrl,
+                                          String remoteMoldApiKey, String remoteMoldSecretKey) throws CloudRuntimeException;
 }

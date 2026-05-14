@@ -112,6 +112,14 @@ public class FtctlProtectionResponse extends BaseResponse {
     @Param(description = "the FTCTL target primary storage pool name")
     private String targetStoragePoolName;
 
+    @SerializedName("drpeersitetype")
+    @Param(description = "the FTCTL DR peer site type")
+    private String drPeerSiteType;
+
+    @SerializedName("remotemoldapiurl")
+    @Param(description = "the remote Mold API URL for DR remote site lifecycle calls")
+    private String remoteMoldApiUrl;
+
     @SerializedName("fencingpolicy")
     @Param(description = "the FTCTL fencing policy")
     private String fencingPolicy;
@@ -298,6 +306,14 @@ public class FtctlProtectionResponse extends BaseResponse {
 
     public void setTargetStoragePoolName(String targetStoragePoolName) {
         this.targetStoragePoolName = targetStoragePoolName;
+    }
+
+    public void setDrPeerSiteType(String drPeerSiteType) {
+        this.drPeerSiteType = drPeerSiteType;
+    }
+
+    public void setRemoteMoldApiUrl(String remoteMoldApiUrl) {
+        this.remoteMoldApiUrl = remoteMoldApiUrl;
     }
 
     public void setFencingPolicy(String fencingPolicy) {

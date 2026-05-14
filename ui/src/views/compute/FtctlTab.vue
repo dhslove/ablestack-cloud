@@ -111,6 +111,17 @@
                 <template #icon><component :is="action.icon" /></template>
                 {{ action.label }}
               </a-button>
+              <a-button
+                v-else-if="action.remoteFenceModal"
+                size="small"
+                :danger="action.danger"
+                :disabled="action.disabled"
+                :title="action.disabled ? action.reason : null"
+                :loading="actionLoading[action.api]"
+                @click="openRemoteFenceModal">
+                <template #icon><component :is="action.icon" /></template>
+                {{ action.label }}
+              </a-button>
               <a-popconfirm
                 v-else-if="action.confirm"
                 placement="topRight"
@@ -429,6 +440,43 @@
           </a-checkbox>
         </div>
       </a-modal>
+
+      <a-modal
+        :visible="showRemoteFenceModal"
+        :title="$t('label.ftctl.confirm.fence')"
+        :ok-text="$t('label.ftctl.confirm.fence')"
+        :cancel-text="$t('label.cancel')"
+        :confirmLoading="actionLoading.confirmFtctlFence"
+        :ok-button-props="{ disabled: !canSubmitRemoteFenceConfirm }"
+        :maskClosable="false"
+        width="640px"
+        @ok="confirmRemoteFence"
+        @cancel="closeRemoteFenceModal">
+        <div class="ftctl-tab__remote-fence-modal-body">
+          <a-alert
+            type="warning"
+            show-icon
+            :message="$t('message.ftctl.remote.fence.modal.desc')"
+            class="ftctl-tab__alert" />
+          <a-form layout="vertical">
+            <a-form-item :label="$t('label.ftctl.remote.mold.api.url')">
+              <a-input
+                v-model:value="remoteFenceMoldApiUrl"
+                :placeholder="$t('placeholder.ftctl.remote.mold.api.url')" />
+            </a-form-item>
+            <a-form-item :label="$t('label.ftctl.remote.mold.api.key')">
+              <a-input
+                v-model:value="remoteFenceMoldApiKey"
+                :placeholder="$t('placeholder.ftctl.remote.mold.api.key')" />
+            </a-form-item>
+            <a-form-item :label="$t('label.ftctl.remote.mold.secret.key')">
+              <a-input-password
+                v-model:value="remoteFenceMoldSecretKey"
+                :placeholder="$t('placeholder.ftctl.remote.mold.secret.key')" />
+            </a-form-item>
+          </a-form>
+        </div>
+      </a-modal>
     </div>
   </a-spin>
 </template>
@@ -465,8 +513,12 @@ export default {
       syncProgressState: {},
       showProtectionModal: false,
       showReleaseModal: false,
+      showRemoteFenceModal: false,
       releaseForceSelected: false,
       releaseForceAcknowledged: false,
+      remoteFenceMoldApiUrl: null,
+      remoteFenceMoldApiKey: null,
+      remoteFenceMoldSecretKey: null,
       lastAction: {
         success: false,
         message: null,
@@ -536,6 +588,12 @@ export default {
         return this.releaseForceAcknowledged
       }
       return this.isProtectionReleaseReady()
+    },
+    canSubmitRemoteFenceConfirm () {
+      return !this.actionLoading.confirmFtctlFence &&
+        Boolean(this.remoteFenceMoldApiUrl) &&
+        Boolean(this.remoteFenceMoldApiKey) &&
+        Boolean(this.remoteFenceMoldSecretKey)
     },
     standbyProtectionView () {
       return String(this.protection.protectionrole || '').toLowerCase() === 'standby'
@@ -799,7 +857,8 @@ export default {
           api: 'confirmFtctlFence',
           label: this.$t('label.ftctl.confirm.fence'),
           icon: 'CheckCircleOutlined',
-          confirm: true,
+          confirm: !this.isRemoteMoldDrProtection(),
+          remoteFenceModal: this.isRemoteMoldDrProtection(),
           confirmMessage: this.$t('message.ftctl.confirm.fence'),
           disabled: this.isActionDisabled('confirmFtctlFence'),
           reason: this.actionDisabledReason('confirmFtctlFence')
@@ -954,6 +1013,17 @@ export default {
       this.releaseForceSelected = false
       this.releaseForceAcknowledged = false
     },
+    openRemoteFenceModal () {
+      this.remoteFenceMoldApiUrl = this.protection.remotemoldapiurl || this.remoteFenceMoldApiUrl
+      this.remoteFenceMoldApiKey = null
+      this.remoteFenceMoldSecretKey = null
+      this.showRemoteFenceModal = true
+    },
+    closeRemoteFenceModal () {
+      this.showRemoteFenceModal = false
+      this.remoteFenceMoldApiKey = null
+      this.remoteFenceMoldSecretKey = null
+    },
     async confirmReleaseProtection () {
       if (!this.canSubmitReleaseProtection) {
         this.$message.warning(this.$t('message.ftctl.force.release.ack.required'))
@@ -962,6 +1032,19 @@ export default {
       const force = this.releaseForceSelected
       this.closeReleaseModal()
       await this.runAction('releaseFtctlProtection', { force })
+    },
+    async confirmRemoteFence () {
+      if (!this.canSubmitRemoteFenceConfirm) {
+        this.$message.warning(this.$t('message.ftctl.validation.remote.mold.credentials.required'))
+        return
+      }
+      const params = {
+        remotemoldapiurl: this.remoteFenceMoldApiUrl,
+        remotemoldapikey: this.remoteFenceMoldApiKey,
+        remotemoldsecretkey: this.remoteFenceMoldSecretKey
+      }
+      this.closeRemoteFenceModal()
+      await this.runAction('confirmFtctlFence', params)
     },
     handleProtectionSaved (payload = {}) {
       this.emitKeepCurrentTab()
@@ -1103,6 +1186,10 @@ export default {
     },
     isCloudManagedProvisioningBackend () {
       return String(this.checkResult.provisioningbackend || this.protection.provisioningbackend || '').toLowerCase() === 'cloud-managed'
+    },
+    isRemoteMoldDrProtection () {
+      return String(this.protection.mode || '').toLowerCase() === 'dr' &&
+        String(this.protection.drpeersitetype || '').toLowerCase() === 'remote-mold'
     },
     isCloudManagedFailedOver () {
       const protection = String(this.protection.protectionstate || '').toLowerCase()

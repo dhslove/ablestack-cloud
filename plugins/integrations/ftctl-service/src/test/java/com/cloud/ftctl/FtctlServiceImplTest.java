@@ -869,6 +869,88 @@ public class FtctlServiceImplTest {
     }
 
     @Test
+    public void testConfirmFtctlFenceStartsSameMoldDrSecondary() throws Exception {
+        Mockito.when(userVm.getState()).thenReturn(VirtualMachine.State.Stopped);
+        vmDetails.put("101:ftctl.peer.host.id", "202");
+        vmDetails.put("101:ftctl.dr.peer.site.type", "local-mold");
+
+        UserVmVO secondaryVm = Mockito.mock(UserVmVO.class);
+        Mockito.when(secondaryVm.getId()).thenReturn(401L);
+        Mockito.when(secondaryVm.getUuid()).thenReturn("secondary-vm-uuid");
+        Mockito.when(secondaryVm.getState()).thenReturn(VirtualMachine.State.Stopped);
+        Mockito.when(userVmDao.findById(401L)).thenReturn(secondaryVm);
+
+        FtctlProtectionVO protection = new FtctlProtectionVO(101L);
+        protection.setSecondaryVmId(401L);
+        protection.setMode("dr");
+        protection.setBackendMode("remote-nbd");
+        protection.setProvisioningBackend(FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED);
+        Mockito.when(ftctlProtectionDao.findActiveByPrimaryVmId(101L)).thenReturn(protection);
+        NicVO primaryNic = nic(425L, 101L, 204L, 0, "00:50:56:b5:5c:28", "10.10.254.90");
+        NicVO secondaryNic = nic(453L, 401L, 204L, 0, "02:01:00:cc:00:64", "10.10.254.242");
+        Mockito.when(nicDao.listByVmIdOrderByDeviceId(101L)).thenReturn(List.of(primaryNic));
+        Mockito.when(nicDao.listByVmIdOrderByDeviceId(401L)).thenReturn(List.of(secondaryNic));
+
+        FtctlActionAnswer confirmAnswer = new FtctlActionAnswer(new FtctlActionCommand(FtctlActionCommand.Action.FENCE_CONFIRM, "vm-name"), true, "OK",
+                FtctlActionCommand.Action.FENCE_CONFIRM, "ok", 0, "manual-fenced");
+        FtctlStatusAnswer confirmStatus = new FtctlStatusAnswer(new FtctlStatusCommand("vm-name"), true, "OK", "ok", "vm-name",
+                "dr", "failing_over", "mirroring", "primary", "active", "manual-fenced", "manual_fencing_required",
+                "2026-05-14T20:10:00+09:00", 0, 1);
+        FtctlActionAnswer prepareAnswer = new FtctlActionAnswer(new FtctlActionCommand(FtctlActionCommand.Action.FAILOVER_PREPARE, "vm-name"), true, "OK",
+                FtctlActionCommand.Action.FAILOVER_PREPARE, "ok", 0, "start-ready");
+        FtctlStatusAnswer prepareStatus = new FtctlStatusAnswer(new FtctlStatusCommand("vm-name"), true, "OK", "ok", "vm-name",
+                "dr", "failing_over", "mirroring", "primary", "active", "manual-fenced", "",
+                "2026-05-14T20:10:30+09:00", 0, 1);
+        FtctlActionAnswer failoverAnswer = new FtctlActionAnswer(new FtctlActionCommand(FtctlActionCommand.Action.FAILOVER, "vm-name"), true, "OK",
+                FtctlActionCommand.Action.FAILOVER, "ok", 0, "failed-over");
+        FtctlStatusAnswer failoverStatus = new FtctlStatusAnswer(new FtctlStatusCommand("vm-name"), true, "OK", "ok", "vm-name",
+                "dr", "failed_over", "failed_over", "secondary", "active", "manual-fenced", "",
+                "2026-05-14T20:11:00+09:00", 0, 2);
+        Mockito.when(agentManager.send(Mockito.eq(201L), Mockito.any(Command.class)))
+                .thenReturn(confirmAnswer)
+                .thenReturn(confirmStatus)
+                .thenReturn(prepareAnswer)
+                .thenReturn(prepareStatus)
+                .thenReturn(failoverAnswer)
+                .thenReturn(failoverStatus);
+        Mockito.when(userVmManager.startVirtualMachine(Mockito.eq(401L), Mockito.eq(202L),
+                        Mockito.<Map<VirtualMachineProfile.Param, Object>>any(), Mockito.isNull()))
+                .thenReturn(new Pair<>(secondaryVm, new HashMap<>()));
+
+        FtctlActionResponse response = ftctlService.confirmFtctlFence(101L);
+
+        Assert.assertEquals("failed_over", getFieldValue(response, "protectionState"));
+        Assert.assertEquals("secondary", getFieldValue(response, "activeSide"));
+        Mockito.verify(userVmManager).startVirtualMachine(Mockito.eq(401L), Mockito.eq(202L),
+                Mockito.<Map<VirtualMachineProfile.Param, Object>>any(), Mockito.isNull());
+    }
+
+    @Test
+    public void testConfirmFtctlFenceRemoteMoldRequiresOneTimeCredentials() throws Exception {
+        Mockito.when(userVm.getState()).thenReturn(VirtualMachine.State.Stopped);
+        vmDetails.put("101:ftctl.dr.peer.site.type", "remote-mold");
+        vmDetails.put("101:ftctl.dr.remote.mold.api.url", "http://remote.example/client/api");
+        vmDetails.put("101:ftctl.dr.remote.replica.vm.id", "remote-vm-uuid");
+
+        FtctlProtectionVO protection = new FtctlProtectionVO(101L);
+        protection.setMode("dr");
+        protection.setBackendMode("remote-nbd");
+        protection.setProvisioningBackend(FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED);
+        Mockito.when(ftctlProtectionDao.findActiveByPrimaryVmId(101L)).thenReturn(protection);
+
+        try {
+            ftctlService.confirmFtctlFence(101L);
+            Assert.fail("Expected CloudRuntimeException");
+        } catch (CloudRuntimeException e) {
+            Assert.assertTrue(e.getMessage().contains("requires remote Mold API URL, API key, and secret key"));
+        }
+
+        Mockito.verify(agentManager, Mockito.never()).send(Mockito.anyLong(), Mockito.any(Command.class));
+        Mockito.verify(userVmManager, Mockito.never()).startVirtualMachine(Mockito.anyLong(), Mockito.<Long>any(),
+                Mockito.<Map<VirtualMachineProfile.Param, Object>>any(), Mockito.<String>any());
+    }
+
+    @Test
     public void testGetFtctlProtectionForStandbyVmReturnsPrimaryManagedView() throws Exception {
         UserVmVO standbyVm = Mockito.mock(UserVmVO.class);
         Mockito.when(standbyVm.getId()).thenReturn(401L);

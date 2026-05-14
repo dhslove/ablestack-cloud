@@ -3232,6 +3232,7 @@
   "message.ftctl.protection.not.configured.desc": "Configure protection to view status details, health checks, and events.",
   "message.ftctl.protection.saved": "FTCTL protection saved.",
   "message.ftctl.remote.mold.connection.ok": "Remote Mold connection validated.",
+  "message.ftctl.remote.fence.modal.desc": "Remote Mold DR must start the standby VM through the remote Mold API. Enter one-time API credentials; they are used for this fence confirmation only.",
   "message.ftctl.standby.view": "This virtual machine is an FTCTL standby resource.",
   "message.ftctl.standby.view.desc": "Protection settings and operational actions are managed from the primary virtual machine:",
   "message.ftctl.status.failure": "FTCTL currently has failure indicators that require operator review.",

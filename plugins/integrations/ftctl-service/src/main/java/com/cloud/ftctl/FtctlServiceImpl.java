@@ -146,6 +146,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     private static final long CLOUD_MANAGED_FAILBACK_MONITOR_INTERVAL_MILLIS = 10000L;
     private static final long RUNTIME_STATE_SYNC_DELAY_MILLIS = 10000L;
     private static final long MIN_RUNTIME_STATE_SYNC_INTERVAL_MILLIS = 5000L;
+    private static final long REMOTE_MOLD_VM_START_POLL_INTERVAL_MILLIS = 5000L;
+    private static final long REMOTE_MOLD_VM_START_TIMEOUT_MILLIS = 300000L;
 
     public static final String DETAIL_ENABLED = "ftctl.enabled";
     public static final String DETAIL_MODE = "ftctl.mode";
@@ -661,6 +663,13 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             return null;
         }
         return response.getAsJsonArray(arrayKey);
+    }
+
+    private JsonObject getJsonObject(JsonObject object, String key) {
+        if (object == null || !object.has(key) || object.get(key).isJsonNull() || !object.get(key).isJsonObject()) {
+            return null;
+        }
+        return object.getAsJsonObject(key);
     }
 
     private JsonObject callRemoteMoldApi(String apiUrl, String apiKey, String secretKey, String command, Map<String, String> params) {
@@ -2035,6 +2044,12 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
 
     @Override
     public FtctlActionResponse confirmFtctlFence(Long virtualMachineId) throws CloudRuntimeException {
+        return confirmFtctlFence(virtualMachineId, null, null, null);
+    }
+
+    @Override
+    public FtctlActionResponse confirmFtctlFence(Long virtualMachineId, String remoteMoldApiUrl,
+                                                 String remoteMoldApiKey, String remoteMoldSecretKey) throws CloudRuntimeException {
         UserVmVO primaryVm = validateVirtualMachineExists(virtualMachineId);
         validatePrimaryProtectionTarget(primaryVm);
         FtctlProtectionVO protection = ftctlProtectionDao.findActiveByPrimaryVmId(primaryVm.getId());
@@ -2046,6 +2061,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             return buildActionResponseFromProtection(primaryVm, FtctlActionCommand.Action.FENCE_CONFIRM, protection,
                     "manual failover already completed");
         }
+        RemoteMoldCredentials remoteMoldCredentials = resolveRemoteMoldCredentialsForManualFailover(primaryVm, protection,
+                remoteMoldApiUrl, remoteMoldApiKey, remoteMoldSecretKey);
 
         try {
             executeFtctlAction(primaryVm.getId(), FtctlActionCommand.Action.FENCE_CONFIRM, false);
@@ -2061,9 +2078,13 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         }
         executeFtctlAction(primaryVm.getId(), FtctlActionCommand.Action.FAILOVER_PREPARE, true);
         protection = validateManualFailoverTransportReadyOrMarker(primaryVm);
-        UserVmVO secondaryVm = resolveSecondaryVmForManualFailover(primaryVm, protection);
-        handoffNicIdentityToSecondaryIfNeeded(primaryVm, secondaryVm, protection);
-        startSecondaryVmForManualFailover(primaryVm, secondaryVm);
+        if (remoteMoldCredentials != null) {
+            startRemoteMoldSecondaryVmForManualFailover(primaryVm, remoteMoldCredentials);
+        } else {
+            UserVmVO secondaryVm = resolveSecondaryVmForManualFailover(primaryVm, protection);
+            handoffNicIdentityToSecondaryIfNeeded(primaryVm, secondaryVm, protection);
+            startSecondaryVmForManualFailover(primaryVm, secondaryVm);
+        }
         FtctlActionResponse response;
         try {
             response = executeFtctlAction(primaryVm.getId(), FtctlActionCommand.Action.FAILOVER, true);
@@ -2079,6 +2100,33 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         }
         response.setAction(FtctlActionCommand.Action.FENCE_CONFIRM.name());
         return response;
+    }
+
+    private RemoteMoldCredentials resolveRemoteMoldCredentialsForManualFailover(UserVmVO primaryVm, FtctlProtectionVO protection,
+                                                                                String remoteMoldApiUrl, String remoteMoldApiKey,
+                                                                                String remoteMoldSecretKey) {
+        if (!isRemoteMoldDrProtection(primaryVm, protection)) {
+            return null;
+        }
+        String resolvedApiUrl = StringUtils.defaultIfBlank(StringUtils.trimToNull(remoteMoldApiUrl),
+                getDetailValue(primaryVm.getId(), DETAIL_REMOTE_MOLD_API_URL));
+        String resolvedApiKey = StringUtils.trimToNull(remoteMoldApiKey);
+        String resolvedSecretKey = StringUtils.trimToNull(remoteMoldSecretKey);
+        if (StringUtils.isAnyBlank(resolvedApiUrl, resolvedApiKey, resolvedSecretKey)) {
+            throw new CloudRuntimeException(String.format(
+                    "FTCTL DR remote Mold fence confirmation for VM %s requires remote Mold API URL, API key, and secret key",
+                    primaryVm.getUuid()));
+        }
+        return new RemoteMoldCredentials(resolvedApiUrl, resolvedApiKey, resolvedSecretKey);
+    }
+
+    private boolean isRemoteMoldDrProtection(UserVmVO primaryVm, FtctlProtectionVO protection) {
+        if (primaryVm == null || protection == null) {
+            return false;
+        }
+        String mode = StringUtils.defaultIfBlank(protection.getMode(), getDetailValue(primaryVm.getId(), DETAIL_MODE));
+        return "dr".equalsIgnoreCase(StringUtils.trimToEmpty(mode)) &&
+                DR_PEER_SITE_TYPE_REMOTE_MOLD.equalsIgnoreCase(getDetailValue(primaryVm.getId(), DETAIL_DR_PEER_SITE_TYPE));
     }
 
     private void handoffNicIdentityToSecondaryIfNeeded(UserVmVO primaryVm, UserVmVO secondaryVm, FtctlProtectionVO protection) {
@@ -2156,7 +2204,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     private boolean requiresManualFailoverTransportReady(FtctlProtectionVO protection) {
         String mode = StringUtils.trimToEmpty(protection.getMode()).toLowerCase(Locale.ROOT);
         String backendMode = StringUtils.trimToEmpty(protection.getBackendMode()).toLowerCase(Locale.ROOT);
-        return "ha".equals(mode) && ("shared-blockcopy".equals(backendMode) || "remote-nbd".equals(backendMode));
+        return ("ha".equals(mode) || "dr".equals(mode)) && ("shared-blockcopy".equals(backendMode) || "remote-nbd".equals(backendMode));
     }
 
     private boolean hasFailoverReadyMarker(UserVmVO primaryVm, FtctlProtectionVO protection) {
@@ -2184,8 +2232,9 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     }
 
     private boolean isManualFailoverReadyStatus(FtctlStatusAnswer statusAnswer) {
+        String mode = statusAnswer != null ? StringUtils.trimToEmpty(statusAnswer.getMode()) : "";
         return statusAnswer != null &&
-                "ha".equalsIgnoreCase(StringUtils.trimToEmpty(statusAnswer.getMode())) &&
+                ("ha".equalsIgnoreCase(mode) || "dr".equalsIgnoreCase(mode)) &&
                 "failing_over".equalsIgnoreCase(StringUtils.trimToEmpty(statusAnswer.getProtectionState())) &&
                 "mirroring".equalsIgnoreCase(StringUtils.trimToEmpty(statusAnswer.getTransportState())) &&
                 "primary".equalsIgnoreCase(StringUtils.trimToEmpty(statusAnswer.getActiveSide())) &&
@@ -2244,6 +2293,124 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             throw new CloudRuntimeException(String.format("Unable to start FTCTL secondary VM %s for primary VM %s",
                     secondaryVm.getUuid(), primaryVm.getUuid()), e);
         }
+    }
+
+    private void startRemoteMoldSecondaryVmForManualFailover(UserVmVO primaryVm, RemoteMoldCredentials credentials) {
+        String remoteVmUuid = StringUtils.trimToNull(getDetailValue(primaryVm.getId(), DETAIL_REMOTE_REPLICA_VM_ID));
+        if (StringUtils.isBlank(remoteVmUuid)) {
+            throw new CloudRuntimeException(String.format("FTCTL DR remote Mold protection for VM %s does not have a remote replica VM UUID",
+                    primaryVm.getUuid()));
+        }
+        String remoteHostUuid = StringUtils.trimToNull(getDetailValue(primaryVm.getId(), DETAIL_REMOTE_PEER_HOST_ID));
+        JsonObject remoteVm = fetchRemoteMoldVirtualMachine(credentials, remoteVmUuid);
+        if (remoteVm != null) {
+            persistRemoteMoldReplicaVmSnapshot(primaryVm, remoteVm);
+            if ("running".equalsIgnoreCase(StringUtils.trimToEmpty(getJsonString(remoteVm, "state")))) {
+                logger.info(String.format("FTCTL DR remote Mold replica VM %s is already running for primary VM %s",
+                        remoteVmUuid, primaryVm.getUuid()));
+                return;
+            }
+        }
+
+        Map<String, String> params = new HashMap<>();
+        params.put("id", remoteVmUuid);
+        putIfNotBlank(params, "hostid", remoteHostUuid);
+        JsonObject startResponse = callRemoteMoldApi(credentials.apiUrl, credentials.apiKey, credentials.secretKey,
+                "startVirtualMachine", params);
+        JsonObject startedVm = extractRemoteMoldVmFromResponse(startResponse, "startvirtualmachineresponse");
+        if (startedVm == null) {
+            String jobId = getRemoteMoldResponseString(startResponse, "startvirtualmachineresponse", "jobid");
+            if (StringUtils.isBlank(jobId)) {
+                throw new CloudRuntimeException(String.format("Remote Mold startVirtualMachine for FTCTL replica VM %s did not return a job ID",
+                        remoteVmUuid));
+            }
+            startedVm = waitForRemoteMoldVmStartJob(credentials, jobId, remoteVmUuid);
+        }
+        if (startedVm == null) {
+            startedVm = fetchRemoteMoldVirtualMachine(credentials, remoteVmUuid);
+        }
+        persistRemoteMoldReplicaVmSnapshot(primaryVm, startedVm);
+        publishFtctlEvent(primaryVm, EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE,
+                String.format("Started remote Mold FTCTL replica VM %s for primary VM %s after manual fence confirmation",
+                        remoteVmUuid, primaryVm.getUuid()));
+    }
+
+    private JsonObject fetchRemoteMoldVirtualMachine(RemoteMoldCredentials credentials, String remoteVmUuid) {
+        if (StringUtils.isBlank(remoteVmUuid)) {
+            return null;
+        }
+        Map<String, String> params = new HashMap<>();
+        params.put("id", remoteVmUuid);
+        params.put("listall", "true");
+        JsonObject json = callRemoteMoldApi(credentials.apiUrl, credentials.apiKey, credentials.secretKey,
+                "listVirtualMachines", params);
+        JsonArray vms = getResponseArray(json, "listvirtualmachinesresponse", "virtualmachine");
+        if (vms == null || vms.size() == 0 || !vms.get(0).isJsonObject()) {
+            return null;
+        }
+        return vms.get(0).getAsJsonObject();
+    }
+
+    private JsonObject waitForRemoteMoldVmStartJob(RemoteMoldCredentials credentials, String jobId, String remoteVmUuid) {
+        long deadline = System.currentTimeMillis() + REMOTE_MOLD_VM_START_TIMEOUT_MILLIS;
+        while (System.currentTimeMillis() <= deadline) {
+            Map<String, String> params = new HashMap<>();
+            params.put("jobid", jobId);
+            JsonObject json = callRemoteMoldApi(credentials.apiUrl, credentials.apiKey, credentials.secretKey,
+                    "queryAsyncJobResult", params);
+            JsonObject response = getResponseObject(json, "queryasyncjobresultresponse");
+            Integer jobStatus = getJsonInteger(response, "jobstatus");
+            if (jobStatus != null && jobStatus == 1) {
+                JsonObject jobResult = getJsonObject(response, "jobresult");
+                JsonObject vm = getJsonObject(jobResult, "virtualmachine");
+                return vm != null ? vm : fetchRemoteMoldVirtualMachine(credentials, remoteVmUuid);
+            }
+            if (jobStatus != null && jobStatus == 2) {
+                JsonObject jobResult = getJsonObject(response, "jobresult");
+                String errorText = StringUtils.defaultIfBlank(getJsonString(jobResult, "errortext"),
+                        StringUtils.defaultIfBlank(getJsonString(response, "jobresultcode"), "remote Mold VM start failed"));
+                throw new CloudRuntimeException(String.format("Remote Mold startVirtualMachine failed for FTCTL replica VM %s: %s",
+                        remoteVmUuid, errorText));
+            }
+            sleepRemoteMoldPollInterval(jobId, remoteVmUuid);
+        }
+        throw new CloudRuntimeException(String.format("Timed out waiting for remote Mold startVirtualMachine job %s for FTCTL replica VM %s",
+                jobId, remoteVmUuid));
+    }
+
+    private void sleepRemoteMoldPollInterval(String jobId, String remoteVmUuid) {
+        try {
+            Thread.sleep(REMOTE_MOLD_VM_START_POLL_INTERVAL_MILLIS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new CloudRuntimeException(String.format("Interrupted while waiting for remote Mold startVirtualMachine job %s for FTCTL replica VM %s",
+                    jobId, remoteVmUuid), e);
+        }
+    }
+
+    private JsonObject extractRemoteMoldVmFromResponse(JsonObject json, String responseKey) {
+        JsonObject response = getResponseObject(json, responseKey);
+        return getJsonObject(response, "virtualmachine");
+    }
+
+    private String getRemoteMoldResponseString(JsonObject json, String responseKey, String key) {
+        return getJsonString(getResponseObject(json, responseKey), key);
+    }
+
+    private void persistRemoteMoldReplicaVmSnapshot(UserVmVO primaryVm, JsonObject remoteVm) {
+        if (primaryVm == null || remoteVm == null) {
+            return;
+        }
+        Long sourceVmId = primaryVm.getId();
+        putVmDetailIfNotBlank(sourceVmId, DETAIL_REMOTE_REPLICA_VM_ID, getJsonString(remoteVm, "id"));
+        putVmDetailIfNotBlank(sourceVmId, DETAIL_REMOTE_REPLICA_VM_NAME,
+                StringUtils.defaultIfBlank(getJsonString(remoteVm, "displayname"), getJsonString(remoteVm, "name")));
+        putVmDetailIfNotBlank(sourceVmId, DETAIL_REMOTE_REPLICA_VM_INSTANCE_NAME,
+                StringUtils.defaultIfBlank(getJsonString(remoteVm, "instancename"), getJsonString(remoteVm, "name")));
+        putVmDetailIfNotBlank(sourceVmId, DETAIL_REMOTE_REPLICA_VM_STATE, getJsonString(remoteVm, "state"));
+        putVmDetailIfNotBlank(sourceVmId, DETAIL_REMOTE_REPLICA_VM_HOST_ID, getJsonString(remoteVm, "hostid"));
+        putVmDetailIfNotBlank(sourceVmId, DETAIL_REMOTE_REPLICA_VM_HOST_NAME, getJsonString(remoteVm, "hostname"));
+        putVmDetail(sourceVmId, DETAIL_REMOTE_REPLICA_VM_STATE_UPDATED, Instant.now().toString());
     }
 
     private void repairSecondaryVmStateAfterFailedStart(UserVmVO primaryVm, UserVmVO secondaryVm) {
@@ -2595,7 +2762,10 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         response.setProvisioningBackend(getDetailValue(sourceVmId, DETAIL_PROVISIONING_BACKEND));
         response.setProvisioningState(getDetailValue(sourceVmId, DETAIL_PROVISIONING_STATE));
         response.setTargetStorageScope(getDetailValue(sourceVmId, DETAIL_TARGET_STORAGE_SCOPE));
-        boolean remoteMoldDr = DR_PEER_SITE_TYPE_REMOTE_MOLD.equalsIgnoreCase(getDetailValue(sourceVmId, DETAIL_DR_PEER_SITE_TYPE));
+        String drPeerSiteType = getDetailValue(sourceVmId, DETAIL_DR_PEER_SITE_TYPE);
+        response.setDrPeerSiteType(drPeerSiteType);
+        response.setRemoteMoldApiUrl(getDetailValue(sourceVmId, DETAIL_REMOTE_MOLD_API_URL));
+        boolean remoteMoldDr = DR_PEER_SITE_TYPE_REMOTE_MOLD.equalsIgnoreCase(drPeerSiteType);
         if (remoteMoldDr && secondaryVmId == null) {
             populateRemoteReplicaVmSnapshot(sourceVmId, response);
         }
@@ -2647,6 +2817,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         response.setBackendMode("remote-nbd");
         response.setProvisioningBackend(FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED);
         response.setProvisioningState(FtctlProtectionProvisioningService.STATE_READY);
+        response.setDrPeerSiteType(DR_PEER_SITE_TYPE_REMOTE_MOLD);
         response.setProtectionState("protected");
         response.setTransportState("not_available");
         response.setActiveSide("primary");
@@ -3566,6 +3737,18 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             this.user = user;
             this.password = password;
             this.ipmiInterface = ipmiInterface;
+        }
+    }
+
+    private static final class RemoteMoldCredentials {
+        private final String apiUrl;
+        private final String apiKey;
+        private final String secretKey;
+
+        private RemoteMoldCredentials(String apiUrl, String apiKey, String secretKey) {
+            this.apiUrl = apiUrl;
+            this.apiKey = apiKey;
+            this.secretKey = secretKey;
         }
     }
 

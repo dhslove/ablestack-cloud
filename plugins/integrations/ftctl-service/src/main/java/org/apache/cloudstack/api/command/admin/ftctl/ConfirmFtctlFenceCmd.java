@@ -19,6 +19,7 @@ package org.apache.cloudstack.api.command.admin.ftctl;
 import com.cloud.agent.api.FtctlActionCommand;
 import org.apache.cloudstack.acl.RoleType;
 import org.apache.cloudstack.api.APICommand;
+import org.apache.cloudstack.api.Parameter;
 import org.apache.cloudstack.api.ResponseObject;
 import org.apache.cloudstack.api.ServerApiException;
 import org.apache.cloudstack.api.response.ftctl.FtctlActionResponse;
@@ -31,6 +32,18 @@ import org.apache.cloudstack.api.response.ftctl.FtctlActionResponse;
 public class ConfirmFtctlFenceCmd extends AbstractFtctlVmActionCmd {
     public static final String APINAME = "confirmFtctlFence";
 
+    @Parameter(name = "remotemoldapiurl", type = CommandType.STRING,
+            description = "the remote Mold API URL used only for DR remote site lifecycle calls")
+    private String remoteMoldApiUrl;
+
+    @Parameter(name = "remotemoldapikey", type = CommandType.STRING,
+            description = "the remote Mold API key used only for this DR remote site fence confirmation")
+    private String remoteMoldApiKey;
+
+    @Parameter(name = "remotemoldsecretkey", type = CommandType.STRING,
+            description = "the remote Mold secret key used only for this DR remote site fence confirmation")
+    private String remoteMoldSecretKey;
+
     @Override
     protected FtctlActionCommand.Action getAction() {
         return FtctlActionCommand.Action.FENCE_CONFIRM;
@@ -38,7 +51,8 @@ public class ConfirmFtctlFenceCmd extends AbstractFtctlVmActionCmd {
 
     @Override
     public void execute() throws ServerApiException {
-        FtctlActionResponse response = ftctlService.confirmFtctlFence(getVirtualMachineId());
+        FtctlActionResponse response = ftctlService.confirmFtctlFence(getVirtualMachineId(), remoteMoldApiUrl,
+                remoteMoldApiKey, remoteMoldSecretKey);
         response.setResponseName(getCommandName());
         setResponseObject(response);
     }
