@@ -102,6 +102,9 @@ public class LibvirtFtctlSyncProfileCommandWrapper extends CommandWrapper<FtctlS
         if (StringUtils.isNotBlank(command.getSecondaryTargetDir())) {
             script.add("--secondary-target-dir", command.getSecondaryTargetDir());
         }
+        if (StringUtils.isNotBlank(command.getSecondarySshKeyFile())) {
+            script.add("--secondary-ssh-key-file", command.getSecondarySshKeyFile());
+        }
         if (StringUtils.isNotBlank(command.getRemoteNbdExportAddr())) {
             script.add("--remote-nbd-export-addr", command.getRemoteNbdExportAddr());
         }

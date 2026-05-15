@@ -25,6 +25,7 @@ import com.cloud.agent.api.FtctlEventsAnswer;
 import com.cloud.agent.api.FtctlEventsCommand;
 import com.cloud.agent.api.FtctlHealthAnswer;
 import com.cloud.agent.api.FtctlHealthCommand;
+import com.cloud.agent.api.FtctlRemotePreflightCommand;
 import com.cloud.agent.api.FtctlStatusAnswer;
 import com.cloud.agent.api.FtctlStatusCommand;
 import com.cloud.agent.api.FtctlSyncAnswer;
@@ -292,6 +293,7 @@ public class LibvirtFtctlCommandWrappersTest {
         command.setFencingIpmiSecondaryUser("admin-b");
         command.setFencingIpmiSecondaryPassword("password-b");
         command.setFencingIpmiSecondaryInterface("lanplus");
+        command.setSecondarySshKeyFile("/root/.ssh/ftctl-dr/vm-a/id_ed25519");
 
         AtomicInteger constructed = new AtomicInteger();
         try (MockedConstruction<Script> scripts = Mockito.mockConstruction(Script.class, (mock, context) -> {
@@ -331,10 +333,40 @@ public class LibvirtFtctlCommandWrappersTest {
             Mockito.verify(script).add("--fencing-ipmi-secondary-password", "password-b");
             Mockito.verify(script).add("--fencing-ipmi-secondary-interface", "lanplus");
             Mockito.verify(script).add("--secondary-target-dir", "/data/secondary");
+            Mockito.verify(script).add("--secondary-ssh-key-file", "/root/.ssh/ftctl-dr/vm-a/id_ed25519");
             Mockito.verify(script).add("--remote-nbd-export-addr", "10.0.0.12:10809");
             Mockito.verify(script).add("--xcolo-proxy-endpoint", "10.0.10.12:7000");
             Mockito.verify(script).add("--xcolo-nbd-endpoint", "10.0.10.12:7001");
             Mockito.verify(script).add("--xcolo-migrate-uri", "tcp:10.0.10.12:4444");
+            Mockito.verify(script).add("--json");
+        }
+    }
+
+    @Test
+    public void testRemotePreflightWrapperBuildsCommandWithSshKeyFile() {
+        LibvirtFtctlRemotePreflightCommandWrapper wrapper = new LibvirtFtctlRemotePreflightCommandWrapper();
+        FtctlRemotePreflightCommand command = new FtctlRemotePreflightCommand("vm-a", "dr", "qemu+ssh://root@10.0.0.12:22/system");
+        command.setSecondaryTargetDir("rbd");
+        command.setSecondarySshKeyFile("/root/.ssh/ftctl-dr/vm-a/id_ed25519");
+        command.setRemoteNbdExportAddr("10.0.0.12:10809");
+
+        try (MockedConstruction<Script> scripts = Mockito.mockConstruction(Script.class, (mock, context) -> {
+            Mockito.when(mock.execute(Mockito.any())).thenReturn("{\"result\":\"ok\"}");
+            Mockito.when(mock.getExitValue()).thenReturn(0);
+        })) {
+            Answer answer = wrapper.execute(command, resource);
+
+            Assert.assertTrue(answer instanceof FtctlSyncAnswer);
+            Assert.assertTrue(answer.getResult());
+
+            Script script = scripts.constructed().get(0);
+            Mockito.verify(script).add("preflight-remote");
+            Mockito.verify(script).add("--vm", "vm-a");
+            Mockito.verify(script).add("--mode", "dr");
+            Mockito.verify(script).add("--peer", "qemu+ssh://root@10.0.0.12:22/system");
+            Mockito.verify(script).add("--secondary-target-dir", "rbd");
+            Mockito.verify(script).add("--secondary-ssh-key-file", "/root/.ssh/ftctl-dr/vm-a/id_ed25519");
+            Mockito.verify(script).add("--remote-nbd-export-addr", "10.0.0.12:10809");
             Mockito.verify(script).add("--json");
         }
     }

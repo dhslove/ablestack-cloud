@@ -23,6 +23,7 @@ public class FtctlRemotePreflightCommand extends Command {
     private String peerUri;
     private String secondaryTargetDir;
     private String remoteNbdExportAddr;
+    private String secondarySshKeyFile;
 
     public FtctlRemotePreflightCommand() {
     }
@@ -59,6 +60,14 @@ public class FtctlRemotePreflightCommand extends Command {
 
     public void setRemoteNbdExportAddr(String remoteNbdExportAddr) {
         this.remoteNbdExportAddr = remoteNbdExportAddr;
+    }
+
+    public String getSecondarySshKeyFile() {
+        return secondarySshKeyFile;
+    }
+
+    public void setSecondarySshKeyFile(String secondarySshKeyFile) {
+        this.secondarySshKeyFile = secondarySshKeyFile;
     }
 
     @Override

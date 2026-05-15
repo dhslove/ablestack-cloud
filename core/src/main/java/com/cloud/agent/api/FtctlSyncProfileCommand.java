@@ -48,6 +48,7 @@ public class FtctlSyncProfileCommand extends Command {
     private String fencingIpmiSecondaryUser;
     private String fencingIpmiSecondaryPassword;
     private String fencingIpmiSecondaryInterface;
+    private String secondarySshKeyFile;
 
     public FtctlSyncProfileCommand() {
     }
@@ -284,6 +285,14 @@ public class FtctlSyncProfileCommand extends Command {
 
     public void setFencingIpmiSecondaryInterface(String fencingIpmiSecondaryInterface) {
         this.fencingIpmiSecondaryInterface = fencingIpmiSecondaryInterface;
+    }
+
+    public String getSecondarySshKeyFile() {
+        return secondarySshKeyFile;
+    }
+
+    public void setSecondarySshKeyFile(String secondarySshKeyFile) {
+        this.secondarySshKeyFile = secondarySshKeyFile;
     }
 
     @Override

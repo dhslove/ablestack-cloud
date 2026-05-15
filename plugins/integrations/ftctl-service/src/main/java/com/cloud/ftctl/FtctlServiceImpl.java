@@ -400,8 +400,16 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         validateResolvedRegisterRequest(cmd, backendMode, secondaryTargetDir, remoteNbdExportAddr);
         validateDrCloudManagedTargetNetworks(cmd, provisioningBackend);
         FtctlIpmiFencingConfig ipmiFencingConfig = resolveIpmiFencingConfig(userVm, cmd);
+        String remoteDrSshKeyFile = null;
         if (remoteMoldDr) {
-            validateRemoteExecutionPath(userVm, cmd, secondaryTargetDir, remoteNbdExportAddr);
+            if (Boolean.TRUE.equals(cmd.getRemotePeerSshAutoSetup())) {
+                remoteDrSshKeyFile = prepareRemoteDrSshAccess(userVm,
+                        cmd.getRemoteMoldApiUrl(), cmd.getRemoteMoldApiKey(), cmd.getRemoteMoldSecretKey(),
+                        cmd.getRemotePeerHostUuid(), cmd.getRemotePeerHostAddress(), cmd.getRemotePeerSshUser(),
+                        cmd.getRemotePeerSshPort(), cmd.getRemotePeerLibvirtUri(), secondaryTargetDir, remoteNbdExportAddr);
+            } else {
+                validateRemoteExecutionPath(userVm, cmd, secondaryTargetDir, remoteNbdExportAddr, null);
+            }
         }
         FtctlProtectionProvisioningContext provisioningContext;
         try {
@@ -465,7 +473,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         Long hostId = getExecutionHostId(userVm);
         if (hostId != null) {
             try {
-                syncFtctlContext(userVm, cmd, targetStoragePool, targetStorageScope, backendMode, secondaryTargetDir, remoteNbdExportAddr, ipmiFencingConfig, provisioningContext);
+                syncFtctlContext(userVm, cmd, targetStoragePool, targetStorageScope, backendMode, secondaryTargetDir, remoteNbdExportAddr, ipmiFencingConfig, provisioningContext, remoteDrSshKeyFile);
                 String peerUri = remoteMoldDr ? resolveRemotePeerLibvirtUri(cmd) : resolvePeerUri(cmd.getPeerHostId());
                 if (peerUri == null || peerUri.isBlank()) {
                     throw new CloudRuntimeException(String.format("Missing FTCTL peer libvirt URI on %s", remoteMoldDr ? "remote Mold host" : String.format("host %s", cmd.getPeerHostId())));
@@ -656,10 +664,32 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     public FtctlActionResponse prepareFtctlDrRemoteSshAccess(PrepareFtctlDrRemoteSshAccessCmd cmd) throws CloudRuntimeException {
         UserVmVO userVm = validateVirtualMachineExists(cmd.getVirtualMachineId());
         validateProtectionRegistrationVmState(userVm);
-        if (StringUtils.isAnyBlank(cmd.getRemotePeerHostUuid(), cmd.getRemotePeerHostAddress())) {
+        prepareRemoteDrSshAccess(userVm, cmd.getRemoteMoldApiUrl(), cmd.getRemoteMoldApiKey(), cmd.getRemoteMoldSecretKey(),
+                cmd.getRemotePeerHostUuid(), cmd.getRemotePeerHostAddress(), cmd.getRemotePeerSshUser(),
+                cmd.getRemotePeerSshPort(), cmd.getRemotePeerLibvirtUri(), cmd.getSecondaryTargetDir(), cmd.getRemoteNbdExportAddr());
+
+        FtctlActionResponse response = new FtctlActionResponse();
+        response.setObjectName("ftctlaction");
+        response.setVirtualMachineId(userVm.getId());
+        response.setVmName(userVm.getInstanceName());
+        response.setAction("prepare-dr-remote-ssh-access");
+        response.setResult("ok");
+        response.setExitCode(0);
+        response.setOutput("FTCTL DR remote SSH access prepared");
+        return response;
+    }
+
+    private String prepareRemoteDrSshAccess(UserVmVO userVm, String remoteMoldApiUrl, String remoteMoldApiKey, String remoteMoldSecretKey,
+                                            String remotePeerHostUuid, String remotePeerHostAddress, String remotePeerSshUser,
+                                            String remotePeerSshPort, String remotePeerLibvirtUri,
+                                            String secondaryTargetDir, String remoteNbdExportAddr) {
+        if (StringUtils.isAnyBlank(remotePeerHostUuid, remotePeerHostAddress)) {
             throw new CloudRuntimeException("FTCTL DR remote SSH preparation requires remote peer host UUID and address");
         }
-        validateSshPort(StringUtils.defaultIfBlank(StringUtils.trimToNull(cmd.getRemotePeerSshPort()), DEFAULT_REMOTE_PEER_SSH_PORT));
+        String resolvedSshPort = StringUtils.defaultIfBlank(StringUtils.trimToNull(remotePeerSshPort), DEFAULT_REMOTE_PEER_SSH_PORT);
+        validateSshPort(resolvedSshPort);
+        String resolvedSshUser = StringUtils.defaultIfBlank(StringUtils.trimToNull(remotePeerSshUser), DEFAULT_REMOTE_PEER_SSH_USER);
+        String peerLibvirtUri = resolveRemotePeerLibvirtUri(remotePeerLibvirtUri, remotePeerHostAddress, resolvedSshUser, resolvedSshPort);
         Long sourceHostId = getExecutionHostId(userVm);
         if (sourceHostId == null) {
             throw new CloudRuntimeException(String.format("Unable to resolve source host for FTCTL DR SSH preparation on VM %s", userVm.getUuid()));
@@ -671,25 +701,27 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         JsonObject keyJson = parseFirstJsonObject(ensureAnswer.getOutput());
         String publicKey = getJsonString(keyJson, "public_key");
         String keyComment = getJsonString(keyJson, "key_comment");
-        if (StringUtils.isAnyBlank(publicKey, keyComment)) {
+        String privateKeyPath = getJsonString(keyJson, "private_key_path");
+        if (StringUtils.isAnyBlank(publicKey, keyComment, privateKeyPath)) {
             throw new CloudRuntimeException(String.format("FTCTL DR SSH key preparation did not return a usable public key: %s",
                     ensureAnswer.getOutput()));
         }
 
         Map<String, String> params = new HashMap<>();
-        params.put("hostid", cmd.getRemotePeerHostUuid());
+        params.put("hostid", remotePeerHostUuid);
         params.put("profile", userVm.getInstanceName());
         params.put("publickey", publicKey);
         params.put("keycomment", keyComment);
-        params.put("sshuser", StringUtils.defaultIfBlank(StringUtils.trimToNull(cmd.getRemotePeerSshUser()), DEFAULT_REMOTE_PEER_SSH_USER));
+        params.put("sshuser", resolvedSshUser);
         params.put("applyfirewall", "true");
-        callRemoteMoldApi(cmd.getRemoteMoldApiUrl(), cmd.getRemoteMoldApiKey(), cmd.getRemoteMoldSecretKey(),
+        callRemoteMoldApi(remoteMoldApiUrl, remoteMoldApiKey, remoteMoldSecretKey,
                 InstallFtctlDrRemoteSshKeyCmd.APINAME, params);
 
         FtctlRemotePreflightCommand preflightCommand = new FtctlRemotePreflightCommand(
-                userVm.getInstanceName(), "dr", resolveRemotePeerLibvirtUri(cmd));
-        preflightCommand.setSecondaryTargetDir(cmd.getSecondaryTargetDir());
-        preflightCommand.setRemoteNbdExportAddr(cmd.getRemoteNbdExportAddr());
+                userVm.getInstanceName(), "dr", peerLibvirtUri);
+        preflightCommand.setSecondaryTargetDir(secondaryTargetDir);
+        preflightCommand.setSecondarySshKeyFile(privateKeyPath);
+        preflightCommand.setRemoteNbdExportAddr(remoteNbdExportAddr);
         try {
             Answer answer = agentManager.send(sourceHostId, preflightCommand);
             if (!(answer instanceof FtctlSyncAnswer) || !answer.getResult()) {
@@ -701,15 +733,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
                     sourceHostId, userVm.getUuid()), e);
         }
 
-        FtctlActionResponse response = new FtctlActionResponse();
-        response.setObjectName("ftctlaction");
-        response.setVirtualMachineId(userVm.getId());
-        response.setVmName(userVm.getInstanceName());
-        response.setAction("prepare-dr-remote-ssh-access");
-        response.setResult("ok");
-        response.setExitCode(0);
-        response.setOutput("FTCTL DR remote SSH access prepared");
-        return response;
+        return privateKeyPath;
     }
 
     @Override
@@ -1043,17 +1067,9 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     }
 
     private String resolveRemotePeerLibvirtUri(PrepareFtctlDrRemoteSshAccessCmd cmd) {
-        String explicitUri = StringUtils.trimToNull(cmd.getRemotePeerLibvirtUri());
-        if (explicitUri != null) {
-            return explicitUri;
-        }
-        String host = StringUtils.trimToNull(cmd.getRemotePeerHostAddress());
-        if (host == null) {
-            throw new CloudRuntimeException("FTCTL DR remote Mold requires a remote peer host address");
-        }
         String sshUser = StringUtils.defaultIfBlank(StringUtils.trimToNull(cmd.getRemotePeerSshUser()), DEFAULT_REMOTE_PEER_SSH_USER);
         String sshPort = StringUtils.defaultIfBlank(StringUtils.trimToNull(cmd.getRemotePeerSshPort()), DEFAULT_REMOTE_PEER_SSH_PORT);
-        return String.format("qemu+ssh://%s@%s:%s/system", sshUser, host, sshPort);
+        return resolveRemotePeerLibvirtUri(cmd.getRemotePeerLibvirtUri(), cmd.getRemotePeerHostAddress(), sshUser, sshPort);
     }
 
     private FtctlSyncAnswer executeDrSshAccessCommand(Long hostId, FtctlDrSshAccessCommand command, String failureMessage) {
@@ -1078,19 +1094,24 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     }
 
     private String resolveRemotePeerLibvirtUri(RegisterFtctlProtectionCmd cmd) {
-        String explicitUri = StringUtils.trimToNull(cmd.getRemotePeerLibvirtUri());
+        return resolveRemotePeerLibvirtUri(cmd.getRemotePeerLibvirtUri(), cmd.getRemotePeerHostAddress(),
+                resolveRemotePeerSshUser(cmd), resolveRemotePeerSshPort(cmd));
+    }
+
+    private String resolveRemotePeerLibvirtUri(String remotePeerLibvirtUri, String remotePeerHostAddress, String remotePeerSshUser, String remotePeerSshPort) {
+        String explicitUri = StringUtils.trimToNull(remotePeerLibvirtUri);
         if (explicitUri != null) {
             return explicitUri;
         }
-        String host = StringUtils.trimToNull(cmd.getRemotePeerHostAddress());
+        String host = StringUtils.trimToNull(remotePeerHostAddress);
         if (host == null) {
             throw new CloudRuntimeException("FTCTL DR remote Mold requires a remote peer host address");
         }
-        return String.format("qemu+ssh://%s@%s:%s/system", resolveRemotePeerSshUser(cmd), host, resolveRemotePeerSshPort(cmd));
+        return String.format("qemu+ssh://%s@%s:%s/system", remotePeerSshUser, host, remotePeerSshPort);
     }
 
     private void validateRemoteExecutionPath(UserVmVO userVm, RegisterFtctlProtectionCmd cmd,
-                                             String secondaryTargetDir, String remoteNbdExportAddr) {
+                                             String secondaryTargetDir, String remoteNbdExportAddr, String secondarySshKeyFile) {
         Long hostId = getExecutionHostId(userVm);
         if (hostId == null) {
             throw new CloudRuntimeException(String.format("Unable to resolve source host for FTCTL remote preflight on VM %s", userVm.getUuid()));
@@ -1098,6 +1119,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         FtctlRemotePreflightCommand preflightCommand = new FtctlRemotePreflightCommand(
                 userVm.getInstanceName(), cmd.getMode(), resolveRemotePeerLibvirtUri(cmd));
         preflightCommand.setSecondaryTargetDir(secondaryTargetDir);
+        preflightCommand.setSecondarySshKeyFile(secondarySshKeyFile);
         preflightCommand.setRemoteNbdExportAddr(remoteNbdExportAddr);
         try {
             Answer answer = agentManager.send(hostId, preflightCommand);
@@ -3891,7 +3913,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     private void syncFtctlContext(UserVmVO userVm, RegisterFtctlProtectionCmd cmd, StoragePoolVO targetStoragePool,
                                   String targetStorageScope, String backendMode, String secondaryTargetDir,
                                   String remoteNbdExportAddr, FtctlIpmiFencingConfig ipmiFencingConfig,
-                                  FtctlProtectionProvisioningContext provisioningContext) {
+                                  FtctlProtectionProvisioningContext provisioningContext, String remoteDrSshKeyFile) {
         Long localHostId = requireExecutionHostId(userVm);
         HostVO localHost = hostDao.findById(localHostId);
         if (localHost == null) {
@@ -3967,6 +3989,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         profileCommand.setSecondaryVmName(provisioningContext.getSecondaryVmName());
         profileCommand.setFencingPolicy(cmd.getFencingPolicy());
         profileCommand.setSecondaryTargetDir(secondaryTargetDir);
+        profileCommand.setSecondarySshKeyFile(remoteDrSshKeyFile);
         profileCommand.setRemoteNbdExportAddr(remoteNbdExportAddr);
         profileCommand.setXcoloProxyEndpoint(cmd.getXcoloProxyEndpoint());
         profileCommand.setXcoloNbdEndpoint(cmd.getXcoloNbdEndpoint());
