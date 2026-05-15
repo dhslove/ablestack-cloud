@@ -411,6 +411,76 @@ describe('Views > compute > FtctlTab.vue', () => {
     wrapper.unmount()
   })
 
+  it('submits remote Mold fence confirmation when a refresh race starts after the modal opens', async () => {
+    getAPI.mockImplementation((command) => {
+      switch (command) {
+        case 'getFtctlProtection':
+          return Promise.resolve({
+            getftctlprotectionresponse: {
+              ftctlprotection: {
+                enabled: 'true',
+                mode: 'dr',
+                drpeersitetype: 'remote-mold',
+                remotemoldapiurl: 'http://10.10.32.10:8080/client/api',
+                provisioningbackend: 'cloud-managed',
+                protectionstate: 'failover_required',
+                transportstate: 'mirroring',
+                activeside: 'primary',
+                adminstate: 'active',
+                fencingstate: 'required',
+                primaryvirtualmachinestate: 'Stopped'
+              }
+            }
+          })
+        case 'getFtctlCheck':
+          return Promise.resolve({ getftctlcheckresponse: {} })
+        case 'getFtctlHealth':
+          return Promise.resolve({ getftctlhealthresponse: {} })
+        case 'getFtctlEvents':
+          return Promise.resolve({ getftctleventsresponse: { events: [] } })
+        default:
+          return Promise.resolve({})
+      }
+    })
+    postAPI.mockResolvedValue({
+      confirmftctlfenceresponse: {
+        jobid: 'remote-fence-job-1'
+      }
+    })
+
+    const wrapper = createWrapper({
+      getFtctlCheck: true,
+      getFtctlHealth: true,
+      getFtctlEvents: true,
+      confirmFtctlFence: true
+    })
+
+    await flushPromises()
+
+    wrapper.vm.openRemoteFenceModal()
+    wrapper.vm.loadingState = true
+    wrapper.vm.remoteFenceMoldApiKey = 'remote-api-key'
+    wrapper.vm.remoteFenceMoldSecretKey = 'remote-secret-key'
+
+    await wrapper.vm.confirmRemoteFence()
+    await flushPromises()
+
+    expect(postAPI).toHaveBeenCalledWith('confirmFtctlFence', {
+      virtualmachineid: 'vm-1',
+      remotemoldapiurl: 'http://10.10.32.10:8080/client/api',
+      remotemoldapikey: 'remote-api-key',
+      remotemoldsecretkey: 'remote-secret-key'
+    })
+    expect(wrapper.vm.$pollJob).toHaveBeenCalledWith(expect.objectContaining({
+      jobId: 'remote-fence-job-1',
+      title: 'label.ftctl.confirm.fence',
+      resourceId: 'vm-1'
+    }))
+    expect(wrapper.vm.showRemoteFenceModal).toBe(false)
+    expect(wrapper.vm.$message.warning).not.toHaveBeenCalledWith('Another FTCTL refresh is in progress.')
+    wrapper.unmount()
+  })
+
   it('runs action, applies payload and emits refresh event', async () => {
     let protectionState = {
       enabled: 'true',

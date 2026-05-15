@@ -590,7 +590,7 @@ export default {
       return this.isProtectionReleaseReady()
     },
     canSubmitRemoteFenceConfirm () {
-      return !this.actionLoading.confirmFtctlFence &&
+      return !this.actionInProgress &&
         Boolean(this.remoteFenceMoldApiUrl) &&
         Boolean(this.remoteFenceMoldApiKey) &&
         Boolean(this.remoteFenceMoldSecretKey)
@@ -951,20 +951,23 @@ export default {
         this.isAdminActiveState() &&
         state.primaryVm === 'running'
     },
-    baseActionDisabledReason (apiName) {
+    baseActionDisabledReason (apiName, options = {}) {
       if (!this.actionAvailable(apiName)) {
         return 'Action is not available for the current VM or permission.'
       }
       if (!this.protectionEnabled) {
         return 'FTCTL protection is not enabled.'
       }
-      if (this.loadingState || this.actionInProgress) {
-        return 'Another FTCTL refresh or action is in progress.'
+      if (!options.ignoreRefreshLoading && this.loadingState) {
+        return 'Another FTCTL refresh is in progress.'
+      }
+      if (this.actionInProgress) {
+        return 'Another FTCTL action is in progress.'
       }
       return null
     },
-    actionDisabledReason (apiName) {
-      const baseReason = this.baseActionDisabledReason(apiName)
+    actionDisabledReason (apiName, options = {}) {
+      const baseReason = this.baseActionDisabledReason(apiName, options)
       if (baseReason) {
         return baseReason
       }
@@ -1017,12 +1020,14 @@ export default {
       this.remoteFenceMoldApiUrl = this.protection.remotemoldapiurl || this.remoteFenceMoldApiUrl
       this.remoteFenceMoldApiKey = null
       this.remoteFenceMoldSecretKey = null
+      this.stopSyncAutoRefresh()
       this.showRemoteFenceModal = true
     },
     closeRemoteFenceModal () {
       this.showRemoteFenceModal = false
       this.remoteFenceMoldApiKey = null
       this.remoteFenceMoldSecretKey = null
+      this.updateSyncAutoRefresh()
     },
     async confirmReleaseProtection () {
       if (!this.canSubmitReleaseProtection) {
@@ -1043,8 +1048,10 @@ export default {
         remotemoldapikey: this.remoteFenceMoldApiKey,
         remotemoldsecretkey: this.remoteFenceMoldSecretKey
       }
-      this.closeRemoteFenceModal()
-      await this.runAction('confirmFtctlFence', params)
+      const submitted = await this.runAction('confirmFtctlFence', params, { ignoreRefreshLoading: true })
+      if (submitted) {
+        this.closeRemoteFenceModal()
+      }
     },
     handleProtectionSaved (payload = {}) {
       this.emitKeepCurrentTab()
@@ -1598,14 +1605,22 @@ export default {
         }
       }
     },
-    async runAction (commandName, params = {}) {
-      if (!this.resource?.id || !(commandName in this.$store.getters.apis)) {
-        return
+    async runAction (commandName, params = {}, options = {}) {
+      const apis = this.$store.getters.apis || {}
+      if (!this.resource?.id) {
+        this.$message.warning('Unable to run FTCTL action because the VM context is not available.')
+        return false
       }
-      const disabledReason = params.force === true && commandName === 'releaseFtctlProtection' ? null : this.actionDisabledReason(commandName)
+      if (!(commandName in apis)) {
+        this.$message.warning('FTCTL action API is not available for the current user session.')
+        return false
+      }
+      const disabledReason = params.force === true && commandName === 'releaseFtctlProtection'
+        ? null
+        : this.actionDisabledReason(commandName, { ignoreRefreshLoading: options.ignoreRefreshLoading === true })
       if (disabledReason) {
         this.$message.warning(disabledReason)
-        return
+        return false
       }
       this.actionLoading[commandName] = true
       this.errorMessage = null
@@ -1626,7 +1641,7 @@ export default {
             timestamp: new Date().toLocaleString()
           }
           await this.fetchAll({ silent: true })
-          return
+          return true
         }
         this.applyActionPayload(payload)
         this.$message.success(`${this.actionLabel(commandName)} ${this.$t('label.succeeded')}`)
@@ -1639,6 +1654,7 @@ export default {
           eventBus.emit('vm-refresh-data')
         }
         await this.fetchAll({ silent: true })
+        return true
       } catch (error) {
         this.errorMessage = this.extractErrorMessage(error, commandName)
         this.lastAction = {
@@ -1646,6 +1662,7 @@ export default {
           message: this.errorMessage,
           timestamp: new Date().toLocaleString()
         }
+        return false
       } finally {
         this.actionLoading[commandName] = false
       }
@@ -1743,7 +1760,7 @@ export default {
       this.postRegisterRefreshAttempts = 0
     },
     updateSyncAutoRefresh () {
-      if (!this.resource?.id || !this.protectionConfigured) {
+      if (!this.resource?.id || !this.protectionConfigured || this.showRemoteFenceModal) {
         this.stopSyncAutoRefresh()
         return
       }
