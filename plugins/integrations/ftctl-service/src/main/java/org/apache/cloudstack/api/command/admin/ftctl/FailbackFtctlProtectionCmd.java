@@ -19,7 +19,9 @@ package org.apache.cloudstack.api.command.admin.ftctl;
 import com.cloud.agent.api.FtctlActionCommand;
 import org.apache.cloudstack.acl.RoleType;
 import org.apache.cloudstack.api.APICommand;
+import org.apache.cloudstack.api.Parameter;
 import org.apache.cloudstack.api.ResponseObject;
+import org.apache.cloudstack.api.ServerApiException;
 import org.apache.cloudstack.api.response.ftctl.FtctlActionResponse;
 
 @APICommand(name = FailbackFtctlProtectionCmd.APINAME,
@@ -30,6 +32,34 @@ import org.apache.cloudstack.api.response.ftctl.FtctlActionResponse;
 public class FailbackFtctlProtectionCmd extends AbstractFtctlVmActionCmd {
     public static final String APINAME = "failbackFtctlProtection";
 
+    @Parameter(name = "failbacktargetmoldtype", type = CommandType.STRING,
+            description = "DR failback target Mold type: current, original-primary, or new")
+    private String failbackTargetMoldType;
+
+    @Parameter(name = "remotemoldapiurl", type = CommandType.STRING,
+            description = "one-time remote Mold API URL used for DR remote Mold failback continuation")
+    private String remoteMoldApiUrl;
+
+    @Parameter(name = "remotemoldapikey", type = CommandType.STRING,
+            description = "one-time remote Mold API key used for DR remote Mold failback continuation")
+    private String remoteMoldApiKey;
+
+    @Parameter(name = "remotemoldsecretkey", type = CommandType.STRING,
+            description = "one-time remote Mold secret key used for DR remote Mold failback continuation")
+    private String remoteMoldSecretKey;
+
+    @Parameter(name = "targetmoldapiurl", type = CommandType.STRING,
+            description = "one-time target Mold API URL for DR failback target selection")
+    private String targetMoldApiUrl;
+
+    @Parameter(name = "targetmoldapikey", type = CommandType.STRING,
+            description = "one-time target Mold API key for DR failback target selection")
+    private String targetMoldApiKey;
+
+    @Parameter(name = "targetmoldsecretkey", type = CommandType.STRING,
+            description = "one-time target Mold secret key for DR failback target selection")
+    private String targetMoldSecretKey;
+
     @Override
     protected FtctlActionCommand.Action getAction() {
         return FtctlActionCommand.Action.FAILBACK;
@@ -38,5 +68,14 @@ public class FailbackFtctlProtectionCmd extends AbstractFtctlVmActionCmd {
     @Override
     protected boolean useForce() {
         return true;
+    }
+
+    @Override
+    public void execute() throws ServerApiException {
+        FtctlActionResponse response = ftctlService.failbackFtctlProtection(getVirtualMachineId(), useForce(),
+                failbackTargetMoldType, remoteMoldApiUrl, remoteMoldApiKey, remoteMoldSecretKey,
+                targetMoldApiUrl, targetMoldApiKey, targetMoldSecretKey);
+        response.setResponseName(getCommandName());
+        setResponseObject(response);
     }
 }

@@ -122,6 +122,17 @@
                 <template #icon><component :is="action.icon" /></template>
                 {{ action.label }}
               </a-button>
+              <a-button
+                v-else-if="action.failbackModal"
+                size="small"
+                :danger="action.danger"
+                :disabled="action.disabled"
+                :title="action.disabled ? action.reason : null"
+                :loading="actionLoading[action.api]"
+                @click="openFailbackModal">
+                <template #icon><component :is="action.icon" /></template>
+                {{ action.label }}
+              </a-button>
               <a-popconfirm
                 v-else-if="action.confirm"
                 placement="topRight"
@@ -477,6 +488,57 @@
           </a-form>
         </div>
       </a-modal>
+
+      <a-modal
+        :visible="showFailbackModal"
+        :title="failbackActionLabel"
+        :ok-text="failbackActionLabel"
+        :cancel-text="$t('label.cancel')"
+        :confirmLoading="actionLoading.failbackFtctlProtection"
+        :ok-button-props="{ danger: true, disabled: !canSubmitFailbackProtection }"
+        :maskClosable="false"
+        width="680px"
+        @ok="confirmFailbackProtection"
+        @cancel="closeFailbackModal">
+        <div class="ftctl-tab__failback-modal-body">
+          <a-alert
+            type="warning"
+            show-icon
+            :message="$t('message.ftctl.failback.target.mold.modal.desc')"
+            class="ftctl-tab__alert" />
+          <a-form layout="vertical">
+            <a-form-item :label="$t('label.ftctl.failback.target.mold')">
+              <a-select v-model:value="failbackTargetMoldType">
+                <a-select-option value="original-primary">{{ $t('label.ftctl.failback.target.mold.original.primary') }}</a-select-option>
+                <a-select-option value="current">{{ $t('label.ftctl.failback.target.mold.current') }}</a-select-option>
+                <a-select-option value="new" disabled>{{ $t('label.ftctl.failback.target.mold.new') }}</a-select-option>
+              </a-select>
+            </a-form-item>
+            <template v-if="isRemoteMoldDrProtection()">
+              <a-alert
+                type="info"
+                show-icon
+                :message="$t('message.ftctl.failback.remote.mold.credentials.desc')"
+                class="ftctl-tab__alert" />
+              <a-form-item :label="$t('label.ftctl.remote.mold.api.url')">
+                <a-input
+                  v-model:value="failbackMoldApiUrl"
+                  :placeholder="$t('placeholder.ftctl.remote.mold.api.url')" />
+              </a-form-item>
+              <a-form-item :label="$t('label.ftctl.remote.mold.api.key')">
+                <a-input
+                  v-model:value="failbackMoldApiKey"
+                  :placeholder="$t('placeholder.ftctl.remote.mold.api.key')" />
+              </a-form-item>
+              <a-form-item :label="$t('label.ftctl.remote.mold.secret.key')">
+                <a-input-password
+                  v-model:value="failbackMoldSecretKey"
+                  :placeholder="$t('placeholder.ftctl.remote.mold.secret.key')" />
+              </a-form-item>
+            </template>
+          </a-form>
+        </div>
+      </a-modal>
     </div>
   </a-spin>
 </template>
@@ -514,11 +576,16 @@ export default {
       showProtectionModal: false,
       showReleaseModal: false,
       showRemoteFenceModal: false,
+      showFailbackModal: false,
       releaseForceSelected: false,
       releaseForceAcknowledged: false,
       remoteFenceMoldApiUrl: null,
       remoteFenceMoldApiKey: null,
       remoteFenceMoldSecretKey: null,
+      failbackTargetMoldType: 'original-primary',
+      failbackMoldApiUrl: null,
+      failbackMoldApiKey: null,
+      failbackMoldSecretKey: null,
       lastAction: {
         success: false,
         message: null,
@@ -594,6 +661,22 @@ export default {
         Boolean(this.remoteFenceMoldApiUrl) &&
         Boolean(this.remoteFenceMoldApiKey) &&
         Boolean(this.remoteFenceMoldSecretKey)
+    },
+    canSubmitFailbackProtection () {
+      if (this.actionInProgress || !this.isFailbackActionReady()) {
+        return false
+      }
+      if (this.isRemoteMoldDrProtection()) {
+        return Boolean(this.failbackMoldApiUrl) &&
+          Boolean(this.failbackMoldApiKey) &&
+          Boolean(this.failbackMoldSecretKey)
+      }
+      return true
+    },
+    failbackActionLabel () {
+      return this.isFailbackContinueReady()
+        ? this.$t('label.ftctl.continue.failback')
+        : this.$t('label.ftctl.failback')
     },
     standbyProtectionView () {
       return String(this.protection.protectionrole || '').toLowerCase() === 'standby'
@@ -845,10 +928,11 @@ export default {
         },
         {
           api: 'failbackFtctlProtection',
-          label: this.$t('label.ftctl.failback'),
+          label: this.failbackActionLabel,
           icon: 'UndoOutlined',
           danger: true,
-          confirm: true,
+          confirm: !this.isDrProtection(),
+          failbackModal: this.isDrProtection(),
           confirmMessage: this.$t('message.ftctl.confirm.failback'),
           disabled: this.isActionDisabled('failbackFtctlProtection'),
           reason: this.actionDisabledReason('failbackFtctlProtection')
@@ -945,6 +1029,17 @@ export default {
         this.isFenceClearState(state.fencing) &&
         this.isAdminActiveState()
     },
+    isFailbackContinueReady () {
+      const state = this.ftctlActionState
+      return state.activeSide === 'secondary' &&
+        state.protection === 'failing_back' &&
+        ['reverse_sync_ready', 'reverse_sync_cutback_required'].includes(state.transport) &&
+        this.isFenceClearState(state.fencing) &&
+        this.isAdminActiveState()
+    },
+    isFailbackActionReady () {
+      return this.isFailbackStartReady() || this.isFailbackContinueReady()
+    },
     isProtectionReleaseReady () {
       const state = this.ftctlActionState
       return this.isStablePrimaryProtected() &&
@@ -990,7 +1085,7 @@ export default {
         case 'clearFtctlFence':
           return this.isManualFenceReleaseReady() ? null : 'Fence release is available only after successful failed-over manual fencing.'
         case 'failbackFtctlProtection':
-          return this.isFailbackStartReady() ? null : 'Failback requires failed-over secondary side and released fencing.'
+          return this.isFailbackActionReady() ? null : 'Failback requires failed-over or reverse-sync-ready secondary side and released fencing.'
         case 'releaseFtctlProtection':
           return this.protectionEnabled ? null : 'Protection release requires an enabled FTCTL protection row.'
         default:
@@ -1029,6 +1124,20 @@ export default {
       this.remoteFenceMoldSecretKey = null
       this.updateSyncAutoRefresh()
     },
+    openFailbackModal () {
+      this.failbackTargetMoldType = this.failbackTargetMoldType || 'original-primary'
+      this.failbackMoldApiUrl = this.protection.remotemoldapiurl || this.failbackMoldApiUrl
+      this.failbackMoldApiKey = null
+      this.failbackMoldSecretKey = null
+      this.stopSyncAutoRefresh()
+      this.showFailbackModal = true
+    },
+    closeFailbackModal () {
+      this.showFailbackModal = false
+      this.failbackMoldApiKey = null
+      this.failbackMoldSecretKey = null
+      this.updateSyncAutoRefresh()
+    },
     async confirmReleaseProtection () {
       if (!this.canSubmitReleaseProtection) {
         this.$message.warning(this.$t('message.ftctl.force.release.ack.required'))
@@ -1051,6 +1160,31 @@ export default {
       const submitted = await this.runAction('confirmFtctlFence', params, { ignoreRefreshLoading: true })
       if (submitted) {
         this.closeRemoteFenceModal()
+      }
+    },
+    async confirmFailbackProtection () {
+      if (!this.canSubmitFailbackProtection) {
+        this.$message.warning(this.$t('message.ftctl.validation.failback.target.mold.required'))
+        return
+      }
+      const params = {
+        failbacktargetmoldtype: this.failbackTargetMoldType
+      }
+      if (this.failbackMoldApiUrl) {
+        params.remotemoldapiurl = this.failbackMoldApiUrl
+        params.targetmoldapiurl = this.failbackMoldApiUrl
+      }
+      if (this.failbackMoldApiKey) {
+        params.remotemoldapikey = this.failbackMoldApiKey
+        params.targetmoldapikey = this.failbackMoldApiKey
+      }
+      if (this.failbackMoldSecretKey) {
+        params.remotemoldsecretkey = this.failbackMoldSecretKey
+        params.targetmoldsecretkey = this.failbackMoldSecretKey
+      }
+      const submitted = await this.runAction('failbackFtctlProtection', params, { ignoreRefreshLoading: true })
+      if (submitted) {
+        this.closeFailbackModal()
       }
     },
     handleProtectionSaved (payload = {}) {
@@ -1197,6 +1331,9 @@ export default {
     isRemoteMoldDrProtection () {
       return String(this.protection.mode || '').toLowerCase() === 'dr' &&
         String(this.protection.drpeersitetype || '').toLowerCase() === 'remote-mold'
+    },
+    isDrProtection () {
+      return String(this.protection.mode || '').toLowerCase() === 'dr'
     },
     isCloudManagedFailedOver () {
       const protection = String(this.protection.protectionstate || '').toLowerCase()

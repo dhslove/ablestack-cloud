@@ -247,6 +247,9 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     private static final String DEFAULT_IPMI_INTERFACE = "lanplus";
     private static final String DR_PEER_SITE_TYPE_LOCAL_MOLD = "local-mold";
     private static final String DR_PEER_SITE_TYPE_REMOTE_MOLD = "remote-mold";
+    private static final String FAILBACK_TARGET_MOLD_CURRENT = "current";
+    private static final String FAILBACK_TARGET_MOLD_ORIGINAL_PRIMARY = "original-primary";
+    private static final String FAILBACK_TARGET_MOLD_NEW = "new";
     private static final String DEFAULT_REMOTE_PEER_SSH_USER = "root";
     private static final String DEFAULT_REMOTE_PEER_SSH_PORT = "22";
     private static final String LAST_ERROR_CLOUD_MANAGED_FAILOVER_CANDIDATE = "cloud_managed_failover_candidate";
@@ -1624,10 +1627,26 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         if (action == FtctlActionCommand.Action.FAILBACK) {
             FtctlProtectionVO protection = ftctlProtectionDao.findActiveByPrimaryVmId(userVm.getId());
             if (isCloudManagedProvisioning(protection)) {
-                return executeCloudManagedFailback(userVm, protection);
+                return executeCloudManagedFailback(userVm, protection, null);
             }
         }
         return executeFtctlAgentAction(userVm, action, force);
+    }
+
+    @Override
+    public FtctlActionResponse failbackFtctlProtection(Long virtualMachineId, boolean force, String failbackTargetMoldType,
+                                                       String remoteMoldApiUrl, String remoteMoldApiKey, String remoteMoldSecretKey,
+                                                       String targetMoldApiUrl, String targetMoldApiKey, String targetMoldSecretKey)
+            throws CloudRuntimeException {
+        UserVmVO userVm = validateVirtualMachineExists(virtualMachineId);
+        validatePrimaryProtectionTarget(userVm);
+        FtctlProtectionVO protection = ftctlProtectionDao.findActiveByPrimaryVmId(userVm.getId());
+        if (isCloudManagedProvisioning(protection)) {
+            FailbackTargetContext targetContext = buildFailbackTargetContext(userVm, protection, failbackTargetMoldType,
+                    remoteMoldApiUrl, remoteMoldApiKey, remoteMoldSecretKey, targetMoldApiUrl, targetMoldApiKey, targetMoldSecretKey);
+            return executeCloudManagedFailback(userVm, protection, targetContext);
+        }
+        return executeFtctlAgentAction(userVm, FtctlActionCommand.Action.FAILBACK, force);
     }
 
     @Override
@@ -1989,9 +2008,16 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
                 FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED.equalsIgnoreCase(StringUtils.trimToEmpty(protection.getProvisioningBackend()));
     }
 
-    private FtctlActionResponse executeCloudManagedFailback(UserVmVO primaryVm, FtctlProtectionVO protection) {
-        if (isCloudManagedFailbackInProgress(protection)) {
-            FtctlProtectionVO latestProtection = refreshProtection(primaryVm);
+    private FtctlActionResponse executeCloudManagedFailback(UserVmVO primaryVm, FtctlProtectionVO protection, FailbackTargetContext targetContext) {
+        FtctlProtectionVO latestProtection = refreshProtection(primaryVm);
+        if (isCloudManagedFailbackReverseReady(latestProtection)) {
+            continueCloudManagedFailbackAfterReverseSync(primaryVm, latestProtection, targetContext, true);
+            latestProtection = refreshProtection(primaryVm);
+            return buildActionResponseFromProtection(primaryVm, FtctlActionCommand.Action.FAILBACK, latestProtection,
+                    "cloud-managed failback cutback continued");
+        }
+        if (isCloudManagedFailbackInProgress(latestProtection)) {
+            latestProtection = refreshProtection(primaryVm);
             return buildActionResponseFromProtection(primaryVm, FtctlActionCommand.Action.FAILBACK, latestProtection,
                     "cloud-managed failback already in progress");
         }
@@ -2028,11 +2054,12 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         }
         FtctlProtectionVO latestProtection = refreshProtection(primaryVm);
         if (isCloudManagedFailbackReverseReady(latestProtection)) {
-            continueCloudManagedFailbackAfterReverseSync(primaryVm, latestProtection);
+            continueCloudManagedFailbackAfterReverseSync(primaryVm, latestProtection, null, false);
         }
     }
 
-    private void continueCloudManagedFailbackAfterReverseSync(UserVmVO primaryVm, FtctlProtectionVO protection) {
+    private void continueCloudManagedFailbackAfterReverseSync(UserVmVO primaryVm, FtctlProtectionVO protection,
+                                                             FailbackTargetContext targetContext, boolean operatorRequested) {
         Object marker = new Object();
         if (cloudManagedFailbackCutbackLocks.putIfAbsent(protection.getId(), marker) != null) {
             return;
@@ -2040,6 +2067,10 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         try {
             FtctlProtectionVO latestProtection = refreshProtection(primaryVm);
             if (!isCloudManagedFailbackReverseReady(latestProtection)) {
+                return;
+            }
+            if (isRemoteMoldDrProtection(primaryVm, latestProtection)) {
+                continueRemoteMoldDrFailbackAfterReverseSync(primaryVm, latestProtection, targetContext, operatorRequested);
                 return;
             }
             UserVmVO secondaryVm = resolveSecondaryVmForManualFailover(primaryVm, latestProtection);
@@ -2072,11 +2103,140 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         }
     }
 
+    private void continueRemoteMoldDrFailbackAfterReverseSync(UserVmVO primaryVm, FtctlProtectionVO protection,
+                                                              FailbackTargetContext targetContext, boolean operatorRequested) {
+        if (targetContext == null || targetContext.remoteMoldCredentials == null) {
+            if (operatorRequested) {
+                throw new CloudRuntimeException(String.format(
+                        "FTCTL DR remote Mold failback for VM %s requires one-time remote Mold API URL, API key, and secret key",
+                        primaryVm.getUuid()));
+            }
+            logger.info(String.format("FTCTL DR remote Mold failback for VM %s is waiting for operator-provided target Mold credentials",
+                    primaryVm.getUuid()));
+            return;
+        }
+        if (FAILBACK_TARGET_MOLD_NEW.equals(targetContext.targetMoldType)) {
+            throw new CloudRuntimeException(String.format(
+                    "FTCTL DR failback to a new target Mold for VM %s requires target primary reprovisioning and is not available in this build",
+                    primaryVm.getUuid()));
+        }
+
+        Long primaryHostId = requireExecutionHostId(primaryVm);
+        RemoteMoldCredentials remoteMoldCredentials = targetContext.remoteMoldCredentials;
+
+        stopRemoteMoldReplicaVmForCloudManagedFailback(primaryVm, remoteMoldCredentials);
+
+        executeFtctlAgentAction(primaryVm, FtctlActionCommand.Action.FAILBACK_FINALIZE, true);
+
+        publishFtctlEvent(primaryVm, EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE,
+                String.format("Starting FTCTL primary VM %s during DR remote Mold cloud-managed failback", primaryVm.getUuid()));
+        startPrimaryVmForCloudManagedFailback(primaryVm, primaryHostId);
+
+        UserVmVO refreshedPrimaryVm = validateVirtualMachineExists(primaryVm.getId());
+        executeFtctlAgentAction(refreshedPrimaryVm, FtctlActionCommand.Action.FAILBACK_REPROTECT, true);
+        publishFtctlEvent(refreshedPrimaryVm, EventTypes.EVENT_FTCTL_PROTECTION_FAILBACK,
+                String.format("Executed DR remote Mold cloud-managed FTCTL failback for VM %s", refreshedPrimaryVm.getUuid()));
+    }
+
+    private FailbackTargetContext buildFailbackTargetContext(UserVmVO primaryVm, FtctlProtectionVO protection, String failbackTargetMoldType,
+                                                            String remoteMoldApiUrl, String remoteMoldApiKey, String remoteMoldSecretKey,
+                                                            String targetMoldApiUrl, String targetMoldApiKey, String targetMoldSecretKey) {
+        String normalizedTargetType = normalizeFailbackTargetMoldType(failbackTargetMoldType);
+        RemoteMoldCredentials remoteMoldCredentials = resolveFailbackRemoteMoldCredentials(primaryVm, protection,
+                remoteMoldApiUrl, remoteMoldApiKey, remoteMoldSecretKey, targetMoldApiUrl, targetMoldApiKey, targetMoldSecretKey);
+        RemoteMoldCredentials targetMoldCredentials = buildOptionalRemoteMoldCredentials(targetMoldApiUrl, targetMoldApiKey, targetMoldSecretKey);
+        return new FailbackTargetContext(normalizedTargetType, remoteMoldCredentials, targetMoldCredentials);
+    }
+
+    private String normalizeFailbackTargetMoldType(String failbackTargetMoldType) {
+        String value = StringUtils.trimToEmpty(failbackTargetMoldType).toLowerCase(Locale.ROOT);
+        if (StringUtils.isBlank(value)) {
+            return FAILBACK_TARGET_MOLD_ORIGINAL_PRIMARY;
+        }
+        if (FAILBACK_TARGET_MOLD_CURRENT.equals(value) || FAILBACK_TARGET_MOLD_ORIGINAL_PRIMARY.equals(value) ||
+                FAILBACK_TARGET_MOLD_NEW.equals(value)) {
+            return value;
+        }
+        throw new CloudRuntimeException(String.format("Unsupported FTCTL DR failback target Mold type: %s", failbackTargetMoldType));
+    }
+
+    private RemoteMoldCredentials resolveFailbackRemoteMoldCredentials(UserVmVO primaryVm, FtctlProtectionVO protection,
+                                                                       String remoteMoldApiUrl, String remoteMoldApiKey, String remoteMoldSecretKey,
+                                                                       String targetMoldApiUrl, String targetMoldApiKey, String targetMoldSecretKey) {
+        if (!isRemoteMoldDrProtection(primaryVm, protection)) {
+            return null;
+        }
+        String resolvedApiUrl = StringUtils.defaultIfBlank(StringUtils.trimToNull(remoteMoldApiUrl),
+                StringUtils.defaultIfBlank(StringUtils.trimToNull(targetMoldApiUrl), getDetailValue(primaryVm.getId(), DETAIL_REMOTE_MOLD_API_URL)));
+        String resolvedApiKey = StringUtils.defaultIfBlank(StringUtils.trimToNull(remoteMoldApiKey), StringUtils.trimToNull(targetMoldApiKey));
+        String resolvedSecretKey = StringUtils.defaultIfBlank(StringUtils.trimToNull(remoteMoldSecretKey), StringUtils.trimToNull(targetMoldSecretKey));
+        if (StringUtils.isAnyBlank(resolvedApiUrl, resolvedApiKey, resolvedSecretKey)) {
+            throw new CloudRuntimeException(String.format(
+                    "FTCTL DR remote Mold failback for VM %s requires one-time remote Mold API URL, API key, and secret key",
+                    primaryVm.getUuid()));
+        }
+        return new RemoteMoldCredentials(resolvedApiUrl, resolvedApiKey, resolvedSecretKey);
+    }
+
+    private RemoteMoldCredentials buildOptionalRemoteMoldCredentials(String apiUrl, String apiKey, String secretKey) {
+        if (StringUtils.isAllBlank(apiUrl, apiKey, secretKey)) {
+            return null;
+        }
+        if (StringUtils.isAnyBlank(apiUrl, apiKey, secretKey)) {
+            throw new CloudRuntimeException("Target Mold API URL, API key, and secret key must be provided together");
+        }
+        return new RemoteMoldCredentials(StringUtils.trim(apiUrl), StringUtils.trim(apiKey), StringUtils.trim(secretKey));
+    }
+
+    private void stopRemoteMoldReplicaVmForCloudManagedFailback(UserVmVO primaryVm, RemoteMoldCredentials credentials) {
+        String remoteVmUuid = StringUtils.trimToNull(getDetailValue(primaryVm.getId(), DETAIL_REMOTE_REPLICA_VM_ID));
+        if (StringUtils.isBlank(remoteVmUuid)) {
+            throw new CloudRuntimeException(String.format("FTCTL DR remote Mold failback for VM %s does not have a remote replica VM UUID",
+                    primaryVm.getUuid()));
+        }
+        JsonObject remoteVm = fetchRemoteMoldVirtualMachine(credentials, remoteVmUuid);
+        if (remoteVm != null) {
+            persistRemoteMoldReplicaVmSnapshot(primaryVm, remoteVm);
+            if ("stopped".equalsIgnoreCase(StringUtils.trimToEmpty(getJsonString(remoteVm, "state")))) {
+                logger.info(String.format("FTCTL DR remote Mold replica VM %s is already stopped for primary VM %s failback",
+                        remoteVmUuid, primaryVm.getUuid()));
+                return;
+            }
+        }
+
+        Map<String, String> params = new HashMap<>();
+        params.put("id", remoteVmUuid);
+        params.put("forced", "true");
+        JsonObject stopResponse = callRemoteMoldApi(credentials.apiUrl, credentials.apiKey, credentials.secretKey,
+                "stopVirtualMachine", params);
+        JsonObject stoppedVm = extractRemoteMoldVmFromResponse(stopResponse, "stopvirtualmachineresponse");
+        if (stoppedVm == null) {
+            String jobId = getRemoteMoldResponseString(stopResponse, "stopvirtualmachineresponse", "jobid");
+            if (StringUtils.isBlank(jobId)) {
+                throw new CloudRuntimeException(String.format("Remote Mold stopVirtualMachine for FTCTL replica VM %s did not return a job ID",
+                        remoteVmUuid));
+            }
+            stoppedVm = waitForRemoteMoldVmJob(credentials, jobId, remoteVmUuid, "stopVirtualMachine");
+        }
+        if (stoppedVm == null) {
+            stoppedVm = fetchRemoteMoldVirtualMachine(credentials, remoteVmUuid);
+        }
+        persistRemoteMoldReplicaVmSnapshot(primaryVm, stoppedVm);
+        publishFtctlEvent(primaryVm, EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE,
+                String.format("Stopped remote Mold FTCTL replica VM %s for primary VM %s during cloud-managed failback",
+                        remoteVmUuid, primaryVm.getUuid()));
+    }
+
     private boolean isCloudManagedFailbackCandidate(FtctlProtectionVO protection) {
         return isCloudManagedProvisioning(protection) &&
-                "ha".equalsIgnoreCase(StringUtils.trimToEmpty(protection.getMode())) &&
+                isCloudManagedFailbackMode(protection) &&
                 "failing_back".equalsIgnoreCase(StringUtils.trimToEmpty(protection.getProtectionState())) &&
                 "secondary".equalsIgnoreCase(StringUtils.trimToEmpty(protection.getActiveSide()));
+    }
+
+    private boolean isCloudManagedFailbackMode(FtctlProtectionVO protection) {
+        String mode = StringUtils.trimToEmpty(protection != null ? protection.getMode() : null).toLowerCase(Locale.ROOT);
+        return "ha".equals(mode) || "dr".equals(mode);
     }
 
     private boolean isCloudManagedFailbackInProgress(FtctlProtectionVO protection) {
@@ -2773,6 +2933,10 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     }
 
     private JsonObject waitForRemoteMoldVmStartJob(RemoteMoldCredentials credentials, String jobId, String remoteVmUuid) {
+        return waitForRemoteMoldVmJob(credentials, jobId, remoteVmUuid, "startVirtualMachine");
+    }
+
+    private JsonObject waitForRemoteMoldVmJob(RemoteMoldCredentials credentials, String jobId, String remoteVmUuid, String actionName) {
         long deadline = System.currentTimeMillis() + REMOTE_MOLD_VM_START_TIMEOUT_MILLIS;
         while (System.currentTimeMillis() <= deadline) {
             Map<String, String> params = new HashMap<>();
@@ -2789,14 +2953,14 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             if (jobStatus != null && jobStatus == 2) {
                 JsonObject jobResult = getJsonObject(response, "jobresult");
                 String errorText = StringUtils.defaultIfBlank(getJsonString(jobResult, "errortext"),
-                        StringUtils.defaultIfBlank(getJsonString(response, "jobresultcode"), "remote Mold VM start failed"));
-                throw new CloudRuntimeException(String.format("Remote Mold startVirtualMachine failed for FTCTL replica VM %s: %s",
-                        remoteVmUuid, errorText));
+                        StringUtils.defaultIfBlank(getJsonString(response, "jobresultcode"), "remote Mold VM action failed"));
+                throw new CloudRuntimeException(String.format("Remote Mold %s failed for FTCTL replica VM %s: %s",
+                        actionName, remoteVmUuid, errorText));
             }
             sleepRemoteMoldPollInterval(jobId, remoteVmUuid);
         }
-        throw new CloudRuntimeException(String.format("Timed out waiting for remote Mold startVirtualMachine job %s for FTCTL replica VM %s",
-                jobId, remoteVmUuid));
+        throw new CloudRuntimeException(String.format("Timed out waiting for remote Mold %s job %s for FTCTL replica VM %s",
+                actionName, jobId, remoteVmUuid));
     }
 
     private void sleepRemoteMoldPollInterval(String jobId, String remoteVmUuid) {
@@ -4193,6 +4357,19 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             this.apiUrl = apiUrl;
             this.apiKey = apiKey;
             this.secretKey = secretKey;
+        }
+    }
+
+    private static final class FailbackTargetContext {
+        private final String targetMoldType;
+        private final RemoteMoldCredentials remoteMoldCredentials;
+        private final RemoteMoldCredentials targetMoldCredentials;
+
+        private FailbackTargetContext(String targetMoldType, RemoteMoldCredentials remoteMoldCredentials,
+                                      RemoteMoldCredentials targetMoldCredentials) {
+            this.targetMoldType = targetMoldType;
+            this.remoteMoldCredentials = remoteMoldCredentials;
+            this.targetMoldCredentials = targetMoldCredentials;
         }
     }
 

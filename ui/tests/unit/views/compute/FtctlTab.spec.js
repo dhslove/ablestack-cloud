@@ -591,6 +591,64 @@ describe('Views > compute > FtctlTab.vue', () => {
     expect(wrapper.vm.lastAction.message).toContain('job-1')
   })
 
+  it('continues DR remote Mold failback with one-time Mold credentials', async () => {
+    getAPI.mockImplementation((command) => {
+      if (command === 'getFtctlProtection') {
+        return Promise.resolve({
+          getftctlprotectionresponse: {
+            ftctlprotection: {
+              enabled: 'true',
+              mode: 'dr',
+              drpeersitetype: 'remote-mold',
+              remotemoldapiurl: 'http://10.10.32.10:8080/client/api',
+              protectionstate: 'failing_back',
+              transportstate: 'reverse_sync_ready',
+              activeside: 'secondary',
+              adminstate: 'active',
+              fencingstate: 'clear'
+            }
+          }
+        })
+      }
+      return Promise.resolve({})
+    })
+    postAPI.mockResolvedValue({
+      failbackftctlprotectionresponse: {
+        success: true
+      }
+    })
+
+    const wrapper = createWrapper({
+      getFtctlCheck: true,
+      getFtctlHealth: true,
+      getFtctlEvents: true,
+      failbackFtctlProtection: true
+    })
+    await flushPromises()
+
+    expect(wrapper.vm.actionDisabledReason('failbackFtctlProtection')).toBe(null)
+    const failbackAction = wrapper.vm.actionDefinitions.find(action => action.api === 'failbackFtctlProtection')
+    expect(failbackAction.label).toBe('label.ftctl.continue.failback')
+    expect(failbackAction.failbackModal).toBe(true)
+
+    wrapper.vm.openFailbackModal()
+    wrapper.vm.failbackMoldApiKey = 'api-key'
+    wrapper.vm.failbackMoldSecretKey = 'secret-key'
+    await wrapper.vm.confirmFailbackProtection()
+    await flushPromises()
+
+    expect(postAPI).toHaveBeenCalledWith('failbackFtctlProtection', {
+      virtualmachineid: 'vm-1',
+      failbacktargetmoldtype: 'original-primary',
+      remotemoldapiurl: 'http://10.10.32.10:8080/client/api',
+      remotemoldapikey: 'api-key',
+      remotemoldsecretkey: 'secret-key',
+      targetmoldapiurl: 'http://10.10.32.10:8080/client/api',
+      targetmoldapikey: 'api-key',
+      targetmoldsecretkey: 'secret-key'
+    })
+  })
+
   it('updates sync progress silently without full tab loading', async () => {
     let eventCallCount = 0
     getAPI.mockImplementation((command) => {
