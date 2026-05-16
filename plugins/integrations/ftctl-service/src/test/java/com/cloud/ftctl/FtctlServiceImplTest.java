@@ -992,6 +992,73 @@ public class FtctlServiceImplTest {
     }
 
     @Test
+    public void testDrRemoteMoldFailbackStoresTransientContextDuringReverseSync() throws Exception {
+        vmDetails.put("101:ftctl.dr.peer.site.type", "remote-mold");
+        vmDetails.put("101:ftctl.dr.remote.mold.api.url", "http://remote.example/client/api");
+        vmDetails.put("101:ftctl.dr.remote.replica.vm.id", "remote-vm-uuid");
+
+        FtctlProtectionVO protection = new FtctlProtectionVO(101L);
+        setField(protection, "id", 801L);
+        protection.setMode("dr");
+        protection.setBackendMode("remote-nbd");
+        protection.setProvisioningBackend(FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED);
+        protection.setProtectionState("failed_over");
+        protection.setTransportState("failed_over");
+        protection.setActiveSide("secondary");
+        protection.setFencingState("clear");
+        Mockito.when(ftctlProtectionDao.findActiveByPrimaryVmId(101L)).thenReturn(protection);
+
+        FtctlActionAnswer actionAnswer = new FtctlActionAnswer(new FtctlActionCommand(FtctlActionCommand.Action.FAILBACK_SYNC, "vm-name"),
+                true, "OK", FtctlActionCommand.Action.FAILBACK_SYNC, "ok", 0, "reverse-sync-started");
+        FtctlStatusAnswer statusAnswer = new FtctlStatusAnswer(new FtctlStatusCommand("vm-name"), true, "OK", "ok", "vm-name",
+                "dr", "failing_back", "reverse_syncing", "secondary", "active", "clear", "",
+                "2026-05-16T17:10:00+09:00", 0, 0);
+        Mockito.when(agentManager.send(Mockito.eq(201L), Mockito.any(Command.class)))
+                .thenReturn(actionAnswer)
+                .thenReturn(statusAnswer);
+
+        FtctlActionResponse response = ftctlService.failbackFtctlProtection(101L, true, "original-primary",
+                "http://remote.example/client/api", "api-key", "secret-key", null, null, null);
+
+        Assert.assertEquals("FAILBACK", getFieldValue(response, "action"));
+        Map<?, ?> contexts = (Map<?, ?>) getFieldValue(ftctlService, "cloudManagedFailbackContexts");
+        Assert.assertTrue(contexts.containsKey(801L));
+        Assert.assertFalse(vmDetails.containsValue("api-key"));
+        Assert.assertFalse(vmDetails.containsValue("secret-key"));
+    }
+
+    @Test
+    public void testDrRemoteMoldFailbackMissingContextMarksCutbackRequired() throws Exception {
+        vmDetails.put("101:ftctl.dr.peer.site.type", "remote-mold");
+        vmDetails.put("101:ftctl.dr.remote.mold.api.url", "http://remote.example/client/api");
+        vmDetails.put("101:ftctl.dr.remote.replica.vm.id", "remote-vm-uuid");
+
+        FtctlProtectionVO protection = new FtctlProtectionVO(101L);
+        setField(protection, "id", 802L);
+        protection.setMode("dr");
+        protection.setBackendMode("remote-nbd");
+        protection.setProvisioningBackend(FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED);
+        protection.setProtectionState("failing_back");
+        protection.setTransportState("reverse_sync_ready");
+        protection.setActiveSide("secondary");
+        protection.setFencingState("clear");
+        protection.setAdminState("active");
+        Mockito.when(ftctlProtectionDao.findActiveByPrimaryVmId(101L)).thenReturn(protection);
+
+        invokeContinueCloudManagedFailbackAfterReverseSync(userVm, protection, null, false);
+
+        Assert.assertEquals("failing_back", protection.getProtectionState());
+        Assert.assertEquals("reverse_sync_cutback_required", protection.getTransportState());
+        Assert.assertEquals("secondary", protection.getActiveSide());
+        Assert.assertEquals("cloud_managed_failback_context_required", protection.getLastError());
+        Assert.assertEquals("reverse_sync_cutback_required", vmDetails.get("101:ftctl.last.transport.state"));
+        Assert.assertEquals("cloud_managed_failback_context_required", vmDetails.get("101:ftctl.last.error"));
+        Mockito.verify(agentManager, Mockito.never()).send(Mockito.anyLong(), Mockito.any(Command.class));
+        Mockito.verify(userVmManager, Mockito.never()).startVirtualMachine(Mockito.anyLong(), Mockito.<Long>any(),
+                Mockito.<Map<VirtualMachineProfile.Param, Object>>any(), Mockito.<String>any());
+    }
+
+    @Test
     public void testGetFtctlProtectionForStandbyVmReturnsPrimaryManagedView() throws Exception {
         UserVmVO standbyVm = Mockito.mock(UserVmVO.class);
         Mockito.when(standbyVm.getId()).thenReturn(401L);
@@ -1695,6 +1762,25 @@ public class FtctlServiceImplTest {
             throw new AssertionError("Unable to parse remote replica resources", cause);
         } catch (ReflectiveOperationException e) {
             throw new AssertionError("Unable to invoke parseRemoteReplicaResources", e);
+        }
+    }
+
+    private void invokeContinueCloudManagedFailbackAfterReverseSync(UserVmVO primaryVm, FtctlProtectionVO protection,
+                                                                    Object targetContext, boolean operatorRequested) {
+        try {
+            Class<?> contextClass = Class.forName("com.cloud.ftctl.FtctlServiceImpl$FailbackTargetContext");
+            Method method = FtctlServiceImpl.class.getDeclaredMethod("continueCloudManagedFailbackAfterReverseSync",
+                    UserVmVO.class, FtctlProtectionVO.class, contextClass, boolean.class);
+            method.setAccessible(true);
+            method.invoke(ftctlService, primaryVm, protection, targetContext, operatorRequested);
+        } catch (InvocationTargetException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof CloudRuntimeException) {
+                throw (CloudRuntimeException) cause;
+            }
+            throw new AssertionError("Unable to continue cloud-managed failback", cause);
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError("Unable to invoke continueCloudManagedFailbackAfterReverseSync", e);
         }
     }
 

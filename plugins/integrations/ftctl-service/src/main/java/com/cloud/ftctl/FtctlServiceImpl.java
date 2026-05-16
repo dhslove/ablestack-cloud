@@ -135,6 +135,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -148,6 +149,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     private static final int FTCTL_ACTION_LOCK_RETRY_TIMEOUT_MILLIS = 90000;
     private static final long CLOUD_MANAGED_FAILBACK_MONITOR_DELAY_MILLIS = 10000L;
     private static final long CLOUD_MANAGED_FAILBACK_MONITOR_INTERVAL_MILLIS = 10000L;
+    private static final long CLOUD_MANAGED_FAILBACK_CONTEXT_TTL_MILLIS = Duration.ofHours(2).toMillis();
     private static final long RUNTIME_STATE_SYNC_DELAY_MILLIS = 10000L;
     private static final long MIN_RUNTIME_STATE_SYNC_INTERVAL_MILLIS = 5000L;
     private static final long CLOUD_MANAGED_FAILOVER_MONITOR_DELAY_MILLIS = 10000L;
@@ -273,6 +275,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     };
     private static final ConcurrentMap<String, Object> VM_DETAIL_LOCKS = new ConcurrentHashMap<>();
     private final ConcurrentMap<Long, Object> cloudManagedFailbackCutbackLocks = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Long, FailbackOperationContext> cloudManagedFailbackContexts = new ConcurrentHashMap<>();
     private final ConcurrentMap<Long, Object> cloudManagedFailoverLocks = new ConcurrentHashMap<>();
     private final AtomicBoolean runtimeStateSyncRunning = new AtomicBoolean(false);
     private final AtomicBoolean cloudManagedFailoverRunning = new AtomicBoolean(false);
@@ -376,6 +379,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             cloudManagedFailoverMonitorTimer.cancel();
             cloudManagedFailoverMonitorTimer = null;
         }
+        cloudManagedFailbackContexts.clear();
         return true;
     }
 
@@ -2011,25 +2015,34 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     private FtctlActionResponse executeCloudManagedFailback(UserVmVO primaryVm, FtctlProtectionVO protection, FailbackTargetContext targetContext) {
         FtctlProtectionVO latestProtection = refreshProtection(primaryVm);
         if (isCloudManagedFailbackReverseReady(latestProtection)) {
-            continueCloudManagedFailbackAfterReverseSync(primaryVm, latestProtection, targetContext, true);
+            FailbackTargetContext effectiveContext = targetContext != null ? targetContext : loadCloudManagedFailbackContext(primaryVm, latestProtection);
+            continueCloudManagedFailbackAfterReverseSync(primaryVm, latestProtection, effectiveContext, true);
             latestProtection = refreshProtection(primaryVm);
             return buildActionResponseFromProtection(primaryVm, FtctlActionCommand.Action.FAILBACK, latestProtection,
                     "cloud-managed failback cutback continued");
         }
         if (isCloudManagedFailbackInProgress(latestProtection)) {
+            storeCloudManagedFailbackContext(primaryVm, latestProtection, targetContext);
             latestProtection = refreshProtection(primaryVm);
             return buildActionResponseFromProtection(primaryVm, FtctlActionCommand.Action.FAILBACK, latestProtection,
                     "cloud-managed failback already in progress");
         }
 
-        FtctlActionResponse response = executeFtctlAgentAction(primaryVm, FtctlActionCommand.Action.FAILBACK_SYNC, true);
-        response.setAction(FtctlActionCommand.Action.FAILBACK.name());
-        publishFtctlEvent(primaryVm, EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE,
-                String.format("Started cloud-managed FTCTL failback reverse sync for VM %s", primaryVm.getUuid()));
-        return response;
+        storeCloudManagedFailbackContext(primaryVm, latestProtection, targetContext);
+        try {
+            FtctlActionResponse response = executeFtctlAgentAction(primaryVm, FtctlActionCommand.Action.FAILBACK_SYNC, true);
+            response.setAction(FtctlActionCommand.Action.FAILBACK.name());
+            publishFtctlEvent(primaryVm, EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE,
+                    String.format("Started cloud-managed FTCTL failback reverse sync for VM %s", primaryVm.getUuid()));
+            return response;
+        } catch (RuntimeException e) {
+            clearCloudManagedFailbackContext(latestProtection);
+            throw e;
+        }
     }
 
     private void reconcileCloudManagedFailbacks() {
+        pruneExpiredCloudManagedFailbackContexts();
         List<FtctlProtectionVO> protections = ftctlProtectionDao.listActiveByProtectionState("failing_back");
         for (FtctlProtectionVO protection : protections) {
             UserVmVO primaryVm = protection != null ? userVmDao.findById(protection.getPrimaryVmId()) : null;
@@ -2054,7 +2067,10 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         }
         FtctlProtectionVO latestProtection = refreshProtection(primaryVm);
         if (isCloudManagedFailbackReverseReady(latestProtection)) {
-            continueCloudManagedFailbackAfterReverseSync(primaryVm, latestProtection, null, false);
+            continueCloudManagedFailbackAfterReverseSync(primaryVm, latestProtection,
+                    loadCloudManagedFailbackContext(primaryVm, latestProtection), false);
+        } else if (isCloudManagedFailbackInProgress(latestProtection)) {
+            touchCloudManagedFailbackContext(latestProtection);
         }
     }
 
@@ -2095,7 +2111,9 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             executeFtctlAgentAction(refreshedPrimaryVm, FtctlActionCommand.Action.FAILBACK_REPROTECT, true);
             publishFtctlEvent(refreshedPrimaryVm, EventTypes.EVENT_FTCTL_PROTECTION_FAILBACK,
                     String.format("Executed cloud-managed FTCTL failback for VM %s", refreshedPrimaryVm.getUuid()));
+            clearCloudManagedFailbackContext(latestProtection);
         } catch (RuntimeException e) {
+            clearCloudManagedFailbackContext(protection);
             markCloudManagedFailbackFailed(primaryVm, protection, e);
             throw e;
         } finally {
@@ -2111,6 +2129,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
                         "FTCTL DR remote Mold failback for VM %s requires one-time remote Mold API URL, API key, and secret key",
                         primaryVm.getUuid()));
             }
+            markCloudManagedFailbackCutbackRequired(primaryVm, protection, "cloud_managed_failback_context_required");
             logger.info(String.format("FTCTL DR remote Mold failback for VM %s is waiting for operator-provided target Mold credentials",
                     primaryVm.getUuid()));
             return;
@@ -2124,7 +2143,18 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         Long primaryHostId = requireExecutionHostId(primaryVm);
         RemoteMoldCredentials remoteMoldCredentials = targetContext.remoteMoldCredentials;
 
-        stopRemoteMoldReplicaVmForCloudManagedFailback(primaryVm, remoteMoldCredentials);
+        try {
+            stopRemoteMoldReplicaVmForCloudManagedFailback(primaryVm, remoteMoldCredentials);
+        } catch (CloudRuntimeException e) {
+            if (!operatorRequested && isRemoteMoldCutbackCredentialRetryable(e)) {
+                markCloudManagedFailbackCutbackRequired(primaryVm, protection, "remote_mold_cutback_requires_operator_retry");
+                clearCloudManagedFailbackContext(protection);
+                logger.warn(String.format("FTCTL DR remote Mold failback for VM %s needs fresh operator credentials for cutback: %s",
+                        primaryVm.getUuid(), StringUtils.abbreviate(e.getMessage(), 256)));
+                return;
+            }
+            throw e;
+        }
 
         executeFtctlAgentAction(primaryVm, FtctlActionCommand.Action.FAILBACK_FINALIZE, true);
 
@@ -2136,6 +2166,99 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         executeFtctlAgentAction(refreshedPrimaryVm, FtctlActionCommand.Action.FAILBACK_REPROTECT, true);
         publishFtctlEvent(refreshedPrimaryVm, EventTypes.EVENT_FTCTL_PROTECTION_FAILBACK,
                 String.format("Executed DR remote Mold cloud-managed FTCTL failback for VM %s", refreshedPrimaryVm.getUuid()));
+        clearCloudManagedFailbackContext(protection);
+    }
+
+    private void storeCloudManagedFailbackContext(UserVmVO primaryVm, FtctlProtectionVO protection, FailbackTargetContext targetContext) {
+        if (targetContext == null || protection == null || protection.getId() <= 0) {
+            return;
+        }
+        cloudManagedFailbackContexts.put(protection.getId(), new FailbackOperationContext(targetContext));
+        logger.info(String.format("Stored transient FTCTL failback operation context for VM %s protection %s target Mold type %s",
+                primaryVm != null ? primaryVm.getUuid() : "unknown", protection.getId(), targetContext.targetMoldType));
+    }
+
+    private FailbackTargetContext loadCloudManagedFailbackContext(UserVmVO primaryVm, FtctlProtectionVO protection) {
+        if (protection == null || protection.getId() <= 0) {
+            return null;
+        }
+        FailbackOperationContext context = cloudManagedFailbackContexts.get(protection.getId());
+        if (context == null) {
+            return null;
+        }
+        if (context.isExpired()) {
+            cloudManagedFailbackContexts.remove(protection.getId(), context);
+            logger.info(String.format("Expired transient FTCTL failback operation context for VM %s protection %s",
+                    primaryVm != null ? primaryVm.getUuid() : "unknown", protection.getId()));
+            return null;
+        }
+        context.touch();
+        return context.targetContext;
+    }
+
+    private void touchCloudManagedFailbackContext(FtctlProtectionVO protection) {
+        if (protection == null || protection.getId() <= 0) {
+            return;
+        }
+        FailbackOperationContext context = cloudManagedFailbackContexts.get(protection.getId());
+        if (context != null) {
+            if (context.isExpired()) {
+                cloudManagedFailbackContexts.remove(protection.getId(), context);
+            } else {
+                context.touch();
+            }
+        }
+    }
+
+    private void clearCloudManagedFailbackContext(FtctlProtectionVO protection) {
+        if (protection != null && protection.getId() > 0) {
+            cloudManagedFailbackContexts.remove(protection.getId());
+        }
+    }
+
+    private void pruneExpiredCloudManagedFailbackContexts() {
+        cloudManagedFailbackContexts.forEach((protectionId, context) -> {
+            if (context == null || context.isExpired()) {
+                cloudManagedFailbackContexts.remove(protectionId, context);
+            }
+        });
+    }
+
+    private boolean isRemoteMoldCutbackCredentialRetryable(CloudRuntimeException e) {
+        String message = StringUtils.trimToEmpty(e != null ? e.getMessage() : null).toLowerCase(Locale.ROOT);
+        return message.contains("remote mold api") &&
+                (message.contains("http 401") || message.contains("http 403") || message.contains("unauthorized") ||
+                        message.contains("forbidden") || message.contains("signature") || message.contains("api key") ||
+                        message.contains("secret"));
+    }
+
+    private void markCloudManagedFailbackCutbackRequired(UserVmVO primaryVm, FtctlProtectionVO protection, String reason) {
+        FtctlProtectionVO latestProtection = ftctlProtectionDao.findActiveByPrimaryVmId(primaryVm.getId());
+        if (latestProtection == null) {
+            latestProtection = protection;
+        }
+        if (latestProtection == null) {
+            return;
+        }
+        if ("reverse_sync_cutback_required".equalsIgnoreCase(StringUtils.trimToEmpty(latestProtection.getTransportState())) &&
+                StringUtils.equals(StringUtils.trimToEmpty(latestProtection.getLastError()), reason)) {
+            return;
+        }
+        latestProtection.setProtectionState("failing_back");
+        latestProtection.setTransportState("reverse_sync_cutback_required");
+        latestProtection.setActiveSide("secondary");
+        latestProtection.setFencingState(StringUtils.defaultIfBlank(latestProtection.getFencingState(), "clear"));
+        latestProtection.setLastError(reason);
+        latestProtection.markUpdated();
+        ftctlProtectionDao.update(latestProtection.getId(), latestProtection);
+        putVmDetail(primaryVm.getId(), DETAIL_LAST_PROTECTION_STATE, "failing_back");
+        putVmDetail(primaryVm.getId(), DETAIL_LAST_TRANSPORT_STATE, "reverse_sync_cutback_required");
+        putVmDetail(primaryVm.getId(), DETAIL_LAST_ACTIVE_SIDE, "secondary");
+        putVmDetail(primaryVm.getId(), DETAIL_LAST_FENCING_STATE, StringUtils.defaultIfBlank(latestProtection.getFencingState(), "clear"));
+        putVmDetail(primaryVm.getId(), DETAIL_LAST_ERROR, reason);
+        publishFtctlEvent(primaryVm, EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE,
+                String.format("FTCTL DR failback for VM %s requires operator continuation after reverse sync ready: %s",
+                        primaryVm.getUuid(), reason));
     }
 
     private FailbackTargetContext buildFailbackTargetContext(UserVmVO primaryVm, FtctlProtectionVO protection, String failbackTargetMoldType,
@@ -4370,6 +4493,31 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             this.targetMoldType = targetMoldType;
             this.remoteMoldCredentials = remoteMoldCredentials;
             this.targetMoldCredentials = targetMoldCredentials;
+        }
+    }
+
+    private static final class FailbackOperationContext {
+        private final String sessionUuid;
+        private final FailbackTargetContext targetContext;
+        private final long createdAtMillis;
+        private final long expiresAtMillis;
+        private volatile long lastAccessMillis;
+
+        private FailbackOperationContext(FailbackTargetContext targetContext) {
+            long now = System.currentTimeMillis();
+            this.sessionUuid = UUID.randomUUID().toString();
+            this.targetContext = targetContext;
+            this.createdAtMillis = now;
+            this.lastAccessMillis = now;
+            this.expiresAtMillis = now + CLOUD_MANAGED_FAILBACK_CONTEXT_TTL_MILLIS;
+        }
+
+        private void touch() {
+            this.lastAccessMillis = System.currentTimeMillis();
+        }
+
+        private boolean isExpired() {
+            return System.currentTimeMillis() > expiresAtMillis;
         }
     }
 
