@@ -2013,7 +2013,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     }
 
     private FtctlActionResponse executeCloudManagedFailback(UserVmVO primaryVm, FtctlProtectionVO protection, FailbackTargetContext targetContext) {
-        FtctlProtectionVO latestProtection = refreshProtection(primaryVm);
+        FtctlProtectionVO latestProtection = syncFailbackRuntimeStateAndRefreshProtection(primaryVm);
         if (isCloudManagedFailbackReverseReady(latestProtection)) {
             FailbackTargetContext effectiveContext = targetContext != null ? targetContext : loadCloudManagedFailbackContext(primaryVm, latestProtection);
             continueCloudManagedFailbackAfterReverseSync(primaryVm, latestProtection, effectiveContext, true);
@@ -2032,6 +2032,14 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         try {
             FtctlActionResponse response = executeFtctlAgentAction(primaryVm, FtctlActionCommand.Action.FAILBACK_SYNC, true);
             response.setAction(FtctlActionCommand.Action.FAILBACK.name());
+            latestProtection = syncFailbackRuntimeStateAndRefreshProtection(primaryVm);
+            if (isCloudManagedFailbackReverseReady(latestProtection)) {
+                FailbackTargetContext effectiveContext = targetContext != null ? targetContext : loadCloudManagedFailbackContext(primaryVm, latestProtection);
+                continueCloudManagedFailbackAfterReverseSync(primaryVm, latestProtection, effectiveContext, true);
+                latestProtection = refreshProtection(primaryVm);
+                return buildActionResponseFromProtection(primaryVm, FtctlActionCommand.Action.FAILBACK, latestProtection,
+                        "cloud-managed failback cutback continued after reverse sync ready");
+            }
             publishFtctlEvent(primaryVm, EventTypes.EVENT_FTCTL_PROTECTION_STATE_UPDATE,
                     String.format("Started cloud-managed FTCTL failback reverse sync for VM %s", primaryVm.getUuid()));
             return response;
@@ -2055,6 +2063,14 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
                 logger.warn(String.format("Unable to reconcile cloud-managed FTCTL failback for VM %s", primaryVm.getUuid()), e);
             }
         }
+    }
+
+    private FtctlProtectionVO syncFailbackRuntimeStateAndRefreshProtection(UserVmVO primaryVm) {
+        FtctlStatusAnswer statusAnswer = fetchRuntimeStatus(primaryVm);
+        if (statusAnswer != null) {
+            persistRuntimeState(primaryVm, statusAnswer);
+        }
+        return refreshProtection(primaryVm);
     }
 
     private void reconcileCloudManagedFailback(UserVmVO primaryVm, FtctlProtectionVO protection) {
@@ -4036,6 +4052,16 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             return;
         }
         persistRuntimeState(primaryVm, statusAnswer);
+        try {
+            FtctlProtectionVO latestProtection = refreshProtection(primaryVm);
+            if (isCloudManagedFailbackReverseReady(latestProtection)) {
+                continueCloudManagedFailbackAfterReverseSync(primaryVm, latestProtection,
+                        loadCloudManagedFailbackContext(primaryVm, latestProtection), false);
+            }
+        } catch (RuntimeException e) {
+            logger.warn(String.format("Unable to continue cloud-managed FTCTL failback after runtime sync for VM %s",
+                    primaryVm.getUuid()), e);
+        }
     }
 
     private boolean persistRuntimeState(UserVmVO userVm, FtctlStatusAnswer statusAnswer) {

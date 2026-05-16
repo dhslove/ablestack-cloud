@@ -300,9 +300,10 @@ public class FtctlServiceImplTest {
         FtctlProtectionVO protection = new FtctlProtectionVO(101L);
         Mockito.when(ftctlProtectionDao.findActiveByPrimaryVmId(101L)).thenReturn(protection);
 
-        Mockito.when(agentManager.send(Mockito.eq(201L), Mockito.any(Command.class)))
-                .thenReturn(actionAnswer)
-                .thenReturn(statusAnswer);
+        Mockito.when(agentManager.send(Mockito.eq(201L), Mockito.any(Command.class))).thenAnswer(invocation -> {
+            Command command = invocation.getArgument(1);
+            return command instanceof FtctlStatusCommand ? statusAnswer : actionAnswer;
+        });
 
         FtctlActionResponse response = ftctlService.executeFtctlAction(101L, FtctlActionCommand.Action.PAUSE_PROTECTION, false);
 
@@ -409,9 +410,10 @@ public class FtctlServiceImplTest {
                 "forward", "2026-05-07T22:35:00+09:00", "{\"ready\":true}");
         FtctlProtectionVO protection = new FtctlProtectionVO(101L);
         Mockito.when(ftctlProtectionDao.findActiveByPrimaryVmId(101L)).thenReturn(protection);
-        Mockito.when(agentManager.send(Mockito.eq(201L), Mockito.any(Command.class)))
-                .thenReturn(actionAnswer)
-                .thenReturn(statusAnswer);
+        Mockito.when(agentManager.send(Mockito.eq(201L), Mockito.any(Command.class))).thenAnswer(invocation -> {
+            Command command = invocation.getArgument(1);
+            return command instanceof FtctlStatusCommand ? statusAnswer : actionAnswer;
+        });
 
         ftctlService.executeFtctlAction(101L, FtctlActionCommand.Action.FAILOVER, false);
 
@@ -1013,9 +1015,10 @@ public class FtctlServiceImplTest {
         FtctlStatusAnswer statusAnswer = new FtctlStatusAnswer(new FtctlStatusCommand("vm-name"), true, "OK", "ok", "vm-name",
                 "dr", "failing_back", "reverse_syncing", "secondary", "active", "clear", "",
                 "2026-05-16T17:10:00+09:00", 0, 0);
-        Mockito.when(agentManager.send(Mockito.eq(201L), Mockito.any(Command.class)))
-                .thenReturn(actionAnswer)
-                .thenReturn(statusAnswer);
+        Mockito.when(agentManager.send(Mockito.eq(201L), Mockito.any(Command.class))).thenAnswer(invocation -> {
+            Command command = invocation.getArgument(1);
+            return command instanceof FtctlStatusCommand ? statusAnswer : actionAnswer;
+        });
 
         FtctlActionResponse response = ftctlService.failbackFtctlProtection(101L, true, "original-primary",
                 "http://remote.example/client/api", "api-key", "secret-key", null, null, null);
@@ -1025,6 +1028,46 @@ public class FtctlServiceImplTest {
         Assert.assertTrue(contexts.containsKey(801L));
         Assert.assertFalse(vmDetails.containsValue("api-key"));
         Assert.assertFalse(vmDetails.containsValue("secret-key"));
+    }
+
+    @Test
+    public void testDrRemoteMoldFailbackRefreshesRuntimeBeforeRestartingReverseSync() throws Exception {
+        vmDetails.put("101:ftctl.dr.peer.site.type", "remote-mold");
+        vmDetails.put("101:ftctl.dr.remote.mold.api.url", "http://remote.example/client/api");
+        vmDetails.put("101:ftctl.dr.remote.replica.vm.id", "remote-vm-uuid");
+
+        FtctlProtectionVO protection = new FtctlProtectionVO(101L);
+        setField(protection, "id", 803L);
+        protection.setMode("dr");
+        protection.setBackendMode("remote-nbd");
+        protection.setProvisioningBackend(FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED);
+        protection.setProtectionState("failed_over");
+        protection.setTransportState("failed_over");
+        protection.setActiveSide("secondary");
+        protection.setFencingState("clear");
+        protection.setAdminState("active");
+        Mockito.when(ftctlProtectionDao.findActiveByPrimaryVmId(101L)).thenReturn(protection);
+
+        FtctlStatusAnswer statusAnswer = new FtctlStatusAnswer(new FtctlStatusCommand("vm-name"), true, "OK", "ok", "vm-name",
+                "dr", "failing_back", "reverse_syncing", "secondary", "active", "clear", "reverse_sync_pending",
+                "2026-05-16T17:20:00+09:00", 0, 0);
+        Mockito.when(agentManager.send(Mockito.eq(201L), Mockito.any(Command.class))).thenAnswer(invocation -> {
+            Command command = invocation.getArgument(1);
+            if (command instanceof FtctlStatusCommand) {
+                return statusAnswer;
+            }
+            throw new AssertionError("FAILBACK_SYNC must not be restarted when runtime reverse sync is already active");
+        });
+
+        FtctlActionResponse response = ftctlService.failbackFtctlProtection(101L, true, "original-primary",
+                "http://remote.example/client/api", "api-key", "secret-key", null, null, null);
+
+        Assert.assertEquals("FAILBACK", getFieldValue(response, "action"));
+        Assert.assertEquals("failing_back", getFieldValue(response, "protectionState"));
+        Assert.assertEquals("reverse_syncing", getFieldValue(response, "transportState"));
+        Assert.assertEquals("cloud-managed failback already in progress", getFieldValue(response, "output"));
+        Map<?, ?> contexts = (Map<?, ?>) getFieldValue(ftctlService, "cloudManagedFailbackContexts");
+        Assert.assertTrue(contexts.containsKey(803L));
     }
 
     @Test
