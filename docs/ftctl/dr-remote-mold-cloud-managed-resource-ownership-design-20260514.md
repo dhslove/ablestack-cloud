@@ -10,6 +10,8 @@ Cloud owns VM and volume lifecycle. qemu FTCTL owns replication and Cloud-reques
 
 For Cloud-managed automatic HA/DR, Cloud also owns the automatic fencing decision and standby VM lifecycle orchestration. qemu FTCTL may report candidate/runtime evidence and execute explicit data-plane commands, but it must not be the automatic failover controller. The governing automatic-fencing design is `204-cloud-managed-ha-dr-automatic-fencing-orchestration-design-20260514.md`.
 
+If the source Mold is unavailable after disaster failover, the remote Mold must be able to continue from a separate replica recovery session for disaster failback or non-destructive replica adoption/release. That target-side authority is defined in `206-dr-replica-site-disaster-failback-and-adoption-design-20260517.md` and does not transfer VM/volume creation ownership to qemu FTCTL.
+
 This document is remote-Mold focused. The cross-cutting DR provisioning contract for both current Mold and remote Mold is defined in `200-dr-current-remote-mold-common-provisioning-design-20260514.md` and must be treated as the governing design for new DR changes.
 
 ## 2. Required Boundary
@@ -139,5 +141,6 @@ Additional remote Cloud provisioning choices may be needed for zone, network, se
 - qemu profile contains explicit Cloud-created paths.
 - qemu events/logs show replication actions only.
 - release/forced-release cleans remote Cloud-created resources through Cloud APIs.
+- replica-site forced release/adoption preserves the running replica VM and volumes by default when the source Mold is unavailable.
 - existing HA cloud-managed manual/operator tests remain unchanged.
 - Cloud-managed automatic HA/DR tests follow `204-cloud-managed-ha-dr-automatic-fencing-orchestration-design-20260514.md`.

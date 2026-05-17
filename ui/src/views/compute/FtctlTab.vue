@@ -71,7 +71,7 @@
           <template #message>
             <div>{{ $t('message.ftctl.standby.view') }}</div>
             <div class="ftctl-tab__meta">
-              {{ $t('message.ftctl.standby.view.desc') }}
+              {{ standbyViewDescription }}
               <router-link
                 v-if="protection.primaryvirtualmachineid"
                 :to="{ path: '/vm/' + primaryVmRouteId }">
@@ -107,7 +107,7 @@
                 :disabled="action.disabled"
                 :title="action.disabled ? action.reason : null"
                 :loading="actionLoading[action.api]"
-                @click="openReleaseModal">
+                @click="openReleaseModal(action.api)">
                 <template #icon><component :is="action.icon" /></template>
                 {{ action.label }}
               </a-button>
@@ -412,10 +412,10 @@
 
       <a-modal
         :visible="showReleaseModal"
-        :title="$t('label.ftctl.release.protection')"
-        :ok-text="$t('label.ftctl.release.protection')"
+        :title="releaseModalTitle"
+        :ok-text="releaseModalTitle"
         :cancel-text="$t('label.cancel')"
-        :confirmLoading="actionLoading.releaseFtctlProtection"
+        :confirmLoading="actionLoading[releaseCommandName]"
         :ok-button-props="{ danger: true, disabled: !canSubmitReleaseProtection }"
         :maskClosable="false"
         wrapClassName="ftctl-tab-release-modal"
@@ -426,28 +426,31 @@
           <a-alert
             type="warning"
             show-icon
-            :message="$t('message.ftctl.release.modal.desc')"
+            :message="releaseModalDescription"
             class="ftctl-tab__alert ftctl-tab__release-alert" />
           <a-alert
-            v-if="!isProtectionReleaseReady()"
+            v-if="releaseCommandName === 'releaseFtctlProtection' && !isProtectionReleaseReady()"
             type="error"
             show-icon
             :message="$t('message.ftctl.release.normal.unavailable')"
             class="ftctl-tab__alert ftctl-tab__release-alert" />
-          <a-checkbox v-model:checked="releaseForceSelected" class="ftctl-tab__release-check">
-            {{ $t('label.ftctl.force.release') }}
+          <a-checkbox
+            v-model:checked="releaseForceSelected"
+            class="ftctl-tab__release-check"
+            :disabled="releaseCommandName !== 'releaseFtctlProtection'">
+            {{ releaseForceLabel }}
           </a-checkbox>
           <a-alert
             v-if="releaseForceSelected"
             type="error"
             show-icon
-            :message="$t('message.ftctl.force.release.warning')"
+            :message="releaseForceWarning"
             class="ftctl-tab__alert ftctl-tab__release-alert" />
           <a-checkbox
             v-if="releaseForceSelected"
             v-model:checked="releaseForceAcknowledged"
             class="ftctl-tab__release-check">
-            {{ $t('message.ftctl.force.release.ack') }}
+            {{ releaseForceAckMessage }}
           </a-checkbox>
         </div>
       </a-modal>
@@ -577,6 +580,7 @@ export default {
       showReleaseModal: false,
       showRemoteFenceModal: false,
       showFailbackModal: false,
+      releaseCommandName: 'releaseFtctlProtection',
       releaseForceSelected: false,
       releaseForceAcknowledged: false,
       remoteFenceMoldApiUrl: null,
@@ -606,7 +610,9 @@ export default {
         failbackFtctlProtection: false,
         confirmFtctlFence: false,
         clearFtctlFence: false,
-        releaseFtctlProtection: false
+        releaseFtctlProtection: false,
+        releaseFtctlDrReplicaProtection: false,
+        adoptFtctlDrReplica: false
       }
     }
   },
@@ -648,8 +654,14 @@ export default {
       return Object.values(this.actionLoading).some(loading => loading)
     },
     canSubmitReleaseProtection () {
-      if (this.actionLoading.releaseFtctlProtection) {
+      if (this.actionLoading[this.releaseCommandName]) {
         return false
+      }
+      if (this.releaseCommandName === 'adoptFtctlDrReplica') {
+        return this.releaseForceAcknowledged && this.isReplicaRecoveryActionReady()
+      }
+      if (this.releaseCommandName === 'releaseFtctlDrReplicaProtection') {
+        return this.releaseForceAcknowledged && this.isReplicaRecoveryActionReady()
       }
       if (this.releaseForceSelected) {
         return this.releaseForceAcknowledged
@@ -678,8 +690,61 @@ export default {
         ? this.$t('label.ftctl.continue.failback')
         : this.$t('label.ftctl.failback')
     },
+    releaseModalTitle () {
+      if (this.releaseCommandName === 'adoptFtctlDrReplica') {
+        return this.$t('label.ftctl.adopt.replica')
+      }
+      if (this.releaseCommandName === 'releaseFtctlDrReplicaProtection') {
+        return this.$t('label.ftctl.release.replica.protection')
+      }
+      return this.$t('label.ftctl.release.protection')
+    },
+    releaseModalDescription () {
+      if (this.releaseCommandName === 'adoptFtctlDrReplica') {
+        return this.$t('message.ftctl.adopt.replica.modal.desc')
+      }
+      if (this.releaseCommandName === 'releaseFtctlDrReplicaProtection') {
+        return this.$t('message.ftctl.release.replica.modal.desc')
+      }
+      return this.$t('message.ftctl.release.modal.desc')
+    },
+    releaseForceLabel () {
+      if (this.releaseCommandName === 'adoptFtctlDrReplica') {
+        return this.$t('label.ftctl.adopt.replica.confirm')
+      }
+      if (this.releaseCommandName === 'releaseFtctlDrReplicaProtection') {
+        return this.$t('label.ftctl.release.replica.confirm')
+      }
+      return this.$t('label.ftctl.force.release')
+    },
+    releaseForceWarning () {
+      if (this.releaseCommandName === 'adoptFtctlDrReplica') {
+        return this.$t('message.ftctl.adopt.replica.warning')
+      }
+      if (this.releaseCommandName === 'releaseFtctlDrReplicaProtection') {
+        return this.$t('message.ftctl.release.replica.warning')
+      }
+      return this.$t('message.ftctl.force.release.warning')
+    },
+    releaseForceAckMessage () {
+      if (this.releaseCommandName === 'adoptFtctlDrReplica') {
+        return this.$t('message.ftctl.adopt.replica.ack')
+      }
+      if (this.releaseCommandName === 'releaseFtctlDrReplicaProtection') {
+        return this.$t('message.ftctl.release.replica.ack')
+      }
+      return this.$t('message.ftctl.force.release.ack')
+    },
     standbyProtectionView () {
       return String(this.protection.protectionrole || '').toLowerCase() === 'standby'
+    },
+    replicaRecoveryActionView () {
+      return this.standbyProtectionView && this.isRemoteMoldDrProtection() && this.isReplicaRecoveryActionReady()
+    },
+    standbyViewDescription () {
+      return this.replicaRecoveryActionView
+        ? this.$t('message.ftctl.replica.recovery.view.desc')
+        : this.$t('message.ftctl.standby.view.desc')
     },
     primaryVmDisplay () {
       return this.protection.primaryvirtualmachinename || this.protection.primaryvirtualmachineid || '-'
@@ -728,8 +793,12 @@ export default {
       return null
     },
     canRunActions () {
-      return ['pauseFtctlProtection', 'resumeFtctlProtection', 'failoverFtctlProtection', 'failbackFtctlProtection', 'confirmFtctlFence', 'clearFtctlFence', 'releaseFtctlProtection']
-        .some(api => api in this.$store.getters.apis) && this.supportedVm && !this.standbyProtectionView
+      const apis = this.replicaRecoveryActionView
+        ? ['releaseFtctlDrReplicaProtection', 'adoptFtctlDrReplica']
+        : ['pauseFtctlProtection', 'resumeFtctlProtection', 'failoverFtctlProtection', 'failbackFtctlProtection', 'confirmFtctlFence', 'clearFtctlFence', 'releaseFtctlProtection']
+      return apis.some(api => api in this.$store.getters.apis) &&
+        this.supportedVm &&
+        (!this.standbyProtectionView || this.replicaRecoveryActionView)
     },
     canLoadEvents () {
       return 'getFtctlEvents' in this.$store.getters.apis
@@ -901,6 +970,28 @@ export default {
       }
     },
     actionDefinitions () {
+      if (this.replicaRecoveryActionView) {
+        return [
+          {
+            api: 'adoptFtctlDrReplica',
+            label: this.$t('label.ftctl.adopt.replica'),
+            icon: 'CheckCircleOutlined',
+            danger: true,
+            releaseModal: true,
+            disabled: this.isActionDisabled('adoptFtctlDrReplica'),
+            reason: this.actionDisabledReason('adoptFtctlDrReplica')
+          },
+          {
+            api: 'releaseFtctlDrReplicaProtection',
+            label: this.$t('label.ftctl.release.replica.protection'),
+            icon: 'DeleteOutlined',
+            danger: true,
+            releaseModal: true,
+            disabled: this.isActionDisabled('releaseFtctlDrReplicaProtection'),
+            reason: this.actionDisabledReason('releaseFtctlDrReplicaProtection')
+          }
+        ]
+      }
       return [
         {
           api: 'pauseFtctlProtection',
@@ -978,9 +1069,10 @@ export default {
   methods: {
     actionAvailable (apiName) {
       const allowUnsafeVmState = apiName === 'releaseFtctlProtection'
+      const replicaRecoveryApi = ['releaseFtctlDrReplicaProtection', 'adoptFtctlDrReplica'].includes(apiName)
       return apiName in this.$store.getters.apis &&
         this.supportedVm &&
-        !this.standbyProtectionView &&
+        (!this.standbyProtectionView || (replicaRecoveryApi && this.replicaRecoveryActionView)) &&
         (allowUnsafeVmState || !this.unsafeVmState) &&
         this.protectionConfigured
     },
@@ -1040,6 +1132,15 @@ export default {
     isFailbackActionReady () {
       return this.isFailbackStartReady() || this.isFailbackContinueReady()
     },
+    isReplicaRecoveryActionReady () {
+      const state = this.ftctlActionState
+      return this.standbyProtectionView &&
+        this.isRemoteMoldDrProtection() &&
+        state.secondaryVm === 'running' &&
+        state.activeSide === 'secondary' &&
+        state.protection === 'failed_over' &&
+        state.transport === 'failed_over'
+    },
     isProtectionReleaseReady () {
       const state = this.ftctlActionState
       return this.isStablePrimaryProtected() &&
@@ -1088,6 +1189,10 @@ export default {
           return this.isFailbackActionReady() ? null : 'Failback requires failed-over or reverse-sync-ready secondary side and released fencing.'
         case 'releaseFtctlProtection':
           return this.protectionEnabled ? null : 'Protection release requires an enabled FTCTL protection row.'
+        case 'releaseFtctlDrReplicaProtection':
+          return this.isReplicaRecoveryActionReady() ? null : 'Replica protection release requires a running failed-over DR replica.'
+        case 'adoptFtctlDrReplica':
+          return this.isReplicaRecoveryActionReady() ? null : 'Replica adoption requires a running failed-over DR replica.'
         default:
           return null
       }
@@ -1101,13 +1206,15 @@ export default {
     closeProtectionModal () {
       this.showProtectionModal = false
     },
-    openReleaseModal () {
-      this.releaseForceSelected = false
+    openReleaseModal (apiName = 'releaseFtctlProtection') {
+      this.releaseCommandName = apiName
+      this.releaseForceSelected = apiName === 'releaseFtctlDrReplicaProtection' || apiName === 'adoptFtctlDrReplica'
       this.releaseForceAcknowledged = false
       this.showReleaseModal = true
     },
     closeReleaseModal () {
       this.showReleaseModal = false
+      this.releaseCommandName = 'releaseFtctlProtection'
       this.releaseForceSelected = false
       this.releaseForceAcknowledged = false
     },
@@ -1144,8 +1251,14 @@ export default {
         return
       }
       const force = this.releaseForceSelected
+      const commandName = this.releaseCommandName
       this.closeReleaseModal()
-      await this.runAction('releaseFtctlProtection', { force })
+      const params = commandName === 'adoptFtctlDrReplica'
+        ? { cleanuptransport: true }
+        : commandName === 'releaseFtctlDrReplicaProtection'
+          ? { force, cleanuptransport: true, abandonsource: true }
+          : { force }
+      await this.runAction(commandName, params)
     },
     async confirmRemoteFence () {
       if (!this.canSubmitRemoteFenceConfirm) {
@@ -1873,7 +1986,7 @@ export default {
       if (payload.fencingstate !== undefined) this.protection.fencingstate = payload.fencingstate
     },
     shouldRefreshParentVm (commandName) {
-      return ['failoverFtctlProtection', 'failbackFtctlProtection', 'confirmFtctlFence', 'releaseFtctlProtection'].includes(commandName)
+      return ['failoverFtctlProtection', 'failbackFtctlProtection', 'confirmFtctlFence', 'releaseFtctlProtection', 'releaseFtctlDrReplicaProtection', 'adoptFtctlDrReplica'].includes(commandName)
     },
     startPostRegisterAutoRefresh () {
       this.stopPostRegisterAutoRefresh()

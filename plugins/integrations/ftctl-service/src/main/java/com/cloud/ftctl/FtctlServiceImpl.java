@@ -82,6 +82,8 @@ import org.apache.cloudstack.api.command.admin.ftctl.PrepareFtctlDrReplicaResour
 import org.apache.cloudstack.api.command.admin.ftctl.PrepareFtctlDrRemoteSshAccessCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.RegisterFtctlProtectionCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.ReleaseFtctlProtectionCmd;
+import org.apache.cloudstack.api.command.admin.ftctl.AdoptFtctlDrReplicaCmd;
+import org.apache.cloudstack.api.command.admin.ftctl.ReleaseFtctlDrReplicaProtectionCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.ValidateFtctlRemoteMoldConnectionCmd;
 import org.apache.cloudstack.api.response.ftctl.FtctlActionResponse;
 import org.apache.cloudstack.api.response.ftctl.FtctlCheckResponse;
@@ -195,6 +197,11 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     public static final String DETAIL_REMOTE_SOURCE_VM_UUID = "ftctl.remote.source.vm.uuid";
     public static final String DETAIL_REMOTE_SOURCE_VM_NAME = "ftctl.remote.source.vm.name";
     public static final String DETAIL_REMOTE_SOURCE_VM_INSTANCE_NAME = "ftctl.remote.source.vm.instance.name";
+    public static final String DETAIL_DR_RECOVERY_SESSION_UUID = "ftctl.dr.recovery.session.uuid";
+    public static final String DETAIL_DR_RECOVERY_ROLE = "ftctl.dr.recovery.role";
+    public static final String DETAIL_DR_RECOVERY_RELEASED = "ftctl.dr.recovery.released";
+    public static final String DETAIL_DR_RECOVERY_UPDATED = "ftctl.dr.recovery.updated";
+    public static final String DETAIL_DR_RECOVERY_LAST_ERROR = "ftctl.dr.recovery.last.error";
     public static final String DETAIL_FENCING_POLICY = "ftctl.fencing.policy";
     public static final String DETAIL_FENCING_IPMI_PRIMARY_HOST = "ftctl.fencing.ipmi.primary.host";
     public static final String DETAIL_FENCING_IPMI_SECONDARY_HOST = "ftctl.fencing.ipmi.secondary.host";
@@ -1707,6 +1714,145 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         publishFtctlEvent(primaryVm, EventTypes.EVENT_FTCTL_PROTECTION_RELEASE,
                 String.format("%s FTCTL protection for VM %s",
                         force ? "Force released" : "Released", primaryVm.getUuid()));
+        return response;
+    }
+
+    @Override
+    public FtctlActionResponse releaseFtctlDrReplicaProtection(Long virtualMachineId, boolean force, boolean cleanupTransport,
+                                                               boolean abandonSource) throws CloudRuntimeException {
+        UserVmVO replicaVm = validateRemoteMoldReplicaVmForSiteRecovery(virtualMachineId, false);
+        List<String> warnings = new ArrayList<>();
+        if (cleanupTransport) {
+            cleanupReplicaSiteTransportState(replicaVm, force, warnings);
+        }
+        markRemoteMoldReplicaSessionReleased(replicaVm, "released", abandonSource, warnings);
+        FtctlActionResponse response = buildReplicaSiteRecoveryActionResponse(replicaVm,
+                ReleaseFtctlDrReplicaProtectionCmd.APINAME, warnings.isEmpty() ? "ok" : "warn",
+                "Remote FTCTL DR replica protection released without deleting the replica VM or volumes");
+        applyForcedReleaseWarnings(response, warnings);
+        publishFtctlEvent(replicaVm, EventTypes.EVENT_FTCTL_PROTECTION_RELEASE,
+                String.format("Released remote FTCTL DR replica protection for VM %s without deleting replica resources", replicaVm.getUuid()));
+        return response;
+    }
+
+    @Override
+    public FtctlActionResponse adoptFtctlDrReplica(Long virtualMachineId, boolean cleanupTransport) throws CloudRuntimeException {
+        UserVmVO replicaVm = validateRemoteMoldReplicaVmForSiteRecovery(virtualMachineId, true);
+        List<String> warnings = new ArrayList<>();
+        if (cleanupTransport) {
+            cleanupReplicaSiteTransportState(replicaVm, true, warnings);
+        }
+        markRemoteMoldReplicaSessionReleased(replicaVm, "adopted", true, warnings);
+        FtctlActionResponse response = buildReplicaSiteRecoveryActionResponse(replicaVm,
+                AdoptFtctlDrReplicaCmd.APINAME, warnings.isEmpty() ? "ok" : "warn",
+                "Remote FTCTL DR replica adopted as an independent production VM");
+        applyForcedReleaseWarnings(response, warnings);
+        publishFtctlEvent(replicaVm, EventTypes.EVENT_FTCTL_PROTECTION_RELEASE,
+                String.format("Adopted remote FTCTL DR replica VM %s as an independent production VM", replicaVm.getUuid()));
+        return response;
+    }
+
+    private UserVmVO validateRemoteMoldReplicaVmForSiteRecovery(Long virtualMachineId, boolean requireRunning) {
+        UserVmVO replicaVm = validateVirtualMachineExists(virtualMachineId);
+        if (!isRemoteMoldReplicaStandbyVm(replicaVm.getId())) {
+            throw new CloudRuntimeException(String.format("VM %s is not an FTCTL remote DR replica recovery target", replicaVm.getUuid()));
+        }
+        if (requireRunning && replicaVm.getState() != VirtualMachine.State.Running) {
+            throw new CloudRuntimeException(String.format("FTCTL DR replica adoption requires VM %s to be Running, current state is %s",
+                    replicaVm.getUuid(), replicaVm.getState()));
+        }
+        return replicaVm;
+    }
+
+    private void cleanupReplicaSiteTransportState(UserVmVO replicaVm, boolean force, List<String> warnings) {
+        Long hostId = getExecutionHostId(replicaVm);
+        if (hostId == null) {
+            String warning = String.format("Unable to resolve execution host for replica VM %s; skipped host-side FTCTL transport cleanup",
+                    replicaVm.getUuid());
+            if (force) {
+                addReplicaSiteRecoveryWarning(replicaVm, warnings, warning);
+                return;
+            }
+            throw new CloudRuntimeException(warning);
+        }
+        String profile = StringUtils.defaultIfBlank(getDetailValue(replicaVm.getId(), DETAIL_REMOTE_SOURCE_VM_INSTANCE_NAME),
+                StringUtils.defaultIfBlank(getDetailValue(replicaVm.getId(), DETAIL_REMOTE_SOURCE_VM_NAME), replicaVm.getInstanceName()));
+        try {
+            FtctlActionCommand unprotectCommand = new FtctlActionCommand(FtctlActionCommand.Action.UNPROTECT, profile);
+            unprotectCommand.setForce(true);
+            unprotectCommand.setForceCleanup(true);
+            unprotectCommand.setWait(UNPROTECT_ACTION_WAIT_SECONDS);
+            Answer answer = agentManager.send(hostId, unprotectCommand);
+            if (!(answer instanceof FtctlActionAnswer) || !answer.getResult()) {
+                throw new CloudRuntimeException(answer != null ? answer.getDetails() : "no answer");
+            }
+        } catch (CloudRuntimeException | AgentUnavailableException | OperationTimedoutException e) {
+            String warning = String.format("Host-side FTCTL replica transport cleanup failed on host %s for VM %s: %s",
+                    hostId, replicaVm.getUuid(), e.getMessage());
+            if (!force) {
+                throw new CloudRuntimeException(warning, e);
+            }
+            addReplicaSiteRecoveryWarning(replicaVm, warnings, warning);
+        }
+        try {
+            FtctlDrSshAccessCommand removeKeyCommand = new FtctlDrSshAccessCommand(FtctlDrSshAccessCommand.Action.REMOVE_KEY, profile);
+            removeKeyCommand.setSshUser(DEFAULT_REMOTE_PEER_SSH_USER);
+            Answer answer = agentManager.send(hostId, removeKeyCommand);
+            if (!(answer instanceof FtctlSyncAnswer) || !answer.getResult()) {
+                throw new CloudRuntimeException(answer != null ? answer.getDetails() : "no answer");
+            }
+        } catch (CloudRuntimeException | AgentUnavailableException | OperationTimedoutException e) {
+            addReplicaSiteRecoveryWarning(replicaVm, warnings,
+                    String.format("Replica host DR SSH key cleanup was best-effort and did not complete on host %s for VM %s: %s",
+                            hostId, replicaVm.getUuid(), e.getMessage()));
+        }
+    }
+
+    private void addReplicaSiteRecoveryWarning(UserVmVO replicaVm, List<String> warnings, String warning) {
+        String message = StringUtils.abbreviate(StringUtils.defaultString(warning), 1024);
+        warnings.add(message);
+        logger.warn(message);
+        putVmDetail(replicaVm.getId(), DETAIL_DR_RECOVERY_LAST_ERROR, message);
+    }
+
+    private void markRemoteMoldReplicaSessionReleased(UserVmVO replicaVm, String role, boolean abandonSource, List<String> warnings) {
+        putVmDetail(replicaVm.getId(), DETAIL_DR_RECOVERY_ROLE, role);
+        putVmDetail(replicaVm.getId(), DETAIL_DR_RECOVERY_RELEASED, String.valueOf(true));
+        putVmDetail(replicaVm.getId(), DETAIL_DR_RECOVERY_UPDATED, Instant.now().toString());
+        putVmDetail(replicaVm.getId(), DETAIL_REMOTE_MOLD_REPLICA_VM, String.valueOf(false));
+        putVmDetail(replicaVm.getId(), DETAIL_REMOTE_STANDBY_VM, String.valueOf(false));
+        putVmDetail(replicaVm.getId(), DETAIL_LAST_PROTECTION_STATE, role);
+        putVmDetail(replicaVm.getId(), DETAIL_LAST_TRANSPORT_STATE, "released");
+        putVmDetail(replicaVm.getId(), DETAIL_LAST_ACTIVE_SIDE, "primary");
+        putVmDetail(replicaVm.getId(), DETAIL_LAST_ADMIN_STATE, "active");
+        putVmDetail(replicaVm.getId(), DETAIL_LAST_FENCING_STATE, "clear");
+        if (abandonSource) {
+            putVmDetail(replicaVm.getId(), DETAIL_FENCING_REASON, "source_abandoned");
+        }
+        if (warnings == null || warnings.isEmpty()) {
+            removeVmDetail(replicaVm.getId(), DETAIL_DR_RECOVERY_LAST_ERROR);
+            removeVmDetail(replicaVm.getId(), DETAIL_LAST_ERROR);
+        } else {
+            putVmDetail(replicaVm.getId(), DETAIL_LAST_ERROR, StringUtils.join(warnings, "; "));
+        }
+    }
+
+    private FtctlActionResponse buildReplicaSiteRecoveryActionResponse(UserVmVO replicaVm, String action, String result, String output) {
+        FtctlActionResponse response = new FtctlActionResponse();
+        response.setObjectName("ftctlaction");
+        response.setVirtualMachineId(replicaVm.getId());
+        response.setVmName(replicaVm.getInstanceName());
+        response.setAction(action);
+        response.setResult(result);
+        response.setExitCode(0);
+        response.setOutput(output);
+        response.setMode("dr");
+        response.setProtectionState(getDetailValue(replicaVm.getId(), DETAIL_LAST_PROTECTION_STATE));
+        response.setTransportState(getDetailValue(replicaVm.getId(), DETAIL_LAST_TRANSPORT_STATE));
+        response.setActiveSide(getDetailValue(replicaVm.getId(), DETAIL_LAST_ACTIVE_SIDE));
+        response.setAdminState(getDetailValue(replicaVm.getId(), DETAIL_LAST_ADMIN_STATE));
+        response.setFencingState(getDetailValue(replicaVm.getId(), DETAIL_LAST_FENCING_STATE));
+        response.setLastError(getDetailValue(replicaVm.getId(), DETAIL_LAST_ERROR));
         return response;
     }
 
@@ -3529,6 +3675,9 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     private FtctlProtectionResponse buildRemoteMoldStandbyProtectionResponse(UserVmVO standbyVm) {
         FtctlProtectionResponse response = new FtctlProtectionResponse();
         Long standbyVmId = standbyVm != null ? standbyVm.getId() : null;
+        boolean runningReplica = standbyVm != null && standbyVm.getState() == VirtualMachine.State.Running;
+        String recoveryRole = StringUtils.defaultIfBlank(getDetailValue(standbyVmId, DETAIL_DR_RECOVERY_ROLE),
+                runningReplica ? "active-replica" : "standby");
         response.setVirtualMachineId(standbyVmId);
         response.setProtectionRole("standby");
         response.setPrimaryVirtualMachineUuid(StringUtils.defaultIfBlank(getDetailValue(standbyVmId, DETAIL_REMOTE_SOURCE_VM_UUID),
@@ -3548,13 +3697,14 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         response.setProvisioningBackend(FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED);
         response.setProvisioningState(FtctlProtectionProvisioningService.STATE_READY);
         response.setDrPeerSiteType(DR_PEER_SITE_TYPE_REMOTE_MOLD);
-        response.setProtectionState("protected");
-        response.setTransportState("not_available");
-        response.setActiveSide("primary");
-        response.setAdminState("read-only");
-        response.setFencingState("not_available");
+        response.setProtectionState(runningReplica ? "failed_over" : "protected");
+        response.setTransportState(runningReplica ? "failed_over" : "not_available");
+        response.setActiveSide(runningReplica ? "secondary" : "primary");
+        response.setAdminState(runningReplica ? "active" : "read-only");
+        response.setFencingState(runningReplica ? "clear" : "not_available");
         response.setFencingResult(getDetailValue(standbyVmId, DETAIL_FENCING_RESULT));
-        response.setFencingReason(getDetailValue(standbyVmId, DETAIL_FENCING_REASON));
+        response.setFencingReason(StringUtils.defaultIfBlank(getDetailValue(standbyVmId, DETAIL_FENCING_REASON), recoveryRole));
+        response.setLastError(getDetailValue(standbyVmId, DETAIL_DR_RECOVERY_LAST_ERROR));
         response.setSecondaryVmName(standbyVm != null ? standbyVm.getInstanceName() : null);
         populateRemoteMoldStandbyVolumes(standbyVmId, response);
         return response;
@@ -4791,6 +4941,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         cmdList.add(org.apache.cloudstack.api.command.admin.ftctl.ConfirmFtctlFenceCmd.class);
         cmdList.add(org.apache.cloudstack.api.command.admin.ftctl.ClearFtctlFenceCmd.class);
         cmdList.add(ReleaseFtctlProtectionCmd.class);
+        cmdList.add(ReleaseFtctlDrReplicaProtectionCmd.class);
+        cmdList.add(AdoptFtctlDrReplicaCmd.class);
         return cmdList;
     }
 

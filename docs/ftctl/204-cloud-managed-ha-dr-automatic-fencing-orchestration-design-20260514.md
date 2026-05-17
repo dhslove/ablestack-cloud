@@ -165,6 +165,8 @@ Because the source Mold may be unavailable in a real disaster, the preferred lon
 - remote Mold starts the replica VM through its own Cloud APIs after confirmed or assumed fencing.
 - source-side protection state is reconciled later when the source Mold returns.
 
+The same target-side authority must cover post-failover recovery operations. If the source Mold is unavailable for a long time or permanently lost, the remote Mold must also be able to run disaster failback to a restored/new target Mold or adopt the running replica VM as an independent production VM. That model is defined in `206-dr-replica-site-disaster-failback-and-adoption-design-20260517.md`.
+
 Remote Mold API keys must not be written into qemu profiles, host files, VM details, or logs. OOBM secrets must be stored only through an approved Cloud secret/encryption mechanism or as a non-secret reference.
 
 ## 9. qemu Changes Required
@@ -218,6 +220,7 @@ The consistent interpretation across the FTCTL DR design set is:
 - Cloud owns Cloud-managed automatic HA/DR fencing decisions.
 - qemu automatic failover may remain only for libvirt-managed or legacy standalone paths.
 - Remote-Mold automatic DR requires durable target-side orchestration or a secure automation credential model; one-time UI credentials are manual-flow only.
+- Replica-site long-term operation requires target-side disaster failback and non-destructive replica adoption/release authority; it must not depend on source Mold recovery.
 
 ## 13. Verification Requirements
 

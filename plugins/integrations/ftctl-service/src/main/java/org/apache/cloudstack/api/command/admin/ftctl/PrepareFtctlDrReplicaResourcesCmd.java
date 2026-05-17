@@ -51,6 +51,10 @@ public class PrepareFtctlDrReplicaResourcesCmd extends BaseCmd {
             description = "the source-site VM hypervisor instance name")
     private String sourceVirtualMachineInstanceName;
 
+    @Parameter(name = "sourcemoldapiurl", type = CommandType.STRING,
+            description = "non-secret source Mold API URL display hint for future DR recovery")
+    private String sourceMoldApiUrl;
+
     @Parameter(name = "secondaryvmname", type = CommandType.STRING, required = true,
             description = "the remote replica VM name")
     private String secondaryVmName;
@@ -89,6 +93,10 @@ public class PrepareFtctlDrReplicaResourcesCmd extends BaseCmd {
 
     public String getSourceVirtualMachineInstanceName() {
         return sourceVirtualMachineInstanceName;
+    }
+
+    public String getSourceMoldApiUrl() {
+        return sourceMoldApiUrl;
     }
 
     public String getSecondaryVmName() {

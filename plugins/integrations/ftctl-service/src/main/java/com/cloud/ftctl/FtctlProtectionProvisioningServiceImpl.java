@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 import javax.inject.Inject;
 
@@ -85,6 +86,10 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
     private static final String DETAIL_FTCTL_REMOTE_SOURCE_VM_UUID = "ftctl.remote.source.vm.uuid";
     private static final String DETAIL_FTCTL_REMOTE_SOURCE_VM_NAME = "ftctl.remote.source.vm.name";
     private static final String DETAIL_FTCTL_REMOTE_SOURCE_VM_INSTANCE_NAME = "ftctl.remote.source.vm.instance.name";
+    private static final String DETAIL_FTCTL_DR_RECOVERY_SESSION_UUID = "ftctl.dr.recovery.session.uuid";
+    private static final String DETAIL_FTCTL_DR_RECOVERY_ROLE = "ftctl.dr.recovery.role";
+    private static final String DETAIL_FTCTL_DR_RECOVERY_SOURCE_MOLD_API_URL = "ftctl.dr.recovery.source.mold.api.url";
+    private static final String DETAIL_FTCTL_DR_RECOVERY_CREATED = "ftctl.dr.recovery.created";
     private static final String FTCTL_COMPUTE_OFFERING_UNIQUE_NAME = "ABLESTACK.FTCTL.Compute.Custom";
     private static final String FTCTL_ROOT_DISK_OFFERING_UNIQUE_NAME = "ABLESTACK.FTCTL.RootDisk.Custom";
     private static final String FTCTL_DATA_DISK_OFFERING_UNIQUE_NAME = "ABLESTACK.FTCTL.DataDisk.Custom";
@@ -464,6 +469,12 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
         details.put(DETAIL_FTCTL_REMOTE_SOURCE_VM_NAME, cmd.getSourceVirtualMachineName());
         if (StringUtils.isNotBlank(cmd.getSourceVirtualMachineInstanceName())) {
             details.put(DETAIL_FTCTL_REMOTE_SOURCE_VM_INSTANCE_NAME, cmd.getSourceVirtualMachineInstanceName());
+        }
+        details.put(DETAIL_FTCTL_DR_RECOVERY_SESSION_UUID, UUID.randomUUID().toString());
+        details.put(DETAIL_FTCTL_DR_RECOVERY_ROLE, "standby");
+        details.put(DETAIL_FTCTL_DR_RECOVERY_CREATED, Instant.now().toString());
+        if (StringUtils.isNotBlank(cmd.getSourceMoldApiUrl())) {
+            details.put(DETAIL_FTCTL_DR_RECOVERY_SOURCE_MOLD_API_URL, cmd.getSourceMoldApiUrl());
         }
         details.put(DETAIL_FTCTL_PRIMARY_VM_ID, cmd.getSourceVirtualMachineId());
         return details;

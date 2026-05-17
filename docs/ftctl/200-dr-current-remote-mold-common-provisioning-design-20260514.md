@@ -165,6 +165,8 @@ After canonical resources are available, source Mold persists:
 - selected target network IDs used for DR Cloud-managed replica creation
 - complete disk map for qemu profile sync
 
+When the replica is owned by a remote Mold, that remote Mold must also persist a non-secret replica recovery session sufficient for disaster failback or replica adoption if the source Mold is later lost. The source protection row remains authoritative while the source Mold is healthy; the replica recovery session becomes authoritative only for replica-site disaster operations defined in `206-dr-replica-site-disaster-failback-and-adoption-design-20260517.md`.
+
 If canonical resource normalization fails, Cloud records `ProvisioningFailed` and `ftctl.last.error`, but it must not silently mark protection active.
 
 ## 10. qemu FTCTL Boundary

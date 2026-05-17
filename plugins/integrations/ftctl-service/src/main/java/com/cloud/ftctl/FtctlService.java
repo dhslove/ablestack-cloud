@@ -121,6 +121,11 @@ public interface FtctlService extends PluggableService, Configurable {
 
     FtctlActionResponse releaseFtctlProtection(Long virtualMachineId, boolean force) throws CloudRuntimeException;
 
+    FtctlActionResponse releaseFtctlDrReplicaProtection(Long virtualMachineId, boolean force, boolean cleanupTransport,
+                                                        boolean abandonSource) throws CloudRuntimeException;
+
+    FtctlActionResponse adoptFtctlDrReplica(Long virtualMachineId, boolean cleanupTransport) throws CloudRuntimeException;
+
     FtctlActionResponse confirmFtctlFence(Long virtualMachineId) throws CloudRuntimeException;
 
     FtctlActionResponse confirmFtctlFence(Long virtualMachineId, String remoteMoldApiUrl,
