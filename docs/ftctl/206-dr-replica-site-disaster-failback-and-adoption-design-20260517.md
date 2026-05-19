@@ -26,6 +26,8 @@ If an earlier document says that a remote Mold standby page is always read-only 
 
 The qemu-side companion design is `208-dr-replica-site-disaster-failback-and-adoption-design-20260517.md` in the qemu FTCTL repository.
 
+The adopted-replica re-protection follow-up is [207. DR Adopted Replica Re-protection Readiness Design](207-dr-adopted-replica-reprotect-readiness-design-20260519.md).
+
 ## 3. Principles
 
 - Cloud owns Cloud-managed VM, volume, network, storage, host placement, and lifecycle APIs.
@@ -106,12 +108,14 @@ The backend must:
 3. Ask qemu FTCTL to clean session-specific NBD exports, locks, profiles, state files, and generated SSH key material.
 4. Remove or archive FTCTL standby/replica markers from the replica VM according to the chosen policy.
 5. Preserve replica VM NICs, volumes, account ownership, service offering, and Cloud lifecycle state.
-6. Mark the recovery session as `adopted` or `released`.
+6. Close the recovery session as `adopted` or `released`, then remove protection-blocking `ftctl.*` VM details from the replica VM so it is immediately eligible for new protection registration.
 7. Optionally call source Mold to mark the source-side protection released if credentials are supplied and the source Mold is reachable.
 
 Failure to reach the source Mold records `source_abandoned` but does not fail adoption.
 
 The operation must not destroy, expunge, detach, or delete the replica VM or volumes unless the operator selects a destructive cleanup mode.
+
+Adoption/release is terminal for the old DR relationship. The backend must not leave `ftctl.last.*` state details that make a later `getFtctlProtection` response look protected when no active `ftctl_protection` row exists. Audit belongs in Cloud events and the action response, not in long-lived VM details that block re-protection.
 
 ## 7. UI Contract
 
@@ -128,6 +132,8 @@ The UI must clearly distinguish these actions from source-controller `Failback` 
 The disaster failback dialog must collect target Mold context, target host, storage, and network selections. Target network selection remains mandatory when Cloud-managed VM creation requires a network.
 
 The adoption/release dialog must state that the running replica VM and volumes are preserved by default and that source Mold cleanup is best-effort.
+
+After adoption/release completes, the same FTCTL tab must return to the normal unconfigured VM view. If the adopted VM is Running, the Protection Configuration button must be available so the operator can protect the newly active workload.
 
 ## 8. State Model
 
@@ -166,4 +172,5 @@ After failover/source unavailability:
 - Replica-site disaster failback creates target VM/volumes through target Mold APIs.
 - qemu logs/events show only data-plane copy/finalize/cleanup actions.
 - forced release/adoption preserves the running replica VM and volumes.
+- adopted/released replica VM can be protected again as a normal primary candidate.
 - source Mold credentials are optional and never persisted.

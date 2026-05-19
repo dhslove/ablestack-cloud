@@ -644,11 +644,24 @@ export default {
         this.resource?.vmtype !== 'sharedfsvm'
     },
     protectionConfigured () {
+      if (this.releasedReplicaRecoveryState) {
+        return false
+      }
       return ['enabled', 'mode', 'backendmode', 'protectionstate', 'transportstate', 'activeside', 'adminstate', 'fencingstate']
         .some(field => this.protection[field] !== undefined && this.protection[field] !== null && this.protection[field] !== '')
     },
     protectionEnabled () {
       return this.protection.enabled === true || this.protection.enabled === 'true'
+    },
+    releasedReplicaRecoveryState () {
+      const enabled = this.protection.enabled === true || this.protection.enabled === 'true'
+      const hasProtectionConfig = Boolean(this.protection.mode || this.protection.backendmode)
+      const protection = this.normalizeState(this.protection.protectionstate)
+      const transport = this.normalizeState(this.protection.transportstate)
+      return !enabled &&
+        !hasProtectionConfig &&
+        ['adopted', 'released', 'disabled'].includes(protection) &&
+        ['', 'released', 'stopped'].includes(transport)
     },
     actionInProgress () {
       return Object.values(this.actionLoading).some(loading => loading)
@@ -1984,6 +1997,14 @@ export default {
       if (payload.lasterror !== undefined) this.protection.lasterror = payload.lasterror
       if (payload.adminstate !== undefined) this.protection.adminstate = payload.adminstate
       if (payload.fencingstate !== undefined) this.protection.fencingstate = payload.fencingstate
+      const terminalProtection = this.normalizeState(payload.protectionstate)
+      const terminalTransport = this.normalizeState(payload.transportstate)
+      if (['adopted', 'released', 'disabled'].includes(terminalProtection) &&
+        ['', 'released', 'stopped'].includes(terminalTransport)) {
+        this.protection.enabled = ''
+        this.protection.mode = ''
+        this.protection.backendmode = ''
+      }
     },
     shouldRefreshParentVm (commandName) {
       return ['failoverFtctlProtection', 'failbackFtctlProtection', 'confirmFtctlFence', 'releaseFtctlProtection', 'releaseFtctlDrReplicaProtection', 'adoptFtctlDrReplica'].includes(commandName)
