@@ -18,8 +18,11 @@ package com.cloud.ftctl;
 
 import com.cloud.ftctl.dao.FtctlProtectionDao;
 import com.cloud.ftctl.dao.FtctlProtectionVolumeDao;
+import com.cloud.host.HostVO;
+import com.cloud.host.dao.HostDao;
 import com.cloud.hypervisor.Hypervisor.HypervisorType;
 import com.cloud.network.dao.NetworkDao;
+import com.cloud.network.dao.NetworkVO;
 import com.cloud.service.ServiceOfferingVO;
 import com.cloud.service.dao.ServiceOfferingDao;
 import com.cloud.storage.DiskOfferingVO;
@@ -35,10 +38,13 @@ import com.cloud.uservm.UserVm;
 import com.cloud.utils.exception.CloudRuntimeException;
 import com.cloud.vm.NicVO;
 import com.cloud.vm.UserVmVO;
+import com.cloud.vm.VMInstanceVO;
 import com.cloud.vm.UserVmService;
 import com.cloud.vm.dao.NicDao;
 import com.cloud.vm.dao.UserVmDao;
 import com.cloud.vm.dao.VMInstanceDao;
+import org.apache.cloudstack.api.command.admin.ftctl.PrepareFtctlDrReplicaResourcesCmd;
+import org.apache.cloudstack.storage.datastore.db.PrimaryDataStoreDao;
 import org.apache.cloudstack.storage.datastore.db.StoragePoolVO;
 import org.junit.Assert;
 import org.junit.Test;
@@ -80,6 +86,10 @@ public class FtctlProtectionProvisioningServiceImplTest {
     private DiskOfferingDao diskOfferingDao;
     @Mock
     private ServiceOfferingDao serviceOfferingDao;
+    @Mock
+    private HostDao hostDao;
+    @Mock
+    private PrimaryDataStoreDao primaryDataStoreDao;
 
     @InjectMocks
     private FtctlProtectionProvisioningServiceImpl service;
@@ -431,6 +441,73 @@ public class FtctlProtectionProvisioningServiceImplTest {
         FtctlProtectionProvisioningContext context = service.prepareProtection(request);
 
         Assert.assertEquals("sda=/var/lib/libvirt/images/standby-root-file;sdb=/var/lib/libvirt/images/standby-data-file", context.getDiskMap());
+    }
+
+    @Test
+    public void prepareDrReplicaResourcesSelectsSafeReplicaNameWhenRequestedNameIsOccupied() throws Exception {
+        PrepareFtctlDrReplicaResourcesCmd cmd = Mockito.mock(PrepareFtctlDrReplicaResourcesCmd.class);
+        StoragePoolVO targetStoragePool = mockTargetStoragePool();
+        HostVO targetHost = Mockito.mock(HostVO.class);
+        AccountVO owner = mockAccount();
+        ServiceOfferingVO ftctlComputeOffering = mockServiceOffering(801L);
+        DiskOfferingVO ftctlRootDiskOffering = mockDiskOffering(901L);
+        DiskOfferingVO ftctlDataDiskOffering = mockDiskOffering(902L);
+        VolumeVO replicaRootVolume = mockVolume(601L, Volume.Type.ROOT, 0L, "replica-root");
+        VolumeVO replicaDataVolume = mockVolume(602L, Volume.Type.DATADISK, 1L, "replica-data");
+        UserVm createdVm = mockCreatedUserVm(701L, "replica-vm-uuid");
+        UserVmVO replicaVm = Mockito.mock(UserVmVO.class);
+        VMInstanceVO conflictingVm = Mockito.mock(VMInstanceVO.class);
+        UserVmVO conflictingUserVm = Mockito.mock(UserVmVO.class);
+        NetworkVO network = Mockito.mock(NetworkVO.class);
+
+        Mockito.when(cmd.getRemoteTargetStoragePoolUuid()).thenReturn("target-pool-uuid");
+        Mockito.when(cmd.getRemotePeerHostUuid()).thenReturn("target-host-uuid");
+        Mockito.when(cmd.getSourceVirtualMachineId()).thenReturn("source-vm-uuid");
+        Mockito.when(cmd.getSourceVirtualMachineName()).thenReturn("vm-primary");
+        Mockito.when(cmd.getSecondaryVmName()).thenReturn("vm-primary");
+        Mockito.when(cmd.getSourceHypervisor()).thenReturn("KVM");
+        Mockito.when(cmd.getSourceVmDetails()).thenReturn("{}");
+        Mockito.when(cmd.getNetworkIds()).thenReturn("701");
+        Mockito.when(cmd.getSourceVolumes()).thenReturn("[{\"sourcevolumeid\":\"301\",\"sourcedisktarget\":\"sda\",\"disklabel\":\"root-0\",\"type\":\"ROOT\",\"deviceid\":0,\"size\":10737418240},{\"sourcevolumeid\":\"302\",\"sourcedisktarget\":\"sdb\",\"disklabel\":\"data-1\",\"type\":\"DATADISK\",\"deviceid\":1,\"size\":21474836480}]");
+
+        Mockito.when(primaryDataStoreDao.findByUuid("target-pool-uuid")).thenReturn(targetStoragePool);
+        Mockito.when(hostDao.findByUuid("target-host-uuid")).thenReturn(targetHost);
+        Mockito.when(targetHost.getId()).thenReturn(202L);
+        Mockito.when(targetHost.getName()).thenReturn("ablecube22-1");
+        Mockito.when(accountDao.findById(Mockito.anyLong())).thenReturn(owner);
+        Mockito.when(diskOfferingDao.findByUniqueName("ABLESTACK.FTCTL.RootDisk.Custom")).thenReturn(ftctlRootDiskOffering);
+        Mockito.when(diskOfferingDao.findByUniqueName("ABLESTACK.FTCTL.DataDisk.Custom")).thenReturn(ftctlDataDiskOffering);
+        Mockito.when(serviceOfferingDao.findByName("ABLESTACK.FTCTL.Compute.Custom")).thenReturn(ftctlComputeOffering);
+        Mockito.when(vmInstanceDao.findVMByHostNameInZone("vm-primary", 401L)).thenReturn(conflictingVm);
+        Mockito.when(vmInstanceDao.findVMByHostNameInZone("vm-primary-replica", 401L)).thenReturn(null);
+        Mockito.when(conflictingVm.getId()).thenReturn(900L);
+        Mockito.when(userVmDao.findById(900L)).thenReturn(conflictingUserVm);
+        Mockito.when(conflictingUserVm.getDetails()).thenReturn(Collections.emptyMap());
+        Mockito.when(volumeApiService.allocVolume(Mockito.any(FtctlCreateVolumeCmd.class))).thenReturn(replicaRootVolume).thenReturn(replicaDataVolume);
+        Mockito.when(volumeApiService.createVolume(Mockito.any(FtctlCreateVolumeCmd.class))).thenReturn(replicaRootVolume).thenReturn(replicaDataVolume);
+        Mockito.when(userVmService.createVirtualMachineVolume(Mockito.any(FtctlStandbyDeployVMVolumeCmd.class))).thenReturn(createdVm);
+        Mockito.when(userVmDao.findById(701L)).thenReturn(replicaVm);
+        Mockito.when(replicaVm.getId()).thenReturn(701L);
+        Mockito.when(replicaVm.getUuid()).thenReturn("replica-vm-uuid");
+        Mockito.when(replicaVm.getDisplayName()).thenReturn("vm-primary-replica");
+        Mockito.when(replicaVm.getInstanceName()).thenReturn("i-2-701-VM");
+        Mockito.when(volumeDao.findByInstance(701L)).thenReturn(Collections.emptyList());
+        Mockito.when(volumeDao.findById(601L)).thenReturn(replicaRootVolume);
+        Mockito.when(volumeDao.findById(602L)).thenReturn(replicaDataVolume);
+        Mockito.when(networkDao.findById(701L)).thenReturn(network);
+        Mockito.when(network.getDataCenterId()).thenReturn(401L);
+
+        service.prepareDrReplicaResources(cmd);
+
+        ArgumentCaptor<FtctlCreateVolumeCmd> volumeCaptor = ArgumentCaptor.forClass(FtctlCreateVolumeCmd.class);
+        Mockito.verify(volumeApiService, Mockito.times(2)).allocVolume(volumeCaptor.capture());
+        Assert.assertEquals("vm-primary-replica-root", volumeCaptor.getAllValues().get(0).getVolumeName());
+        Assert.assertEquals("vm-primary-replica-data-1", volumeCaptor.getAllValues().get(1).getVolumeName());
+
+        ArgumentCaptor<FtctlStandbyDeployVMVolumeCmd> deployCaptor = ArgumentCaptor.forClass(FtctlStandbyDeployVMVolumeCmd.class);
+        Mockito.verify(userVmService).createVirtualMachineVolume(deployCaptor.capture());
+        Assert.assertEquals("vm-primary-replica", deployCaptor.getValue().getName());
+        Assert.assertEquals("vm-primary-replica", deployCaptor.getValue().getDisplayName());
     }
 
     private UserVmVO mockPrimaryVm() {

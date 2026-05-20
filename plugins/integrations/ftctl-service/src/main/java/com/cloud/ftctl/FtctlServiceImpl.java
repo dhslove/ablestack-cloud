@@ -1268,8 +1268,59 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     }
 
     private String resolveSecondaryVmName(UserVmVO userVm, RegisterFtctlProtectionCmd cmd) {
-        return StringUtils.defaultIfBlank(cmd.getSecondaryVmName(), String.format("%s-standby",
-                StringUtils.defaultIfBlank(userVm.getHostName(), resolveVmDisplayName(userVm.getId()))));
+        if (StringUtils.isNotBlank(cmd.getSecondaryVmName())) {
+            return StringUtils.trim(cmd.getSecondaryVmName());
+        }
+        String baseName = stripFtctlReplicaRoleSuffix(StringUtils.defaultIfBlank(resolveVmDisplayName(userVm.getId()), userVm.getHostName()));
+        if ("dr".equalsIgnoreCase(cmd.getMode())) {
+            String targetSiteSuffix = resolveDrTargetSiteSuffix(cmd);
+            if (StringUtils.isNotBlank(targetSiteSuffix)) {
+                return String.format("%s-replica-%s", baseName, targetSiteSuffix);
+            }
+            return String.format("%s-replica", baseName);
+        }
+        return String.format("%s-standby", baseName);
+    }
+
+    private String stripFtctlReplicaRoleSuffix(String vmName) {
+        String normalized = StringUtils.trimToEmpty(vmName);
+        if (StringUtils.endsWithIgnoreCase(normalized, "-standby")) {
+            return normalized.substring(0, normalized.length() - "-standby".length());
+        }
+        if (StringUtils.endsWithIgnoreCase(normalized, "-replica")) {
+            return normalized.substring(0, normalized.length() - "-replica".length());
+        }
+        return normalized;
+    }
+
+    private String resolveDrTargetSiteSuffix(RegisterFtctlProtectionCmd cmd) {
+        String address = isRemoteMoldDr(cmd) ? cmd.getRemotePeerHostAddress() : null;
+        if (StringUtils.isBlank(address) && cmd.getPeerHostId() != null) {
+            HostVO peerHost = hostDao.findById(cmd.getPeerHostId());
+            if (peerHost != null) {
+                address = StringUtils.defaultIfBlank(peerHost.getPrivateIpAddress(), peerHost.getName());
+            }
+        }
+        return sanitizeReplicaNameSegment(extractSiteToken(address));
+    }
+
+    private String extractSiteToken(String value) {
+        String normalized = StringUtils.trimToNull(value);
+        if (normalized == null) {
+            return null;
+        }
+        String[] parts = normalized.split("\\.");
+        if (parts.length == 4 && StringUtils.isNumeric(parts[2])) {
+            return parts[2];
+        }
+        return normalized;
+    }
+
+    private String sanitizeReplicaNameSegment(String value) {
+        String normalized = StringUtils.lowerCase(StringUtils.trimToEmpty(value), Locale.ROOT)
+                .replaceAll("[^a-z0-9-]+", "-")
+                .replaceAll("^-+|-+$", "");
+        return StringUtils.trimToNull(normalized);
     }
 
     private RemoteReplicaResources parseRemoteReplicaResources(JsonObject json) {

@@ -67,6 +67,7 @@ import com.cloud.utils.exception.CloudRuntimeException;
 import com.cloud.vm.NicVO;
 import com.cloud.vm.UserVmVO;
 import com.cloud.vm.VMInstanceVO;
+import com.cloud.vm.VirtualMachine;
 import com.cloud.vm.VmDetailConstants;
 import com.cloud.vm.dao.NicDao;
 import com.cloud.vm.dao.UserVmDao;
@@ -212,14 +213,15 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
         SourceVolumeSpec rootSpec = findRootSourceVolume(sourceVolumes);
         AccountVO owner = resolveRemoteReplicaOwner();
         FtctlHiddenOfferings offerings = ensureFtctlHiddenOfferings();
+        String replicaVmName = resolveRemoteReplicaVmName(cmd, targetStoragePool);
 
-        UserVmVO replicaVm = findExistingRemoteReplicaVm(cmd, targetStoragePool);
+        UserVmVO replicaVm = findExistingRemoteReplicaVm(cmd, targetStoragePool, replicaVmName);
         VolumeVO replicaRootVolume;
         if (replicaVm == null) {
             replicaRootVolume = createRemoteReplicaVolume(owner, targetStoragePool, offerings.rootDiskOffering,
-                    String.format("%s-root", cmd.getSecondaryVmName()), rootSpec);
+                    String.format("%s-root", replicaVmName), rootSpec);
             replicaRootVolume = ensureStandbyRootVolumeMetadata(replicaRootVolume);
-            replicaVm = createRemoteReplicaVm(cmd, owner, targetStoragePool, targetHost, offerings.computeOffering, replicaRootVolume, rootSpec);
+            replicaVm = createRemoteReplicaVm(cmd, replicaVmName, owner, targetStoragePool, targetHost, offerings.computeOffering, replicaRootVolume, rootSpec);
         } else {
             replicaRootVolume = findExistingReplicaVolume(replicaVm, rootSpec);
             if (replicaRootVolume == null) {
@@ -239,7 +241,7 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
                 replicaVolume = existingReplicaVolumes.get(spec.diskLabel);
                 if (replicaVolume == null) {
                     replicaVolume = createRemoteReplicaVolume(owner, targetStoragePool, offerings.dataDiskOffering,
-                            String.format("%s-%s", cmd.getSecondaryVmName(), spec.diskLabel), spec);
+                            String.format("%s-%s", replicaVmName, spec.diskLabel), spec);
                 }
                 replicaVolume = attachRemoteReplicaDataVolumeIfNeeded(replicaVm, spec, replicaVolume);
             }
@@ -333,8 +335,13 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
 
     private AccountVO resolveRemoteReplicaOwner() {
         Long ownerId = Account.ACCOUNT_ID_ADMIN;
-        if (CallContext.current() != null && CallContext.current().getCallingAccount() != null) {
-            ownerId = CallContext.current().getCallingAccount().getId();
+        try {
+            CallContext callContext = CallContext.current();
+            if (callContext != null && callContext.getCallingAccount() != null) {
+                ownerId = callContext.getCallingAccount().getId();
+            }
+        } catch (RuntimeException e) {
+            logger.debug("Falling back to admin account for FTCTL remote replica owner because CallContext is not available", e);
         }
         AccountVO owner = accountDao.findById(ownerId);
         if (owner == null && ownerId != Account.ACCOUNT_ID_ADMIN) {
@@ -346,12 +353,83 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
         return owner;
     }
 
-    private UserVmVO findExistingRemoteReplicaVm(PrepareFtctlDrReplicaResourcesCmd cmd, StoragePoolVO targetStoragePool) {
-        VMInstanceVO existingVm = vmInstanceDao.findVMByHostNameInZone(cmd.getSecondaryVmName(), targetStoragePool.getDataCenterId());
+    private String resolveRemoteReplicaVmName(PrepareFtctlDrReplicaResourcesCmd cmd, StoragePoolVO targetStoragePool) {
+        String requestedName = StringUtils.defaultIfBlank(cmd.getSecondaryVmName(),
+                buildReplicaVmNameBase(cmd.getSourceVirtualMachineName()));
+        requestedName = StringUtils.trimToEmpty(requestedName);
+        if (isRemoteReplicaVmNameUsable(cmd, requestedName, targetStoragePool.getDataCenterId())) {
+            return requestedName;
+        }
+
+        String candidateBase = hasReplicaRoleSuffix(requestedName) ? requestedName : String.format("%s-replica", stripReplicaRoleSuffix(requestedName));
+        for (int index = 0; index < 20; index++) {
+            String candidate = index == 0 ? candidateBase : String.format("%s-%d", candidateBase, index + 1);
+            if (isRemoteReplicaVmNameUsable(cmd, candidate, targetStoragePool.getDataCenterId())) {
+                logger.info("Resolved FTCTL remote replica VM name conflict: requested={}, selected={}, sourceVm={}",
+                        requestedName, candidate, cmd.getSourceVirtualMachineId());
+                return candidate;
+            }
+        }
+
+        throw new CloudRuntimeException(String.format(
+                "Unable to find an available FTCTL remote replica VM name for requested name %s in zone %s",
+                requestedName, targetStoragePool.getDataCenterId()));
+    }
+
+    private boolean isRemoteReplicaVmNameUsable(PrepareFtctlDrReplicaResourcesCmd cmd, String vmName, Long zoneId) {
+        if (StringUtils.isBlank(vmName) || zoneId == null) {
+            return false;
+        }
+        VMInstanceVO existingVm = vmInstanceDao.findVMByHostNameInZone(vmName, zoneId);
+        if (existingVm == null) {
+            return true;
+        }
+        UserVmVO existingUserVm = userVmDao.findById(existingVm.getId());
+        return isExistingRemoteReplicaForSource(existingUserVm, cmd.getSourceVirtualMachineId());
+    }
+
+    private boolean isExistingRemoteReplicaForSource(UserVmVO existingVm, String sourceVirtualMachineId) {
+        if (existingVm == null || existingVm.getRemoved() != null || VirtualMachine.State.Expunging.equals(existingVm.getState())) {
+            return false;
+        }
+        userVmDao.loadDetails(existingVm);
+        Map<String, String> details = existingVm.getDetails();
+        return details != null &&
+                Boolean.parseBoolean(details.get(DETAIL_FTCTL_REMOTE_REPLICA_VM)) &&
+                StringUtils.equals(details.get(DETAIL_FTCTL_REMOTE_SOURCE_VM_UUID), sourceVirtualMachineId);
+    }
+
+    private String buildReplicaVmNameBase(String sourceVirtualMachineName) {
+        String baseName = stripReplicaRoleSuffix(StringUtils.defaultIfBlank(sourceVirtualMachineName, "ftctl-dr"));
+        return String.format("%s-replica", baseName);
+    }
+
+    private String stripReplicaRoleSuffix(String vmName) {
+        String normalized = StringUtils.trimToEmpty(vmName);
+        if (StringUtils.endsWithIgnoreCase(normalized, "-standby")) {
+            return normalized.substring(0, normalized.length() - "-standby".length());
+        }
+        if (StringUtils.endsWithIgnoreCase(normalized, "-replica")) {
+            return normalized.substring(0, normalized.length() - "-replica".length());
+        }
+        return normalized;
+    }
+
+    private boolean hasReplicaRoleSuffix(String vmName) {
+        String normalized = StringUtils.lowerCase(StringUtils.trimToEmpty(vmName), Locale.ROOT);
+        return normalized.endsWith("-replica") || normalized.matches(".*-replica-[a-z0-9-]+$");
+    }
+
+    private UserVmVO findExistingRemoteReplicaVm(PrepareFtctlDrReplicaResourcesCmd cmd, StoragePoolVO targetStoragePool, String replicaVmName) {
+        VMInstanceVO existingVm = vmInstanceDao.findVMByHostNameInZone(replicaVmName, targetStoragePool.getDataCenterId());
         if (existingVm == null) {
             return null;
         }
-        return userVmDao.findById(existingVm.getId());
+        UserVmVO existingUserVm = userVmDao.findById(existingVm.getId());
+        if (!isExistingRemoteReplicaForSource(existingUserVm, cmd.getSourceVirtualMachineId())) {
+            return null;
+        }
+        return existingUserVm;
     }
 
     private VolumeVO findExistingReplicaVolume(UserVmVO replicaVm, SourceVolumeSpec spec) {
@@ -373,7 +451,7 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
         return null;
     }
 
-    private UserVmVO createRemoteReplicaVm(PrepareFtctlDrReplicaResourcesCmd cmd, AccountVO owner, StoragePoolVO targetStoragePool,
+    private UserVmVO createRemoteReplicaVm(PrepareFtctlDrReplicaResourcesCmd cmd, String replicaVmName, AccountVO owner, StoragePoolVO targetStoragePool,
                                            HostVO targetHost, ServiceOfferingVO computeOffering, VolumeVO rootVolume,
                                            SourceVolumeSpec rootSpec) {
         Map<String, String> details = buildRemoteReplicaVmDetails(cmd, rootSpec);
@@ -383,8 +461,8 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
                 owner.getDomainId(),
                 targetStoragePool.getDataCenterId(),
                 computeOffering.getId(),
-                cmd.getSecondaryVmName(),
-                cmd.getSecondaryVmName(),
+                replicaVmName,
+                replicaVmName,
                 resolveNetworkIds(cmd.getNetworkIds(), targetStoragePool.getDataCenterId()),
                 targetHost.getId(),
                 resolveHypervisor(cmd.getSourceHypervisor()),

@@ -228,11 +228,23 @@
             </a-form-item>
           </div>
         </div>
+        <a-alert
+          v-if="showSecondaryVmNameHint"
+          class="ftctl-auto-fields"
+          type="info"
+          :showIcon="true"
+          :message="$t('message.ftctl.secondary.vm.name.auto')"
+          :description="secondaryVmNameDescription" />
+        <a-form-item name="secondaryvmnameoverride">
+          <a-checkbox v-model:checked="secondaryVmNameOverride" @change="handleSecondaryVmNameOverrideChange">
+            {{ $t('label.ftctl.secondary.vm.name.override') }}
+          </a-checkbox>
+        </a-form-item>
         <a-form-item name="secondaryvmname">
           <template #label>
             <tooltip-label :title="$t('label.ftctl.secondary.vm.name')" :tooltip="$t('placeholder.ftctl.secondary.vm.name')" />
           </template>
-          <a-input v-model:value="form.secondaryvmname" :placeholder="$t('placeholder.ftctl.secondary.vm.name')" />
+          <a-input v-model:value="form.secondaryvmname" :disabled="!secondaryVmNameOverride" :placeholder="$t('placeholder.ftctl.secondary.vm.name')" />
         </a-form-item>
         <a-form-item name="backendmode" v-if="showBackendFields">
           <template #label>
@@ -345,6 +357,7 @@ export default {
       remoteMoldNetworks: [],
       remotePeerSshOverride: false,
       remotePeerSshAutoSetup: false,
+      secondaryVmNameOverride: false,
       manualXcoloEndpoints: false
     }
   },
@@ -357,6 +370,16 @@ export default {
     },
     showBackendFields () {
       return this.form?.mode === 'ha' || this.form?.mode === 'dr'
+    },
+    showSecondaryVmNameHint () {
+      return this.showBackendFields
+    },
+    secondaryVmNameDescription () {
+      const target = this.resolveTargetSiteLabel()
+      return this.$t('message.ftctl.secondary.vm.name.auto.desc', {
+        name: this.form?.secondaryvmname || '-',
+        target: target || '-'
+      })
     },
     showDrPeerSiteType () {
       return this.form?.mode === 'dr'
@@ -451,7 +474,7 @@ export default {
         networkids: [],
         fencingpolicy: 'manual-block',
         peerhostid: null,
-        secondaryvmname: this.resource?.name ? `${this.resource.name}-standby` : null,
+        secondaryvmname: null,
         secondarytargetdir: null,
         remotenbdexportaddr: null,
         remotemoldapiurl: null,
@@ -478,6 +501,7 @@ export default {
         targetstoragepoolid: [{ validator: this.validateLocalStorageRule, trigger: 'change' }],
         peerhostid: [{ validator: this.validateLocalPeerHostRule, trigger: 'change' }]
       })
+      this.refreshSecondaryVmNameSuggestion(true)
     },
     validateLocalPeerHostRule () {
       if (this.showLocalMoldPeerFields && !this.form.peerhostid) {
@@ -529,6 +553,7 @@ export default {
         this.form.xcolonbdendpoint = null
         this.form.xcolomigrateuri = null
       }
+      this.refreshSecondaryVmNameSuggestion()
       this.fetchHosts()
     },
     handleDrPeerSiteTypeChange () {
@@ -549,6 +574,7 @@ export default {
         this.fetchStoragePools(this.form.peerhostid)
         this.fetchTargetNetworks(this.form.peerhostid)
       }
+      this.refreshSecondaryVmNameSuggestion()
     },
     handleBackendModeChange (backendMode) {
       if (this.form.targetstoragepoolid) {
@@ -840,6 +866,7 @@ export default {
       this.form.remotepeerhostuuid = hostId
       this.form.networkids = []
       this.applyRemotePeerHostDefaults(hostId)
+      this.refreshSecondaryVmNameSuggestion()
       this.fetchRemoteMoldStoragePools()
       this.fetchRemoteMoldNetworks()
     },
@@ -908,6 +935,7 @@ export default {
       this.form.remotetargetstoragepoolpath = null
       this.form.remotetargetstoragepooltype = null
       this.form.networkids = []
+      this.refreshSecondaryVmNameSuggestion()
     },
     fetchHosts () {
       this.hostsLoading = true
@@ -939,6 +967,7 @@ export default {
       this.form.peerhostid = peerHostId
       this.form.networkids = []
       this.applyPeerHostDefaults(peerHostId)
+      this.refreshSecondaryVmNameSuggestion()
       if (this.showStorageFields) {
         this.fetchStoragePools(peerHostId)
       }
@@ -968,6 +997,64 @@ export default {
     buildHostPortEndpoint (address, port) {
       return address ? `${address}:${port}` : null
     },
+    handleSecondaryVmNameOverrideChange () {
+      if (!this.secondaryVmNameOverride) {
+        this.refreshSecondaryVmNameSuggestion(true)
+      }
+    },
+    refreshSecondaryVmNameSuggestion (force = false) {
+      if (!this.form || (this.secondaryVmNameOverride && !force)) {
+        return
+      }
+      this.form.secondaryvmname = this.buildSecondaryVmNameSuggestion()
+    },
+    buildSecondaryVmNameSuggestion () {
+      const baseName = this.stripFtctlRoleSuffix(this.resource?.displayname || this.resource?.displayName || this.resource?.name || this.resource?.instancename || this.resource?.id || 'ftctl-vm')
+      if (this.form?.mode === 'dr') {
+        const suffix = this.resolveTargetSiteSuffix()
+        return suffix ? `${baseName}-replica-${suffix}` : `${baseName}-replica`
+      }
+      return `${baseName}-standby`
+    },
+    stripFtctlRoleSuffix (name) {
+      const normalized = String(name || '').trim()
+      if (normalized.toLowerCase().endsWith('-standby')) {
+        return normalized.slice(0, -8)
+      }
+      if (normalized.toLowerCase().endsWith('-replica')) {
+        return normalized.slice(0, -8)
+      }
+      return normalized || 'ftctl-vm'
+    },
+    resolveTargetSiteLabel () {
+      const host = this.isDrRemoteMold
+        ? this.remoteMoldHosts.find(item => item.id === this.form?.remotepeerhostuuid)
+        : this.hosts.find(item => item.id === this.form?.peerhostid)
+      return host?.zonename || host?.clustername || host?.ipaddress || host?.name || null
+    },
+    resolveTargetSiteSuffix () {
+      const host = this.isDrRemoteMold
+        ? this.remoteMoldHosts.find(item => item.id === this.form?.remotepeerhostuuid)
+        : this.hosts.find(item => item.id === this.form?.peerhostid)
+      const address = host?.ipaddress || host?.name || host?.zonename || host?.clustername
+      return this.sanitizeVmNameSegment(this.extractSiteToken(address))
+    },
+    extractSiteToken (value) {
+      const normalized = String(value || '').trim()
+      const ipParts = normalized.split('.')
+      if (ipParts.length === 4 && /^[0-9]+$/.test(ipParts[2])) {
+        return ipParts[2]
+      }
+      return normalized
+    },
+    sanitizeVmNameSegment (value) {
+      const normalized = String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9-]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+      return normalized || null
+    },
     closeAction () {
       this.$emit('close-action')
     },
@@ -986,6 +1073,10 @@ export default {
       }
       if (this.showTargetNetworkFields && (!Array.isArray(values.networkids) || values.networkids.length === 0)) {
         this.$message.error(this.$t('message.ftctl.validation.target.network.required'))
+        return false
+      }
+      if (this.showBackendFields && !values.secondaryvmname) {
+        this.$message.error(this.$t('message.ftctl.validation.secondary.vm.name.required'))
         return false
       }
       if (this.showRemoteNbdFields && (!values.secondarytargetdir || !values.remotenbdexportaddr)) {
