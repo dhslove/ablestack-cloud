@@ -84,6 +84,8 @@ If no safe name can be selected, the backend returns a provisioning failure befo
 - `ftctl.provisioning.state=ProvisioningFailed` and `ftctl.last.error` must explain the name/resource provisioning failure;
 - UI must surface the async job failure rather than implying that synchronization started.
 
+For volume-create failures during the same DR re-protection path, including zero IOPS values from an adopted replica source VM, use the common IOPS and async failure rules in `209-dr-reprotect-iops-and-async-failure-design-20260520.md`.
+
 ## 7. Verification
 
 Validate with an adopted DR replica:

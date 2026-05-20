@@ -203,6 +203,8 @@ public class FtctlProtectionProvisioningServiceImplTest {
         StoragePoolVO targetStoragePool = mockTargetStoragePool();
         VolumeVO primaryRootVolume = mockVolume(301L, Volume.Type.ROOT, 0L, "rbd/primary-root");
         Mockito.when(primaryRootVolume.getSize()).thenReturn(10L * 1024L * 1024L * 1024L);
+        Mockito.when(primaryRootVolume.getMinIops()).thenReturn(0L);
+        Mockito.when(primaryRootVolume.getMaxIops()).thenReturn(0L);
         VolumeVO primaryDataVolume = mockVolume(302L, Volume.Type.DATADISK, 1L, "rbd/primary-data");
         Mockito.when(primaryDataVolume.getSize()).thenReturn(20L * 1024L * 1024L * 1024L);
         Mockito.when(primaryDataVolume.getMinIops()).thenReturn(100L);
@@ -255,6 +257,8 @@ public class FtctlProtectionProvisioningServiceImplTest {
         Assert.assertEquals(Long.valueOf(901L), createRootVolumeCmd.getDiskOfferingId());
         Assert.assertEquals("vm-secondary-root", createRootVolumeCmd.getVolumeName());
         Assert.assertEquals(Long.valueOf(10L), createRootVolumeCmd.getSize());
+        Assert.assertNull(createRootVolumeCmd.getMinIops());
+        Assert.assertNull(createRootVolumeCmd.getMaxIops());
         Assert.assertEquals(Long.valueOf(401L), createRootVolumeCmd.getZoneId());
         Assert.assertEquals(Long.valueOf(501L), createRootVolumeCmd.getStorageId());
         Assert.assertTrue(createRootVolumeCmd.isDisplay());
@@ -468,7 +472,7 @@ public class FtctlProtectionProvisioningServiceImplTest {
         Mockito.when(cmd.getSourceHypervisor()).thenReturn("KVM");
         Mockito.when(cmd.getSourceVmDetails()).thenReturn("{}");
         Mockito.when(cmd.getNetworkIds()).thenReturn("701");
-        Mockito.when(cmd.getSourceVolumes()).thenReturn("[{\"sourcevolumeid\":\"301\",\"sourcedisktarget\":\"sda\",\"disklabel\":\"root-0\",\"type\":\"ROOT\",\"deviceid\":0,\"size\":10737418240},{\"sourcevolumeid\":\"302\",\"sourcedisktarget\":\"sdb\",\"disklabel\":\"data-1\",\"type\":\"DATADISK\",\"deviceid\":1,\"size\":21474836480}]");
+        Mockito.when(cmd.getSourceVolumes()).thenReturn("[{\"sourcevolumeid\":\"301\",\"sourcedisktarget\":\"sda\",\"disklabel\":\"root-0\",\"type\":\"ROOT\",\"deviceid\":0,\"size\":10737418240,\"miniops\":0,\"maxiops\":0},{\"sourcevolumeid\":\"302\",\"sourcedisktarget\":\"sdb\",\"disklabel\":\"data-1\",\"type\":\"DATADISK\",\"deviceid\":1,\"size\":21474836480,\"miniops\":0,\"maxiops\":0}]");
 
         Mockito.when(primaryDataStoreDao.findByUuid("target-pool-uuid")).thenReturn(targetStoragePool);
         Mockito.when(hostDao.findByUuid("target-host-uuid")).thenReturn(targetHost);
@@ -502,7 +506,11 @@ public class FtctlProtectionProvisioningServiceImplTest {
         ArgumentCaptor<FtctlCreateVolumeCmd> volumeCaptor = ArgumentCaptor.forClass(FtctlCreateVolumeCmd.class);
         Mockito.verify(volumeApiService, Mockito.times(2)).allocVolume(volumeCaptor.capture());
         Assert.assertEquals("vm-primary-replica-root", volumeCaptor.getAllValues().get(0).getVolumeName());
+        Assert.assertNull(volumeCaptor.getAllValues().get(0).getMinIops());
+        Assert.assertNull(volumeCaptor.getAllValues().get(0).getMaxIops());
         Assert.assertEquals("vm-primary-replica-data-1", volumeCaptor.getAllValues().get(1).getVolumeName());
+        Assert.assertNull(volumeCaptor.getAllValues().get(1).getMinIops());
+        Assert.assertNull(volumeCaptor.getAllValues().get(1).getMaxIops());
 
         ArgumentCaptor<FtctlStandbyDeployVMVolumeCmd> deployCaptor = ArgumentCaptor.forClass(FtctlStandbyDeployVMVolumeCmd.class);
         Mockito.verify(userVmService).createVirtualMachineVolume(deployCaptor.capture());

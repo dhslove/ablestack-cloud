@@ -1253,11 +1253,13 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
                 object.addProperty("deviceid", volume.getDeviceId());
             }
             object.addProperty("size", volume.getSize());
-            if (volume.getMinIops() != null) {
-                object.addProperty("miniops", volume.getMinIops());
+            Long minIops = normalizeFtctlIops(volume.getMinIops());
+            Long maxIops = normalizeFtctlIops(volume.getMaxIops());
+            if (minIops != null) {
+                object.addProperty("miniops", minIops);
             }
-            if (volume.getMaxIops() != null) {
-                object.addProperty("maxiops", volume.getMaxIops());
+            if (maxIops != null) {
+                object.addProperty("maxiops", maxIops);
             }
             array.add(object);
         }
@@ -1265,6 +1267,10 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             throw new CloudRuntimeException(String.format("FTCTL DR remote Mold VM %s has no protected ROOT/DATADISK volumes", userVm.getUuid()));
         }
         return array;
+    }
+
+    private Long normalizeFtctlIops(Long iops) {
+        return iops != null && iops > 0 ? iops : null;
     }
 
     private String resolveSecondaryVmName(UserVmVO userVm, RegisterFtctlProtectionCmd cmd) {

@@ -1190,6 +1190,7 @@ export default {
           const jobId = this.extractJobId(payload)
           if (jobId) {
             this.$message.success(`${this.$t('message.ftctl.protection.saved')} (${this.$t('label.started')})`)
+            this.pollRegisterJob(jobId, payload)
           } else {
             this.$message.success(this.$t('message.ftctl.protection.saved'))
           }
@@ -1209,6 +1210,23 @@ export default {
     },
     extractJobId (payload) {
       return payload?.jobid || payload?.jobId || null
+    },
+    pollRegisterJob (jobId, payload) {
+      const refresh = (result) => {
+        this.$emit('refresh-data', result?.jobresult || payload)
+      }
+      this.$pollJob({
+        jobId,
+        title: this.$t('label.ftctl.protection.configure'),
+        description: this.resource?.name || this.resource?.displayname || this.resource?.id || '',
+        resourceId: this.resource?.id,
+        successMessage: this.$t('message.ftctl.protection.saved'),
+        loadingMessage: `${this.$t('message.ftctl.protection.saved')} (${this.$t('label.started')})`,
+        errorMessage: this.$t('label.error'),
+        catchMessage: this.$t('label.error.caught'),
+        successMethod: refresh,
+        errorMethod: refresh
+      })
     }
   }
 }

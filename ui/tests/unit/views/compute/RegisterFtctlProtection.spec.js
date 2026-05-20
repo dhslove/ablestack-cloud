@@ -201,6 +201,7 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
     wrapper.vm.form.fencingpolicy = 'manual-block'
     wrapper.vm.form.peerhostid = 'host-2'
     wrapper.vm.form.secondaryvmname = 'vm-name-standby'
+    wrapper.vm.form.networkids = ['network-1']
     wrapper.vm.form.secondarytargetdir = '/data/secondary'
     wrapper.vm.form.remotenbdexportaddr = '10.0.0.12:10809'
     wrapper.vm.formRef.value = {
@@ -222,6 +223,7 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
       targetstoragepoolid: 'pool-1',
       peerhostid: 'host-2',
       secondaryvmname: 'vm-name-standby',
+      networkids: 'network-1',
       secondarytargetdir: '/data/secondary',
       remotenbdexportaddr: '10.0.0.12:10809'
     })
@@ -229,7 +231,7 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
     expect(wrapper.emitted('close-action')).toBeTruthy()
   })
 
-  it('closes modal after async register job submission without waiting for completion', async () => {
+  it('starts async register job polling and closes modal after submission', async () => {
     mockGetApi({
       hosts: [{ id: 'host-2', hypervisor: 'KVM', name: 'peer-host', ipaddress: '10.0.0.12' }],
       storagePools: [{ id: 'pool-1', name: 'pool-1', scope: 'CLUSTER', state: 'Up' }]
@@ -252,7 +254,15 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
     await wrapper.vm.handleSubmit({ preventDefault: jest.fn() })
     await flushPromises()
 
-    expect(wrapper.vm.$pollJob).not.toHaveBeenCalled()
+    expect(wrapper.vm.$pollJob).toHaveBeenCalledWith(expect.objectContaining({
+      jobId: 'job-1',
+      title: 'label.ftctl.protection.configure',
+      description: 'vm-name',
+      resourceId: 'vm-1',
+      successMessage: 'message.ftctl.protection.saved',
+      errorMessage: 'label.error',
+      catchMessage: 'label.error.caught'
+    }))
     expect(wrapper.vm.$message.success).toHaveBeenCalledWith(expect.stringContaining('label.started'))
     expect(wrapper.emitted('refresh-data')).toBeTruthy()
     expect(wrapper.emitted('close-action')).toBeTruthy()
@@ -283,6 +293,7 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
     wrapper.vm.form.remotetargetstoragepoolpath = '/remote/ftctl'
     wrapper.vm.form.remotetargetstoragepooltype = 'Filesystem'
     wrapper.vm.form.secondaryvmname = 'vm-name-standby'
+    wrapper.vm.form.networkids = ['network-remote-1']
     wrapper.vm.form.secondarytargetdir = '/remote/ftctl'
     wrapper.vm.form.remotenbdexportaddr = '10.30.0.12:10809'
     wrapper.vm.formRef.value = {
@@ -342,6 +353,7 @@ describe('Views > compute > RegisterFtctlProtection.vue', () => {
     wrapper.vm.form.remotepeerlibvirturi = 'qemu+ssh://root@10.20.0.12:22/system'
     wrapper.vm.form.remotetargetstoragepooluuid = 'remote-pool-1'
     wrapper.vm.form.remotetargetstoragepoolpath = '/remote/ftctl'
+    wrapper.vm.form.networkids = ['network-remote-1']
     wrapper.vm.form.secondarytargetdir = '/remote/ftctl'
     wrapper.vm.form.remotenbdexportaddr = '10.30.0.12:10809'
     wrapper.vm.formRef.value = {

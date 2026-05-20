@@ -308,8 +308,8 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
             spec.type = StringUtils.defaultIfBlank(getJsonString(object, "type"), "DATADISK");
             spec.deviceId = getJsonLong(object, "deviceid");
             spec.size = getJsonLong(object, "size");
-            spec.minIops = getJsonLong(object, "miniops");
-            spec.maxIops = getJsonLong(object, "maxiops");
+            spec.minIops = normalizeFtctlIops(getJsonLong(object, "miniops"));
+            spec.maxIops = normalizeFtctlIops(getJsonLong(object, "maxiops"));
             if (StringUtils.isBlank(spec.diskLabel)) {
                 spec.diskLabel = buildDiskLabel(spec);
             }
@@ -322,6 +322,10 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
             throw new CloudRuntimeException("Remote FTCTL replica provisioning did not receive any usable source volumes");
         }
         return specs;
+    }
+
+    private Long normalizeFtctlIops(Long iops) {
+        return iops != null && iops > 0 ? iops : null;
     }
 
     private SourceVolumeSpec findRootSourceVolume(List<SourceVolumeSpec> sourceVolumes) {
@@ -494,8 +498,8 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
                 diskOffering.getId(),
                 volumeName,
                 bytesToGiBRoundedUp(spec.size),
-                spec.minIops,
-                spec.maxIops,
+                normalizeFtctlIops(spec.minIops),
+                normalizeFtctlIops(spec.maxIops),
                 targetStoragePool.getDataCenterId(),
                 targetStoragePool.getId(),
                 true);
@@ -926,8 +930,8 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
                 diskOffering.getId(),
                 volumeName,
                 bytesToGiBRoundedUp(primaryVolume.getSize()),
-                primaryVolume.getMinIops(),
-                primaryVolume.getMaxIops(),
+                normalizeFtctlIops(primaryVolume.getMinIops()),
+                normalizeFtctlIops(primaryVolume.getMaxIops()),
                 request.getPrimaryVm().getDataCenterId(),
                 targetStoragePool.getId(),
                 true);
