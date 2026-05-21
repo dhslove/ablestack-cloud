@@ -123,6 +123,17 @@
                 {{ action.label }}
               </a-button>
               <a-button
+                v-else-if="action.replicaFailbackModal"
+                size="small"
+                :danger="action.danger"
+                :disabled="action.disabled"
+                :title="action.disabled ? action.reason : null"
+                :loading="actionLoading[action.api]"
+                @click="openReplicaFailbackModal">
+                <template #icon><component :is="action.icon" /></template>
+                {{ action.label }}
+              </a-button>
+              <a-button
                 v-else-if="action.failbackModal"
                 size="small"
                 :danger="action.danger"
@@ -535,6 +546,69 @@
           </a-form>
         </div>
       </a-modal>
+
+      <a-modal
+        :visible="showReplicaFailbackModal"
+        :title="$t('label.ftctl.failback')"
+        :ok-text="$t('label.ftctl.failback')"
+        :cancel-text="$t('label.cancel')"
+        :confirmLoading="actionLoading.failbackFtctlDrReplica"
+        :ok-button-props="{ danger: true, disabled: !canSubmitReplicaFailbackProtection }"
+        :maskClosable="false"
+        width="720px"
+        @ok="confirmReplicaFailbackProtection"
+        @cancel="closeReplicaFailbackModal">
+        <div class="ftctl-tab__failback-modal-body">
+          <a-alert
+            type="warning"
+            show-icon
+            :message="$t('message.ftctl.replica.failback.delegated.modal.desc')"
+            class="ftctl-tab__alert" />
+          <a-form layout="vertical">
+            <a-alert
+              type="info"
+              show-icon
+              :message="$t('message.ftctl.replica.failback.target.mold.credentials.desc')"
+              class="ftctl-tab__alert" />
+            <a-form-item :label="$t('label.ftctl.target.source.mold.api.url')">
+              <a-input
+                v-model:value="replicaFailbackTargetMoldApiUrl"
+                :placeholder="$t('placeholder.ftctl.target.source.mold.api.url')" />
+            </a-form-item>
+            <a-form-item :label="$t('label.ftctl.target.source.mold.api.key')">
+              <a-input
+                v-model:value="replicaFailbackTargetMoldApiKey"
+                :placeholder="$t('placeholder.ftctl.target.source.mold.api.key')" />
+            </a-form-item>
+            <a-form-item :label="$t('label.ftctl.target.source.mold.secret.key')">
+              <a-input-password
+                v-model:value="replicaFailbackTargetMoldSecretKey"
+                :placeholder="$t('placeholder.ftctl.target.source.mold.secret.key')" />
+            </a-form-item>
+            <a-divider />
+            <a-alert
+              type="info"
+              show-icon
+              :message="$t('message.ftctl.replica.failback.replica.mold.credentials.desc')"
+              class="ftctl-tab__alert" />
+            <a-form-item :label="$t('label.ftctl.current.replica.mold.api.url')">
+              <a-input
+                v-model:value="replicaFailbackReplicaMoldApiUrl"
+                :placeholder="$t('placeholder.ftctl.current.replica.mold.api.url')" />
+            </a-form-item>
+            <a-form-item :label="$t('label.ftctl.current.replica.mold.api.key')">
+              <a-input
+                v-model:value="replicaFailbackReplicaMoldApiKey"
+                :placeholder="$t('placeholder.ftctl.current.replica.mold.api.key')" />
+            </a-form-item>
+            <a-form-item :label="$t('label.ftctl.current.replica.mold.secret.key')">
+              <a-input-password
+                v-model:value="replicaFailbackReplicaMoldSecretKey"
+                :placeholder="$t('placeholder.ftctl.current.replica.mold.secret.key')" />
+            </a-form-item>
+          </a-form>
+        </div>
+      </a-modal>
     </div>
   </a-spin>
 </template>
@@ -573,6 +647,7 @@ export default {
       showReleaseModal: false,
       showRemoteFenceModal: false,
       showFailbackModal: false,
+      showReplicaFailbackModal: false,
       releaseCommandName: 'releaseFtctlProtection',
       releaseForceSelected: false,
       releaseForceAcknowledged: false,
@@ -582,6 +657,12 @@ export default {
       failbackMoldApiUrl: null,
       failbackMoldApiKey: null,
       failbackMoldSecretKey: null,
+      replicaFailbackTargetMoldApiUrl: null,
+      replicaFailbackTargetMoldApiKey: null,
+      replicaFailbackTargetMoldSecretKey: null,
+      replicaFailbackReplicaMoldApiUrl: null,
+      replicaFailbackReplicaMoldApiKey: null,
+      replicaFailbackReplicaMoldSecretKey: null,
       lastAction: {
         success: false,
         message: null,
@@ -604,7 +685,8 @@ export default {
         clearFtctlFence: false,
         releaseFtctlProtection: false,
         releaseFtctlDrReplicaProtection: false,
-        adoptFtctlDrReplica: false
+        adoptFtctlDrReplica: false,
+        failbackFtctlDrReplica: false
       }
     }
   },
@@ -689,6 +771,16 @@ export default {
           Boolean(this.failbackMoldSecretKey)
       }
       return true
+    },
+    canSubmitReplicaFailbackProtection () {
+      return !this.actionInProgress &&
+        this.isReplicaRecoveryActionReady() &&
+        Boolean(this.replicaFailbackTargetMoldApiUrl) &&
+        Boolean(this.replicaFailbackTargetMoldApiKey) &&
+        Boolean(this.replicaFailbackTargetMoldSecretKey) &&
+        Boolean(this.replicaFailbackReplicaMoldApiUrl) &&
+        Boolean(this.replicaFailbackReplicaMoldApiKey) &&
+        Boolean(this.replicaFailbackReplicaMoldSecretKey)
     },
     failbackActionLabel () {
       return this.isFailbackContinueReady()
@@ -799,7 +891,7 @@ export default {
     },
     canRunActions () {
       const apis = this.replicaRecoveryActionView
-        ? ['adoptFtctlDrReplica']
+        ? ['failbackFtctlDrReplica', 'adoptFtctlDrReplica']
         : ['pauseFtctlProtection', 'resumeFtctlProtection', 'failoverFtctlProtection', 'failbackFtctlProtection', 'confirmFtctlFence', 'clearFtctlFence', 'releaseFtctlProtection']
       return apis.some(api => api in this.$store.getters.apis) &&
         this.supportedVm &&
@@ -982,8 +1074,9 @@ export default {
             label: this.$t('label.ftctl.failback'),
             icon: 'UndoOutlined',
             danger: true,
-            disabled: true,
-            reason: this.$t('message.ftctl.replica.failback.not.available')
+            replicaFailbackModal: true,
+            disabled: this.isActionDisabled('failbackFtctlDrReplica'),
+            reason: this.actionDisabledReason('failbackFtctlDrReplica')
           },
           {
             api: 'adoptFtctlDrReplica',
@@ -1073,7 +1166,7 @@ export default {
   methods: {
     actionAvailable (apiName) {
       const allowUnsafeVmState = apiName === 'releaseFtctlProtection'
-      const replicaRecoveryApi = ['releaseFtctlDrReplicaProtection', 'adoptFtctlDrReplica'].includes(apiName)
+      const replicaRecoveryApi = ['releaseFtctlDrReplicaProtection', 'adoptFtctlDrReplica', 'failbackFtctlDrReplica'].includes(apiName)
       return apiName in this.$store.getters.apis &&
         this.supportedVm &&
         (!this.standbyProtectionView || (replicaRecoveryApi && this.replicaRecoveryActionView)) &&
@@ -1197,6 +1290,8 @@ export default {
           return this.isReplicaRecoveryActionReady() ? null : 'Replica protection release requires a running failed-over DR replica.'
         case 'adoptFtctlDrReplica':
           return this.isReplicaRecoveryActionReady() ? null : 'Replica adoption requires a running failed-over DR replica.'
+        case 'failbackFtctlDrReplica':
+          return this.isReplicaRecoveryActionReady() ? null : 'Replica-side failback requires a running failed-over DR replica.'
         default:
           return null
       }
@@ -1246,6 +1341,28 @@ export default {
       this.showFailbackModal = false
       this.failbackMoldApiKey = null
       this.failbackMoldSecretKey = null
+      this.updateSyncAutoRefresh()
+    },
+    currentMoldApiUrl () {
+      const origin = typeof window !== 'undefined' ? window.location?.origin : null
+      return origin ? `${origin}/client/api` : null
+    },
+    openReplicaFailbackModal () {
+      this.replicaFailbackTargetMoldApiUrl = this.protection.remotemoldapiurl || this.replicaFailbackTargetMoldApiUrl
+      this.replicaFailbackTargetMoldApiKey = null
+      this.replicaFailbackTargetMoldSecretKey = null
+      this.replicaFailbackReplicaMoldApiUrl = this.replicaFailbackReplicaMoldApiUrl || this.currentMoldApiUrl()
+      this.replicaFailbackReplicaMoldApiKey = null
+      this.replicaFailbackReplicaMoldSecretKey = null
+      this.stopSyncAutoRefresh()
+      this.showReplicaFailbackModal = true
+    },
+    closeReplicaFailbackModal () {
+      this.showReplicaFailbackModal = false
+      this.replicaFailbackTargetMoldApiKey = null
+      this.replicaFailbackTargetMoldSecretKey = null
+      this.replicaFailbackReplicaMoldApiKey = null
+      this.replicaFailbackReplicaMoldSecretKey = null
       this.updateSyncAutoRefresh()
     },
     async confirmReleaseProtection () {
@@ -1298,6 +1415,24 @@ export default {
       const submitted = await this.runAction('failbackFtctlProtection', params, { ignoreRefreshLoading: true })
       if (submitted) {
         this.closeFailbackModal()
+      }
+    },
+    async confirmReplicaFailbackProtection () {
+      if (!this.canSubmitReplicaFailbackProtection) {
+        this.$message.warning(this.$t('message.ftctl.validation.replica.failback.credentials.required'))
+        return
+      }
+      const params = {
+        targetmoldapiurl: this.replicaFailbackTargetMoldApiUrl,
+        targetmoldapikey: this.replicaFailbackTargetMoldApiKey,
+        targetmoldsecretkey: this.replicaFailbackTargetMoldSecretKey,
+        replicamoldapiurl: this.replicaFailbackReplicaMoldApiUrl,
+        replicamoldapikey: this.replicaFailbackReplicaMoldApiKey,
+        replicamoldsecretkey: this.replicaFailbackReplicaMoldSecretKey
+      }
+      const submitted = await this.runAction('failbackFtctlDrReplica', params, { ignoreRefreshLoading: true })
+      if (submitted) {
+        this.closeReplicaFailbackModal()
       }
     },
     handleProtectionSaved (payload = {}) {
@@ -1994,7 +2129,7 @@ export default {
       }
     },
     shouldRefreshParentVm (commandName) {
-      return ['failoverFtctlProtection', 'failbackFtctlProtection', 'confirmFtctlFence', 'releaseFtctlProtection', 'releaseFtctlDrReplicaProtection', 'adoptFtctlDrReplica'].includes(commandName)
+      return ['failoverFtctlProtection', 'failbackFtctlProtection', 'confirmFtctlFence', 'releaseFtctlProtection', 'releaseFtctlDrReplicaProtection', 'adoptFtctlDrReplica', 'failbackFtctlDrReplica'].includes(commandName)
     },
     startPostRegisterAutoRefresh () {
       this.stopPostRegisterAutoRefresh()
@@ -2018,7 +2153,7 @@ export default {
       this.postRegisterRefreshAttempts = 0
     },
     updateSyncAutoRefresh () {
-      if (!this.resource?.id || !this.protectionConfigured || this.showRemoteFenceModal) {
+      if (!this.resource?.id || !this.protectionConfigured || this.showRemoteFenceModal || this.showFailbackModal || this.showReplicaFailbackModal) {
         this.stopSyncAutoRefresh()
         return
       }

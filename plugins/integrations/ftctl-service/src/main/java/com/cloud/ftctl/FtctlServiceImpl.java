@@ -74,6 +74,7 @@ import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlCheckCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlEventsCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlHealthCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlProtectionCmd;
+import org.apache.cloudstack.api.command.admin.ftctl.FailbackFtctlDrReplicaCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.InstallFtctlDrRemoteSshKeyCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.ListFtctlRemoteMoldHostsCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.ListFtctlRemoteMoldNetworksCmd;
@@ -197,6 +198,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     public static final String DETAIL_REMOTE_SOURCE_VM_UUID = "ftctl.remote.source.vm.uuid";
     public static final String DETAIL_REMOTE_SOURCE_VM_NAME = "ftctl.remote.source.vm.name";
     public static final String DETAIL_REMOTE_SOURCE_VM_INSTANCE_NAME = "ftctl.remote.source.vm.instance.name";
+    public static final String DETAIL_DR_RECOVERY_SOURCE_MOLD_API_URL = "ftctl.dr.recovery.source.mold.api.url";
     public static final String DETAIL_DR_RECOVERY_SESSION_UUID = "ftctl.dr.recovery.session.uuid";
     public static final String DETAIL_DR_RECOVERY_ROLE = "ftctl.dr.recovery.role";
     public static final String DETAIL_DR_RECOVERY_RELEASED = "ftctl.dr.recovery.released";
@@ -1810,16 +1812,161 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         return response;
     }
 
+    @Override
+    public FtctlActionResponse failbackFtctlDrReplica(Long virtualMachineId,
+                                                      String targetMoldApiUrl, String targetMoldApiKey, String targetMoldSecretKey,
+                                                      String replicaMoldApiUrl, String replicaMoldApiKey, String replicaMoldSecretKey)
+            throws CloudRuntimeException {
+        UserVmVO replicaVm = validateRemoteMoldReplicaVmForSiteRecovery(virtualMachineId, true);
+        validateReplicaSiteDelegatedFailbackState(replicaVm);
+
+        RemoteMoldCredentials targetMoldCredentials = buildRequiredRemoteMoldCredentials("target/source Mold",
+                targetMoldApiUrl, targetMoldApiKey, targetMoldSecretKey);
+        RemoteMoldCredentials replicaMoldCredentials = buildRequiredRemoteMoldCredentials("current replica Mold",
+                replicaMoldApiUrl, replicaMoldApiKey, replicaMoldSecretKey);
+
+        JsonObject sourceVm = resolveReplicaFailbackSourceVm(replicaVm, targetMoldCredentials);
+        String sourceVmUuid = getJsonString(sourceVm, "id");
+        validateDelegatedSourceProtection(replicaVm, targetMoldCredentials, sourceVmUuid);
+
+        Map<String, String> params = new HashMap<>();
+        params.put("virtualmachineid", sourceVmUuid);
+        params.put("failbacktargetmoldtype", FAILBACK_TARGET_MOLD_ORIGINAL_PRIMARY);
+        params.put("remotemoldapiurl", replicaMoldCredentials.apiUrl);
+        params.put("remotemoldapikey", replicaMoldCredentials.apiKey);
+        params.put("remotemoldsecretkey", replicaMoldCredentials.secretKey);
+        JsonObject delegatedResponse = callRemoteMoldApi(targetMoldCredentials.apiUrl, targetMoldCredentials.apiKey,
+                targetMoldCredentials.secretKey, "failbackFtctlProtection", params);
+
+        String delegatedJobId = getRemoteMoldResponseString(delegatedResponse, "failbackftctlprotectionresponse", "jobid");
+        FtctlActionResponse response = buildReplicaSiteDelegatedFailbackResponse(replicaVm, sourceVmUuid, delegatedJobId);
+        publishFtctlEvent(replicaVm, EventTypes.EVENT_FTCTL_PROTECTION_FAILBACK,
+                String.format("Delegated FTCTL DR replica failback for VM %s to source Mold VM %s%s",
+                        replicaVm.getUuid(), sourceVmUuid,
+                        StringUtils.isNotBlank(delegatedJobId) ? String.format(" with remote job %s", delegatedJobId) : ""));
+        return response;
+    }
+
     private UserVmVO validateRemoteMoldReplicaVmForSiteRecovery(Long virtualMachineId, boolean requireRunning) {
         UserVmVO replicaVm = validateVirtualMachineExists(virtualMachineId);
         if (!isRemoteMoldReplicaStandbyVm(replicaVm.getId())) {
             throw new CloudRuntimeException(String.format("VM %s is not an FTCTL remote DR replica recovery target", replicaVm.getUuid()));
         }
         if (requireRunning && replicaVm.getState() != VirtualMachine.State.Running) {
-            throw new CloudRuntimeException(String.format("FTCTL DR replica adoption requires VM %s to be Running, current state is %s",
+            throw new CloudRuntimeException(String.format("FTCTL DR replica site recovery requires VM %s to be Running, current state is %s",
                     replicaVm.getUuid(), replicaVm.getState()));
         }
         return replicaVm;
+    }
+
+    private void validateReplicaSiteDelegatedFailbackState(UserVmVO replicaVm) {
+        if (replicaVm == null || replicaVm.getState() != VirtualMachine.State.Running) {
+            throw new CloudRuntimeException("FTCTL DR replica-side failback requires the replica VM to be Running");
+        }
+    }
+
+    private RemoteMoldCredentials buildRequiredRemoteMoldCredentials(String label, String apiUrl, String apiKey, String secretKey) {
+        if (StringUtils.isAnyBlank(apiUrl, apiKey, secretKey)) {
+            throw new CloudRuntimeException(String.format("%s API URL, API key, and secret key are required", label));
+        }
+        return new RemoteMoldCredentials(StringUtils.trim(apiUrl), StringUtils.trim(apiKey), StringUtils.trim(secretKey));
+    }
+
+    private JsonObject resolveReplicaFailbackSourceVm(UserVmVO replicaVm, RemoteMoldCredentials targetMoldCredentials) {
+        String sourceVmUuid = StringUtils.trimToNull(getDetailValue(replicaVm.getId(), DETAIL_REMOTE_SOURCE_VM_UUID));
+        String sourceVmName = StringUtils.trimToNull(getDetailValue(replicaVm.getId(), DETAIL_REMOTE_SOURCE_VM_NAME));
+        String sourceVmInstanceName = StringUtils.trimToNull(getDetailValue(replicaVm.getId(), DETAIL_REMOTE_SOURCE_VM_INSTANCE_NAME));
+
+        JsonObject sourceVm = fetchRemoteMoldVirtualMachine(targetMoldCredentials, sourceVmUuid);
+        if (sourceVm == null && StringUtils.isNotBlank(sourceVmName)) {
+            sourceVm = findRemoteMoldVirtualMachineByName(targetMoldCredentials, sourceVmName);
+        }
+        if (sourceVm == null && StringUtils.isNotBlank(sourceVmInstanceName)) {
+            sourceVm = findRemoteMoldVirtualMachineByName(targetMoldCredentials, sourceVmInstanceName);
+        }
+        if (sourceVm == null) {
+            throw new CloudRuntimeException(String.format(
+                    "Replica-side FTCTL DR failback for VM %s requires an existing source VM and source protection row on the target/source Mold. New or rebuilt Mold failback is not available in this delegated build.",
+                    replicaVm.getUuid()));
+        }
+        String resolvedUuid = getJsonString(sourceVm, "id");
+        if (StringUtils.isBlank(resolvedUuid)) {
+            throw new CloudRuntimeException(String.format("Target/source Mold returned a source VM without an id for replica VM %s",
+                    replicaVm.getUuid()));
+        }
+        return sourceVm;
+    }
+
+    private JsonObject findRemoteMoldVirtualMachineByName(RemoteMoldCredentials credentials, String name) {
+        if (StringUtils.isBlank(name)) {
+            return null;
+        }
+        Map<String, String> params = new HashMap<>();
+        params.put("name", name);
+        params.put("listall", "true");
+        JsonObject json = callRemoteMoldApi(credentials.apiUrl, credentials.apiKey, credentials.secretKey,
+                "listVirtualMachines", params);
+        JsonObject vm = extractFirstRemoteMoldVirtualMachine(json);
+        if (vm != null) {
+            return vm;
+        }
+        params.clear();
+        params.put("keyword", name);
+        params.put("listall", "true");
+        json = callRemoteMoldApi(credentials.apiUrl, credentials.apiKey, credentials.secretKey,
+                "listVirtualMachines", params);
+        return extractFirstRemoteMoldVirtualMachine(json);
+    }
+
+    private JsonObject extractFirstRemoteMoldVirtualMachine(JsonObject json) {
+        JsonArray vms = getResponseArray(json, "listvirtualmachinesresponse", "virtualmachine");
+        if (vms == null || vms.size() == 0 || !vms.get(0).isJsonObject()) {
+            return null;
+        }
+        return vms.get(0).getAsJsonObject();
+    }
+
+    private void validateDelegatedSourceProtection(UserVmVO replicaVm, RemoteMoldCredentials targetMoldCredentials, String sourceVmUuid) {
+        Map<String, String> params = new HashMap<>();
+        params.put("virtualmachineid", sourceVmUuid);
+        JsonObject json = callRemoteMoldApi(targetMoldCredentials.apiUrl, targetMoldCredentials.apiKey,
+                targetMoldCredentials.secretKey, "getFtctlProtection", params);
+        JsonObject response = getResponseObject(json, "getftctlprotectionresponse");
+        JsonObject protection = getJsonObject(response, "ftctlprotection");
+        if (protection == null) {
+            protection = response;
+        }
+        String role = getJsonString(protection, "protectionrole");
+        String mode = getJsonString(protection, "mode");
+        String enabled = getJsonString(protection, "enabled");
+        if (!"primary".equalsIgnoreCase(StringUtils.trimToEmpty(role)) ||
+                !"dr".equalsIgnoreCase(StringUtils.trimToEmpty(mode)) ||
+                !"true".equalsIgnoreCase(StringUtils.trimToEmpty(enabled))) {
+            throw new CloudRuntimeException(String.format(
+                    "Replica-side FTCTL DR failback for VM %s can delegate only to a target/source Mold that still has the active source-side DR protection row for VM %s. Use the full replica-controller recovery workflow for a new or rebuilt Mold.",
+                    replicaVm.getUuid(), sourceVmUuid));
+        }
+    }
+
+    private FtctlActionResponse buildReplicaSiteDelegatedFailbackResponse(UserVmVO replicaVm, String sourceVmUuid, String delegatedJobId) {
+        FtctlActionResponse response = new FtctlActionResponse();
+        response.setObjectName("ftctlaction");
+        response.setVirtualMachineId(replicaVm.getId());
+        response.setVmName(replicaVm.getInstanceName());
+        response.setAction(FailbackFtctlDrReplicaCmd.APINAME);
+        response.setResult("delegated");
+        response.setExitCode(0);
+        response.setOutput(StringUtils.isNotBlank(delegatedJobId)
+                ? String.format("Delegated failback to source Mold VM %s, remote job %s", sourceVmUuid, delegatedJobId)
+                : String.format("Delegated failback to source Mold VM %s", sourceVmUuid));
+        response.setMode("dr");
+        response.setProtectionState("failed_over");
+        response.setTransportState("failed_over");
+        response.setActiveSide("secondary");
+        response.setAdminState("active");
+        response.setFencingState("clear");
+        response.setLastError(null);
+        return response;
     }
 
     private void cleanupReplicaSiteTransportState(UserVmVO replicaVm, boolean force, List<String> warnings) {
@@ -3753,6 +3900,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         response.setProvisioningBackend(FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED);
         response.setProvisioningState(FtctlProtectionProvisioningService.STATE_READY);
         response.setDrPeerSiteType(DR_PEER_SITE_TYPE_REMOTE_MOLD);
+        response.setRemoteMoldApiUrl(getDetailValue(standbyVmId, DETAIL_DR_RECOVERY_SOURCE_MOLD_API_URL));
         response.setProtectionState(runningReplica ? "failed_over" : "protected");
         response.setTransportState(runningReplica ? "failed_over" : "not_available");
         response.setActiveSide(runningReplica ? "secondary" : "primary");
@@ -5013,6 +5161,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         cmdList.add(ReleaseFtctlProtectionCmd.class);
         cmdList.add(ReleaseFtctlDrReplicaProtectionCmd.class);
         cmdList.add(AdoptFtctlDrReplicaCmd.class);
+        cmdList.add(FailbackFtctlDrReplicaCmd.class);
         return cmdList;
     }
 

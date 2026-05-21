@@ -311,6 +311,7 @@ describe('Views > compute > FtctlTab.vue', () => {
     })
 
     const wrapper = createWrapper({
+      failbackFtctlDrReplica: true,
       adoptFtctlDrReplica: true
     })
 
@@ -325,12 +326,78 @@ describe('Views > compute > FtctlTab.vue', () => {
     expect(wrapper.vm.actionDefinitions.find(action => action.api === 'releaseFtctlDrReplicaProtection')).toBeUndefined()
 
     const failbackAction = wrapper.vm.actionDefinitions.find(action => action.api === 'failbackFtctlDrReplica')
-    expect(failbackAction.disabled).toBe(true)
-    expect(failbackAction.reason).toBe('message.ftctl.replica.failback.not.available')
+    expect(failbackAction.replicaFailbackModal).toBe(true)
+    expect(failbackAction.disabled).toBe(false)
 
     const adoptAction = wrapper.vm.actionDefinitions.find(action => action.api === 'adoptFtctlDrReplica')
     expect(adoptAction.releaseModal).toBe(true)
     expect(adoptAction.disabled).toBe(false)
+  })
+
+  it('submits delegated replica-side DR failback with target and replica Mold credentials', async () => {
+    getAPI.mockImplementation((command) => {
+      if (command === 'getFtctlProtection') {
+        return Promise.resolve({
+          getftctlprotectionresponse: {
+            ftctlprotection: {
+              enabled: 'true',
+              mode: 'dr',
+              drpeersitetype: 'remote-mold',
+              remotemoldapiurl: 'http://10.10.22.10:8080/client/api',
+              protectionrole: 'standby',
+              protectionstate: 'failed_over',
+              transportstate: 'failed_over',
+              activeside: 'secondary',
+              adminstate: 'active',
+              fencingstate: 'clear',
+              secondaryvirtualmachinestate: 'Running'
+            }
+          }
+        })
+      }
+      return Promise.resolve({})
+    })
+    postAPI.mockResolvedValue({
+      failbackftctldrreplicaresponse: {
+        jobid: 'replica-failback-job-1'
+      }
+    })
+
+    const wrapper = createWrapper({
+      getFtctlCheck: true,
+      getFtctlHealth: true,
+      getFtctlEvents: true,
+      failbackFtctlDrReplica: true
+    })
+
+    await flushPromises()
+
+    wrapper.vm.openReplicaFailbackModal()
+    wrapper.vm.replicaFailbackTargetMoldApiKey = 'source-api-key'
+    wrapper.vm.replicaFailbackTargetMoldSecretKey = 'source-secret-key'
+    wrapper.vm.replicaFailbackReplicaMoldApiUrl = 'http://10.10.32.10:8080/client/api'
+    wrapper.vm.replicaFailbackReplicaMoldApiKey = 'replica-api-key'
+    wrapper.vm.replicaFailbackReplicaMoldSecretKey = 'replica-secret-key'
+
+    await wrapper.vm.confirmReplicaFailbackProtection()
+    await flushPromises()
+
+    expect(postAPI).toHaveBeenCalledWith('failbackFtctlDrReplica', {
+      virtualmachineid: 'vm-1',
+      targetmoldapiurl: 'http://10.10.22.10:8080/client/api',
+      targetmoldapikey: 'source-api-key',
+      targetmoldsecretkey: 'source-secret-key',
+      replicamoldapiurl: 'http://10.10.32.10:8080/client/api',
+      replicamoldapikey: 'replica-api-key',
+      replicamoldsecretkey: 'replica-secret-key'
+    })
+    expect(wrapper.vm.$pollJob).toHaveBeenCalledWith(expect.objectContaining({
+      jobId: 'replica-failback-job-1',
+      title: 'label.ftctl.failback',
+      resourceId: 'vm-1'
+    }))
+    expect(wrapper.vm.showReplicaFailbackModal).toBe(false)
+    wrapper.unmount()
   })
 
   it('shows cloud-managed failed-over primary as stopped without failure summary', async () => {
