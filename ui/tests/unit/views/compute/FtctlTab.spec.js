@@ -287,6 +287,52 @@ describe('Views > compute > FtctlTab.vue', () => {
     expect(wrapper.vm.stateTagColor('failed_over')).toBe('blue')
   })
 
+  it('shows distinct replica recovery actions without duplicate release button', async () => {
+    getAPI.mockImplementation((command) => {
+      if (command === 'getFtctlProtection') {
+        return Promise.resolve({
+          getftctlprotectionresponse: {
+            ftctlprotection: {
+              enabled: 'true',
+              mode: 'dr',
+              drpeersitetype: 'remote-mold',
+              protectionrole: 'standby',
+              protectionstate: 'failed_over',
+              transportstate: 'failed_over',
+              activeside: 'secondary',
+              adminstate: 'active',
+              fencingstate: 'clear',
+              secondaryvirtualmachinestate: 'Running'
+            }
+          }
+        })
+      }
+      return Promise.resolve({})
+    })
+
+    const wrapper = createWrapper({
+      adoptFtctlDrReplica: true
+    })
+
+    await flushPromises()
+
+    expect(wrapper.vm.replicaRecoveryActionView).toBe(true)
+    expect(wrapper.vm.canRunActions).toBe(true)
+    expect(wrapper.vm.actionDefinitions.map(action => action.api)).toEqual([
+      'failbackFtctlDrReplica',
+      'adoptFtctlDrReplica'
+    ])
+    expect(wrapper.vm.actionDefinitions.find(action => action.api === 'releaseFtctlDrReplicaProtection')).toBeUndefined()
+
+    const failbackAction = wrapper.vm.actionDefinitions.find(action => action.api === 'failbackFtctlDrReplica')
+    expect(failbackAction.disabled).toBe(true)
+    expect(failbackAction.reason).toBe('message.ftctl.replica.failback.not.available')
+
+    const adoptAction = wrapper.vm.actionDefinitions.find(action => action.api === 'adoptFtctlDrReplica')
+    expect(adoptAction.releaseModal).toBe(true)
+    expect(adoptAction.disabled).toBe(false)
+  })
+
   it('shows cloud-managed failed-over primary as stopped without failure summary', async () => {
     getAPI.mockImplementation((command) => {
       switch (command) {
@@ -642,10 +688,7 @@ describe('Views > compute > FtctlTab.vue', () => {
       failbacktargetmoldtype: 'original-primary',
       remotemoldapiurl: 'http://10.10.32.10:8080/client/api',
       remotemoldapikey: 'api-key',
-      remotemoldsecretkey: 'secret-key',
-      targetmoldapiurl: 'http://10.10.32.10:8080/client/api',
-      targetmoldapikey: 'api-key',
-      targetmoldsecretkey: 'secret-key'
+      remotemoldsecretkey: 'secret-key'
     })
   })
 

@@ -507,16 +507,9 @@
           <a-alert
             type="warning"
             show-icon
-            :message="$t('message.ftctl.failback.target.mold.modal.desc')"
+            :message="$t('message.ftctl.failback.source.controller.modal.desc')"
             class="ftctl-tab__alert" />
           <a-form layout="vertical">
-            <a-form-item :label="$t('label.ftctl.failback.target.mold')">
-              <a-select v-model:value="failbackTargetMoldType">
-                <a-select-option value="original-primary">{{ $t('label.ftctl.failback.target.mold.original.primary') }}</a-select-option>
-                <a-select-option value="current">{{ $t('label.ftctl.failback.target.mold.current') }}</a-select-option>
-                <a-select-option value="new" disabled>{{ $t('label.ftctl.failback.target.mold.new') }}</a-select-option>
-              </a-select>
-            </a-form-item>
             <template v-if="isRemoteMoldDrProtection()">
               <a-alert
                 type="info"
@@ -586,7 +579,6 @@ export default {
       remoteFenceMoldApiUrl: null,
       remoteFenceMoldApiKey: null,
       remoteFenceMoldSecretKey: null,
-      failbackTargetMoldType: 'original-primary',
       failbackMoldApiUrl: null,
       failbackMoldApiKey: null,
       failbackMoldSecretKey: null,
@@ -807,7 +799,7 @@ export default {
     },
     canRunActions () {
       const apis = this.replicaRecoveryActionView
-        ? ['releaseFtctlDrReplicaProtection', 'adoptFtctlDrReplica']
+        ? ['adoptFtctlDrReplica']
         : ['pauseFtctlProtection', 'resumeFtctlProtection', 'failoverFtctlProtection', 'failbackFtctlProtection', 'confirmFtctlFence', 'clearFtctlFence', 'releaseFtctlProtection']
       return apis.some(api => api in this.$store.getters.apis) &&
         this.supportedVm &&
@@ -986,6 +978,14 @@ export default {
       if (this.replicaRecoveryActionView) {
         return [
           {
+            api: 'failbackFtctlDrReplica',
+            label: this.$t('label.ftctl.failback'),
+            icon: 'UndoOutlined',
+            danger: true,
+            disabled: true,
+            reason: this.$t('message.ftctl.replica.failback.not.available')
+          },
+          {
             api: 'adoptFtctlDrReplica',
             label: this.$t('label.ftctl.adopt.replica'),
             icon: 'CheckCircleOutlined',
@@ -993,15 +993,6 @@ export default {
             releaseModal: true,
             disabled: this.isActionDisabled('adoptFtctlDrReplica'),
             reason: this.actionDisabledReason('adoptFtctlDrReplica')
-          },
-          {
-            api: 'releaseFtctlDrReplicaProtection',
-            label: this.$t('label.ftctl.release.replica.protection'),
-            icon: 'DeleteOutlined',
-            danger: true,
-            releaseModal: true,
-            disabled: this.isActionDisabled('releaseFtctlDrReplicaProtection'),
-            reason: this.actionDisabledReason('releaseFtctlDrReplicaProtection')
           }
         ]
       }
@@ -1245,7 +1236,6 @@ export default {
       this.updateSyncAutoRefresh()
     },
     openFailbackModal () {
-      this.failbackTargetMoldType = this.failbackTargetMoldType || 'original-primary'
       this.failbackMoldApiUrl = this.protection.remotemoldapiurl || this.failbackMoldApiUrl
       this.failbackMoldApiKey = null
       this.failbackMoldSecretKey = null
@@ -1290,23 +1280,20 @@ export default {
     },
     async confirmFailbackProtection () {
       if (!this.canSubmitFailbackProtection) {
-        this.$message.warning(this.$t('message.ftctl.validation.failback.target.mold.required'))
+        this.$message.warning(this.$t('message.ftctl.validation.remote.mold.credentials.required'))
         return
       }
       const params = {
-        failbacktargetmoldtype: this.failbackTargetMoldType
+        failbacktargetmoldtype: 'original-primary'
       }
       if (this.failbackMoldApiUrl) {
         params.remotemoldapiurl = this.failbackMoldApiUrl
-        params.targetmoldapiurl = this.failbackMoldApiUrl
       }
       if (this.failbackMoldApiKey) {
         params.remotemoldapikey = this.failbackMoldApiKey
-        params.targetmoldapikey = this.failbackMoldApiKey
       }
       if (this.failbackMoldSecretKey) {
         params.remotemoldsecretkey = this.failbackMoldSecretKey
-        params.targetmoldsecretkey = this.failbackMoldSecretKey
       }
       const submitted = await this.runAction('failbackFtctlProtection', params, { ignoreRefreshLoading: true })
       if (submitted) {
