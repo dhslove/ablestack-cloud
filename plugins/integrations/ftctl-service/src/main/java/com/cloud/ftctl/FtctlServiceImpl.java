@@ -4770,14 +4770,67 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
 
     private void executeSyncCommand(Long hostId, com.cloud.agent.api.Command command, String syncType) {
         try {
-            Answer answer = agentManager.send(hostId, command);
-            if (!(answer instanceof FtctlSyncAnswer) || !answer.getResult()) {
-                throw new CloudRuntimeException(String.format("FTCTL %s sync failed on host %s: %s",
-                        syncType, hostId, answer != null ? answer.getDetails() : "no answer"));
-            }
+            sendFtctlSyncWithLockRetry(hostId, command, syncType);
         } catch (AgentUnavailableException | OperationTimedoutException e) {
             throw new CloudRuntimeException(String.format("Unable to execute FTCTL %s sync on host %s", syncType, hostId), e);
         }
+    }
+
+    private FtctlSyncAnswer sendFtctlSyncWithLockRetry(Long hostId, com.cloud.agent.api.Command command, String syncType)
+            throws AgentUnavailableException, OperationTimedoutException {
+        long deadline = System.currentTimeMillis() + FTCTL_ACTION_LOCK_RETRY_TIMEOUT_MILLIS;
+        int attempt = 0;
+        while (true) {
+            attempt++;
+            Answer answer = agentManager.send(hostId, command);
+            if (!(answer instanceof FtctlSyncAnswer)) {
+                throw new CloudRuntimeException(String.format("Unexpected FTCTL %s sync answer type on host %s", syncType, hostId));
+            }
+            FtctlSyncAnswer syncAnswer = (FtctlSyncAnswer) answer;
+            if (syncAnswer.getResult()) {
+                if (attempt > 1) {
+                    logger.info(String.format("FTCTL %s sync on host %s succeeded after %s lock retry attempt(s)",
+                            syncType, hostId, attempt - 1));
+                }
+                return syncAnswer;
+            }
+            if (!isRetryableFtctlLock(syncAnswer)) {
+                throw new CloudRuntimeException(String.format("FTCTL %s sync failed on host %s: %s",
+                        syncType, hostId, syncAnswer.getDetails()));
+            }
+            if (System.currentTimeMillis() >= deadline) {
+                throw new CloudRuntimeException(String.format("FTCTL %s sync on host %s remained locked after %s ms: %s",
+                        syncType, hostId, FTCTL_ACTION_LOCK_RETRY_TIMEOUT_MILLIS, syncAnswer.getDetails()));
+            }
+            logger.info(String.format("FTCTL %s sync on host %s is locked by another ftctl process; retrying in %s ms",
+                    syncType, hostId, FTCTL_ACTION_LOCK_RETRY_INTERVAL_MILLIS));
+            sleepBeforeFtctlLockRetry(syncType, hostId);
+        }
+    }
+
+    private void sleepBeforeFtctlLockRetry(String syncType, Long hostId) {
+        try {
+            Thread.sleep(FTCTL_ACTION_LOCK_RETRY_INTERVAL_MILLIS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new CloudRuntimeException(String.format("Interrupted while waiting to retry FTCTL %s sync on host %s",
+                    syncType, hostId), e);
+        }
+    }
+
+    private boolean isRetryableFtctlLock(FtctlSyncAnswer syncAnswer) {
+        if (syncAnswer == null) {
+            return false;
+        }
+        if (Integer.valueOf(FTCTL_ACTION_LOCK_EXIT_CODE).equals(syncAnswer.getExitCode())) {
+            return true;
+        }
+        if ("locked".equalsIgnoreCase(StringUtils.trimToEmpty(syncAnswer.getFtctlResult()))) {
+            return true;
+        }
+        String details = StringUtils.defaultString(syncAnswer.getDetails());
+        String output = StringUtils.defaultString(syncAnswer.getOutput());
+        return details.contains("\"result\":\"locked\"") || output.contains("\"result\":\"locked\"");
     }
 
     private String buildClusterName(HostVO localHost, UserVmVO userVm) {
