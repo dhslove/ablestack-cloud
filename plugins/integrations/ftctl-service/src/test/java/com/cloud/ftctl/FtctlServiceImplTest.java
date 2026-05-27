@@ -154,6 +154,8 @@ public class FtctlServiceImplTest {
         Mockito.lenient().when(userVm.getState()).thenReturn(VirtualMachine.State.Running);
         Mockito.lenient().when(userVm.getDataCenterId()).thenReturn(401L);
         Mockito.when(userVmDao.findById(101L)).thenReturn(userVm);
+        Mockito.lenient().when(userVmDao.createForUpdate()).thenReturn(Mockito.mock(UserVmVO.class));
+        Mockito.lenient().when(userVmDao.update(Mockito.anyLong(), Mockito.any(UserVmVO.class))).thenReturn(true);
 
         Mockito.lenient().doAnswer(invocation -> {
             Long vmId = invocation.getArgument(0);
@@ -1478,6 +1480,50 @@ public class FtctlServiceImplTest {
             Assert.assertTrue(e.getMessage().contains("absolute Cloud-managed path"));
         }
         Mockito.verify(agentManager, Mockito.never()).send(Mockito.anyLong(), Mockito.any(Command.class));
+    }
+
+    @Test
+    public void testRegisterFtCloudManagedAppliesLifecycleGuardAndRestoresOnFailure() throws Exception {
+        RegisterFtctlProtectionCmd cmd = buildRegisterCmd();
+        setField(cmd, "mode", "ft");
+        setField(cmd, "provisioningBackend", FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED);
+        setField(cmd, "xcoloProxyEndpoint", "10.0.0.11:9001");
+        setField(cmd, "xcoloNbdEndpoint", "10.0.0.11:10809");
+        setField(cmd, "xcoloMigrateUri", "tcp:10.0.0.12:9000");
+        Mockito.when(userVm.isHaEnabled()).thenReturn(true);
+        HostVO localHost = mockHost(201L, 301L, "10.0.0.11");
+        HostVO peerHost = mockHost(202L, 301L, "10.0.0.12");
+        Mockito.when(hostDao.findById(201L)).thenReturn(localHost);
+        Mockito.when(hostDao.findById(202L)).thenReturn(peerHost);
+        Mockito.doReturn(new FtctlProtectionProvisioningContext(
+                FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED,
+                FtctlProtectionProvisioningService.STATE_READY,
+                "i-2-401-VM",
+                "sda=/var/lib/libvirt/images/standby-root.qcow2"))
+                .when(ftctlProtectionProvisioningService).prepareProtection(Mockito.any());
+
+        FtctlSyncAnswer clusterAnswer = new FtctlSyncAnswer(new FtctlSyncClusterCommand(), true, "OK", "ok", 0, "cluster-synced");
+        FtctlSyncAnswer profileAnswer = new FtctlSyncAnswer(new FtctlSyncProfileCommand(), true, "OK", "ok", 0, "profile-synced");
+        FtctlActionAnswer protectAnswer = new FtctlActionAnswer(new FtctlActionCommand(FtctlActionCommand.Action.PROTECT, "vm-name"), false, "runtime validation failed",
+                FtctlActionCommand.Action.PROTECT, "runtime validation failed", 1, "runtime validation failed");
+        Mockito.when(agentManager.send(Mockito.eq(201L), Mockito.any(Command.class)))
+                .thenReturn(clusterAnswer)
+                .thenReturn(profileAnswer)
+                .thenReturn(protectAnswer);
+
+        try {
+            ftctlService.registerFtctlProtection(cmd);
+            Assert.fail("Expected CloudRuntimeException");
+        } catch (CloudRuntimeException e) {
+            Assert.assertNotNull(e.getMessage());
+        }
+
+        Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.lifecycle.guard", "ft-cloud-managed-protecting", true);
+        Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.lifecycle.guard.original.ha.enabled", "true", true);
+        Mockito.verify(vmInstanceDetailsDao, Mockito.atLeastOnce()).removeDetail(101L, "ftctl.lifecycle.guard");
+        Mockito.verify(vmInstanceDetailsDao, Mockito.atLeastOnce()).removeDetail(101L, "ftctl.lifecycle.guard.original.ha.enabled");
+        Mockito.verify(userVmDao, Mockito.atLeastOnce()).update(Mockito.eq(101L), Mockito.any(UserVmVO.class));
+        Assert.assertNull(vmDetails.get("101:ftctl.lifecycle.guard"));
     }
 
     @Test

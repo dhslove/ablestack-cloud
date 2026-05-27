@@ -247,6 +247,10 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     public static final String DETAIL_NIC_IDENTITY_STATE = "ftctl.nic.identity.state";
     public static final String DETAIL_NIC_IDENTITY_PRIMARY_PREFIX = "ftctl.nic.identity.primary.";
     public static final String DETAIL_NIC_IDENTITY_SECONDARY_PREFIX = "ftctl.nic.identity.secondary.";
+    public static final String DETAIL_LIFECYCLE_GUARD = "ftctl.lifecycle.guard";
+    public static final String DETAIL_LIFECYCLE_GUARD_ORIGINAL_HA_ENABLED = "ftctl.lifecycle.guard.original.ha.enabled";
+    public static final String DETAIL_LIFECYCLE_GUARD_PRIMARY_HOST_ID = "ftctl.lifecycle.guard.primary.host.id";
+    public static final String DETAIL_LIFECYCLE_GUARD_STARTED = "ftctl.lifecycle.guard.started";
     public static final String HOST_DETAIL_ENABLED = "ftctl.enabled";
     public static final String HOST_DETAIL_MANAGEMENT_IP = "ftctl.management.ip";
     public static final String HOST_DETAIL_LIBVIRT_URI = "ftctl.libvirt.uri";
@@ -489,7 +493,10 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
 
         Long hostId = getExecutionHostId(userVm);
         if (hostId != null) {
+            boolean lifecycleGuardApplied = false;
             try {
+                applyCloudManagedFtLifecycleGuard(userVm, provisioningContext);
+                lifecycleGuardApplied = true;
                 syncFtctlContext(userVm, cmd, targetStoragePool, targetStorageScope, backendMode, secondaryTargetDir, remoteNbdExportAddr, ipmiFencingConfig, provisioningContext, remoteDrSshKeyFile);
                 String peerUri = remoteMoldDr ? resolveRemotePeerLibvirtUri(cmd) : resolvePeerUri(cmd.getPeerHostId());
                 if (peerUri == null || peerUri.isBlank()) {
@@ -514,11 +521,17 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
                             userVm.getUuid(), answer != null ? answer.getDetails() : "no answer"));
                 }
             } catch (CloudRuntimeException e) {
+                if (lifecycleGuardApplied) {
+                    releaseCloudManagedFtLifecycleGuard(userVm);
+                }
                 persistRegistrationFailure(userVm, e);
                 throw e;
             } catch (AgentUnavailableException | OperationTimedoutException e) {
                 CloudRuntimeException failure = new CloudRuntimeException(String.format("Unable to execute FTCTL protection on host %s for VM %s",
                         hostId, userVm.getUuid()), e);
+                if (lifecycleGuardApplied) {
+                    releaseCloudManagedFtLifecycleGuard(userVm);
+                }
                 persistRegistrationFailure(userVm, failure);
                 throw failure;
             }
@@ -1570,6 +1583,54 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
                 String.format("FTCTL protection registration failed for VM %s: %s", userVm.getUuid(), message));
     }
 
+    private void applyCloudManagedFtLifecycleGuard(UserVmVO userVm, FtctlProtectionProvisioningContext provisioningContext) {
+        if (userVm == null || provisioningContext == null ||
+                !"ft".equalsIgnoreCase(StringUtils.trimToEmpty(getDetailValue(userVm.getId(), DETAIL_MODE))) ||
+                !FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED.equalsIgnoreCase(StringUtils.trimToEmpty(provisioningContext.getProvisioningBackend()))) {
+            return;
+        }
+
+        if (StringUtils.isBlank(getDetailValue(userVm.getId(), DETAIL_LIFECYCLE_GUARD_ORIGINAL_HA_ENABLED))) {
+            putVmDetail(userVm.getId(), DETAIL_LIFECYCLE_GUARD_ORIGINAL_HA_ENABLED, String.valueOf(userVm.isHaEnabled()));
+        }
+        putVmDetail(userVm.getId(), DETAIL_LIFECYCLE_GUARD, "ft-cloud-managed-protecting");
+        putVmDetail(userVm.getId(), DETAIL_LIFECYCLE_GUARD_STARTED, Instant.now().toString());
+        if (userVm.getHostId() != null) {
+            putVmDetail(userVm.getId(), DETAIL_LIFECYCLE_GUARD_PRIMARY_HOST_ID, String.valueOf(userVm.getHostId()));
+        }
+
+        if (userVm.isHaEnabled()) {
+            UserVmVO update = userVmDao.createForUpdate();
+            update.setHaEnabled(false);
+            userVmDao.update(userVm.getId(), update);
+            userVm.setHaEnabled(false);
+            logger.info(String.format("Temporarily disabled Cloud HA for FT cloud-managed lifecycle guard on VM %s", userVm.getUuid()));
+        }
+    }
+
+    private void releaseCloudManagedFtLifecycleGuard(UserVmVO userVm) {
+        if (userVm == null || StringUtils.isBlank(getDetailValue(userVm.getId(), DETAIL_LIFECYCLE_GUARD))) {
+            return;
+        }
+
+        String originalHaEnabled = getDetailValue(userVm.getId(), DETAIL_LIFECYCLE_GUARD_ORIGINAL_HA_ENABLED);
+        if (StringUtils.isNotBlank(originalHaEnabled)) {
+            boolean restoreHa = Boolean.parseBoolean(originalHaEnabled);
+            if (userVm.isHaEnabled() != restoreHa) {
+                UserVmVO update = userVmDao.createForUpdate();
+                update.setHaEnabled(restoreHa);
+                userVmDao.update(userVm.getId(), update);
+                userVm.setHaEnabled(restoreHa);
+                logger.info(String.format("Restored Cloud HA=%s after FT lifecycle guard release on VM %s", restoreHa, userVm.getUuid()));
+            }
+        }
+
+        removeVmDetail(userVm.getId(), DETAIL_LIFECYCLE_GUARD);
+        removeVmDetail(userVm.getId(), DETAIL_LIFECYCLE_GUARD_ORIGINAL_HA_ENABLED);
+        removeVmDetail(userVm.getId(), DETAIL_LIFECYCLE_GUARD_PRIMARY_HOST_ID);
+        removeVmDetail(userVm.getId(), DETAIL_LIFECYCLE_GUARD_STARTED);
+    }
+
     private StoragePoolVO validateTargetStoragePool(RegisterFtctlProtectionCmd cmd, UserVmVO userVm) {
         if (!isProtectionModeWithTargetStorage(cmd.getMode())) {
             return null;
@@ -1761,6 +1822,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             addForcedReleaseWarning(primaryVm, forceWarnings,
                     String.format("Cloud-managed standby cleanup failed during forced release: %s", e.getMessage()));
         }
+        releaseCloudManagedFtLifecycleGuard(primaryVm);
         markProtectionRowsRemoved(protection);
         vmInstanceDetailsDao.removeDetailsWithPrefix(primaryVm.getId(), "ftctl.");
         applyForcedReleaseWarnings(response, forceWarnings);
