@@ -23,6 +23,7 @@ public class FtctlActionCommand extends Command {
 
     public enum Action {
         PROTECT("protect"),
+        PROTECT_START("protect-start"),
         PAUSE_PROTECTION("pause-protection"),
         RESUME_PROTECTION("resume-protection"),
         FAILOVER("failover"),

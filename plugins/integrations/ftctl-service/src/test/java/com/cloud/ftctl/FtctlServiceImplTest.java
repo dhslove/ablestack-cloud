@@ -1364,9 +1364,9 @@ public class FtctlServiceImplTest {
 
         FtctlSyncAnswer clusterAnswer = new FtctlSyncAnswer(new FtctlSyncClusterCommand(), true, "OK", "ok", 0, "cluster-synced");
         FtctlSyncAnswer profileAnswer = new FtctlSyncAnswer(new FtctlSyncProfileCommand(), true, "OK", "ok", 0, "profile-synced");
-        FtctlActionCommand protectCommand = new FtctlActionCommand(FtctlActionCommand.Action.PROTECT, "vm-name");
+        FtctlActionCommand protectCommand = new FtctlActionCommand(FtctlActionCommand.Action.PROTECT_START, "vm-name");
         FtctlActionAnswer protectAnswer = new FtctlActionAnswer(protectCommand, true, "OK",
-                FtctlActionCommand.Action.PROTECT, "ok", 0, "protected");
+                FtctlActionCommand.Action.PROTECT_START, "accepted", 0, "protection job accepted");
         FtctlStatusAnswer statusAnswer = new FtctlStatusAnswer(new FtctlStatusCommand("vm-name"), true, "OK", "ok", "vm-name",
                 "dr", "protected", "replicating", "primary", "running", "clear", "",
                 "2026-04-18T18:10:00+09:00", 0, 0);
@@ -1417,7 +1417,7 @@ public class FtctlServiceImplTest {
         Assert.assertEquals("10.0.0.12:10809", profileCommand.getRemoteNbdExportAddr());
 
         FtctlActionCommand capturedProtectCommand = (FtctlActionCommand) commands.get(2);
-        Assert.assertEquals(FtctlActionCommand.Action.PROTECT, capturedProtectCommand.getAction());
+        Assert.assertEquals(FtctlActionCommand.Action.PROTECT_START, capturedProtectCommand.getAction());
         Assert.assertEquals("vm-name", capturedProtectCommand.getVmName());
         Assert.assertEquals("dr", capturedProtectCommand.getMode());
         Assert.assertEquals("qemu+ssh://peer-ft/system", capturedProtectCommand.getPeerUri());
@@ -1504,8 +1504,8 @@ public class FtctlServiceImplTest {
 
         FtctlSyncAnswer clusterAnswer = new FtctlSyncAnswer(new FtctlSyncClusterCommand(), true, "OK", "ok", 0, "cluster-synced");
         FtctlSyncAnswer profileAnswer = new FtctlSyncAnswer(new FtctlSyncProfileCommand(), true, "OK", "ok", 0, "profile-synced");
-        FtctlActionAnswer protectAnswer = new FtctlActionAnswer(new FtctlActionCommand(FtctlActionCommand.Action.PROTECT, "vm-name"), false, "runtime validation failed",
-                FtctlActionCommand.Action.PROTECT, "runtime validation failed", 1, "runtime validation failed");
+        FtctlActionAnswer protectAnswer = new FtctlActionAnswer(new FtctlActionCommand(FtctlActionCommand.Action.PROTECT_START, "vm-name"), false, "runtime validation failed",
+                FtctlActionCommand.Action.PROTECT_START, "runtime validation failed", 1, "runtime validation failed");
         Mockito.when(agentManager.send(Mockito.eq(201L), Mockito.any(Command.class)))
                 .thenReturn(clusterAnswer)
                 .thenReturn(profileAnswer)
@@ -1621,9 +1621,9 @@ public class FtctlServiceImplTest {
 
         FtctlSyncAnswer clusterAnswer = new FtctlSyncAnswer(new FtctlSyncClusterCommand(), true, "OK", "ok", 0, "cluster-synced");
         FtctlSyncAnswer profileAnswer = new FtctlSyncAnswer(new FtctlSyncProfileCommand(), true, "OK", "ok", 0, "profile-synced");
-        FtctlActionCommand protectCommand = new FtctlActionCommand(FtctlActionCommand.Action.PROTECT, "vm-name");
+        FtctlActionCommand protectCommand = new FtctlActionCommand(FtctlActionCommand.Action.PROTECT_START, "vm-name");
         FtctlActionAnswer protectAnswer = new FtctlActionAnswer(protectCommand, true, "OK",
-                FtctlActionCommand.Action.PROTECT, "ok", 0, "protected");
+                FtctlActionCommand.Action.PROTECT_START, "accepted", 0, "protection job accepted");
         FtctlStatusAnswer statusAnswer = new FtctlStatusAnswer(new FtctlStatusCommand("vm-name"), true, "OK", "ok", "vm-name",
                 "ha", "protected", "replicating", "primary", "running", "clear", "",
                 "2026-04-18T18:10:00+09:00", 0, 0);
@@ -1726,8 +1726,8 @@ public class FtctlServiceImplTest {
 
         FtctlSyncAnswer clusterAnswer = new FtctlSyncAnswer(new FtctlSyncClusterCommand(), true, "OK", "ok", 0, "cluster-synced");
         FtctlSyncAnswer profileAnswer = new FtctlSyncAnswer(new FtctlSyncProfileCommand(), true, "OK", "ok", 0, "profile-synced");
-        FtctlActionAnswer protectAnswer = new FtctlActionAnswer(new FtctlActionCommand(FtctlActionCommand.Action.PROTECT, "vm-name"), true, "OK",
-                FtctlActionCommand.Action.PROTECT, "ok", 0, "protected");
+        FtctlActionAnswer protectAnswer = new FtctlActionAnswer(new FtctlActionCommand(FtctlActionCommand.Action.PROTECT_START, "vm-name"), true, "OK",
+                FtctlActionCommand.Action.PROTECT_START, "accepted", 0, "protection job accepted");
         FtctlStatusAnswer statusAnswer = new FtctlStatusAnswer(new FtctlStatusCommand("vm-name"), true, "OK", "ok", "vm-name",
                 "dr", "protected", "replicating", "primary", "running", "clear", "",
                 "2026-04-18T18:10:00+09:00", 0, 0);

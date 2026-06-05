@@ -191,7 +191,7 @@ public class FtctlServiceAgentIntegrationTest {
         });
         agentHelper.onCommand(FtctlActionCommand.class, (hostId, command) -> {
             Assert.assertEquals(Long.valueOf(201L), hostId);
-            Assert.assertEquals(FtctlActionCommand.Action.PROTECT, command.getAction());
+            Assert.assertEquals(FtctlActionCommand.Action.PROTECT_START, command.getAction());
             Assert.assertEquals("vm-name", command.getVmName());
             Assert.assertEquals("dr", command.getMode());
             Assert.assertEquals("qemu+ssh://peer-ft/system", command.getPeerUri());
@@ -199,7 +199,7 @@ public class FtctlServiceAgentIntegrationTest {
             Assert.assertEquals("libvirt-managed", command.getContextParam("ftctl.provisioning.backend"));
             Assert.assertEquals("secondary-local", command.getContextParam("ftctl.target.storage.scope"));
             Assert.assertEquals("manual-block", command.getContextParam("ftctl.fencing.policy"));
-            return new FtctlActionAnswer(command, true, "OK", FtctlActionCommand.Action.PROTECT, "ok", 0, "protected");
+            return new FtctlActionAnswer(command, true, "OK", FtctlActionCommand.Action.PROTECT_START, "accepted", 0, "protection job accepted");
         });
         agentHelper.onCommand(FtctlStatusCommand.class, (hostId, command) -> {
             Assert.assertEquals(Long.valueOf(201L), hostId);

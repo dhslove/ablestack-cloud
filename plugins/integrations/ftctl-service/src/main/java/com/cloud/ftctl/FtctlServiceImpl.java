@@ -502,7 +502,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
                 if (peerUri == null || peerUri.isBlank()) {
                     throw new CloudRuntimeException(String.format("Missing FTCTL peer libvirt URI on %s", remoteMoldDr ? "remote Mold host" : String.format("host %s", cmd.getPeerHostId())));
                 }
-                FtctlActionCommand actionCommand = new FtctlActionCommand(FtctlActionCommand.Action.PROTECT, userVm.getInstanceName());
+                FtctlActionCommand actionCommand = new FtctlActionCommand(FtctlActionCommand.Action.PROTECT_START, userVm.getInstanceName());
                 actionCommand.setMode(cmd.getMode());
                 actionCommand.setPeerUri(peerUri);
                 if (backendMode != null) {
@@ -517,7 +517,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
                 }
                 Answer answer = agentManager.send(hostId, actionCommand);
                 if (!(answer instanceof FtctlActionAnswer) || !answer.getResult()) {
-                    throw new CloudRuntimeException(String.format("Unable to register FTCTL protection for VM %s: %s",
+                    throw new CloudRuntimeException(String.format("Unable to start FTCTL protection job for VM %s: %s",
                             userVm.getUuid(), answer != null ? answer.getDetails() : "no answer"));
                 }
             } catch (CloudRuntimeException e) {
