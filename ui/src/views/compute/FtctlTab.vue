@@ -311,6 +311,14 @@
             <a-descriptions-item :label="$t('label.ftctl.xcolo.proxy.endpoint')">{{ protection.xcoloproxyendpoint || '-' }}</a-descriptions-item>
             <a-descriptions-item :label="$t('label.ftctl.xcolo.nbd.endpoint')">{{ protection.xcolonbdendpoint || '-' }}</a-descriptions-item>
             <a-descriptions-item :label="$t('label.ftctl.xcolo.migrate.uri')">{{ protection.xcolomigrateuri || '-' }}</a-descriptions-item>
+            <a-descriptions-item :label="$t('label.ft.machine.compatibility')">
+              <a-tag :color="protection.ftmachinecompatible ? 'green' : 'orange'">
+                {{ protection.ftmachinetype || '-' }}
+              </a-tag>
+              <span v-if="protection.ftmachinecompatibilitymessage" class="ftctl-tab__inline-meta">
+                / {{ protection.ftmachinecompatibilitymessage }}
+              </span>
+            </a-descriptions-item>
             <a-descriptions-item :label="$t('label.ftctl.protection.state')">
               <a-tag v-if="protection.protectionstate" :color="stateTagColor(protection.protectionstate)">{{ protection.protectionstate }}</a-tag>
               <span v-else>-</span>
@@ -417,6 +425,7 @@
         @cancel="closeProtectionModal">
         <RegisterFtctlProtection
           :resource="resource"
+          :protection="protection"
           @close-action="closeProtectionModal"
           @refresh-data="handleProtectionSaved" />
       </a-modal>
@@ -886,6 +895,10 @@ export default {
       }
       if (this.unsafeVmState) {
         return `FTCTL protection is unavailable while the VM is in ${this.currentVmStateDisplay} state.`
+      }
+      if (this.protection && Object.prototype.hasOwnProperty.call(this.protection, 'ftmachinecompatible') &&
+          !(this.protection.ftmachinecompatible === true || String(this.protection.ftmachinecompatible).toLowerCase() === 'true')) {
+        return this.protection.ftmachinecompatibilitymessage || this.$t('message.ftctl.ft.machine.incompatible')
       }
       return null
     },

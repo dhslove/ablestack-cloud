@@ -168,6 +168,18 @@ public class FtctlProtectionResponse extends BaseResponse {
     @Param(description = "the FTCTL x-colo migrate URI")
     private String xcoloMigrateUri;
 
+    @SerializedName("ftmachinetype")
+    @Param(description = "the configured KVM machine type used to determine FT compatibility")
+    private String ftMachineType;
+
+    @SerializedName("ftmachinecompatible")
+    @Param(description = "whether the VM has an FT-compatible KVM machine type contract")
+    private Boolean ftMachineCompatible;
+
+    @SerializedName("ftmachinecompatibilitymessage")
+    @Param(description = "the FT machine type compatibility message")
+    private String ftMachineCompatibilityMessage;
+
     @SerializedName("protectionstate")
     @Param(description = "the last known FTCTL protection state")
     private String protectionState;
@@ -370,6 +382,18 @@ public class FtctlProtectionResponse extends BaseResponse {
 
     public void setXcoloMigrateUri(String xcoloMigrateUri) {
         this.xcoloMigrateUri = xcoloMigrateUri;
+    }
+
+    public void setFtMachineType(String ftMachineType) {
+        this.ftMachineType = ftMachineType;
+    }
+
+    public void setFtMachineCompatible(Boolean ftMachineCompatible) {
+        this.ftMachineCompatible = ftMachineCompatible;
+    }
+
+    public void setFtMachineCompatibilityMessage(String ftMachineCompatibilityMessage) {
+        this.ftMachineCompatibilityMessage = ftMachineCompatibilityMessage;
     }
 
     public void setProtectionState(String protectionState) {

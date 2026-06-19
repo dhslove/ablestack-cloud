@@ -267,6 +267,8 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     private static final String FAILBACK_TARGET_MOLD_NEW = "new";
     private static final String DEFAULT_REMOTE_PEER_SSH_USER = "root";
     private static final String DEFAULT_REMOTE_PEER_SSH_PORT = "22";
+    private static final String FTCTL_DEFAULT_XCOLO_MACHINE_TYPE = "pc-i440fx-9.2";
+    private static final String LAST_ERROR_FT_UNSUPPORTED_MACHINE_TYPE = "ft_unsupported_machine_type";
     private static final String LAST_ERROR_CLOUD_MANAGED_FAILOVER_CANDIDATE = "cloud_managed_failover_candidate";
     private static final String LAST_ERROR_CLOUD_MANAGED_FAILOVER_SUSPECT = "cloud_managed_failover_suspect";
     private static final String LAST_ERROR_CLOUD_MANAGED_FAILOVER_MANUAL_REQUIRED = "cloud_managed_failover_manual_required";
@@ -420,6 +422,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         String remoteNbdExportAddr = resolveRemoteNbdExportAddr(cmd, backendMode);
         validateResolvedRegisterRequest(cmd, backendMode, secondaryTargetDir, remoteNbdExportAddr);
         validateDrCloudManagedTargetNetworks(cmd, provisioningBackend);
+        validateFtMachineTypeContractBeforeProvisioning(userVm, cmd);
         FtctlIpmiFencingConfig ipmiFencingConfig = resolveIpmiFencingConfig(userVm, cmd);
         String remoteDrSshKeyFile = null;
         if (remoteMoldDr) {
@@ -1029,6 +1032,19 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         if (StringUtils.isBlank(cmd.getNetworkIds())) {
             throw new CloudRuntimeException("FTCTL DR cloud-managed registration requires target network IDs for standby VM creation");
         }
+    }
+
+    private void validateFtMachineTypeContractBeforeProvisioning(UserVmVO userVm, RegisterFtctlProtectionCmd cmd) {
+        if (!"ft".equalsIgnoreCase(cmd.getMode())) {
+            return;
+        }
+        FtMachineTypeCompatibility compatibility = resolveFtMachineTypeCompatibility(userVm != null ? userVm.getId() : null);
+        if (compatibility.compatible) {
+            return;
+        }
+        String message = String.format("%s: %s", LAST_ERROR_FT_UNSUPPORTED_MACHINE_TYPE, compatibility.message);
+        putVmDetail(userVm.getId(), DETAIL_LAST_ERROR, message);
+        throw new CloudRuntimeException(message);
     }
 
     private boolean isRemoteMoldDr(RegisterFtctlProtectionCmd cmd) {
@@ -3912,6 +3928,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         response.setXcoloProxyEndpoint(getDetailValue(sourceVmId, DETAIL_XCOLO_PROXY_ENDPOINT));
         response.setXcoloNbdEndpoint(getDetailValue(sourceVmId, DETAIL_XCOLO_NBD_ENDPOINT));
         response.setXcoloMigrateUri(getDetailValue(sourceVmId, DETAIL_XCOLO_MIGRATE_URI));
+        populateFtMachineCompatibility(sourceVmId, response);
         response.setProtectionState(getDetailValue(sourceVmId, DETAIL_LAST_PROTECTION_STATE));
         response.setTransportState(getDetailValue(sourceVmId, DETAIL_LAST_TRANSPORT_STATE));
         response.setActiveSide(getDetailValue(sourceVmId, DETAIL_LAST_ACTIVE_SIDE));
@@ -3934,6 +3951,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         response.setPrimaryVirtualMachineState(resolveVmState(requestedVmId));
         response.setPrimaryVirtualMachineHostId(resolveVmHostId(requestedVmId));
         response.setPrimaryVirtualMachineHostName(resolveVmHostName(requestedVmId));
+        populateFtMachineCompatibility(requestedVmId, response);
         return response;
     }
 
@@ -4331,6 +4349,45 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         }
         VMInstanceDetailVO detail = vmInstanceDetailsDao.findDetail(virtualMachineId, key);
         return detail != null ? detail.getValue() : null;
+    }
+
+    private void populateFtMachineCompatibility(Long virtualMachineId, FtctlProtectionResponse response) {
+        if (response == null) {
+            return;
+        }
+        FtMachineTypeCompatibility compatibility = resolveFtMachineTypeCompatibility(virtualMachineId);
+        response.setFtMachineType(compatibility.machineType);
+        response.setFtMachineCompatible(compatibility.compatible);
+        response.setFtMachineCompatibilityMessage(compatibility.message);
+    }
+
+    private FtMachineTypeCompatibility resolveFtMachineTypeCompatibility(Long virtualMachineId) {
+        String machineType = StringUtils.trimToNull(getDetailValue(virtualMachineId, VmDetailConstants.KVM_GUEST_OS_MACHINE_TYPE));
+        if (StringUtils.isBlank(machineType)) {
+            return new FtMachineTypeCompatibility(null, false,
+                    String.format("FT requires an explicit source VM machine type contract. Create the VM with FT compatibility (%s).",
+                            FTCTL_DEFAULT_XCOLO_MACHINE_TYPE));
+        }
+        String normalizedMachineType = StringUtils.lowerCase(machineType, Locale.ROOT);
+        if (StringUtils.startsWith(normalizedMachineType, "pc-i440fx-")) {
+            return new FtMachineTypeCompatibility(machineType, true,
+                    String.format("FT-compatible machine type: %s", machineType));
+        }
+        return new FtMachineTypeCompatibility(machineType, false,
+                String.format("FT supports only pc-i440fx machine types for this QEMU version. Current configured machine type: %s.",
+                        machineType));
+    }
+
+    private static final class FtMachineTypeCompatibility {
+        private final String machineType;
+        private final boolean compatible;
+        private final String message;
+
+        private FtMachineTypeCompatibility(String machineType, boolean compatible, String message) {
+            this.machineType = machineType;
+            this.compatible = compatible;
+            this.message = message;
+        }
     }
 
     private void putVmDetail(Long virtualMachineId, String key, String value) {

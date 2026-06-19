@@ -54,6 +54,7 @@ import com.cloud.vm.UserVmService;
 import com.cloud.vm.UserVmVO;
 import com.cloud.vm.VirtualMachine;
 import com.cloud.vm.VirtualMachineProfile;
+import com.cloud.vm.VmDetailConstants;
 import com.cloud.vm.dao.NicDao;
 import com.cloud.vm.dao.UserVmDao;
 import com.cloud.vm.dao.VMInstanceDetailsDao;
@@ -1490,6 +1491,7 @@ public class FtctlServiceImplTest {
         setField(cmd, "xcoloProxyEndpoint", "10.0.0.11:9001");
         setField(cmd, "xcoloNbdEndpoint", "10.0.0.11:10809");
         setField(cmd, "xcoloMigrateUri", "tcp:10.0.0.12:9000");
+        vmDetails.put("101:" + VmDetailConstants.KVM_GUEST_OS_MACHINE_TYPE, "pc-i440fx-9.2");
         Mockito.when(userVm.isHaEnabled()).thenReturn(true);
         HostVO localHost = mockHost(201L, 301L, "10.0.0.11");
         HostVO peerHost = mockHost(202L, 301L, "10.0.0.12");
@@ -1524,6 +1526,49 @@ public class FtctlServiceImplTest {
         Mockito.verify(vmInstanceDetailsDao, Mockito.atLeastOnce()).removeDetail(101L, "ftctl.lifecycle.guard.original.ha.enabled");
         Mockito.verify(userVmDao, Mockito.atLeastOnce()).update(Mockito.eq(101L), Mockito.any(UserVmVO.class));
         Assert.assertNull(vmDetails.get("101:ftctl.lifecycle.guard"));
+    }
+
+    @Test
+    public void testRegisterFtProtectionRejectsMissingMachineContractBeforeProvisioning() throws Exception {
+        RegisterFtctlProtectionCmd cmd = buildRegisterCmd();
+        setField(cmd, "mode", "ft");
+        setField(cmd, "provisioningBackend", FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED);
+        setField(cmd, "xcoloProxyEndpoint", "10.0.0.11:9001");
+        setField(cmd, "xcoloNbdEndpoint", "10.0.0.11:10809");
+        setField(cmd, "xcoloMigrateUri", "tcp:10.0.0.12:9000");
+
+        try {
+            ftctlService.registerFtctlProtection(cmd);
+            Assert.fail("Expected CloudRuntimeException");
+        } catch (CloudRuntimeException e) {
+            Assert.assertTrue(e.getMessage().contains("ft_unsupported_machine_type"));
+            Assert.assertTrue(e.getMessage().contains("FT compatibility"));
+        }
+
+        Mockito.verify(ftctlProtectionProvisioningService, Mockito.never()).prepareProtection(Mockito.any());
+        Mockito.verify(agentManager, Mockito.never()).send(Mockito.anyLong(), Mockito.any(Command.class));
+    }
+
+    @Test
+    public void testRegisterFtProtectionRejectsQ35MachineContractBeforeProvisioning() throws Exception {
+        RegisterFtctlProtectionCmd cmd = buildRegisterCmd();
+        setField(cmd, "mode", "ft");
+        setField(cmd, "provisioningBackend", FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED);
+        setField(cmd, "xcoloProxyEndpoint", "10.0.0.11:9001");
+        setField(cmd, "xcoloNbdEndpoint", "10.0.0.11:10809");
+        setField(cmd, "xcoloMigrateUri", "tcp:10.0.0.12:9000");
+        vmDetails.put("101:" + VmDetailConstants.KVM_GUEST_OS_MACHINE_TYPE, "pc-q35-9.2");
+
+        try {
+            ftctlService.registerFtctlProtection(cmd);
+            Assert.fail("Expected CloudRuntimeException");
+        } catch (CloudRuntimeException e) {
+            Assert.assertTrue(e.getMessage().contains("ft_unsupported_machine_type"));
+            Assert.assertTrue(e.getMessage().contains("pc-q35-9.2"));
+        }
+
+        Mockito.verify(ftctlProtectionProvisioningService, Mockito.never()).prepareProtection(Mockito.any());
+        Mockito.verify(agentManager, Mockito.never()).send(Mockito.anyLong(), Mockito.any(Command.class));
     }
 
     @Test

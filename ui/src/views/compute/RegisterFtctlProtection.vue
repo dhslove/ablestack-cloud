@@ -291,6 +291,13 @@
           :showIcon="true"
           :message="$t('message.ftctl.ft.storage.auto')"
           :description="ftEndpointSummary" />
+        <a-alert
+          v-if="showFtFields && ftMachineCompatibilityMessage"
+          class="ftctl-auto-fields"
+          :type="ftMachineCompatible ? 'info' : 'warning'"
+          :showIcon="true"
+          :message="$t(ftMachineCompatible ? 'message.ftctl.ft.machine.compatible' : 'message.ftctl.ft.machine.incompatible')"
+          :description="ftMachineCompatibilityMessage" />
         <a-form-item v-if="showFtFields" name="manualxcoloendpoints">
           <a-checkbox v-model:checked="manualXcoloEndpoints">
             {{ $t('label.ftctl.xcolo.manual.endpoints') }}
@@ -317,7 +324,7 @@
       </a-form>
       <div class="action-button">
         <a-button @click="closeAction">{{ $t('label.cancel') }}</a-button>
-        <a-button :loading="loading" :disabled="!vmRunningForProtection" type="primary" @click="handleSubmit" ref="submit">{{ $t('label.ok') }}</a-button>
+        <a-button :loading="loading" :disabled="submitDisabled" type="primary" @click="handleSubmit" ref="submit">{{ $t('label.ok') }}</a-button>
       </div>
     </a-spin>
   </div>
@@ -337,6 +344,10 @@ export default {
     resource: {
       type: Object,
       required: true
+    },
+    protection: {
+      type: Object,
+      default: () => ({})
     }
   },
   data () {
@@ -364,6 +375,21 @@ export default {
   computed: {
     vmRunningForProtection () {
       return String(this.resource?.state || '').toLowerCase() === 'running'
+    },
+    submitDisabled () {
+      return !this.vmRunningForProtection || (this.showFtFields && this.hasFtMachineCompatibilityEvidence && !this.ftMachineCompatible)
+    },
+    hasFtMachineCompatibilityEvidence () {
+      return this.protection && Object.prototype.hasOwnProperty.call(this.protection, 'ftmachinecompatible')
+    },
+    ftMachineCompatible () {
+      return this.protection?.ftmachinecompatible === true || String(this.protection?.ftmachinecompatible).toLowerCase() === 'true'
+    },
+    ftMachineCompatibilityMessage () {
+      if (!this.hasFtMachineCompatibilityEvidence) {
+        return null
+      }
+      return this.protection?.ftmachinecompatibilitymessage || this.$t('message.ftctl.ft.machine.compatibility.unknown')
     },
     showFtFields () {
       return this.form?.mode === 'ft'
@@ -1085,6 +1111,10 @@ export default {
       }
       if (this.showFtFields && (!values.xcoloproxyendpoint || !values.xcolonbdendpoint || !values.xcolomigrateuri)) {
         this.$message.error(this.$t('message.ftctl.validation.ft.required'))
+        return false
+      }
+      if (this.showFtFields && this.hasFtMachineCompatibilityEvidence && !this.ftMachineCompatible) {
+        this.$message.error(this.ftMachineCompatibilityMessage || this.$t('message.ftctl.ft.machine.incompatible'))
         return false
       }
       if (this.showLocalStorageFields && (!values.targetstoragepoolid || !values.targetstoragescope)) {
