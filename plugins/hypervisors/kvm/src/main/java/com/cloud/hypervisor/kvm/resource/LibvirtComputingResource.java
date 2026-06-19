@@ -334,6 +334,7 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
     private static final String HYPERVCLOCK = "hypervclock";
     private static final String WINDOWS = "Windows";
     private static final String Q35 = "q35";
+    private static final Pattern KVM_MACHINE_TYPE_PATTERN = Pattern.compile("[A-Za-z0-9_.:+-]+");
     private static final String PTY = "pty";
     private static final String VNC = "vnc";
 
@@ -3715,18 +3716,24 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
      */
     protected GuestDef createGuestFromSpec(VirtualMachineTO vmTO, LibvirtVMDef vm, String uuid, Map<String, String> customParams) {
         GuestDef guest = new GuestDef();
+        String machineTypeOverride = resolveGuestMachineTypeOverride(customParams);
 
         configureGuestAndVMHypervisorType(vmTO, vm, guest);
         guest.setManufacturer(vmTO.getMetadataManufacturer());
         guest.setProduct(vmTO.getMetadataProductName());
         guest.setGuestArch(guestCpuArch != null ? guestCpuArch : vmTO.getArch());
         guest.setMachineType((isGuestAarch64() || isGuestS390x()) ? VIRT : PC);
+        if (StringUtils.isNotBlank(machineTypeOverride)) {
+            guest.setMachineType(machineTypeOverride);
+        }
         guest.setBootType(GuestDef.BootType.BIOS);
         if (MapUtils.isNotEmpty(customParams)) {
             if (customParams.containsKey(GuestDef.BootType.UEFI.toString())) {
                 guest.setBootType(GuestDef.BootType.UEFI);
                 guest.setBootMode(GuestDef.BootMode.LEGACY);
-                guest.setMachineType(Q35);
+                if (StringUtils.isBlank(machineTypeOverride)) {
+                    guest.setMachineType(Q35);
+                }
                 if (SECURE.equalsIgnoreCase(customParams.get(GuestDef.BootType.UEFI.toString()))) {
                     guest.setBootMode(GuestDef.BootMode.SECURE);
                 }
@@ -3743,6 +3750,20 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
         }
         guest.setBootOrder(GuestDef.BootOrder.CDROM);
         return guest;
+    }
+
+    protected String resolveGuestMachineTypeOverride(Map<String, String> customParams) {
+        if (MapUtils.isEmpty(customParams)) {
+            return null;
+        }
+        String machineType = StringUtils.trimToNull(customParams.get(VmDetailConstants.KVM_GUEST_OS_MACHINE_TYPE));
+        if (machineType == null) {
+            return null;
+        }
+        if (!KVM_MACHINE_TYPE_PATTERN.matcher(machineType).matches()) {
+            throw new CloudRuntimeException(String.format("Invalid KVM guest OS machine type: %s", machineType));
+        }
+        return machineType;
     }
 
     private void configureBootOrder(GuestDef guest, Map<String, String> customParams) {

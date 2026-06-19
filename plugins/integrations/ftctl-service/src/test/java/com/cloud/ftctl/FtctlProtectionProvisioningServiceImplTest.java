@@ -40,6 +40,7 @@ import com.cloud.vm.NicVO;
 import com.cloud.vm.UserVmVO;
 import com.cloud.vm.VMInstanceVO;
 import com.cloud.vm.UserVmService;
+import com.cloud.vm.VmDetailConstants;
 import com.cloud.vm.dao.NicDao;
 import com.cloud.vm.dao.UserVmDao;
 import com.cloud.vm.dao.VMInstanceDao;
@@ -300,6 +301,7 @@ public class FtctlProtectionProvisioningServiceImplTest {
         Assert.assertEquals("scsi", deployCmd.getDetails().get("dataDiskController"));
         Assert.assertEquals("SECURE", deployCmd.getDetails().get("UEFI"));
         Assert.assertEquals("true", deployCmd.getDetails().get("iothreads"));
+        Assert.assertEquals("pc-i440fx-9.2", deployCmd.getDetails().get(VmDetailConstants.KVM_GUEST_OS_MACHINE_TYPE));
         Assert.assertFalse(deployCmd.getDetails().containsKey("nameonhypervisor"));
         Mockito.verify(volumeDao).attachVolume(502L, 401L, 1L);
 
@@ -516,6 +518,7 @@ public class FtctlProtectionProvisioningServiceImplTest {
         Mockito.verify(userVmService).createVirtualMachineVolume(deployCaptor.capture());
         Assert.assertEquals("vm-primary-replica", deployCaptor.getValue().getName());
         Assert.assertEquals("vm-primary-replica", deployCaptor.getValue().getDisplayName());
+        Assert.assertEquals("pc-i440fx-9.2", deployCaptor.getValue().getDetails().get(VmDetailConstants.KVM_GUEST_OS_MACHINE_TYPE));
     }
 
     private UserVmVO mockPrimaryVm() {

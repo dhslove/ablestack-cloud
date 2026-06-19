@@ -474,6 +474,22 @@ public class LibvirtComputingResourceTest {
     }
 
     @Test
+    public void testCreateGuestFromSpecWithMachineTypeOverrideAndUefi() {
+        VirtualMachineTO to = createDefaultVM(false);
+
+        Map<String, String> extraConfig = new HashMap<>();
+        extraConfig.put(GuestDef.BootType.UEFI.toString(), "legacy");
+        extraConfig.put(VmDetailConstants.KVM_GUEST_OS_MACHINE_TYPE, "pc-i440fx-9.2");
+
+        LibvirtVMDef vm = new LibvirtVMDef();
+
+        GuestDef guestDef = libvirtComputingResourceSpy.createGuestFromSpec(to, vm, to.getUuid(), extraConfig);
+        verifySysInfo(guestDef, "smbios", to.getUuid(), "pc-i440fx-9.2");
+        Assert.assertEquals(GuestDef.BootType.UEFI, guestDef.getBootType());
+        Assert.assertEquals(GuestDef.BootMode.LEGACY, guestDef.getBootMode());
+    }
+
+    @Test
     public void testCreateGuestResourceDef() {
         VirtualMachineTO to = createDefaultVM(false);
 

@@ -97,6 +97,7 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
     private static final String FTCTL_COMPUTE_OFFERING_NAME = "FTCTL Internal Custom Compute";
     private static final String FTCTL_ROOT_DISK_OFFERING_NAME = "FTCTL Internal Root Disk";
     private static final String FTCTL_DATA_DISK_OFFERING_NAME = "FTCTL Internal Data Disk";
+    private static final String FTCTL_DEFAULT_XCOLO_MACHINE_TYPE = "pc-i440fx-9.2";
     private static final long GIB_TO_BYTES = 1024L * 1024L * 1024L;
     private static final Set<String> PRIMARY_VM_DETAILS_TO_COPY = Set.of(
             VmDetailConstants.ROOT_DISK_CONTROLLER,
@@ -559,6 +560,7 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
             details.put(DETAIL_FTCTL_DR_RECOVERY_SOURCE_MOLD_API_URL, cmd.getSourceMoldApiUrl());
         }
         details.put(DETAIL_FTCTL_PRIMARY_VM_ID, cmd.getSourceVirtualMachineId());
+        details.put(VmDetailConstants.KVM_GUEST_OS_MACHINE_TYPE, resolveFtctlMachineType(details));
         return details;
     }
 
@@ -1162,7 +1164,24 @@ public class FtctlProtectionProvisioningServiceImpl extends ManagerBase implemen
         details.put(DETAIL_FTCTL_STANDBY_VM, "true");
         details.put(DETAIL_FTCTL_PRIMARY_VM_ID, String.valueOf(primaryVm.getId()));
         details.putAll(resolveStandbyComputeDetails(primaryVm));
+        details.put(VmDetailConstants.KVM_GUEST_OS_MACHINE_TYPE, resolveFtctlMachineType(details));
         return details;
+    }
+
+    private String resolveFtctlMachineType(Map<String, String> details) {
+        String value = details != null ? StringUtils.trimToNull(details.get(VmDetailConstants.KVM_GUEST_OS_MACHINE_TYPE)) : null;
+        if (StringUtils.isBlank(value)) {
+            return FTCTL_DEFAULT_XCOLO_MACHINE_TYPE;
+        }
+        if (StringUtils.startsWithIgnoreCase(value, "q35") || StringUtils.startsWithIgnoreCase(value, "pc-q35")) {
+            logger.warn("Ignoring unsupported FTCTL q35 machine type detail {} and using {}", value, FTCTL_DEFAULT_XCOLO_MACHINE_TYPE);
+            return FTCTL_DEFAULT_XCOLO_MACHINE_TYPE;
+        }
+        if (!StringUtils.startsWith(value, "pc-i440fx-")) {
+            logger.warn("Ignoring unsupported FTCTL machine type detail {} and using {}", value, FTCTL_DEFAULT_XCOLO_MACHINE_TYPE);
+            return FTCTL_DEFAULT_XCOLO_MACHINE_TYPE;
+        }
+        return value;
     }
 
     private Map<String, String> resolvePrimaryVmDetailsToCopy(UserVmVO primaryVm) {
