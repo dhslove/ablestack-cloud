@@ -71,6 +71,8 @@ CREATE TABLE IF NOT EXISTS `cloud`.`ftctl_protection` (
     `backend_mode` varchar(64) NULL COMMENT 'FTCTL backend mode',
     `provisioning_backend` varchar(64) NOT NULL DEFAULT 'libvirt-managed' COMMENT 'Protection resource provisioning owner',
     `fencing_policy` varchar(64) NULL COMMENT 'FTCTL fencing policy',
+    `xcolo_port_allocation_mode` varchar(16) NULL COMMENT 'FTCTL XCOLO port allocation mode',
+    `xcolo_port_slot` int NULL COMMENT 'FTCTL XCOLO automatic port allocation slot',
     `admin_state` varchar(64) NULL,
     `provisioning_state` varchar(64) NULL,
     `protection_state` varchar(64) NULL,
@@ -92,6 +94,9 @@ CREATE TABLE IF NOT EXISTS `cloud`.`ftctl_protection` (
     CONSTRAINT `fk_ftctl_protection__peer_host_id` FOREIGN KEY (`peer_host_id`) REFERENCES `host` (`id`) ON DELETE SET NULL,
     CONSTRAINT `fk_ftctl_protection__target_storage_pool_id` FOREIGN KEY (`target_storage_pool_id`) REFERENCES `storage_pool` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.ftctl_protection', 'xcolo_port_allocation_mode', 'varchar(16) NULL COMMENT "FTCTL XCOLO port allocation mode" AFTER `fencing_policy`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.ftctl_protection', 'xcolo_port_slot', 'int NULL COMMENT "FTCTL XCOLO automatic port allocation slot" AFTER `xcolo_port_allocation_mode`');
 
 CREATE TABLE IF NOT EXISTS `cloud`.`ftctl_protection_volume` (
     `id` bigint unsigned NOT NULL AUTO_INCREMENT,

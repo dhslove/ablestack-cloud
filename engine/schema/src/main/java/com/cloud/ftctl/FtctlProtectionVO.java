@@ -69,6 +69,12 @@ public class FtctlProtectionVO implements InternalIdentity {
     @Column(name = "fencing_policy")
     private String fencingPolicy;
 
+    @Column(name = "xcolo_port_allocation_mode")
+    private String xcoloPortAllocationMode;
+
+    @Column(name = "xcolo_port_slot")
+    private Integer xcoloPortSlot;
+
     @Column(name = "admin_state")
     private String adminState;
 
@@ -154,6 +160,14 @@ public class FtctlProtectionVO implements InternalIdentity {
         return fencingPolicy;
     }
 
+    public String getXcoloPortAllocationMode() {
+        return xcoloPortAllocationMode;
+    }
+
+    public Integer getXcoloPortSlot() {
+        return xcoloPortSlot;
+    }
+
     public String getAdminState() {
         return adminState;
     }
@@ -224,6 +238,14 @@ public class FtctlProtectionVO implements InternalIdentity {
 
     public void setFencingPolicy(String fencingPolicy) {
         this.fencingPolicy = fencingPolicy;
+    }
+
+    public void setXcoloPortAllocationMode(String xcoloPortAllocationMode) {
+        this.xcoloPortAllocationMode = xcoloPortAllocationMode;
+    }
+
+    public void setXcoloPortSlot(Integer xcoloPortSlot) {
+        this.xcoloPortSlot = xcoloPortSlot;
     }
 
     public void setAdminState(String adminState) {

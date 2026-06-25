@@ -219,15 +219,6 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     public static final String DETAIL_SECONDARY_VM_NAME = "ftctl.secondary.vm.name";
     public static final String DETAIL_SECONDARY_TARGET_DIR = "ftctl.secondary.target.dir";
     public static final String DETAIL_REMOTE_NBD_EXPORT_ADDR = "ftctl.remote.nbd.export.addr";
-    public static final String DETAIL_XCOLO_PROXY_ENDPOINT = "ftctl.xcolo.proxy.endpoint";
-    public static final String DETAIL_XCOLO_NBD_ENDPOINT = "ftctl.xcolo.nbd.endpoint";
-    public static final String DETAIL_XCOLO_MIGRATE_URI = "ftctl.xcolo.migrate.uri";
-    public static final String DETAIL_XCOLO_PORT_ALLOCATION_MODE = "ftctl.xcolo.port.allocation.mode";
-    public static final String DETAIL_XCOLO_MIRROR_PORT = "ftctl.xcolo.mirror.port";
-    public static final String DETAIL_XCOLO_COMPARE_PORT = "ftctl.xcolo.compare.port";
-    public static final String DETAIL_XCOLO_COMPARE_LOCAL_PORT = "ftctl.xcolo.compare.local.port";
-    public static final String DETAIL_XCOLO_COMPARE_OUT_PORT = "ftctl.xcolo.compare.out.port";
-    public static final String DETAIL_XCOLO_CONTROL_PORT = "ftctl.xcolo.control.port";
     public static final String DETAIL_LAST_PROTECTION_STATE = "ftctl.last.protection.state";
     public static final String DETAIL_LAST_TRANSPORT_STATE = "ftctl.last.transport.state";
     public static final String DETAIL_LAST_ACTIVE_SIDE = "ftctl.last.active.side";
@@ -502,17 +493,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         if (remoteNbdExportAddr != null) {
             putVmDetail(cmd.getVirtualMachineId(), DETAIL_REMOTE_NBD_EXPORT_ADDR, remoteNbdExportAddr);
         }
-        if (xcoloPortAllocation.enabled) {
-            putVmDetail(cmd.getVirtualMachineId(), DETAIL_XCOLO_PORT_ALLOCATION_MODE, xcoloPortAllocation.mode);
-            putVmDetail(cmd.getVirtualMachineId(), DETAIL_XCOLO_PROXY_ENDPOINT, xcoloPortAllocation.proxyEndpoint);
-            putVmDetail(cmd.getVirtualMachineId(), DETAIL_XCOLO_NBD_ENDPOINT, xcoloPortAllocation.nbdEndpoint);
-            putVmDetail(cmd.getVirtualMachineId(), DETAIL_XCOLO_MIGRATE_URI, xcoloPortAllocation.migrateUri);
-            putVmDetail(cmd.getVirtualMachineId(), DETAIL_XCOLO_MIRROR_PORT, String.valueOf(xcoloPortAllocation.mirrorPort));
-            putVmDetail(cmd.getVirtualMachineId(), DETAIL_XCOLO_COMPARE_PORT, String.valueOf(xcoloPortAllocation.comparePort));
-            putVmDetail(cmd.getVirtualMachineId(), DETAIL_XCOLO_COMPARE_LOCAL_PORT, String.valueOf(xcoloPortAllocation.compareLocalPort));
-            putVmDetail(cmd.getVirtualMachineId(), DETAIL_XCOLO_COMPARE_OUT_PORT, String.valueOf(xcoloPortAllocation.compareOutPort));
-            putVmDetail(cmd.getVirtualMachineId(), DETAIL_XCOLO_CONTROL_PORT, String.valueOf(xcoloPortAllocation.controlPort));
-        }
+        persistXcoloPortAllocation(userVm.getId(), xcoloPortAllocation);
         persistCloudManagedNicIdentities(userVm);
 
         Long hostId = getExecutionHostId(userVm);
@@ -1497,6 +1478,20 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         persistRemoteReplicaVolumeMappings(userVm, protection, resources);
     }
 
+    private void persistXcoloPortAllocation(long primaryVmId, XcoloPortAllocation allocation) {
+        if (allocation == null || !allocation.enabled) {
+            return;
+        }
+        FtctlProtectionVO protection = ftctlProtectionDao.findActiveByPrimaryVmId(primaryVmId);
+        if (protection == null) {
+            throw new CloudRuntimeException(String.format("Unable to persist FTCTL x-colo port allocation: active protection not found for VM %s", primaryVmId));
+        }
+        protection.setXcoloPortAllocationMode(allocation.mode);
+        protection.setXcoloPortSlot(allocation.slot);
+        protection.markUpdated();
+        ftctlProtectionDao.update(protection.getId(), protection);
+    }
+
     private void persistRemoteReplicaVolumeMappings(UserVmVO userVm, FtctlProtectionVO protection, RemoteReplicaResources resources) {
         List<VolumeVO> primaryVolumes = volumeDao.findByInstance(userVm.getId());
         if (primaryVolumes == null || primaryVolumes.isEmpty()) {
@@ -1794,35 +1789,36 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             throw new CloudRuntimeException(String.format("FTCTL remote NBD export address %s must match x-colo NBD endpoint %s",
                     remoteNbd.hostPort(), nbd.hostPort()));
         }
-        return new XcoloPortAllocation("manual", remoteNbd.hostPort(), cmd.getXcoloProxyEndpoint(), cmd.getXcoloNbdEndpoint(),
+        return new XcoloPortAllocation("manual", null, remoteNbd.hostPort(), cmd.getXcoloProxyEndpoint(), cmd.getXcoloNbdEndpoint(),
                 cmd.getXcoloMigrateUri(), 9003, 9004, 9001, 9005, migrate.port, proxy.port, true);
     }
 
     private XcoloPortAllocation resolveAutomaticXcoloPortAllocation(RegisterFtctlProtectionCmd cmd, UserVmVO userVm) {
         String peerAddress = resolveXcoloPeerAddress(cmd);
-        Set<Integer> usedPorts = collectActiveXcoloPorts(userVm != null ? userVm.getId() : null);
+        Set<Integer> usedSlots = collectActiveXcoloPortSlots(userVm != null ? userVm.getId() : null);
         for (int slot = 0; slot < FTCTL_XCOLO_AUTO_SLOT_COUNT; slot++) {
-            int proxyPort = FTCTL_XCOLO_AUTO_PROXY_BASE + slot * FTCTL_XCOLO_AUTO_PORT_STEP;
-            int compareLocalPort = FTCTL_XCOLO_AUTO_COMPARE_LOCAL_BASE + slot * FTCTL_XCOLO_AUTO_PORT_STEP;
-            int mirrorPort = FTCTL_XCOLO_AUTO_MIRROR_BASE + slot * FTCTL_XCOLO_AUTO_PORT_STEP;
-            int comparePort = FTCTL_XCOLO_AUTO_COMPARE_BASE + slot * FTCTL_XCOLO_AUTO_PORT_STEP;
-            int compareOutPort = FTCTL_XCOLO_AUTO_COMPARE_OUT_BASE + slot * FTCTL_XCOLO_AUTO_PORT_STEP;
-            int controlPort = FTCTL_XCOLO_AUTO_MIGRATE_BASE + slot;
-            int remoteNbdPort = FTCTL_XCOLO_AUTO_REMOTE_NBD_BASE + slot;
-            if (usedPorts.contains(proxyPort) || usedPorts.contains(compareLocalPort) || usedPorts.contains(mirrorPort) ||
-                    usedPorts.contains(comparePort) || usedPorts.contains(compareOutPort) ||
-                    usedPorts.contains(controlPort) || usedPorts.contains(remoteNbdPort)) {
-                continue;
+            if (!usedSlots.contains(slot)) {
+                return buildAutomaticXcoloPortAllocation(peerAddress, slot);
             }
-            String remoteNbdExportAddr = String.format("%s:%s", peerAddress, remoteNbdPort);
-            String proxyEndpoint = String.format("tcp:%s:%s", peerAddress, proxyPort);
-            String nbdEndpoint = String.format("tcp:%s:%s", peerAddress, remoteNbdPort);
-            String migrateUri = String.format("tcp:%s:%s", peerAddress, controlPort);
-            return new XcoloPortAllocation("auto", remoteNbdExportAddr, proxyEndpoint, nbdEndpoint, migrateUri,
-                    mirrorPort, comparePort, compareLocalPort, compareOutPort, controlPort, proxyPort, true);
         }
         throw new CloudRuntimeException(String.format("Unable to allocate FTCTL x-colo ports: all %s automatic slots are in use",
                 FTCTL_XCOLO_AUTO_SLOT_COUNT));
+    }
+
+    private XcoloPortAllocation buildAutomaticXcoloPortAllocation(String peerAddress, int slot) {
+        int proxyPort = FTCTL_XCOLO_AUTO_PROXY_BASE + slot * FTCTL_XCOLO_AUTO_PORT_STEP;
+        int compareLocalPort = FTCTL_XCOLO_AUTO_COMPARE_LOCAL_BASE + slot * FTCTL_XCOLO_AUTO_PORT_STEP;
+        int mirrorPort = FTCTL_XCOLO_AUTO_MIRROR_BASE + slot * FTCTL_XCOLO_AUTO_PORT_STEP;
+        int comparePort = FTCTL_XCOLO_AUTO_COMPARE_BASE + slot * FTCTL_XCOLO_AUTO_PORT_STEP;
+        int compareOutPort = FTCTL_XCOLO_AUTO_COMPARE_OUT_BASE + slot * FTCTL_XCOLO_AUTO_PORT_STEP;
+        int controlPort = FTCTL_XCOLO_AUTO_MIGRATE_BASE + slot;
+        int remoteNbdPort = FTCTL_XCOLO_AUTO_REMOTE_NBD_BASE + slot;
+        String remoteNbdExportAddr = String.format("%s:%s", peerAddress, remoteNbdPort);
+        String proxyEndpoint = String.format("tcp:%s:%s", peerAddress, proxyPort);
+        String nbdEndpoint = String.format("tcp:%s:%s", peerAddress, remoteNbdPort);
+        String migrateUri = String.format("tcp:%s:%s", peerAddress, controlPort);
+        return new XcoloPortAllocation("auto", slot, remoteNbdExportAddr, proxyEndpoint, nbdEndpoint, migrateUri,
+                mirrorPort, comparePort, compareLocalPort, compareOutPort, controlPort, proxyPort, true);
     }
 
     private String resolveXcoloPeerAddress(RegisterFtctlProtectionCmd cmd) {
@@ -1845,7 +1841,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         return address;
     }
 
-    private Set<Integer> collectActiveXcoloPorts(Long currentVmId) {
+    private Set<Integer> collectActiveXcoloPortSlots(Long currentVmId) {
         Set<Integer> used = new HashSet<>();
         List<FtctlProtectionVO> protections = ftctlProtectionDao.listActive();
         if (protections == null) {
@@ -1855,44 +1851,11 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
             if (protection == null || (currentVmId != null && protection.getPrimaryVmId() == currentVmId)) {
                 continue;
             }
-            Long vmId = protection.getPrimaryVmId();
-            collectEndpointPort(getDetailValue(vmId, DETAIL_REMOTE_NBD_EXPORT_ADDR), false, used);
-            collectEndpointPort(getDetailValue(vmId, DETAIL_XCOLO_PROXY_ENDPOINT), true, used);
-            collectEndpointPort(getDetailValue(vmId, DETAIL_XCOLO_NBD_ENDPOINT), true, used);
-            collectEndpointPort(getDetailValue(vmId, DETAIL_XCOLO_MIGRATE_URI), true, used);
-            collectIntegerPort(getDetailValue(vmId, DETAIL_XCOLO_MIRROR_PORT), used);
-            collectIntegerPort(getDetailValue(vmId, DETAIL_XCOLO_COMPARE_PORT), used);
-            collectIntegerPort(getDetailValue(vmId, DETAIL_XCOLO_COMPARE_LOCAL_PORT), used);
-            collectIntegerPort(getDetailValue(vmId, DETAIL_XCOLO_COMPARE_OUT_PORT), used);
-            collectIntegerPort(getDetailValue(vmId, DETAIL_XCOLO_CONTROL_PORT), used);
+            if (protection.getXcoloPortSlot() != null) {
+                used.add(protection.getXcoloPortSlot());
+            }
         }
         return used;
-    }
-
-    private void collectEndpointPort(String endpoint, boolean tcpEndpoint, Set<Integer> used) {
-        if (StringUtils.isBlank(endpoint)) {
-            return;
-        }
-        try {
-            EndpointHostPort parsed = tcpEndpoint ? parseTcpEndpoint(endpoint, "existing x-colo endpoint") : parseHostPort(endpoint, "existing host port endpoint");
-            used.add(parsed.port);
-        } catch (CloudRuntimeException ignored) {
-            logger.debug("Ignoring unparsable FTCTL port reservation endpoint [{}]", endpoint);
-        }
-    }
-
-    private void collectIntegerPort(String value, Set<Integer> used) {
-        if (StringUtils.isBlank(value)) {
-            return;
-        }
-        try {
-            int port = Integer.parseInt(StringUtils.trim(value));
-            if (isValidTcpPort(port)) {
-                used.add(port);
-            }
-        } catch (NumberFormatException ignored) {
-            logger.debug("Ignoring unparsable FTCTL port reservation value [{}]", value);
-        }
     }
 
     private EndpointHostPort parseTcpEndpoint(String endpoint, String fieldName) {
@@ -1947,6 +1910,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
 
     private static final class XcoloPortAllocation {
         private final String mode;
+        private final Integer slot;
         private final String remoteNbdExportAddr;
         private final String proxyEndpoint;
         private final String nbdEndpoint;
@@ -1959,10 +1923,11 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         private final int proxyPort;
         private final boolean enabled;
 
-        private XcoloPortAllocation(String mode, String remoteNbdExportAddr, String proxyEndpoint, String nbdEndpoint, String migrateUri,
+        private XcoloPortAllocation(String mode, Integer slot, String remoteNbdExportAddr, String proxyEndpoint, String nbdEndpoint, String migrateUri,
                                     int mirrorPort, int comparePort, int compareLocalPort, int compareOutPort,
                                     int controlPort, int proxyPort, boolean enabled) {
             this.mode = mode;
+            this.slot = slot;
             this.remoteNbdExportAddr = remoteNbdExportAddr;
             this.proxyEndpoint = proxyEndpoint;
             this.nbdEndpoint = nbdEndpoint;
@@ -1977,7 +1942,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         }
 
         private static XcoloPortAllocation disabled(String remoteNbdExportAddr) {
-            return new XcoloPortAllocation(null, remoteNbdExportAddr, null, null, null,
+            return new XcoloPortAllocation(null, null, remoteNbdExportAddr, null, null, null,
                     0, 0, 0, 0, 0, 0, false);
         }
     }
@@ -4169,10 +4134,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
                 getDetailValue(sourceVmId, DETAIL_SECONDARY_VM_NAME)));
         response.setSecondaryTargetDir(getDetailValue(sourceVmId, DETAIL_SECONDARY_TARGET_DIR));
         populateCloudManagedDiskDetails(sourceVmId, protection, response);
-        response.setRemoteNbdExportAddr(getDetailValue(sourceVmId, DETAIL_REMOTE_NBD_EXPORT_ADDR));
-        response.setXcoloProxyEndpoint(getDetailValue(sourceVmId, DETAIL_XCOLO_PROXY_ENDPOINT));
-        response.setXcoloNbdEndpoint(getDetailValue(sourceVmId, DETAIL_XCOLO_NBD_ENDPOINT));
-        response.setXcoloMigrateUri(getDetailValue(sourceVmId, DETAIL_XCOLO_MIGRATE_URI));
+        populateXcoloPortAllocationDetails(sourceVmId, protection, response);
         populateFtMachineCompatibility(sourceVmId, response);
         response.setProtectionState(getDetailValue(sourceVmId, DETAIL_LAST_PROTECTION_STATE));
         response.setTransportState(getDetailValue(sourceVmId, DETAIL_LAST_TRANSPORT_STATE));
@@ -4184,6 +4146,62 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         response.setLastError(getDetailValue(sourceVmId, DETAIL_LAST_ERROR));
         purgeLegacyProgressDetails(sourceVmId);
         return response;
+    }
+
+    private void populateXcoloPortAllocationDetails(Long sourceVmId, FtctlProtectionVO protection, FtctlProtectionResponse response) {
+        response.setRemoteNbdExportAddr(getDetailValue(sourceVmId, DETAIL_REMOTE_NBD_EXPORT_ADDR));
+        XcoloPortAllocation allocation = resolveStoredXcoloPortAllocation(sourceVmId, protection);
+        if (allocation == null || !allocation.enabled) {
+            return;
+        }
+        response.setRemoteNbdExportAddr(allocation.remoteNbdExportAddr);
+        response.setXcoloProxyEndpoint(allocation.proxyEndpoint);
+        response.setXcoloNbdEndpoint(allocation.nbdEndpoint);
+        response.setXcoloMigrateUri(allocation.migrateUri);
+    }
+
+    private XcoloPortAllocation resolveStoredXcoloPortAllocation(Long sourceVmId, FtctlProtectionVO protection) {
+        if (protection == null || !"auto".equalsIgnoreCase(protection.getXcoloPortAllocationMode()) || protection.getXcoloPortSlot() == null) {
+            return XcoloPortAllocation.disabled(getDetailValue(sourceVmId, DETAIL_REMOTE_NBD_EXPORT_ADDR));
+        }
+        String peerAddress = resolveStoredXcoloPeerAddress(sourceVmId, protection);
+        if (StringUtils.isBlank(peerAddress)) {
+            logger.debug("Unable to resolve stored FTCTL x-colo peer address for VM [{}] protection [{}]", sourceVmId, protection.getId());
+            return XcoloPortAllocation.disabled(getDetailValue(sourceVmId, DETAIL_REMOTE_NBD_EXPORT_ADDR));
+        }
+        return buildAutomaticXcoloPortAllocation(peerAddress, protection.getXcoloPortSlot());
+    }
+
+    private String resolveStoredXcoloPeerAddress(Long sourceVmId, FtctlProtectionVO protection) {
+        String drPeerSiteType = getDetailValue(sourceVmId, DETAIL_DR_PEER_SITE_TYPE);
+        if (DR_PEER_SITE_TYPE_REMOTE_MOLD.equalsIgnoreCase(drPeerSiteType)) {
+            return StringUtils.defaultIfBlank(getDetailValue(sourceVmId, DETAIL_REMOTE_PEER_HOST_BLOCKCOPY_ADDRESS),
+                    getDetailValue(sourceVmId, DETAIL_REMOTE_PEER_HOST_ADDRESS));
+        }
+        Long peerHostId = protection != null ? protection.getPeerHostId() : null;
+        if (peerHostId == null) {
+            peerHostId = parseLongOrNull(getDetailValue(sourceVmId, DETAIL_PEER_HOST_ID));
+        }
+        if (peerHostId == null) {
+            return null;
+        }
+        HostVO peerHost = hostDao.findById(peerHostId);
+        if (peerHost == null) {
+            return null;
+        }
+        return StringUtils.defaultIfBlank(resolveHostField(peerHost, HOST_DETAIL_XCOLO_DATA_IP, null),
+                resolveHostField(peerHost, HOST_DETAIL_BLOCKCOPY_IP, peerHost.getPrivateIpAddress()));
+    }
+
+    private Long parseLongOrNull(String value) {
+        if (StringUtils.isBlank(value)) {
+            return null;
+        }
+        try {
+            return Long.valueOf(StringUtils.trim(value));
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private FtctlProtectionResponse buildUnconfiguredProtectionResponse(UserVmVO requestedVm) {
