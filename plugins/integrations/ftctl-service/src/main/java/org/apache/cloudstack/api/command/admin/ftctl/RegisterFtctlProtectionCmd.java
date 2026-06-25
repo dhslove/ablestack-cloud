@@ -163,6 +163,10 @@ public class RegisterFtctlProtectionCmd extends BaseAsyncCmd {
     @Parameter(name = "xcolomigrateuri", type = CommandType.STRING, description = "the FTCTL x-colo migrate URI")
     private String xcoloMigrateUri;
 
+    @Parameter(name = "xcoloportallocationmode", type = CommandType.STRING,
+            description = "the FTCTL x-colo port allocation mode: auto or manual")
+    private String xcoloPortAllocationMode;
+
     public Long getVirtualMachineId() {
         return virtualMachineId;
     }
@@ -289,6 +293,10 @@ public class RegisterFtctlProtectionCmd extends BaseAsyncCmd {
 
     public String getXcoloMigrateUri() {
         return xcoloMigrateUri;
+    }
+
+    public String getXcoloPortAllocationMode() {
+        return xcoloPortAllocationMode;
     }
 
     @Override

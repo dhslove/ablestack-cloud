@@ -38,6 +38,11 @@ public class FtctlSyncProfileCommand extends Command {
     private String xcoloProxyEndpoint;
     private String xcoloNbdEndpoint;
     private String xcoloMigrateUri;
+    private String xcoloMirrorPort;
+    private String xcoloComparePort;
+    private String xcoloCompareLocalPort;
+    private String xcoloCompareOutPort;
+    private String xcoloControlPort;
     private String fencingIpmiPrimaryHost;
     private String fencingIpmiPrimaryPort;
     private String fencingIpmiPrimaryUser;
@@ -205,6 +210,46 @@ public class FtctlSyncProfileCommand extends Command {
 
     public void setXcoloMigrateUri(String xcoloMigrateUri) {
         this.xcoloMigrateUri = xcoloMigrateUri;
+    }
+
+    public String getXcoloMirrorPort() {
+        return xcoloMirrorPort;
+    }
+
+    public void setXcoloMirrorPort(String xcoloMirrorPort) {
+        this.xcoloMirrorPort = xcoloMirrorPort;
+    }
+
+    public String getXcoloComparePort() {
+        return xcoloComparePort;
+    }
+
+    public void setXcoloComparePort(String xcoloComparePort) {
+        this.xcoloComparePort = xcoloComparePort;
+    }
+
+    public String getXcoloCompareLocalPort() {
+        return xcoloCompareLocalPort;
+    }
+
+    public void setXcoloCompareLocalPort(String xcoloCompareLocalPort) {
+        this.xcoloCompareLocalPort = xcoloCompareLocalPort;
+    }
+
+    public String getXcoloCompareOutPort() {
+        return xcoloCompareOutPort;
+    }
+
+    public void setXcoloCompareOutPort(String xcoloCompareOutPort) {
+        this.xcoloCompareOutPort = xcoloCompareOutPort;
+    }
+
+    public String getXcoloControlPort() {
+        return xcoloControlPort;
+    }
+
+    public void setXcoloControlPort(String xcoloControlPort) {
+        this.xcoloControlPort = xcoloControlPort;
     }
 
     public String getFencingIpmiPrimaryHost() {

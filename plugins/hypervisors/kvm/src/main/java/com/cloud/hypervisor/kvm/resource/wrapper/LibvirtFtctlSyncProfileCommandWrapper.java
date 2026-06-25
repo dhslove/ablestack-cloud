@@ -117,6 +117,21 @@ public class LibvirtFtctlSyncProfileCommandWrapper extends CommandWrapper<FtctlS
         if (StringUtils.isNotBlank(command.getXcoloMigrateUri())) {
             script.add("--xcolo-migrate-uri", command.getXcoloMigrateUri());
         }
+        if (StringUtils.isNotBlank(command.getXcoloMirrorPort())) {
+            script.add("--xcolo-mirror-port", command.getXcoloMirrorPort());
+        }
+        if (StringUtils.isNotBlank(command.getXcoloComparePort())) {
+            script.add("--xcolo-compare-port", command.getXcoloComparePort());
+        }
+        if (StringUtils.isNotBlank(command.getXcoloCompareLocalPort())) {
+            script.add("--xcolo-compare-local-port", command.getXcoloCompareLocalPort());
+        }
+        if (StringUtils.isNotBlank(command.getXcoloCompareOutPort())) {
+            script.add("--xcolo-compare-out-port", command.getXcoloCompareOutPort());
+        }
+        if (StringUtils.isNotBlank(command.getXcoloControlPort())) {
+            script.add("--xcolo-control-port", command.getXcoloControlPort());
+        }
         script.add("--json");
 
         OutputInterpreter.AllLinesParser parser = new OutputInterpreter.AllLinesParser();

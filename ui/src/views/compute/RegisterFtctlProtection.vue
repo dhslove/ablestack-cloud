@@ -278,7 +278,7 @@
           </template>
           <a-input v-model:value="form.secondarytargetdir" placeholder="/secondary/ftctl/<vm>" />
         </a-form-item>
-        <a-form-item name="remotenbdexportaddr" v-if="showRemoteNbdFields">
+        <a-form-item name="remotenbdexportaddr" v-if="showRemoteNbdExportAddressField">
           <template #label>
             <tooltip-label :title="$t('label.ftctl.remote.nbd.export.address')" :tooltip="$t('placeholder.ftctl.remote.nbd.export.address')" />
           </template>
@@ -299,7 +299,7 @@
           :message="$t(ftMachineCompatible ? 'message.ftctl.ft.machine.compatible' : 'message.ftctl.ft.machine.incompatible')"
           :description="ftMachineCompatibilityMessage" />
         <a-form-item v-if="showFtFields" name="manualxcoloendpoints">
-          <a-checkbox v-model:checked="manualXcoloEndpoints">
+          <a-checkbox v-model:checked="manualXcoloEndpoints" @change="handleManualXcoloEndpointsChange">
             {{ $t('label.ftctl.xcolo.manual.endpoints') }}
           </a-checkbox>
         </a-form-item>
@@ -443,7 +443,13 @@ export default {
     remoteNbdExportAddressReadOnly () {
       return this.isDrRemoteMold && !this.remotePeerSshOverride
     },
+    showRemoteNbdExportAddressField () {
+      return this.showRemoteNbdFields && (!this.showFtFields || this.manualXcoloEndpoints)
+    },
     ftEndpointSummary () {
+      if (!this.manualXcoloEndpoints) {
+        return this.$t('message.ftctl.ft.endpoint.auto.pending')
+      }
       if (!this.form?.peerhostid) {
         return this.$t('message.ftctl.ft.endpoint.auto.pending')
       }
@@ -1001,6 +1007,9 @@ export default {
         this.fetchTargetNetworks(peerHostId)
       }
     },
+    handleManualXcoloEndpointsChange () {
+      this.applyPeerHostDefaults(this.form.peerhostid)
+    },
     applyPeerHostDefaults (peerHostId) {
       const peerHost = this.hosts.find(host => host.id === peerHostId)
       if (!peerHost) {
@@ -1009,12 +1018,20 @@ export default {
       const managementAddress = peerHost.ipaddress || peerHost.name
       const migrationAddress = peerHost.migrationip || peerHost.ipaddress || peerHost.name
       if (this.showFtFields) {
-        this.form.xcoloproxyendpoint = this.buildTcpEndpoint(managementAddress, 9000)
-        this.form.xcolonbdendpoint = this.buildTcpEndpoint(migrationAddress, 10809)
-        this.form.xcolomigrateuri = this.buildTcpEndpoint(migrationAddress, 9998)
+        if (this.manualXcoloEndpoints) {
+          this.form.xcoloproxyendpoint = this.buildTcpEndpoint(managementAddress, 9000)
+          this.form.xcolonbdendpoint = this.buildTcpEndpoint(migrationAddress, 10809)
+          this.form.xcolomigrateuri = this.buildTcpEndpoint(migrationAddress, 9998)
+        } else {
+          this.form.xcoloproxyendpoint = null
+          this.form.xcolonbdendpoint = null
+          this.form.xcolomigrateuri = null
+        }
       }
-      if (this.showRemoteNbdFields) {
+      if (this.showRemoteNbdExportAddressField) {
         this.form.remotenbdexportaddr = this.buildHostPortEndpoint(managementAddress, 10809)
+      } else if (this.showFtFields) {
+        this.form.remotenbdexportaddr = null
       }
     },
     buildTcpEndpoint (address, port) {
@@ -1105,11 +1122,11 @@ export default {
         this.$message.error(this.$t('message.ftctl.validation.secondary.vm.name.required'))
         return false
       }
-      if (this.showRemoteNbdFields && (!values.secondarytargetdir || !values.remotenbdexportaddr)) {
+      if (this.showRemoteNbdFields && (!values.secondarytargetdir || (this.showRemoteNbdExportAddressField && !values.remotenbdexportaddr))) {
         this.$message.error(this.$t('message.ftctl.validation.remote.nbd.required'))
         return false
       }
-      if (this.showFtFields && (!values.xcoloproxyendpoint || !values.xcolonbdendpoint || !values.xcolomigrateuri)) {
+      if (this.showFtFields && this.manualXcoloEndpoints && (!values.xcoloproxyendpoint || !values.xcolonbdendpoint || !values.xcolomigrateuri)) {
         this.$message.error(this.$t('message.ftctl.validation.ft.required'))
         return false
       }
@@ -1189,12 +1206,17 @@ export default {
         }
         if (this.showRemoteNbdFields) {
           params.secondarytargetdir = values.secondarytargetdir
-          params.remotenbdexportaddr = values.remotenbdexportaddr
+          if (this.showRemoteNbdExportAddressField) {
+            params.remotenbdexportaddr = values.remotenbdexportaddr
+          }
         }
         if (this.showFtFields) {
-          params.xcoloproxyendpoint = values.xcoloproxyendpoint
-          params.xcolonbdendpoint = values.xcolonbdendpoint
-          params.xcolomigrateuri = values.xcolomigrateuri
+          params.xcoloportallocationmode = this.manualXcoloEndpoints ? 'manual' : 'auto'
+          if (this.manualXcoloEndpoints) {
+            params.xcoloproxyendpoint = values.xcoloproxyendpoint
+            params.xcolonbdendpoint = values.xcolonbdendpoint
+            params.xcolomigrateuri = values.xcolomigrateuri
+          }
         }
         this.loading = true
         const prepareRemoteSshAccess = () => {
