@@ -10030,11 +10030,6 @@ public class UserVmManagerImpl extends ManagerBase implements UserVmManager, Vir
             throw new CloudRuntimeException("Create instance from backup is not supported for this provider.");
         }
 
-        BackupProvider backupProvider = backupManager.getBackupProviderForOffering(backup.getBackupOfferingId());
-        if (backupProvider != null && "bx".equalsIgnoreCase(backupProvider.getName())) {
-            throw new CloudRuntimeException("Create instance from backup is not supported for this provider.");
-        }
-
         DataCenter targetZone = _dcDao.findById(cmd.getZoneId());
         if (targetZone == null) {
             throw new InvalidParameterValueException("Unable to find zone by id=" + cmd.getZoneId());
@@ -10185,13 +10180,6 @@ public class UserVmManagerImpl extends ManagerBase implements UserVmManager, Vir
         additonalParams.put(VirtualMachineProfile.Param.ReturnAfterVolumePrepare, true);
 
         try {
-            BackupVO backup = backupDao.findById(cmd.getBackupId());
-            BackupProvider backupProvider = backupManager.getBackupProviderForOffering(backup.getBackupOfferingId());
-            if (backupProvider != null && "bx".equalsIgnoreCase(backupProvider.getName())) {
-                vm = _vmDao.findById(vmId);
-                return vm;
-            }
-
             Pair<UserVmVO, Map<VirtualMachineProfile.Param, Object>> vmParamPair = null;
             vmParamPair = startVirtualMachine(vmId, null, null, null, additonalParams, null);
             vm = vmParamPair.first();
@@ -11175,27 +11163,14 @@ public class UserVmManagerImpl extends ManagerBase implements UserVmManager, Vir
         }
 
         BackupProvider backupProvider = backupManager.getBackupProviderForOffering(backup.getBackupOfferingId());
-        if (backupProvider != null && "bx".equalsIgnoreCase(backupProvider.getName())) {
-            Pair<Boolean, String> result = backupProvider.restoreBackupToVM(cmd.getBackupId(), cmd.getName());
-            logger.debug(">>>restoreVMFromBxBackup result: {}", result);
-            if (result == null || !Boolean.TRUE.equals(result.first())) {
-                if (result != null && StringUtils.isNotEmpty(result.second())) {
-                    throw new CloudRuntimeException(String.format("Failed to create Instance from backup %s using bx provider. Error: %s", backup.getUuid(), result.second()));
-                }
-                throw new CloudRuntimeException(String.format("Failed to create Instance from backup %s using bx provider.", backup.getUuid()));
+        Pair<Boolean, String> result = backupProvider.restoreBackupToVM(cmd.getBackupId(), cmd.getName());
+        if (result == null || !Boolean.TRUE.equals(result.first())) {
+            if (result != null && StringUtils.isNotEmpty(result.second())) {
+                throw new CloudRuntimeException(String.format("Failed to create Instance from backup %s using bx provider. Error: %s", backup.getUuid(), result.second()));
             }
-
-            // logger.debug(">>>allocateVMFromBackup cmd.getName: {}", cmd.getName());
-            // VMInstanceVO vmInstance = _vmInstanceDao.findVMByInstanceName(cmd.getName());
-            // logger.debug(">>>allocateVMFromBackup vmInstance: {}", vmInstance);
-            // UserVm vm = (UserVm) vmInstance;
-            // logger.debug(">>>allocateVMFromBackup vm: {}", vm);
-            // if (vm == null) {
-            //     throw new CloudRuntimeException(String.format("Unable to find restored Instance created from backup %s using bx provider.", backup.getUuid()));
-            // }
-            return result;
-        } else {
-            throw new CloudRuntimeException("Create instance from backup is not supported for this provider.");
+            throw new CloudRuntimeException(String.format("Failed to create Instance from backup %s using bx provider.", backup.getUuid()));
         }
+
+        return result;
     }
 }

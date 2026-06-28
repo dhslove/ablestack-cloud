@@ -283,6 +283,10 @@ export default {
         this.useCommvault = false
         return
       }
+      if (!this.isCommvaultProvider) {
+        this.useCommvault = false
+        return
+      }
       const json = await getAPI('listBackupOfferings')
       const backupOff = json.listbackupofferingsresponse.backupoffering || []
 

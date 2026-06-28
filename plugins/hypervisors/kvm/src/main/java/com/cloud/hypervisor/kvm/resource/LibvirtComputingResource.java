@@ -431,7 +431,8 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
     private String vmActivityCheckPathRbd;
     private String vmActivityCheckPathClvm;
     private String nasBackupPath;
-    private String cvtBackupPath;
+    private String ableNasBackupPath;
+    private String ableCvtBackupPath;
     private String securityGroupPath;
     private String ovsPvlanDhcpHostPath;
     private String ovsPvlanVmPath;
@@ -862,8 +863,12 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
         return nasBackupPath;
     }
 
-    public String getCvtBackupPath() {
-        return cvtBackupPath;
+    public String getAbleNasBackupPath() {
+        return ableNasBackupPath;
+    }
+
+    public String getAbleCvtBackupPath() {
+        return ableCvtBackupPath;
     }
 
     public String getOvsPvlanDhcpHostPath() {
@@ -1228,9 +1233,14 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
             throw new ConfigurationException("Unable to find nasbackup.sh");
         }
 
-        cvtBackupPath = Script.findScript(kvmScriptsDir, "cvtbackup.sh");
-        if (cvtBackupPath == null) {
-            throw new ConfigurationException("Unable to find cvtbackup.sh");
+        ableNasBackupPath = Script.findScript(kvmScriptsDir, "ablestack_nasbackup.sh");
+        if (ableNasBackupPath == null) {
+            throw new ConfigurationException("Unable to find ablestack_nasbackup.sh");
+        }
+
+        ableCvtBackupPath = Script.findScript(kvmScriptsDir, "ablestack_cvtbackup.sh");
+        if (ableCvtBackupPath == null) {
+            throw new ConfigurationException("Unable to find ablestack_cvtbackup.sh");
         }
 
         createTmplPath = Script.findScript(storageScriptsDir, "createtmplt.sh");

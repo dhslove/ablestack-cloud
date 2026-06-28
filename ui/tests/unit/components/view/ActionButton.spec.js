@@ -131,11 +131,11 @@ describe('Components > View > ActionButton.vue', () => {
       it('API should be called and return not empty', async (done) => {
         mockAxios.mockResolvedValue({ testapinameresponse: { count: 2 } })
         const wrapper = factory({
-        props: {
-          actions: [
-            {
-              command: 'test-api-case-3',
-              response: 'json',
+          props: {
+            actions: [
+              {
+                command: 'test-api-case-3',
+                response: 'json',
                 label: 'label.action',
                 api: 'test-api-case-3',
                 showBadge: true,
@@ -169,10 +169,10 @@ describe('Components > View > ActionButton.vue', () => {
       it('API should be called and return empty', async (done) => {
         mockAxios.mockResolvedValue({ data: [] })
         const wrapper = factory({
-        props: {
-          actions: [
-            {
-              command: 'test-api-case-4',
+          props: {
+            actions: [
+              {
+                command: 'test-api-case-4',
                 response: 'json',
                 label: 'label.action',
                 api: 'test-api-case-4',
@@ -207,10 +207,10 @@ describe('Components > View > ActionButton.vue', () => {
       it('API should be called and throw eror', async (done) => {
         mockAxios.mockRejectedValue('errMethodMessage')
         const wrapper = factory({
-        props: {
-          actions: [
-            {
-              command: 'test-api-case-5',
+          props: {
+            actions: [
+              {
+                command: 'test-api-case-5',
                 response: 'json',
                 label: 'label.action',
                 api: 'test-api-case-5',

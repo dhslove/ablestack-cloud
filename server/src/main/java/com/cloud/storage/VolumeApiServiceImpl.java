@@ -4266,6 +4266,26 @@ public class VolumeApiServiceImpl extends ManagerBase implements VolumeApiServic
         }
     }
 
+    private void validateNoBackupActivityOrHistoryForVolumeSnapshot(Long volumeId, String operation) {
+        VolumeVO volume = _volsDao.findById(volumeId);
+        if (volume == null || volume.getInstanceId() == null) {
+            return;
+        }
+
+        Long vmId = volume.getInstanceId();
+        boolean hasBackupInProgress = backupDao.listByVmId(null, vmId).stream()
+                .anyMatch(backup -> Backup.Status.BackingUp.equals(backup.getStatus()) || Backup.Status.Restoring.equals(backup.getStatus()));
+        if (hasBackupInProgress) {
+            throw new InvalidParameterValueException(String.format("Snapshot %s failed because a backup or restore is currently in progress for the Instance.", operation));
+        }
+
+        boolean hasExistingBackup = backupDao.listByVmId(null, vmId).stream()
+                .anyMatch(backup -> Backup.Status.BackedUp.equals(backup.getStatus()));
+        if (hasExistingBackup) {
+            throw new InvalidParameterValueException(String.format("Snapshot %s failed because the Instance has backups.", operation));
+        }
+    }
+
     @NotNull
     private List<Long> getPoolIdsByPolicy(Long policyId, List<Long> poolIds) {
         if (CollectionUtils.isNotEmpty(poolIds)) {
@@ -4447,6 +4467,7 @@ public class VolumeApiServiceImpl extends ManagerBase implements VolumeApiServic
                 }
             }
         }
+        validateNoBackupActivityOrHistoryForVolumeSnapshot(volumeId, "create");
         return snapshotMgr.allocSnapshot(volumeId, policyId, snapshotName, locationType, false, zoneIds);
     }
 
@@ -4527,6 +4548,7 @@ public class VolumeApiServiceImpl extends ManagerBase implements VolumeApiServic
             throw new InvalidParameterValueException("Cannot perform this operation, unsupported VM snapshot type.");
         }
 
+        validateNoBackupActivityOrHistoryForVolumeSnapshot(volumeId, "create");
         return snapshotMgr.allocSnapshot(volumeId, Snapshot.MANUAL_POLICY_ID, snapshotName, null, true, null);
     }
 

@@ -278,6 +278,7 @@ export default {
           docHelp: 'adminguide/virtual_machines.html#creating-vm-backups',
           dataView: true,
           show: (record) => { return record.backupofferingid },
+          disabled: (record) => { return record.hostcontrolstate === 'Offline' },
           popup: true,
           component: shallowRef(defineAsyncComponent(() => import('@/views/compute/StartBackup.vue')))
         },
@@ -289,6 +290,7 @@ export default {
           dataView: true,
           popup: true,
           show: (record) => { return record.backupofferingid },
+          disabled: (record) => { return record.hostcontrolstate === 'Offline' },
           component: shallowRef(defineAsyncComponent(() => import('@/views/compute/BackupScheduleWizard.vue'))),
           mapping: {
             virtualmachineid: {
@@ -308,6 +310,7 @@ export default {
           dataView: true,
           args: ['virtualmachineid', 'forced'],
           show: (record) => { return record.backupofferingid },
+          disabled: (record) => { return record.hostcontrolstate === 'Offline' },
           mapping: {
             virtualmachineid: {
               value: (record, params) => { return record.id }

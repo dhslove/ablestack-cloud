@@ -36,6 +36,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -853,15 +854,21 @@ public class BackupManagerTest {
 
         BackupProvider backupProvider = mock(BackupProvider.class);
         when(backupProvider.getName()).thenReturn("testbackupprovider");
+        when(backupProvider.supportsBackgroundSync()).thenReturn(true);
+        when(backupProvider.supportsOutOfBandBackupSync()).thenReturn(true);
         backupManager.setBackupProviders(List.of(backupProvider));
         backupManager.start();
 
         VMInstanceVO vm = Mockito.mock(VMInstanceVO.class);
         when(vm.getId()).thenReturn(vmId);
         when(vm.getAccountId()).thenReturn(accountId);
+        when(vm.getBackupOfferingId()).thenReturn(1L);
         List<Long> vmIds = List.of(vmId);
         when(backupDao.listVmIdsWithBackupsInZone(dataCenterId)).thenReturn(vmIds);
         when(vmInstanceDao.listByZoneAndBackupOffering(dataCenterId, null)).thenReturn(List.of(vm));
+        BackupOfferingVO backupOffering = mock(BackupOfferingVO.class);
+        when(backupOffering.getProvider()).thenReturn("testbackupprovider");
+        when(backupOfferingDao.findById(1L)).thenReturn(backupOffering);
 
         Backup.RestorePoint restorePoint1 = new Backup.RestorePoint(restorePoint1ExternalId, DateUtil.now(), "Full", restorePointSize, 0L);
         Backup.RestorePoint restorePoint2 = new Backup.RestorePoint("12345", DateUtil.now(), "Full", restorePointSize, 0L);
@@ -1904,6 +1911,10 @@ public class BackupManagerTest {
     @Test
     public void deleteOldestBackupFromScheduleIfRequiredTestSkipDeletionWhenAmountOfBackupsToBeDeletedIsLessThanOne() throws ResourceAllocationException {
         List<BackupVO> backups = List.of(Mockito.mock(BackupVO.class), Mockito.mock(BackupVO.class));
+        when(backups.get(0).getUuid()).thenReturn("backup-1");
+        when(backups.get(1).getUuid()).thenReturn("backup-2");
+        when(backups.get(0).getDate()).thenReturn(new Date(1L));
+        when(backups.get(1).getDate()).thenReturn(new Date(2L));
         Mockito.when(backupScheduleDao.findById(1L)).thenReturn(backupScheduleVOMock);
         Mockito.when(backupScheduleVOMock.getMaxBackups()).thenReturn(2);
         Mockito.when(backupDao.listBySchedule(1L)).thenReturn(backups);
@@ -1914,6 +1925,10 @@ public class BackupManagerTest {
     @Test
     public void deleteOldestBackupFromScheduleIfRequiredTestDeleteBackupsWhenRequired() throws ResourceAllocationException {
         List<BackupVO> backups = List.of(Mockito.mock(BackupVO.class), Mockito.mock(BackupVO.class));
+        when(backups.get(0).getUuid()).thenReturn("backup-1");
+        when(backups.get(1).getUuid()).thenReturn("backup-2");
+        when(backups.get(0).getDate()).thenReturn(new Date(1L));
+        when(backups.get(1).getDate()).thenReturn(new Date(2L));
         Mockito.when(backupScheduleDao.findById(1L)).thenReturn(backupScheduleVOMock);
         Mockito.when(backupScheduleVOMock.getMaxBackups()).thenReturn(1);
         Mockito.when(backupDao.listBySchedule(1L)).thenReturn(backups);
@@ -1925,14 +1940,38 @@ public class BackupManagerTest {
     @Test
     public void deleteExcessBackupsTestEnsureBackupsAreDeletedWhenMethodIsCalled() throws ResourceAllocationException {
         try (MockedStatic<ActionEventUtils> actionEventUtils = Mockito.mockStatic(ActionEventUtils.class)) {
-            List<BackupVO> backups = List.of(Mockito.mock(BackupVO.class),
-                    Mockito.mock(BackupVO.class),
-                    Mockito.mock(BackupVO.class));
+            BackupVO backup1 = Mockito.mock(BackupVO.class);
+            BackupVO backup2 = Mockito.mock(BackupVO.class);
+            BackupVO backup3 = Mockito.mock(BackupVO.class);
+            List<BackupVO> chain = List.of(backup1, backup2, backup3);
+            List<List<BackupVO>> backupChains = List.of(chain);
 
-            Mockito.when(backups.get(0).getId()).thenReturn(1L);
-            Mockito.when(backups.get(1).getId()).thenReturn(2L);
-            Mockito.when(backups.get(0).getAccountId()).thenReturn(1L);
-            Mockito.when(backups.get(1).getAccountId()).thenReturn(2L);
+            Mockito.when(backup1.getId()).thenReturn(1L);
+            Mockito.when(backup2.getId()).thenReturn(2L);
+            Mockito.when(backup3.getId()).thenReturn(3L);
+            Mockito.when(backup1.getUuid()).thenReturn("full-1");
+            Mockito.when(backup2.getUuid()).thenReturn("inc-1");
+            Mockito.when(backup3.getUuid()).thenReturn("inc-2");
+            Mockito.when(backup1.getDate()).thenReturn(new Date(1L));
+            Mockito.when(backup2.getDate()).thenReturn(new Date(2L));
+            Mockito.when(backup3.getDate()).thenReturn(new Date(3L));
+            Mockito.when(backup1.getAccountId()).thenReturn(1L);
+            Mockito.when(backup2.getAccountId()).thenReturn(2L);
+            Mockito.when(backup3.getAccountId()).thenReturn(3L);
+            Mockito.when(backup1.getVmId()).thenReturn(1L);
+            Mockito.when(backup2.getVmId()).thenReturn(1L);
+            Mockito.when(backup3.getVmId()).thenReturn(1L);
+            Mockito.doAnswer(invocation -> {
+                BackupVO backup = invocation.getArgument(0);
+                if ("full-1".equals(backup.getUuid())) {
+                    backup.setDetails(Map.of());
+                } else if ("inc-1".equals(backup.getUuid())) {
+                    backup.setDetails(Map.of("test.parent.backup.uuid", "full-1"));
+                } else {
+                    backup.setDetails(Map.of("test.parent.backup.uuid", "inc-1"));
+                }
+                return null;
+            }).when(backupDao).loadDetails(Mockito.any(BackupVO.class));
             Mockito.doReturn(true).when(backupManager).deleteBackup(Mockito.anyLong(), Mockito.eq(false));
 
             actionEventUtils.when(() -> ActionEventUtils.onStartedActionEvent(
@@ -1944,8 +1983,8 @@ public class BackupManagerTest {
                     Mockito.anyString(), Mockito.anyString(), Mockito.anyLong(),
                     Mockito.anyString(), Mockito.anyInt())).thenReturn(2L);
 
-            backupManager.deleteExcessBackups(backups, 2, 1L);
-            Mockito.verify(backupManager, times(2)).deleteBackup(Mockito.anyLong(), Mockito.eq(false));
+            backupManager.deleteExcessBackups(backupChains, 1, 1L);
+            Mockito.verify(backupManager, times(3)).deleteBackup(Mockito.anyLong(), Mockito.eq(false));
         }
     }
 

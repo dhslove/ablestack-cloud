@@ -78,6 +78,8 @@ import org.apache.cloudstack.framework.config.Configurable;
 import org.apache.cloudstack.framework.config.dao.ConfigurationDao;
 import org.apache.cloudstack.framework.jobs.AsyncJob;
 import org.apache.cloudstack.managed.context.ManagedContextRunnable;
+import org.apache.cloudstack.backup.Backup;
+import org.apache.cloudstack.backup.dao.BackupDao;
 import org.apache.cloudstack.reservation.dao.ReservationDao;
 import org.apache.cloudstack.resourcedetail.SnapshotPolicyDetailVO;
 import org.apache.cloudstack.resourcedetail.dao.SnapshotPolicyDetailsDao;
@@ -259,6 +261,8 @@ public class SnapshotManagerImpl extends MutualExclusiveIdsManagerBase implement
     public TaggedResourceService taggedResourceService;
     @Inject
     private AnnotationDao annotationDao;
+    @Inject
+    private BackupDao backupDao;
 
     @Inject
     protected SnapshotHelper snapshotHelper;
@@ -388,6 +392,7 @@ public class SnapshotManagerImpl extends MutualExclusiveIdsManagerBase implement
         }
 
         Long instanceId = volume.getInstanceId();
+        validateNoBackupActivityOrHistoryForVolumeSnapshot(volume.getId(), "revert");
 
         // If this volume is attached to an VM, then the VM needs to be in the stopped state
         // in order to revert the volume
@@ -624,6 +629,7 @@ public class SnapshotManagerImpl extends MutualExclusiveIdsManagerBase implement
         if (snapshotOnPrimary == null || !snapshotOnPrimary.getStatus().equals(ObjectInDataStoreStateMachine.State.Ready)) {
             throw new CloudRuntimeException("Can only archive snapshots present on primary storage. " + "Cannot find snapshot " + snapshotId + " on primary storage");
         }
+        validateNoBackupActivityOrHistoryForVolumeSnapshot(snapshotOnPrimary.getVolumeId(), "archive");
 
         SnapshotInfo snapshotOnSecondary = snapshotSrv.backupSnapshot(snapshotOnPrimary);
         SnapshotVO snapshotVO = _snapshotDao.findById(snapshotOnSecondary.getId());
@@ -936,6 +942,7 @@ public class SnapshotManagerImpl extends MutualExclusiveIdsManagerBase implement
         }
 
         _accountMgr.checkAccess(caller, null, true, snapshotCheck);
+        validateNoBackupActivityOrHistoryForVolumeSnapshot(snapshotCheck.getVolumeId(), "delete");
 
         SnapshotStrategy snapshotStrategy = _storageStrategyFactory.getSnapshotStrategy(snapshotCheck, zoneId, SnapshotOperation.DELETE);
         if (snapshotStrategy == null) {
@@ -1211,6 +1218,26 @@ public class SnapshotManagerImpl extends MutualExclusiveIdsManagerBase implement
             for (Long poolId : poolIds) {
                 getCheckedDestinationStorageForSnapshotCopy(poolId, isRootAdminCaller);
             }
+        }
+    }
+
+    private void validateNoBackupActivityOrHistoryForVolumeSnapshot(Long volumeId, String operation) {
+        VolumeVO volume = _volsDao.findById(volumeId);
+        if (volume == null || volume.getInstanceId() == null) {
+            return;
+        }
+
+        Long vmId = volume.getInstanceId();
+        boolean hasBackupInProgress = backupDao.listByVmId(null, vmId).stream()
+                .anyMatch(backup -> Backup.Status.BackingUp.equals(backup.getStatus()) || Backup.Status.Restoring.equals(backup.getStatus()));
+        if (hasBackupInProgress) {
+            throw new InvalidParameterValueException(String.format("Snapshot %s failed because a backup or restore is currently in progress for the Instance.", operation));
+        }
+
+        boolean hasExistingBackup = backupDao.listByVmId(null, vmId).stream()
+                .anyMatch(backup -> Backup.Status.BackedUp.equals(backup.getStatus()));
+        if (hasExistingBackup) {
+            throw new InvalidParameterValueException(String.format("Snapshot %s failed because the Instance has backups.", operation));
         }
     }
 

@@ -322,6 +322,7 @@ known_categories = {
     'Extensions' : 'Extension',
     'CustomAction' : 'Extension',
     'CustomActions' : 'Extension',
+    'AblestackVmImport': 'Import VM Task',
     'ImportVmTask': 'Import VM Task',
     'createVhbaDevice.xml': 'Storage',
     'listVhbaDevices.xml': 'Storage',
