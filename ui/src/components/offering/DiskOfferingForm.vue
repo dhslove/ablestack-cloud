@@ -191,7 +191,19 @@
         v-model:value="form.hypervisorsnapshotreserve"
         :placeholder="apiParams.hypervisorsnapshotreserve.description"/>
     </a-form-item>
-    <a-form-item name="writecachetype" ref="writecachetype">
+    <a-form-item v-if="!form.shareable" name="kvdoenable" ref="kvdoenable">
+      <template #label>
+        <tooltip-label :title="$t('label.kvdoenable')" :tooltip="apiParams.kvdoenable.description"/>
+      </template>
+      <a-switch v-model:checked="form.kvdoenable" />
+    </a-form-item>
+    <a-form-item v-if="!form.kvdoenable" name="shareable" ref="shareable">
+      <template #label>
+        <tooltip-label :title="$t('label.shareable')" :tooltip="apiParams.shareable.description"/>
+      </template>
+      <a-switch v-model:checked="form.shareable" />
+    </a-form-item>
+    <a-form-item v-if="!form.shareable" name="writecachetype" ref="writecachetype">
       <template #label>
         <tooltip-label :title="$t('label.writecachetype')" :tooltip="apiParams.cachemode.description"/>
       </template>
@@ -353,7 +365,9 @@ export default {
         qostype: '',
         ispublic: true,
         disksizestrictness: false,
-        encryptdisk: false
+        encryptdisk: false,
+        kvdoenable: false,
+        shareable: false
       }, this.initialValues || {})),
       rules: reactive({}),
       storageTags: [],
