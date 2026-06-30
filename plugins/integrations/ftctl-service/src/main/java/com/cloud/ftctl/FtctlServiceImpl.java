@@ -423,14 +423,14 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         validateRegisterRequest(cmd);
         boolean remoteMoldDr = isRemoteMoldDr(cmd);
         StoragePoolVO targetStoragePool = validateTargetStoragePool(cmd, userVm);
-        String targetStorageScope = resolveTargetStorageScope(cmd, targetStoragePool);
         String backendMode = resolveBackendMode(cmd, targetStoragePool);
+        String targetStorageScope = resolveTargetStorageScope(cmd, targetStoragePool, backendMode);
         String provisioningBackend = resolveProvisioningBackend(cmd);
         String secondaryTargetDir = resolveSecondaryTargetDir(cmd, targetStoragePool, backendMode);
         String remoteNbdExportAddr = resolveRemoteNbdExportAddr(cmd, backendMode);
         XcoloPortAllocation xcoloPortAllocation = resolveXcoloPortAllocation(cmd, userVm, backendMode, remoteNbdExportAddr);
         remoteNbdExportAddr = xcoloPortAllocation.remoteNbdExportAddr;
-        validateResolvedRegisterRequest(cmd, backendMode, secondaryTargetDir, remoteNbdExportAddr);
+        validateResolvedRegisterRequest(cmd, backendMode, targetStorageScope, secondaryTargetDir, remoteNbdExportAddr);
         validateDrCloudManagedTargetNetworks(cmd, provisioningBackend);
         validateFtMachineTypeContractBeforeProvisioning(userVm, cmd);
         FtctlIpmiFencingConfig ipmiFencingConfig = resolveIpmiFencingConfig(userVm, cmd);
@@ -1015,9 +1015,16 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         }
     }
 
-    private void validateResolvedRegisterRequest(RegisterFtctlProtectionCmd cmd, String backendMode, String secondaryTargetDir, String remoteNbdExportAddr) {
+    private void validateResolvedRegisterRequest(RegisterFtctlProtectionCmd cmd, String backendMode, String targetStorageScope,
+                                                String secondaryTargetDir, String remoteNbdExportAddr) {
         if (isRemoteMoldDr(cmd) && !"remote-nbd".equalsIgnoreCase(backendMode)) {
             throw new CloudRuntimeException("FTCTL DR remote Mold requires remote-nbd backend mode");
+        }
+        if ("remote-nbd".equalsIgnoreCase(backendMode) && !"secondary-local".equalsIgnoreCase(targetStorageScope)) {
+            throw new CloudRuntimeException("FTCTL remote-nbd requires target storage scope secondary-local");
+        }
+        if ("shared-blockcopy".equalsIgnoreCase(backendMode) && !"shared".equalsIgnoreCase(targetStorageScope)) {
+            throw new CloudRuntimeException("FTCTL shared-blockcopy requires target storage scope shared");
         }
         if ("remote-nbd".equalsIgnoreCase(backendMode) && (isBlank(secondaryTargetDir) || isBlank(remoteNbdExportAddr))) {
             throw new CloudRuntimeException("FTCTL remote-nbd requires secondary target directory and export address");
@@ -1682,9 +1689,12 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         return storagePool;
     }
 
-    private String resolveTargetStorageScope(RegisterFtctlProtectionCmd cmd, StoragePoolVO storagePool) {
-        if (isRemoteMoldDr(cmd)) {
+    private String resolveTargetStorageScope(RegisterFtctlProtectionCmd cmd, StoragePoolVO storagePool, String backendMode) {
+        if ("remote-nbd".equalsIgnoreCase(backendMode)) {
             return "secondary-local";
+        }
+        if ("shared-blockcopy".equalsIgnoreCase(backendMode)) {
+            return "shared";
         }
         if (storagePool != null && storagePool.getScope() != null) {
             switch (storagePool.getScope()) {
@@ -1703,6 +1713,16 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
     private String resolveBackendMode(RegisterFtctlProtectionCmd cmd, StoragePoolVO storagePool) {
         if (isRemoteMoldDr(cmd)) {
             return "remote-nbd";
+        }
+        if ("ft".equalsIgnoreCase(StringUtils.trimToEmpty(cmd != null ? cmd.getMode() : null))) {
+            String requestedBackendMode = StringUtils.trimToNull(cmd.getBackendMode());
+            if (requestedBackendMode == null) {
+                return "remote-nbd";
+            }
+            if (!"remote-nbd".equalsIgnoreCase(requestedBackendMode)) {
+                throw new CloudRuntimeException("FTCTL FT mode requires remote-nbd backend mode");
+            }
+            return requestedBackendMode;
         }
         if (isHostScopedStoragePool(storagePool)) {
             return "remote-nbd";

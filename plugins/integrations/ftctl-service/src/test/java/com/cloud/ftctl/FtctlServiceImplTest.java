@@ -1701,6 +1701,74 @@ public class FtctlServiceImplTest {
     }
 
     @Test
+    public void testRegisterFtCloudManagedClusterStorageDefaultsToRemoteNbd() throws Exception {
+        RegisterFtctlProtectionCmd cmd = buildRegisterCmd();
+        setField(cmd, "mode", "ft");
+        setField(cmd, "backendMode", null);
+        setField(cmd, "targetStorageScope", "cluster");
+        setField(cmd, "secondaryTargetDir", null);
+        setField(cmd, "remoteNbdExportAddr", null);
+        setField(cmd, "provisioningBackend", FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED);
+        setField(cmd, "networkIds", "network-uuid");
+        setField(cmd, "xcoloPortAllocationMode", "manual");
+        setField(cmd, "xcoloProxyEndpoint", "tcp:10.0.0.12:9000");
+        setField(cmd, "xcoloNbdEndpoint", "tcp:10.0.0.12:10809");
+        setField(cmd, "xcoloMigrateUri", "tcp:10.0.0.12:9998");
+        vmDetails.put("101:" + VmDetailConstants.KVM_GUEST_OS_MACHINE_TYPE, "pc-i440fx-9.2");
+
+        StoragePoolVO clusterPool = mockStoragePool();
+        Mockito.when(clusterPool.getScope()).thenReturn(ScopeType.CLUSTER);
+        Mockito.when(clusterPool.getPath()).thenReturn("rbd");
+        Mockito.when(primaryDataStoreDao.findById(501L)).thenReturn(clusterPool);
+        FtctlProtectionVO protection = new FtctlProtectionVO(101L);
+        Mockito.when(ftctlProtectionDao.findActiveByPrimaryVmId(101L)).thenReturn(protection);
+        HostVO localHost = mockHost(201L, 301L, "10.0.0.11");
+        HostVO peerHost = mockHost(202L, 301L, "10.0.0.12");
+        Mockito.when(hostDao.findById(201L)).thenReturn(localHost);
+        Mockito.when(hostDao.findById(202L)).thenReturn(peerHost);
+        Mockito.doReturn(new FtctlProtectionProvisioningContext(
+                FtctlProtectionProvisioningService.BACKEND_CLOUD_MANAGED,
+                FtctlProtectionProvisioningService.STATE_READY,
+                "i-2-401-VM",
+                "sda=/dev/rbd/rbd/standby-root"))
+                .when(ftctlProtectionProvisioningService).prepareProtection(Mockito.any());
+
+        FtctlSyncAnswer clusterAnswer = new FtctlSyncAnswer(new FtctlSyncClusterCommand(), true, "OK", "ok", 0, "cluster-synced");
+        FtctlSyncAnswer profileAnswer = new FtctlSyncAnswer(new FtctlSyncProfileCommand(), true, "OK", "ok", 0, "profile-synced");
+        FtctlActionAnswer protectAnswer = new FtctlActionAnswer(new FtctlActionCommand(FtctlActionCommand.Action.PROTECT_START, "vm-name"), true, "OK",
+                FtctlActionCommand.Action.PROTECT_START, "accepted", 0, "protection job accepted");
+        FtctlStatusAnswer statusAnswer = new FtctlStatusAnswer(new FtctlStatusCommand("vm-name"), true, "OK", "ok", "vm-name",
+                "ft", "protected", "replicating", "primary", "running", "clear", "",
+                "2026-04-18T18:10:00+09:00", 0, 0);
+        Mockito.when(agentManager.send(Mockito.eq(201L), Mockito.any(Command.class)))
+                .thenReturn(clusterAnswer)
+                .thenReturn(profileAnswer)
+                .thenReturn(protectAnswer)
+                .thenReturn(statusAnswer);
+
+        ftctlService.registerFtctlProtection(cmd);
+
+        ArgumentCaptor<Command> commandCaptor = ArgumentCaptor.forClass(Command.class);
+        Mockito.verify(agentManager, Mockito.times(4)).send(Mockito.eq(201L), commandCaptor.capture());
+        FtctlSyncProfileCommand profileCommand = (FtctlSyncProfileCommand) commandCaptor.getAllValues().get(1);
+        Assert.assertEquals("remote-nbd", profileCommand.getBackendMode());
+        Assert.assertEquals("secondary-local", profileCommand.getTargetStorageScope());
+        Assert.assertEquals("rbd", profileCommand.getSecondaryTargetDir());
+        Assert.assertEquals("10.0.0.12:10809", profileCommand.getRemoteNbdExportAddr());
+
+        FtctlActionCommand capturedProtectCommand = (FtctlActionCommand) commandCaptor.getAllValues().get(2);
+        Assert.assertEquals("remote-nbd", capturedProtectCommand.getContextParam("ftctl.backend.mode"));
+        Assert.assertEquals("secondary-local", capturedProtectCommand.getContextParam("ftctl.target.storage.scope"));
+
+        ArgumentCaptor<FtctlProtectionProvisioningRequest> requestCaptor = ArgumentCaptor.forClass(FtctlProtectionProvisioningRequest.class);
+        Mockito.verify(ftctlProtectionProvisioningService).prepareProtection(requestCaptor.capture());
+        Assert.assertEquals("remote-nbd", requestCaptor.getValue().getBackendMode());
+        Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.backend.mode", "remote-nbd", true);
+        Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.target.storage.scope", "secondary-local", true);
+        Mockito.verify(vmInstanceDetailsDao).addDetail(101L, "ftctl.remote.nbd.export.addr", "10.0.0.12:10809", true);
+    }
+
+    @Test
     public void testRegisterFtctlProtectionPersistsFailureWhenProfileSyncFails() throws Exception {
         RegisterFtctlProtectionCmd cmd = buildRegisterCmd();
         HostVO localHost = mockHost(201L, 301L, "10.0.0.11");
