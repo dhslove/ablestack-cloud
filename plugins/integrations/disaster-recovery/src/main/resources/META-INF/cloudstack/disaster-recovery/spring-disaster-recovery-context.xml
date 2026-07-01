@@ -31,6 +31,52 @@
     <bean id="disasterRecoveryClusterDaoImpl" class="com.cloud.dr.cluster.dao.DisasterRecoveryClusterDaoImpl"/>
     <bean id="disasterRecoveryClusterVmMapDaoImpl" class="com.cloud.dr.cluster.dao.DisasterRecoveryClusterVmMapDaoImpl"/>
     <bean id="DisasterRecoveryClusterDetailsDaoImpl" class="com.cloud.dr.cluster.dao.DisasterRecoveryClusterDetailsDaoImpl"/>
+    <bean id="drSiteDaoImpl" class="com.cloud.dr.dao.DrSiteDaoImpl"/>
+    <bean id="drSitePairDaoImpl" class="com.cloud.dr.dao.DrSitePairDaoImpl"/>
+    <bean id="drPlanDaoImpl" class="com.cloud.dr.dao.DrPlanDaoImpl"/>
+    <bean id="drRestorePointDaoImpl" class="com.cloud.dr.dao.DrRestorePointDaoImpl"/>
+    <bean id="drRestorePointArtifactDaoImpl" class="com.cloud.dr.dao.DrRestorePointArtifactDaoImpl"/>
+    <bean id="drReplicaDaoImpl" class="com.cloud.dr.dao.DrReplicaDaoImpl"/>
+    <bean id="drReplicaDiskDaoImpl" class="com.cloud.dr.dao.DrReplicaDiskDaoImpl"/>
+    <bean id="drRunDaoImpl" class="com.cloud.dr.dao.DrRunDaoImpl"/>
+    <bean id="drRunStepDaoImpl" class="com.cloud.dr.dao.DrRunStepDaoImpl"/>
+    <bean id="drEventDaoImpl" class="com.cloud.dr.dao.DrEventDaoImpl"/>
+    <bean id="drSiteServiceImpl" class="com.cloud.dr.DrSiteServiceImpl"/>
+    <bean id="drPlanServiceImpl" class="com.cloud.dr.DrPlanServiceImpl"/>
+    <bean id="drRunServiceImpl" class="com.cloud.dr.DrRunServiceImpl"/>
+    <bean id="drProjectionServiceImpl" class="com.cloud.dr.DrProjectionServiceImpl"/>
+    <bean id="drOrchestratorImpl" class="com.cloud.dr.orchestrator.DrOrchestratorImpl"/>
+    <bean id="drProtectionOrchestratorImpl" class="com.cloud.dr.orchestrator.DrProtectionOrchestratorImpl"/>
+    <bean id="drRunExecutorImpl" class="com.cloud.dr.orchestrator.DrRunExecutorImpl"/>
+    <bean id="ftctlDrActionAdapter" class="com.cloud.dr.adapter.ftctl.FtctlDrActionAdapter"/>
+    <bean id="ftctlDrContractAdapter" class="com.cloud.dr.adapter.ftctl.FtctlDrContractAdapter"/>
+    <bean id="ftctlDrUnifiedActionAdapter" class="com.cloud.dr.adapter.ftctl.FtctlDrUnifiedActionAdapter"/>
+    <bean id="ftctlDrProjectionAdapter" class="com.cloud.dr.adapter.ftctl.FtctlDrProjectionAdapter"/>
+    <bean id="ftctlDrRuntimeProjectionAdapter" class="com.cloud.dr.adapter.ftctl.FtctlDrRuntimeProjectionAdapter"/>
+    <bean id="vmwarePhase1TargetAdapter" class="com.cloud.dr.adapter.vmware.VmwarePhase1TargetAdapter"/>
+    <bean id="v2kDrMigrationAdapter" class="com.cloud.dr.adapter.v2k.V2kDrMigrationAdapter"/>
+    <bean id="drAdapterRegistryImpl" class="com.cloud.dr.adapter.DrAdapterRegistryImpl">
+        <property name="replicationEngines">
+            <list>
+                <ref bean="ftctlDrActionAdapter"/>
+                <ref bean="ftctlDrUnifiedActionAdapter"/>
+                <ref bean="vmwarePhase1TargetAdapter"/>
+                <ref bean="v2kDrMigrationAdapter"/>
+            </list>
+        </property>
+        <property name="fencingAdapters">
+            <list>
+                <ref bean="ftctlDrActionAdapter"/>
+            </list>
+        </property>
+        <property name="projectionAdapters">
+            <list>
+                <ref bean="ftctlDrProjectionAdapter"/>
+                <ref bean="ftctlDrRuntimeProjectionAdapter"/>
+            </list>
+        </property>
+    </bean>
+    <bean id="drResponseGenerator" class="com.cloud.dr.response.DrResponseGenerator"/>
 
     <bean id="disasterRecoveryHelper" class="com.cloud.dr.cluster.DisasterRecoveryHelperImpl" >
         <property name="name" value="DisasterRecoveryHelper" />

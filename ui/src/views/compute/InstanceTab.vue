@@ -94,6 +94,9 @@
           </template>
         </DRTable>
       </a-tab-pane>
+      <a-tab-pane :tab="$t('label.dr.plans')" key="drplans" v-if="'listDrPlans' in $store.getters.apis">
+        <DrPlanVmTab :resource="vm" :loading="loading" />
+      </a-tab-pane>
       <a-tab-pane :tab="$t('label.backup')" key="backups" v-if="'listBackups' in $store.getters.apis">
         <ListResourceTable
           apiName="listBackups"
@@ -300,6 +303,7 @@ import DRTable from '@/views/compute/dr/DRTable'
 import DRsimulationTestModal from '@/views/compute/dr/DRsimulationTestModal'
 import DRMirroringVMAdd from '@/views/compute/dr/DRMirroringVMAdd'
 import DRMirroringVMRemove from '@/views/compute/dr/DRMirroringVMRemove'
+import DrPlanVmTab from '@/views/compute/dr/DrPlanVmTab.vue'
 import GPUTab from '@/components/view/GPUTab.vue'
 import FtctlTab from '@/views/compute/FtctlTab.vue'
 
@@ -317,6 +321,7 @@ export default {
     DRsimulationTestModal,
     DRMirroringVMAdd,
     DRMirroringVMRemove,
+    DrPlanVmTab,
     GPUTab,
     FtctlTab,
     InstanceSchedules,

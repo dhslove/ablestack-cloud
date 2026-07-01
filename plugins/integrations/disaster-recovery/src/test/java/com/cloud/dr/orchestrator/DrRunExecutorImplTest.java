@@ -1,0 +1,184 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+package com.cloud.dr.orchestrator;
+
+import java.util.List;
+
+import org.junit.Assert;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.Mockito;
+import org.mockito.junit.MockitoJUnitRunner;
+
+import com.cloud.dr.DrConstants;
+import com.cloud.dr.DrEventVO;
+import com.cloud.dr.DrPlanVO;
+import com.cloud.dr.DrProjectionService;
+import com.cloud.dr.DrRunStepVO;
+import com.cloud.dr.DrRunVO;
+import com.cloud.dr.adapter.DrAdapterRegistry;
+import com.cloud.dr.adapter.DrAdapterResult;
+import com.cloud.dr.adapter.DrExecutionContext;
+import com.cloud.dr.adapter.DrReplicationEngine;
+import com.cloud.dr.dao.DrEventDao;
+import com.cloud.dr.dao.DrPlanDao;
+import com.cloud.dr.dao.DrRunDao;
+import com.cloud.dr.dao.DrRunStepDao;
+
+@RunWith(MockitoJUnitRunner.class)
+public class DrRunExecutorImplTest {
+    @Mock
+    private DrPlanDao drPlanDao;
+    @Mock
+    private DrRunDao drRunDao;
+    @Mock
+    private DrRunStepDao drRunStepDao;
+    @Mock
+    private DrEventDao drEventDao;
+    @Mock
+    private DrAdapterRegistry drAdapterRegistry;
+    @Mock
+    private DrProjectionService drProjectionService;
+    @Mock
+    private DrProtectionOrchestrator drProtectionOrchestrator;
+    @Mock
+    private DrReplicationEngine replicationEngine;
+
+    @InjectMocks
+    private DrRunExecutorImpl executor;
+
+    @Test
+    public void successfulKvmFtctlRunRecordsTerminalStepAndRefreshesProjection() {
+        DrPlanVO plan = ftctlPlan();
+        DrRunVO run = run(DrConstants.RUN_TYPE_SYNC);
+        Mockito.when(drRunDao.findById(run.getId())).thenReturn(run);
+        Mockito.when(drPlanDao.findById(plan.getId())).thenReturn(plan);
+        Mockito.when(drAdapterRegistry.getReplicationEngine(DrConstants.ENGINE_TYPE_FTCTL, DrConstants.ENGINE_BINDING_TYPE_FTCTL))
+                .thenReturn(replicationEngine);
+        Mockito.when(replicationEngine.validatePlan(plan)).thenReturn(DrAdapterResult.success("valid", null));
+        Mockito.when(replicationEngine.execute(Mockito.any(DrExecutionContext.class)))
+                .thenReturn(DrAdapterResult.success("done", "{\"ok\":true}"));
+
+        executor.queueRun(run);
+
+        Assert.assertEquals(DrConstants.RUN_STATE_SUCCEEDED, run.getState());
+        Assert.assertEquals("completed", run.getCurrentStepName());
+        Assert.assertNotNull(run.getStarted());
+        Assert.assertNotNull(run.getCompleted());
+
+        ArgumentCaptor<DrRunStepVO> stepCaptor = ArgumentCaptor.forClass(DrRunStepVO.class);
+        Mockito.verify(drRunStepDao, Mockito.times(4)).persist(stepCaptor.capture());
+        List<DrRunStepVO> steps = stepCaptor.getAllValues();
+        Assert.assertEquals(DrConstants.STEP_STATE_RUNNING, steps.get(0).getState());
+        Assert.assertEquals(Integer.valueOf(10), steps.get(0).getProgress());
+        Assert.assertEquals(DrConstants.STEP_STATE_RUNNING, steps.get(1).getState());
+        Assert.assertEquals(Integer.valueOf(25), steps.get(1).getProgress());
+        Assert.assertEquals(DrConstants.STEP_STATE_SUCCEEDED, steps.get(2).getState());
+        Assert.assertEquals(Integer.valueOf(100), steps.get(2).getProgress());
+        Assert.assertEquals(DrConstants.STEP_STATE_SUCCEEDED, steps.get(3).getState());
+        Assert.assertEquals(Integer.valueOf(100), steps.get(3).getProgress());
+
+        ArgumentCaptor<DrEventVO> eventCaptor = ArgumentCaptor.forClass(DrEventVO.class);
+        Mockito.verify(drEventDao, Mockito.times(2)).persist(eventCaptor.capture());
+        Assert.assertEquals(DrConstants.EVENT_RUN_STARTED, eventCaptor.getAllValues().get(0).getEventType());
+        Assert.assertEquals(DrConstants.EVENT_RUN_SUCCEEDED, eventCaptor.getAllValues().get(1).getEventType());
+        Mockito.verify(drProjectionService).refreshPlanProjection(plan.getId(), true);
+    }
+
+    @Test
+    public void acceptedFtctlDrRunRemainsAcceptedAndRefreshesProjection() {
+        DrPlanVO plan = ftctlDrPlan();
+        DrRunVO run = run(DrConstants.RUN_TYPE_SYNC);
+        Mockito.when(drRunDao.findById(run.getId())).thenReturn(run);
+        Mockito.when(drPlanDao.findById(plan.getId())).thenReturn(plan);
+        Mockito.when(drProtectionOrchestrator.prepareSyncRun(plan, run)).thenReturn(plan);
+        Mockito.when(drAdapterRegistry.getReplicationEngine(DrConstants.ENGINE_TYPE_FTCTL_DR, DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR))
+                .thenReturn(replicationEngine);
+        Mockito.when(replicationEngine.validatePlan(plan)).thenReturn(DrAdapterResult.success("valid", null));
+        Mockito.when(replicationEngine.execute(Mockito.any(DrExecutionContext.class)))
+                .thenReturn(DrAdapterResult.accepted("accepted by agent", "{\"accepted\":true}", "ftctl-job-1"));
+
+        executor.queueRun(run);
+
+        Assert.assertEquals(DrConstants.RUN_STATE_ACCEPTED, run.getState());
+        Assert.assertEquals("agent-accepted", run.getCurrentStepName());
+        Assert.assertEquals("ftctl-job-1", run.getExternalJobRef());
+        Assert.assertNotNull(run.getStarted());
+        Assert.assertNull(run.getCompleted());
+        Assert.assertNull(run.getErrorCode());
+
+        ArgumentCaptor<DrRunStepVO> stepCaptor = ArgumentCaptor.forClass(DrRunStepVO.class);
+        Mockito.verify(drRunStepDao, Mockito.times(4)).persist(stepCaptor.capture());
+        List<DrRunStepVO> steps = stepCaptor.getAllValues();
+        Assert.assertEquals(DrConstants.STEP_STATE_RUNNING, steps.get(0).getState());
+        Assert.assertEquals(DrConstants.STEP_STATE_RUNNING, steps.get(1).getState());
+        Assert.assertEquals(DrConstants.STEP_STATE_SUCCEEDED, steps.get(2).getState());
+        Assert.assertEquals(DrConstants.STEP_STATE_SUCCEEDED, steps.get(3).getState());
+
+        ArgumentCaptor<DrEventVO> eventCaptor = ArgumentCaptor.forClass(DrEventVO.class);
+        Mockito.verify(drEventDao, Mockito.times(2)).persist(eventCaptor.capture());
+        Assert.assertEquals(DrConstants.EVENT_RUN_STARTED, eventCaptor.getAllValues().get(0).getEventType());
+        Assert.assertEquals(DrConstants.EVENT_RUN_ACCEPTED, eventCaptor.getAllValues().get(1).getEventType());
+        Mockito.verify(drProtectionOrchestrator).prepareSyncRun(plan, run);
+        Mockito.verify(drProjectionService).refreshPlanProjection(plan.getId(), true);
+    }
+
+    @Test
+    public void missingKvmFtctlAdapterFailsRunWithoutCallingProjectionRefresh() {
+        DrPlanVO plan = ftctlPlan();
+        DrRunVO run = run(DrConstants.RUN_TYPE_FAILOVER);
+        Mockito.when(drRunDao.findById(run.getId())).thenReturn(run);
+        Mockito.when(drPlanDao.findById(plan.getId())).thenReturn(plan);
+        Mockito.when(drAdapterRegistry.getReplicationEngine(DrConstants.ENGINE_TYPE_FTCTL, DrConstants.ENGINE_BINDING_TYPE_FTCTL))
+                .thenReturn(null);
+
+        executor.queueRun(run);
+
+        Assert.assertEquals(DrConstants.RUN_STATE_FAILED, run.getState());
+        Assert.assertEquals(DrConstants.ERROR_ENGINE_UNAVAILABLE, run.getErrorCode());
+        Mockito.verify(drProjectionService, Mockito.never()).refreshPlanProjection(Mockito.anyLong(), Mockito.anyBoolean());
+    }
+
+    private DrPlanVO ftctlPlan() {
+        DrPlanVO plan = new DrPlanVO("kvm-ftctl-plan", 1L, 2L, "KVM_TO_KVM");
+        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL);
+        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL);
+        plan.setSourceVmId(101L);
+        return plan;
+    }
+
+    private DrPlanVO ftctlDrPlan() {
+        DrPlanVO plan = new DrPlanVO("ftctl-dr-plan", 1L, 2L, DrConstants.DIRECTION_KVM_TO_VMWARE);
+        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
+        plan.setSourceVmId(101L);
+        plan.setSourceWorkerHostId(101L);
+        plan.setTargetWorkerHostId(102L);
+        plan.setCoordinatorWorkerHostId(103L);
+        return plan;
+    }
+
+    private DrRunVO run(String runType) {
+        DrRunVO run = new DrRunVO(0L, runType);
+        run.setState(DrConstants.RUN_STATE_QUEUED);
+        run.setRequestJson("{\"sourceStorage\":\"rbd\",\"targetStorage\":\"qcow2\"}");
+        return run;
+    }
+}

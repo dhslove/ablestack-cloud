@@ -4,6 +4,19 @@
 
 대상 브랜치: `feature/ftctl-cloud-integration`
 
+상세화 문서:
+
+- [501-cross-hypervisor-dr-domain-schema-design-20260630.md](501-cross-hypervisor-dr-domain-schema-design-20260630.md)
+- [502-cross-hypervisor-dr-adapter-contract-design-20260630.md](502-cross-hypervisor-dr-adapter-contract-design-20260630.md)
+- [503-cross-hypervisor-dr-state-machine-and-worker-design-20260630.md](503-cross-hypervisor-dr-state-machine-and-worker-design-20260630.md)
+- [504-cross-hypervisor-dr-phase1-vmware-target-scope-design-20260630.md](504-cross-hypervisor-dr-phase1-vmware-target-scope-design-20260630.md)
+- [505-cross-hypervisor-dr-ftctl-v2k-integration-design-20260630.md](505-cross-hypervisor-dr-ftctl-v2k-integration-design-20260630.md)
+- [506-cross-hypervisor-dr-cloud-ui-design-20260630.md](506-cross-hypervisor-dr-cloud-ui-design-20260630.md)
+- [507-cross-hypervisor-dr-cloud-api-command-design-20260630.md](507-cross-hypervisor-dr-cloud-api-command-design-20260630.md)
+- [508-cross-hypervisor-dr-cloud-backend-wiring-design-20260630.md](508-cross-hypervisor-dr-cloud-backend-wiring-design-20260630.md)
+- [509-cross-hypervisor-dr-db-upgrade-and-entity-design-20260630.md](509-cross-hypervisor-dr-db-upgrade-and-entity-design-20260630.md)
+- [510-cross-hypervisor-dr-ftctl-runtime-contract-design-20260630.md](510-cross-hypervisor-dr-ftctl-runtime-contract-design-20260630.md)
+
 ## 1. 목적
 
 ABLESTACK Mold가 KVM 기반 ABLESTACK 클러스터와 VMware 클러스터를 함께 운영 관리하는 환경에서, 가상머신의 운영 위치와 DR 위치가 서로 다른 하이퍼바이저일 수 있는 `Cross Hypervisor DR` 아키텍처를 수립한다.
@@ -449,3 +462,13 @@ RTO는 target readiness에 의존한다.
 - 신규 `DrPlan` 계층: 사용자에게 보이는 공통 보호 정책과 failover/failback orchestration을 담당.
 
 이 구조를 적용하면 DR 사이트가 VMware든 ABLESTACK/KVM이든 동일한 UX/API로 대응할 수 있고, 각 하이퍼바이저 조합의 기술 차이는 adapter 내부로 격리된다.
+
+## 13. AS-IS / TO-BE 요약
+
+| 구분 | AS-IS | TO-BE |
+| --- | --- | --- |
+| DR 모델 | 기존 `DisasterRecoveryCluster`와 FTCTL 기능이 기능별로 분리 | `DrSite`, `DrPlan`, `DrRun`, `DrReplica`, `DrRestorePoint` 중심의 공통 DR 플랫폼 |
+| 지원 방향 | KVM-to-KVM FTCTL과 기존 VMware DR 기능 중심 | KVM/VMware source와 target 조합을 adapter로 확장 |
+| 사용자 경험 | 기능별 화면과 API가 서로 다른 추상도를 가짐 | 동일한 DR plan/action/progress UX로 통합 |
+| 런타임 통합 | FTCTL, VMware, V2K 흐름이 개별 경로로 노출 | Cloud orchestrator가 공통 상태를 관리하고 engine adapter가 실제 작업 수행 |
+| 구현 순서 | 기능별 보강 중심 | 공통 domain/API/worker를 먼저 만들고 FTCTL, VMware target, V2K 순서로 연결 |
