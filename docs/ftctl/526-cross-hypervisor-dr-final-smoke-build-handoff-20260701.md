@@ -121,3 +121,51 @@ Cloud deployment target artifacts:
 - No local qemu RPM was built because qemu/ftctl package artifacts must be built by GitHub Actions.
 - VMware live validation remains pending until a VMware/VDDK test environment is available.
 - Existing UI build warnings remain: Browserslist data age and asset-size warnings.
+
+## Operational Hand-off Deployment - 2026-07-01
+
+Source baselines:
+
+| Repository | Branch | Commit | Result |
+| --- | --- | --- | --- |
+| `dhslove/ablestack-cloud` | `feature/ftctl-cloud-integration` | `b51a8a9697` | Pushed to origin. |
+| `dhslove/ablestack-qemu-exec-tools` | `feature/ftctl-cloud-integration` | `a25443d16d` | Pushed to origin. |
+
+qemu FTCTL package build:
+
+| Item | Value |
+| --- | --- |
+| Workflow | `FTCTL Branch Development Release` |
+| Run | `https://github.com/dhslove/ablestack-qemu-exec-tools/actions/runs/28510151119` |
+| Source commit | `a25443d16de6ac2a08fbc9d949be8ca802b35a50` |
+| RPM | `ablestack_vm_ftctl-0.9.1-1.noarch.rpm` |
+| RPM SHA256 | `baa6d035746a558f2a8fb6f5756582d91936694004253eba224da7bb8b172837` |
+| Integrity | `SHA256SUMS` verification PASS. |
+
+Cloud deployment target:
+
+| Item | Value |
+| --- | --- |
+| Management host | `10.10.32.10` |
+| Service | `mold.service` |
+| Runtime JAR | `/usr/share/cloudstack-management/lib/cloudstack-4.22.0.0-Mold.Europa-202606280754.jar` |
+| Active UI path | `/usr/share/cloudstack-management/webapp` |
+| Deployment bundle | `/root/cloud-dr-handoff-b51a8a9697/` |
+| Backup path | `/root/cloud-dr-handoff-b51a8a9697/backup-20260701-1915/` |
+| Runtime patch SHA256 | `1b21f56e445477bec72775d2f65310edbefc994da9e50568f6db58f7309061fe` |
+| UI dist SHA256 | `0f70a6295b9c20433f542cc0d92df77eb473d08e91885ad4664a84e5eee171f8` |
+| Schema patch SHA256 | `d1870ed333bc5ba45ac21d9af0fc47b9cc32d1d5de878b4d8a02384a814aa46a` |
+
+Deployment verification:
+
+| Check | Result |
+| --- | --- |
+| `mold.service` | `active` after restart. |
+| `/client/` | HTTP `200` after restart. |
+| `WEB-INF` preservation | PASS. |
+| DR DB tables | `10` `dr_%` tables present in `cloud`. |
+| Runtime JAR markers | `FtctlDrActionCommand`, `LibvirtFtctlDrActionCommandWrapper`, `DrRunExecutorImpl`, and `spring-disaster-recovery-context.xml` present. |
+| Active UI markers | `pollRuns` and `cross-dr` present under active webapp assets. |
+| Journal warning review | Only expected `mold.service` stop-result warning from controlled restart; service recovered to active. |
+
+This hand-off intentionally deployed Cloud as changed runtime class/resource overlay plus static UI assets, not a full Cloud package replacement. The ftctl RPM was built and verified by GitHub Actions, but it was not installed on worker hosts in this hand-off step.
