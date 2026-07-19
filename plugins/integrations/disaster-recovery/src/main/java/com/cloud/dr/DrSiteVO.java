@@ -60,11 +60,26 @@ public class DrSiteVO implements InternalIdentity {
     @Column(name = "credential_ref")
     private String credentialRef;
 
+    @Column(name = "credential_id")
+    private Long credentialId;
+
     @Column(name = "zone_id")
     private Long zoneId;
 
+    @Column(name = "zone_external_id")
+    private String zoneExternalId;
+
+    @Column(name = "zone_name")
+    private String zoneName;
+
     @Column(name = "vmware_datacenter_id")
     private Long vmwareDatacenterId;
+
+    @Column(name = "vmware_datacenter_external_id")
+    private String vmwareDatacenterExternalId;
+
+    @Column(name = "vmware_datacenter_name")
+    private String vmwareDatacenterName;
 
     @Column(name = "state")
     private String state;
@@ -133,12 +148,32 @@ public class DrSiteVO implements InternalIdentity {
         return credentialRef;
     }
 
+    public Long getCredentialId() {
+        return credentialId;
+    }
+
     public Long getZoneId() {
         return zoneId;
     }
 
+    public String getZoneExternalId() {
+        return zoneExternalId;
+    }
+
+    public String getZoneName() {
+        return zoneName;
+    }
+
     public Long getVmwareDatacenterId() {
         return vmwareDatacenterId;
+    }
+
+    public String getVmwareDatacenterExternalId() {
+        return vmwareDatacenterExternalId;
+    }
+
+    public String getVmwareDatacenterName() {
+        return vmwareDatacenterName;
     }
 
     public String getState() {
@@ -193,12 +228,32 @@ public class DrSiteVO implements InternalIdentity {
         this.credentialRef = credentialRef;
     }
 
+    public void setCredentialId(Long credentialId) {
+        this.credentialId = credentialId;
+    }
+
     public void setZoneId(Long zoneId) {
         this.zoneId = zoneId;
     }
 
+    public void setZoneExternalId(String zoneExternalId) {
+        this.zoneExternalId = zoneExternalId;
+    }
+
+    public void setZoneName(String zoneName) {
+        this.zoneName = zoneName;
+    }
+
     public void setVmwareDatacenterId(Long vmwareDatacenterId) {
         this.vmwareDatacenterId = vmwareDatacenterId;
+    }
+
+    public void setVmwareDatacenterExternalId(String vmwareDatacenterExternalId) {
+        this.vmwareDatacenterExternalId = vmwareDatacenterExternalId;
+    }
+
+    public void setVmwareDatacenterName(String vmwareDatacenterName) {
+        this.vmwareDatacenterName = vmwareDatacenterName;
     }
 
     public void setState(String state) {

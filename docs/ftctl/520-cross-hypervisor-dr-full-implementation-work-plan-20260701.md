@@ -145,7 +145,7 @@ VMware source는 VDDK와 vSphere CBT를 사용한다. V2K는 사용하지 않는
 
 구현 방식:
 
-1. vCenter credential은 Cloud credential reference로 받고 host에는 단기 profile로만 전달한다.
+1. vCenter credential은 UI에서 URL, username, password로 입력받고 Cloud가 `dr_site_credential`에 암호화 저장한다. Host에는 `/run`의 root-only credential file로만 materialize하고 profile에는 credential file path만 남긴다.
 2. CBT enabled 여부를 확인하고 필요 시 enable 요청을 별도 action으로 분리한다.
 3. disk별 `changeId`를 저장한다.
 4. `QueryChangedDiskAreas` 결과로 changed extents를 얻는다.
@@ -443,3 +443,27 @@ RTO를 줄이기 위한 필수 구현:
 | [522-cross-hypervisor-dr-protection-failover-failback-sequence-design-20260701.md](522-cross-hypervisor-dr-protection-failover-failback-sequence-design-20260701.md) | DR 보호 설정, test failover, planned/disaster failover, failback, reprotect 시퀀스 |
 | [523-cross-hypervisor-dr-ftctl-engine-driver-design-20260701.md](523-cross-hypervisor-dr-ftctl-engine-driver-design-20260701.md) | `FTCTL_DR` runtime, KVM/VMware source driver, ABLESTACK/VMware target driver 구현 설계 |
 | [524-cross-hypervisor-dr-implementation-smoke-build-plan-20260701.md](524-cross-hypervisor-dr-implementation-smoke-build-plan-20260701.md) | 구현, 스모크 검증, Maven/UI/GitHub Actions 빌드 완료까지의 단계별 실행 계획 |
+| [534-cross-hypervisor-dr-sync-readiness-and-materialization-contract-design-20260706.md](534-cross-hypervisor-dr-sync-readiness-and-materialization-contract-design-20260706.md) | sync accepted, target materialization, restore point, RPO 기반 READY 판정 계약 |
+| [554-cross-hypervisor-dr-vmware-to-kvm-cutover-and-virtio-bootstrap-design-20260714.md](554-cross-hypervisor-dr-vmware-to-kvm-cutover-and-virtio-bootstrap-design-20260714.md) | VMware to KVM guest preparation, VirtIO, transient test VM, 실제 Failover boot gate |
+
+## 14. 2026-07-14 추가 구현 단계
+
+Continuous sync와 target materialization 이후 아래 cutover 단계가 남아 있다.
+
+1. V2K 호환성을 유지하는 shared guest-preparation library
+2. qcow2/RBD writable-layer driver
+3. Linux VirtIO/initramfs와 Windows WinPE/Secure Boot preparation
+4. isolated transient Test Failover domain과 boot validation
+5. real Failover `CUTOVER_READY`와 Cloud target VM start gate
+6. Agent/API/UI typed projection 및 cutover DB entity
+
+이 단계가 완료되기 전에는 VMware to ABLESTACK Test Failover 또는 real
+Failover를 완전 구현으로 판정하지 않는다.
+
+### 2026-07-14 VMware Incremental Acceptance Addendum
+
+The work-plan statements for VMware CBT are target requirements, not evidence
+that the deployed mover is incremental. Acceptance now requires a real
+`QueryChangedDiskAreas` call, extent-only apply, committed per-disk changeId,
+and measured changed/read/written bytes according to
+`555-cross-hypervisor-dr-vmware-cbt-incremental-and-transfer-metrics-design-20260714.md`.

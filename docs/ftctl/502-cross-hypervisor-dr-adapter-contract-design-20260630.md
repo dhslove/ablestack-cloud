@@ -1,5 +1,19 @@
 # Cross Hypervisor DR Adapter Contract Design
 
+## 2026-07-10 Normative Projection Adapter Invocation Boundary
+
+`DrProjectionAdapter.refreshPlanProjection()` is a write-side operation. It is
+invoked only by the DR projection scheduler, post-dispatch projection worker,
+explicit asynchronous refresh job, or repair task. Read commands and DAO list
+methods must never invoke it.
+
+The FTCTL projection adapter consumes typed `current_checkpoint_*` and
+`latest_completed_checkpoint_*` fields. It must not infer a completed
+checkpoint by combining the current sequence with an older durable timestamp.
+
+Detailed adapter and compatibility contract:
+`550-cross-hypervisor-dr-protection-view-cache-and-completed-checkpoint-design-20260710.md`.
+
 작성일: 2026-06-30
 
 대상 브랜치: `feature/ftctl-cloud-integration`
@@ -335,3 +349,28 @@ interface DrFencingAdapter {
 | 오류 표현 | 엔진별 오류 메시지가 UI/API에 노출 | 표준 `DR_*` error code와 retry/actionable 속성으로 변환 |
 | idempotency | 기능별로 중복 실행 방어 | plan/action/idempotency key 기준으로 공통 처리 |
 | cleanup | 엔진별 cleanup 의미가 다름 | ownership marker와 run context 기준으로 destructive cleanup 제한 |
+
+### 2026-07-14 VMware CBT Adapter Addendum
+
+The VMware adapter must return requested mode separately from effective mode,
+typed aggregate/per-disk transfer metrics, baseline generation, and a cycle
+commit token. It must not convert an invalid CBT baseline into an unreported
+full copy. The detailed contract is
+`555-cross-hypervisor-dr-vmware-cbt-incremental-and-transfer-metrics-design-20260714.md`.
+
+### 2026-07-16 Typed Failure And Commit-State Addendum
+
+The FTCTL adapter contract now separates `errorMessage` from complete
+`statusJson` and carries `dataCommitState`, `dataCopied`,
+`metadataCommitted`, `targetDurable`, and `cycleRetryMode`. `Answer.details`
+must remain bounded and must not contain the complete status object. See
+`557-cross-hypervisor-dr-cycle-commit-and-api-json-recovery-design-20260716.md`.
+
+### 2026-07-17 Agent Mode-Decision Addendum
+
+The Agent answer and KVM wrapper transport current and latest-completed
+requested mode, effective mode, mode-decision code, automatic-reseed flag,
+reseed reason, invalid disk count, and consecutive reseed count independently.
+The wrapper validates enums and non-negative types but does not choose a data
+mode or cutover policy. Detailed fields and compatibility tests are in
+`559-cross-hypervisor-dr-incremental-mode-decision-and-cycle-projection-design-20260717.md`.

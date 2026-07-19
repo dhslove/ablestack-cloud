@@ -24,7 +24,13 @@ import com.cloud.utils.db.GenericDao;
 public interface DrRestorePointDao extends GenericDao<DrRestorePointVO, Long> {
     List<DrRestorePointVO> listActiveByPlanId(long planId);
 
+    List<DrRestorePointVO> listActiveByPlanId(long planId, long startIndex, long pageSize);
+
+    long countActiveByPlanId(long planId);
+
     DrRestorePointVO findLatestTargetReadyByPlanId(long planId);
 
     DrRestorePointVO findByPlanIdAndSourceSnapshotRef(long planId, String sourceSnapshotRef);
+
+    DrRestorePointVO findByPlanIdAndCheckpointRefHash(long planId, byte[] checkpointRefHash);
 }

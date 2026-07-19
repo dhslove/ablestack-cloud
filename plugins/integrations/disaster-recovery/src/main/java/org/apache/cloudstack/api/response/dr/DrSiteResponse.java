@@ -55,13 +55,57 @@ public class DrSiteResponse extends BaseResponse {
     @Param(description = "the masked credential reference")
     private String credentialRef;
 
+    @SerializedName("credentialconfigured")
+    @Param(description = "true if the DR site has stored credentials")
+    private Boolean credentialConfigured;
+
+    @SerializedName("credentialtype")
+    @Param(description = "the stored credential type")
+    private String credentialType;
+
+    @SerializedName("credentialendpoint")
+    @Param(description = "the credential endpoint")
+    private String credentialEndpoint;
+
+    @SerializedName("credentialprincipal")
+    @Param(description = "the credential principal")
+    private String credentialPrincipal;
+
+    @SerializedName("credentialstate")
+    @Param(description = "the credential state")
+    private String credentialState;
+
+    @SerializedName("credentiallastvalidated")
+    @Param(description = "the credential last validation time")
+    private Date credentialLastValidated;
+
+    @SerializedName("activeplancount")
+    @Param(description = "the active DR plan count that refers to this site")
+    private Long activePlanCount;
+
     @SerializedName("zoneid")
     @Param(description = "the local CloudStack zone ID")
     private Long zoneId;
 
+    @SerializedName("zoneexternalid")
+    @Param(description = "the remote site zone external ID")
+    private String zoneExternalId;
+
+    @SerializedName("zonename")
+    @Param(description = "the remote site zone display name")
+    private String zoneName;
+
     @SerializedName("vmwaredcid")
     @Param(description = "the VMware datacenter ID")
     private Long vmwareDatacenterId;
+
+    @SerializedName("vmwaredcexternalid")
+    @Param(description = "the remote site VMware datacenter external ID")
+    private String vmwareDatacenterExternalId;
+
+    @SerializedName("vmwaredcname")
+    @Param(description = "the remote site VMware datacenter display name")
+    private String vmwareDatacenterName;
 
     @SerializedName("state")
     @Param(description = "the administrative state")
@@ -70,6 +114,18 @@ public class DrSiteResponse extends BaseResponse {
     @SerializedName("healthstate")
     @Param(description = "the site health state")
     private String healthState;
+
+    @SerializedName("healthreasoncode")
+    @Param(description = "the site health reason code")
+    private String healthReasonCode;
+
+    @SerializedName("healthmessage")
+    @Param(description = "the site health message")
+    private String healthMessage;
+
+    @SerializedName("healthlatencyms")
+    @Param(description = "the last site health check latency in milliseconds")
+    private Long healthLatencyMs;
 
     @SerializedName("capabilities")
     @Param(description = "the site capabilities JSON")
@@ -115,12 +171,56 @@ public class DrSiteResponse extends BaseResponse {
         this.credentialRef = credentialRef;
     }
 
+    public void setCredentialConfigured(Boolean credentialConfigured) {
+        this.credentialConfigured = credentialConfigured;
+    }
+
+    public void setCredentialType(String credentialType) {
+        this.credentialType = credentialType;
+    }
+
+    public void setCredentialEndpoint(String credentialEndpoint) {
+        this.credentialEndpoint = credentialEndpoint;
+    }
+
+    public void setCredentialPrincipal(String credentialPrincipal) {
+        this.credentialPrincipal = credentialPrincipal;
+    }
+
+    public void setCredentialState(String credentialState) {
+        this.credentialState = credentialState;
+    }
+
+    public void setCredentialLastValidated(Date credentialLastValidated) {
+        this.credentialLastValidated = credentialLastValidated;
+    }
+
+    public void setActivePlanCount(Long activePlanCount) {
+        this.activePlanCount = activePlanCount;
+    }
+
     public void setZoneId(Long zoneId) {
         this.zoneId = zoneId;
     }
 
+    public void setZoneExternalId(String zoneExternalId) {
+        this.zoneExternalId = zoneExternalId;
+    }
+
+    public void setZoneName(String zoneName) {
+        this.zoneName = zoneName;
+    }
+
     public void setVmwareDatacenterId(Long vmwareDatacenterId) {
         this.vmwareDatacenterId = vmwareDatacenterId;
+    }
+
+    public void setVmwareDatacenterExternalId(String vmwareDatacenterExternalId) {
+        this.vmwareDatacenterExternalId = vmwareDatacenterExternalId;
+    }
+
+    public void setVmwareDatacenterName(String vmwareDatacenterName) {
+        this.vmwareDatacenterName = vmwareDatacenterName;
     }
 
     public void setState(String state) {
@@ -129,6 +229,18 @@ public class DrSiteResponse extends BaseResponse {
 
     public void setHealthState(String healthState) {
         this.healthState = healthState;
+    }
+
+    public void setHealthReasonCode(String healthReasonCode) {
+        this.healthReasonCode = healthReasonCode;
+    }
+
+    public void setHealthMessage(String healthMessage) {
+        this.healthMessage = healthMessage;
+    }
+
+    public void setHealthLatencyMs(Long healthLatencyMs) {
+        this.healthLatencyMs = healthLatencyMs;
     }
 
     public void setCapabilitiesJson(String capabilitiesJson) {

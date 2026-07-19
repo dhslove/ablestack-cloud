@@ -19,6 +19,8 @@ package com.cloud.dr;
 import java.util.List;
 import java.util.Map;
 
+import com.cloud.utils.Pair;
+
 public interface DrPlanService {
     DrPlanVO createPlan(DrPlanVO plan);
 
@@ -27,6 +29,8 @@ public interface DrPlanService {
     DrPlanVO getPlan(long planId);
 
     List<DrPlanVO> listPlans();
+
+    Pair<List<DrPlanVO>, Integer> searchPlans(DrPlanSearchCriteria criteria);
 
     DrPlanVO enablePlan(long planId);
 

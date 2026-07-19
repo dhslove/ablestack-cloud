@@ -224,3 +224,65 @@ flowchart TB
 | 목표 TO-BE | Cloud-managed V2K incremental sync + failover orchestration |
 
 V2K는 재사용 가능한 중요한 자산이지만, 현재 형태만으로는 DR의 지속 변경 데이터 전송 요구를 충족한다고 보기 어렵다. 먼저 V2K Phase1이 반복 incremental sync로 동작하는지 실측하고, 가능하다면 Cloud worker가 그 반복 실행을 소유하도록 확장해야 한다.
+## 2026-07-07 Update: FTCTL_DR VMware To ABLESTACK Readiness Gate
+
+The current VMware to ABLESTACK direction is no longer treated as a V2K task
+tracking path for DR validation. It is implemented through `FTCTL_DR` with a
+VMware CBT/VDDK source driver and an ABLESTACK target driver. The validation for
+plan `05527cbe-974e-4ca8-b65e-f844cb3420e7` found a concrete readiness gap:
+the VMware source disk `2000` was selected, but its disk size was unresolved and
+reached FTCTL as `sizeBytes=0`. FTCTL correctly failed the run with
+`DR_TARGET_DISK_SIZE_UNRESOLVED`.
+
+For this direction, the flow is updated as follows:
+
+1. UI selects source VMware VM and target ABLESTACK resources.
+2. `discoverDrPlanInventory` must return source disk metadata with positive
+   `sizeBytes`/`capacityBytes`.
+3. `previewDrPlanSpec` must block execution when any source disk size is
+   missing or zero.
+4. `createDrPlan(startsync=true)` must call the same validator and must not
+   dispatch to Agent/FTCTL until the disk map is execution-ready.
+5. FTCTL remains the final guard and returns terminal JSON if Cloud missed an
+   invalid source/target disk contract.
+6. Cloud projection must turn terminal FTCTL status into `ERROR` in API/UI.
+
+Detailed code-level design is maintained in
+`538-cross-hypervisor-dr-vmware-to-kvm-disk-size-and-projection-hardening-design-20260707.md`.
+
+## 2026-07-10 Update: Reuse V2K Inventory Semantics, Not The V2K Engine
+
+The source VM boot regression confirms the required boundary:
+
+- FTCTL_DR remains the replication/DR engine.
+- The v2k Phase1/Phase2 migration lifecycle is not invoked by DR.
+- VMware source inventory reuses the proven v2k field semantics:
+  `config.firmware`, `config.bootOptions.efiSecureBootEnabled`, `guestId`, CPU,
+  memory, and disk controller data.
+- The connection is vCenter-based. No ESXi host account is required or passed.
+- Cloud persists the normalized source hardware contract and resolves the
+  ABLESTACK target boot contract before Agent/FTCTL dispatch.
+- FTCTL receives and echoes only the non-secret normalized hardware contract
+  and fingerprint; Cloud remains responsible for target VM creation.
+
+The detailed implementation and live preflight evidence are maintained in
+section 16 of
+`548-cross-hypervisor-dr-agent-action-compatibility-and-state-convergence-design-20260709.md`.
+
+## 2026-07-14 Update: Guest Preparation Reuse Boundary
+
+하드웨어 contract 복사와 guest OS의 KVM 부팅 준비는 서로 다른 단계다.
+현재 FTCTL test path는 체크포인트와 qcow2 overlay를 만들지만 V2K의 Linux
+VirtIO/initramfs 및 Windows WinPE driver preparation을 호출하지 않는다.
+
+보강 시에도 `ablestack_v2k run`, Phase1, Phase2를 DR에서 호출하지 않는다.
+대신 V2K에서 검증된 guest preparation 함수만 namespaced shared library로
+분리하고, 기존 V2K public function은 compatibility wrapper로 유지한다.
+
+- Linux: `virtio_pci`, `virtio_scsi`, `virtio_blk`, initramfs rebuild/verify
+- Windows: WinPE + `virtio-win.iso`, Secure Boot temporary disable/restore
+- Test Failover: checkpoint-derived writable layer에만 적용
+- Real Failover: final sync와 replication stop 이후 recovery disk에 적용
+
+규범 설계와 32.x preflight 결과:
+`554-cross-hypervisor-dr-vmware-to-kvm-cutover-and-virtio-bootstrap-design-20260714.md`.

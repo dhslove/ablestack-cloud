@@ -29,7 +29,7 @@
           </span>
         </div>
       </div>
-      <dr-status-pill :status="run.state" />
+      <dr-status-pill :status="effectiveRunState" />
     </div>
 
     <a-progress
@@ -39,6 +39,14 @@
       size="small" />
     <div v-else class="cross-dr-run-progress__unknown">
       {{ $t('message.dr.progress.waiting') }}
+    </div>
+
+    <div v-if="retryNotice" class="cross-dr-run-progress__notice">
+      {{ retryNotice }}
+    </div>
+
+    <div v-if="cbtNotice" class="cross-dr-run-progress__notice cross-dr-run-progress__notice--info">
+      {{ cbtNotice }}
     </div>
 
     <div v-if="normalizedSteps.length" class="cross-dr-run-progress__steps">
@@ -85,10 +93,64 @@ export default {
     },
     metaFields () {
       return [
-        { label: this.$t('label.dr.current.step'), value: this.run.currentstep },
+        { label: this.$t('label.dr.current.step'), value: this.run.runtimestep || this.run.currentstep },
+        { label: this.$t('label.dr.runtime.state'), value: this.run.runtimestate },
+        { label: this.$t('label.dr.worker.state'), value: this.run.workerstate },
         { label: this.$t('label.dr.external.job'), value: this.run.externaljobref },
-        { label: this.$t('label.error.code'), value: this.run.errorcode }
+        { label: this.$t('label.dr.retry'), value: this.retryMeta },
+        { label: this.$t('label.error.code'), value: this.errorText }
       ].filter(item => item.value)
+    },
+    retryMeta () {
+      if (!this.run.retryable && String(this.run.state || '').toUpperCase() !== 'RETRYING') {
+        return ''
+      }
+      const fields = []
+      if (this.run.retrycount !== undefined && this.run.retrycount !== null) {
+        fields.push(`#${this.run.retrycount}`)
+      }
+      if (this.run.retryafterseconds !== undefined && this.run.retryafterseconds !== null) {
+        fields.push(`${this.run.retryafterseconds}s`)
+      }
+      if (this.run.nextretryat) {
+        fields.push(this.run.nextretryat)
+      }
+      return fields.join(' / ') || 'scheduled'
+    },
+    retryNotice () {
+      if (!this.run.retryable && String(this.run.state || '').toUpperCase() !== 'RETRYING') {
+        return ''
+      }
+      const reason = this.run.errormessage || this.errorText || 'FTCTL engine is busy'
+      const meta = this.retryMeta ? ` (${this.retryMeta})` : ''
+      return this.$t('message.dr.retry.scheduled', { reason, meta })
+    },
+    cbtNotice () {
+      const fields = []
+      if (this.run.runtimecbtenabled === true || this.run.runtimecbtenabled === 'true') {
+        fields.push(this.$t('label.dr.cbt.enabled'))
+      } else if (this.run.runtimecbtenabled === false || this.run.runtimecbtenabled === 'false') {
+        fields.push(this.$t('label.dr.cbt.disabled'))
+      }
+      if (this.run.runtimecbtdiskid) {
+        fields.push(`${this.$t('label.dr.cbt.disk.id')}: ${this.run.runtimecbtdiskid}`)
+      }
+      if (this.run.runtimecbtmessage) {
+        fields.push(this.run.runtimecbtmessage)
+      }
+      if (this.run.runtimecbtgovcbin) {
+        fields.push(`${this.$t('label.dr.govc.binary')}: ${this.run.runtimecbtgovcbin}`)
+      }
+      return fields.length ? `${this.$t('label.dr.cbt.status')}: ${fields.join(' / ')}` : ''
+    },
+    errorText () {
+      const runFailed = String(this.run.state || '').toUpperCase() === 'FAILED'
+      const code = this.run.runtimeerrorcode || (runFailed ? this.run.errorcode : null)
+      if (!code) {
+        return ''
+      }
+      const key = `message.dr.error.${String(code).toLowerCase().replace(/_/g, '.')}`
+      return this.$te && this.$te(key) ? this.$t(key) : code
     },
     progress () {
       const value = Number(this.run.progresspercent)
@@ -102,8 +164,14 @@ export default {
       if (state === 'QUEUED') {
         return 5
       }
+      if (state === 'PREPARING') {
+        return 10
+      }
       if (state === 'DISPATCHING') {
         return 15
+      }
+      if (state === 'RETRYING') {
+        return 25
       }
       if (state === 'ACCEPTED') {
         return 35
@@ -120,7 +188,7 @@ export default {
       return (this.run.progresspercent !== undefined && this.run.progresspercent !== null) || this.stateProgress > 0
     },
     progressStatus () {
-      const state = String(this.run.state || '').toUpperCase()
+      const state = String(this.effectiveRunState || '').toUpperCase()
       if (state === 'FAILED') {
         return 'exception'
       }
@@ -134,6 +202,14 @@ export default {
     },
     normalizedSteps () {
       return this.steps.length ? this.steps : (this.run.steps || [])
+    },
+    effectiveRunState () {
+      const runtime = String(this.run.runtimestate || '').toUpperCase()
+      const worker = String(this.run.workerstate || '').toUpperCase()
+      if (['ERROR', 'FAILED'].includes(runtime) || worker === 'FAILED' || this.run.runtimeerrorcode) {
+        return 'FAILED'
+      }
+      return this.run.state || runtime || 'UNKNOWN'
     }
   }
 }
@@ -163,7 +239,8 @@ export default {
 
 .cross-dr-run-progress__meta,
 .cross-dr-run-step__meta,
-.cross-dr-run-progress__unknown {
+.cross-dr-run-progress__unknown,
+.cross-dr-run-progress__notice {
   color: var(--cross-dr-text-secondary, rgba(0, 0, 0, 0.45));
   font-size: 12px;
   line-height: 18px;
@@ -177,6 +254,21 @@ export default {
 
 .cross-dr-run-progress__unknown {
   margin-top: 10px;
+}
+
+.cross-dr-run-progress__notice {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--cross-dr-warning-border, #ffe58f);
+  border-radius: 6px;
+  background: var(--cross-dr-warning-bg, #fffbe6);
+  color: var(--cross-dr-warning-text, #874d00);
+}
+
+.cross-dr-run-progress__notice--info {
+  border-color: var(--cross-dr-info-border, #91d5ff);
+  background: var(--cross-dr-info-bg, #e6f7ff);
+  color: var(--cross-dr-info-text, #0050b3);
 }
 
 .cross-dr-run-progress__steps {
@@ -204,5 +296,8 @@ body.dark-mode .cross-dr-run-step {
   --cross-dr-surface-muted: rgba(255, 255, 255, 0.06);
   --cross-dr-text: rgba(255, 255, 255, 0.86);
   --cross-dr-text-secondary: rgba(255, 255, 255, 0.58);
+  --cross-dr-warning-bg: rgba(250, 173, 20, 0.12);
+  --cross-dr-warning-border: rgba(250, 173, 20, 0.38);
+  --cross-dr-warning-text: #ffe58f;
 }
 </style>

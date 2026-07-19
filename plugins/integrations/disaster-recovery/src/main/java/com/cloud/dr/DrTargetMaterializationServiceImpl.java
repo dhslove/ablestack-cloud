@@ -1,0 +1,1212 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+package com.cloud.dr;
+
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+
+import javax.inject.Inject;
+
+import org.apache.cloudstack.context.CallContext;
+import org.apache.cloudstack.engine.orchestration.service.VolumeOrchestrationService;
+import org.apache.cloudstack.managed.context.ManagedContextRunnable;
+import org.apache.cloudstack.storage.datastore.db.PrimaryDataStoreDao;
+import org.apache.cloudstack.storage.datastore.db.StoragePoolVO;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.cloud.agent.AgentManager;
+import com.cloud.agent.api.Answer;
+import com.cloud.agent.api.FtctlDrActionAnswer;
+import com.cloud.agent.api.FtctlDrActionCommand;
+import com.cloud.agent.api.FtctlDrCapabilitiesAnswer;
+import com.cloud.agent.api.FtctlDrCapabilitiesCommand;
+import com.cloud.domain.Domain;
+import com.cloud.dr.dao.DrEventDao;
+import com.cloud.dr.dao.DrPlanDao;
+import com.cloud.dr.dao.DrReplicaDao;
+import com.cloud.dr.dao.DrReplicaDiskDao;
+import com.cloud.dr.dao.DrRunDao;
+import com.cloud.dr.dao.DrRunStepDao;
+import com.cloud.exception.ConcurrentOperationException;
+import com.cloud.exception.InsufficientCapacityException;
+import com.cloud.exception.ResourceAllocationException;
+import com.cloud.exception.ResourceUnavailableException;
+import com.cloud.host.HostVO;
+import com.cloud.host.dao.HostDao;
+import com.cloud.hypervisor.Hypervisor.HypervisorType;
+import com.cloud.service.ServiceOfferingVO;
+import com.cloud.service.dao.ServiceOfferingDao;
+import com.cloud.storage.DiskOfferingVO;
+import com.cloud.storage.Storage;
+import com.cloud.storage.Volume;
+import com.cloud.storage.VolumeVO;
+import com.cloud.storage.dao.DiskOfferingDao;
+import com.cloud.storage.dao.VolumeDao;
+import com.cloud.user.Account;
+import com.cloud.user.AccountVO;
+import com.cloud.user.dao.AccountDao;
+import com.cloud.uservm.UserVm;
+import com.cloud.utils.component.ManagerBase;
+import com.cloud.utils.concurrency.NamedThreadFactory;
+import com.cloud.utils.exception.CloudRuntimeException;
+import com.cloud.vm.DiskProfile;
+import com.cloud.vm.UserVmService;
+import com.cloud.vm.UserVmManager;
+import com.cloud.vm.UserVmVO;
+import com.cloud.vm.VirtualMachine;
+import com.cloud.vm.VirtualMachineProfile;
+import com.cloud.vm.VMInstanceVO;
+import com.cloud.vm.VmDetailConstants;
+import com.cloud.vm.dao.UserVmDao;
+import com.cloud.vm.dao.VMInstanceDao;
+import com.cloud.vm.dao.VMInstanceDetailsDao;
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+
+public class DrTargetMaterializationServiceImpl extends ManagerBase implements DrTargetMaterializationService {
+    private static final Logger LOGGER = LogManager.getLogger(DrTargetMaterializationServiceImpl.class);
+    private static final Gson GSON = new Gson();
+    private static final int STEP_ORDER_RUNTIME_PROJECTION = 30;
+    private static final int STEP_ORDER_TARGET_MATERIALIZATION = 40;
+    private static final long GIB = 1024L * 1024L * 1024L;
+
+    @Inject
+    private DrPlanDao drPlanDao;
+    @Inject
+    private DrReplicaDao drReplicaDao;
+    @Inject
+    private DrReplicaDiskDao drReplicaDiskDao;
+    @Inject
+    private DrRunDao drRunDao;
+    @Inject
+    private DrRunStepDao drRunStepDao;
+    @Inject
+    private DrEventDao drEventDao;
+    @Inject
+    private DrPlanTargetPlacementResolver targetPlacementResolver;
+    @Inject
+    private AccountDao accountDao;
+    @Inject
+    private PrimaryDataStoreDao primaryDataStoreDao;
+    @Inject
+    private DiskOfferingDao diskOfferingDao;
+    @Inject
+    private ServiceOfferingDao serviceOfferingDao;
+    @Inject
+    private VolumeDao volumeDao;
+    @Inject
+    private VolumeOrchestrationService volumeManager;
+    @Inject
+    private UserVmService userVmService;
+    @Inject
+    private UserVmManager userVmManager;
+    @Inject
+    private UserVmDao userVmDao;
+    @Inject
+    private VMInstanceDao vmInstanceDao;
+    @Inject
+    private VMInstanceDetailsDao vmInstanceDetailsDao;
+    @Inject
+    private HostDao hostDao;
+    @Inject
+    private AgentManager agentManager;
+
+    @Override
+    public boolean ensureTargetPoweredOn(long planId) {
+        DrPlanVO plan = drPlanDao.findById(planId);
+        if (plan == null) {
+            throw new CloudRuntimeException("DR plan was removed before target power-on");
+        }
+        DrReplicaVO targetReplica = null;
+        for (DrReplicaVO replica : drReplicaDao.listActiveByPlanId(planId)) {
+            if (replica != null && replica.getTargetVmId() != null) {
+                targetReplica = replica;
+                break;
+            }
+        }
+        if (targetReplica == null) {
+            throw new CloudRuntimeException("DR target VM is not materialized");
+        }
+        UserVmVO targetVm = userVmDao.findById(targetReplica.getTargetVmId());
+        if (targetVm == null || targetVm.getRemoved() != null) {
+            throw new CloudRuntimeException("DR target VM no longer exists");
+        }
+        if (targetVm.getState() == VirtualMachine.State.Running) {
+            return true;
+        }
+        if (targetVm.getState() != VirtualMachine.State.Stopped) {
+            return false;
+        }
+        try {
+            userVmManager.startVirtualMachine(targetVm.getId(), plan.getTargetWorkerHostId(),
+                    new HashMap<VirtualMachineProfile.Param, Object>(), null);
+        } catch (ConcurrentOperationException | InsufficientCapacityException | ResourceAllocationException | ResourceUnavailableException e) {
+            throw new CloudRuntimeException("Failed to start the prepared DR target VM: " + e.getMessage(), e);
+        }
+        UserVmVO refreshed = userVmDao.findById(targetVm.getId());
+        return refreshed != null && refreshed.getState() == VirtualMachine.State.Running;
+    }
+
+    private final Set<Long> inFlightPlans = ConcurrentHashMap.newKeySet();
+    private ExecutorService executor;
+
+    @Override
+    public boolean start() {
+        executor = Executors.newSingleThreadExecutor(new NamedThreadFactory("DrTargetMaterializer"));
+        return true;
+    }
+
+    @Override
+    public boolean stop() {
+        if (executor != null) {
+            executor.shutdownNow();
+            executor = null;
+        }
+        inFlightPlans.clear();
+        return true;
+    }
+
+    @Override
+    public boolean enqueueMaterialization(final long planId, final long runId, final String runtimeStatusJson) {
+        if (!inFlightPlans.add(planId)) {
+            return false;
+        }
+        ExecutorService currentExecutor = executor;
+        if (currentExecutor == null) {
+            try {
+                materialize(planId, runId, runtimeStatusJson);
+            } finally {
+                inFlightPlans.remove(planId);
+            }
+            return true;
+        }
+        try {
+            currentExecutor.submit(new ManagedContextRunnable() {
+                @Override
+                protected void runInContext() {
+                    try {
+                        materialize(planId, runId, runtimeStatusJson);
+                    } finally {
+                        inFlightPlans.remove(planId);
+                    }
+                }
+            });
+            return true;
+        } catch (RejectedExecutionException e) {
+            inFlightPlans.remove(planId);
+            throw new CloudRuntimeException("DR target materializer is not accepting new work", e);
+        }
+    }
+
+    private void materialize(long planId, long runId, String runtimeStatusJson) {
+        DrPlanVO plan = drPlanDao.findById(planId);
+        DrRunVO run = drRunDao.findById(runId);
+        if (plan == null || plan.getRemoved() != null || run == null || run.getRemoved() != null || run.getCompleted() != null) {
+            return;
+        }
+        if (!StringUtils.endsWithIgnoreCase(plan.getDirection(), "_KVM")) {
+            return;
+        }
+        JsonObject runtime = parseObject(runtimeStatusJson);
+        if (!hasDurableCheckpoint(plan, runtime)) {
+            return;
+        }
+        try {
+            upsertRunStep(run, "target-materialization", STEP_ORDER_TARGET_MATERIALIZATION, DrConstants.STEP_STATE_RUNNING, 96,
+                    runtimeStatusJson, null, "Materializing target VM from durable FTCTL_DR checkpoint");
+            MaterializationResult result = materializeTarget(plan, runtime);
+            notifyFtctlTargetMaterialized(plan, run, result);
+            completeMaterialization(plan.getId(), run.getId(), result, runtimeStatusJson);
+            LOGGER.info("Materialized DR target VM {} for plan {}", result.targetVmId, plan.getUuid());
+        } catch (RuntimeException e) {
+            LOGGER.warn("Failed to materialize DR target for plan {}: {}", plan.getUuid(), e.getMessage(), e);
+            failMaterialization(plan, run, runtimeStatusJson, e);
+        }
+    }
+
+    private MaterializationResult materializeTarget(DrPlanVO plan, JsonObject runtime) {
+        DrReplicaVO replica = firstActiveReplica(plan);
+        if (replica == null) {
+            throw new CloudRuntimeException("DR target materialization requires a prepared replica row");
+        }
+        if (replica.getTargetVmId() != null) {
+            UserVmVO existing = userVmDao.findById(replica.getTargetVmId());
+            if (existing != null && existing.getRemoved() == null) {
+                verifyTargetVmHardware(plan, existing);
+                return buildResult(plan, replica, existing, drReplicaDiskDao.listActiveByReplicaId(replica.getId()));
+            }
+        }
+
+        DrResolvedTargetPlacement placement = resolvePlacement(plan, runtime);
+        if (placement == null) {
+            throw new CloudRuntimeException("DR target placement is not available for plan " + plan.getUuid());
+        }
+        if (!placement.getBlockingReasons().isEmpty()) {
+            throw new CloudRuntimeException("DR target placement is not ready: " + StringUtils.join(placement.getBlockingReasons(), ","));
+        }
+        AccountVO owner = resolveOwner(plan);
+        DrResolvedDiskMapping rootDisk = resolveRootDisk(placement);
+        List<DrReplicaDiskVO> replicaDisks = drReplicaDiskDao.listActiveByReplicaId(replica.getId());
+        VolumeVO rootVolume = ensureImportedVolume(owner, placement, rootDisk, true, 0L);
+        updateReplicaDisk(replicaDisks, rootDisk, rootVolume, DrConstants.REPLICA_STATE_SKELETON_READY);
+        UserVmVO targetVm = ensureTargetVm(plan, placement, owner, rootVolume, runtime);
+        verifyTargetVmHardware(plan, targetVm);
+
+        List<VolumeVO> importedVolumes = new ArrayList<VolumeVO>();
+        importedVolumes.add(rootVolume);
+        int device = 1;
+        for (DrResolvedDiskMapping disk : placement.getDisks()) {
+            if (disk == rootDisk) {
+                updateReplicaDisk(replicaDisks, disk, rootVolume, DrConstants.REPLICA_STATE_READY);
+                continue;
+            }
+            VolumeVO dataVolume = ensureImportedVolume(owner, placement, disk, false, (long) device);
+            attachDataVolumeIfNeeded(targetVm, dataVolume, (long) device);
+            updateReplicaDisk(replicaDisks, disk, dataVolume, DrConstants.REPLICA_STATE_READY);
+            importedVolumes.add(dataVolume);
+            device++;
+        }
+
+        replica.setTargetVmId(targetVm.getId());
+        replica.setTargetExternalRef(targetVm.getUuid());
+        replica.setTargetVmName(targetVm.getDisplayName());
+        replica.setState(DrConstants.REPLICA_STATE_READY);
+        replica.setPowerState(DrConstants.REPLICA_POWER_STATE_POWERED_OFF);
+        replica.setHypervisorType(DrConstants.HYPERVISOR_TYPE_KVM);
+        replica.setActiveSide("TARGET");
+        replica.setRuntimeStateJson(buildReplicaRuntimeJson(plan, targetVm, importedVolumes, runtime));
+        replica.markUpdated();
+        drReplicaDao.update(replica.getId(), replica);
+
+        updatePlanMapping(plan, targetVm, importedVolumes);
+        return buildResult(plan, replica, targetVm, drReplicaDiskDao.listActiveByReplicaId(replica.getId()));
+    }
+
+    private DrReplicaVO firstActiveReplica(DrPlanVO plan) {
+        List<DrReplicaVO> replicas = drReplicaDao.listActiveByPlanId(plan.getId());
+        return replicas != null && !replicas.isEmpty() ? replicas.get(0) : null;
+    }
+
+    private DrResolvedTargetPlacement resolvePlacement(DrPlanVO plan, JsonObject runtime) {
+        DrPlanGuidedSpec spec = guidedSpecFromMapping(plan);
+        DrResolvedTargetPlacement placement = targetPlacementResolver != null ? targetPlacementResolver.resolve(plan, spec) : null;
+        if (placement != null) {
+            new DrTargetHardwareResolver().resolve(plan, spec, placement, runtime);
+        }
+        return placement;
+    }
+
+    private DrPlanGuidedSpec guidedSpecFromMapping(DrPlanVO plan) {
+        JsonObject mapping = parseObject(plan.getMappingJson());
+        JsonObject target = objectAt(mapping, "target");
+        DrPlanGuidedSpec spec = new DrPlanGuidedSpec();
+        spec.setGuidedPlan(true);
+        spec.setTargetVmName(firstNonBlank(firstString(mapping, "targetVmName", "targetName"), firstString(target, "vmName", "name")));
+        spec.setTargetZoneId(firstNonBlank(firstString(mapping, "targetZoneId"), firstString(target, "zoneId", "zone")));
+        spec.setTargetStorageRef(firstNonBlank(firstString(mapping, "targetStorageRef", "targetDatastoreRef"),
+                firstString(target, "storageRef", "storagePoolId", "targetStorageRef")));
+        spec.setTargetComputeRef(firstNonBlank(firstString(mapping, "targetComputeRef", "serviceOfferingId"),
+                firstString(target, "serviceOfferingId", "serviceOfferingRef", "computeOfferingId")));
+        spec.setTargetCpuNumber(firstInteger(mapping, target, "targetCpuNumber", "cpuNumber"));
+        spec.setTargetCpuSpeed(firstInteger(mapping, target, "targetCpuSpeed", "cpuSpeed"));
+        spec.setTargetMemory(firstInteger(mapping, target, "targetMemory", "memory"));
+        JsonObject targetHardware = objectAt(target, "hardware");
+        spec.setTargetBootType(firstNonBlank(firstString(mapping, "targetBootType", "boottype"),
+                firstString(targetHardware, "bootType", "boottype")));
+        spec.setTargetBootMode(firstNonBlank(firstString(mapping, "targetBootMode", "bootmode"),
+                firstString(targetHardware, "bootMode", "bootmode")));
+        spec.setTargetRootDiskController(firstNonBlank(firstString(mapping, "targetRootDiskController"),
+                firstString(targetHardware, "rootDiskController")));
+        spec.setTargetDataDiskController(firstNonBlank(firstString(mapping, "targetDataDiskController"),
+                firstString(targetHardware, "dataDiskController")));
+        spec.setTargetIoThreadsEnabled(firstBoolean(mapping, "targetIoThreadsEnabled", "iothreadsEnabled"));
+        if (spec.getTargetIoThreadsEnabled() == null) {
+            spec.setTargetIoThreadsEnabled(firstBoolean(targetHardware, "ioThreadsEnabled", "iothreadsEnabled"));
+        }
+        spec.setTargetIoPolicy(firstNonBlank(firstString(mapping, "targetIoPolicy", "ioPolicy", "io.policy"),
+                firstString(targetHardware, "ioPolicy", "io.policy")));
+        spec.setTargetNetworkRef(firstNonBlank(firstString(mapping, "targetNetworkRef", "networkRef"), networkRefsFromTarget(target)));
+        spec.setTargetFolderPath(firstNonBlank(firstString(mapping, "targetFolderPath", "folderPath"), firstString(target, "folderPath")));
+        JsonArray disks = firstArray(mapping, "disks", "diskMappings", "volumes", "volumeMappings");
+        if (disks.size() > 0) {
+            spec.setDiskMappingsJson(disks.toString());
+        }
+        return spec;
+    }
+
+    private String networkRefsFromTarget(JsonObject target) {
+        JsonArray networks = firstArray(target, "networks", "networkRefs", "networkMappings");
+        if (networks.size() == 0) {
+            return null;
+        }
+        List<String> refs = new ArrayList<String>();
+        for (JsonElement element : networks) {
+            if (element == null || !element.isJsonObject()) {
+                continue;
+            }
+            String ref = firstString(element.getAsJsonObject(), "networkId", "networkLocalId", "networkRef", "id", "uuid");
+            if (StringUtils.isNotBlank(ref)) {
+                refs.add(ref);
+            }
+        }
+        return refs.isEmpty() ? null : StringUtils.join(refs, ',');
+    }
+
+    private AccountVO resolveOwner(DrPlanVO plan) {
+        if (plan.getSourceVmId() != null) {
+            UserVmVO sourceVm = userVmDao.findById(plan.getSourceVmId());
+            if (sourceVm != null) {
+                AccountVO owner = accountDao.findById(sourceVm.getAccountId());
+                if (owner != null) {
+                    return owner;
+                }
+            }
+        }
+        Account admin = accountDao.findActiveAccount("admin", Domain.ROOT_DOMAIN);
+        if (admin != null) {
+            AccountVO adminVo = accountDao.findById(admin.getId());
+            if (adminVo != null) {
+                return adminVo;
+            }
+        }
+        AccountVO system = accountDao.findById(Account.ACCOUNT_ID_SYSTEM);
+        if (system == null) {
+            throw new CloudRuntimeException("Unable to resolve owner account for DR target VM materialization");
+        }
+        return system;
+    }
+
+    private DrResolvedDiskMapping resolveRootDisk(DrResolvedTargetPlacement placement) {
+        if (placement.getDisks().isEmpty()) {
+            throw new CloudRuntimeException("DR target materialization requires at least one disk mapping");
+        }
+        for (DrResolvedDiskMapping disk : placement.getDisks()) {
+            if (Boolean.TRUE.equals(disk.getBoot())) {
+                return disk;
+            }
+        }
+        return placement.getDisks().get(0);
+    }
+
+    private VolumeVO ensureImportedVolume(AccountVO owner, DrResolvedTargetPlacement placement, DrResolvedDiskMapping disk,
+            boolean root, Long deviceId) {
+        StoragePoolVO pool = storagePoolForDisk(placement, disk);
+        DiskOfferingVO offering = diskOfferingForDisk(disk);
+        String volumeName = volumeNameForDisk(placement, disk, root, deviceId);
+        String path = StringUtils.defaultIfBlank(disk.getTargetRef(), volumeName);
+        VolumeVO existing = findExistingVolume(pool, path, volumeName);
+        if (existing != null) {
+            normalizeImportedVolume(existing, disk, root, deviceId, owner, pool, offering, path, disk.getCapacityBytes());
+            return verifyImportedVolumeFormat(volumeDao.findById(existing.getId()), disk, pool);
+        }
+        Long sizeBytes = positiveLong(disk.getCapacityBytes());
+        DiskProfile profile = volumeManager.importVolume(root ? Volume.Type.ROOT : Volume.Type.DATADISK,
+                volumeName, offering, sizeBytes, null, null,
+                placement.getZoneId(), HypervisorType.KVM, null, null, owner, deviceId,
+                pool.getId(), pool.getPoolType(), path, buildChainInfo(disk, pool));
+        VolumeVO volume = volumeDao.findById(profile.getVolumeId());
+        if (volume == null) {
+            throw new CloudRuntimeException("Imported DR target volume could not be reloaded: " + volumeName);
+        }
+        normalizeImportedVolume(volume, disk, root, deviceId, owner, pool, offering, path, disk.getCapacityBytes());
+        return verifyImportedVolumeFormat(volumeDao.findById(volume.getId()), disk, pool);
+    }
+
+    private StoragePoolVO storagePoolForDisk(DrResolvedTargetPlacement placement, DrResolvedDiskMapping disk) {
+        Long poolId = parseLong(firstNonBlank(disk.getTargetStorageLocalId(), placement.getStorageLocalId()));
+        if (poolId == null) {
+            throw new CloudRuntimeException("Target storage pool is unresolved for disk " + disk.getLabel());
+        }
+        StoragePoolVO pool = primaryDataStoreDao.findById(poolId);
+        if (pool == null || pool.getRemoved() != null) {
+            throw new CloudRuntimeException("Target storage pool was not found: " + poolId);
+        }
+        return pool;
+    }
+
+    private DiskOfferingVO diskOfferingForDisk(DrResolvedDiskMapping disk) {
+        Long offeringId = parseLong(disk.getTargetDiskOfferingLocalId());
+        if (offeringId == null) {
+            throw new CloudRuntimeException("Target disk offering is unresolved for disk " + disk.getLabel());
+        }
+        DiskOfferingVO offering = diskOfferingDao.findById(offeringId);
+        if (offering == null || offering.getRemoved() != null) {
+            throw new CloudRuntimeException("Target disk offering was not found: " + offeringId);
+        }
+        return offering;
+    }
+
+    private String volumeNameForDisk(DrResolvedTargetPlacement placement, DrResolvedDiskMapping disk, boolean root, Long deviceId) {
+        String targetName = StringUtils.trimToNull(disk.getTargetName());
+        if (targetName != null) {
+            return targetName;
+        }
+        String targetRef = StringUtils.trimToNull(disk.getTargetRef());
+        if (targetRef != null) {
+            return targetRef;
+        }
+        String vmName = StringUtils.defaultIfBlank(placement.getTargetVmName(), "dr-target");
+        return root ? vmName + "-root" : vmName + "-disk-" + deviceId;
+    }
+
+    private VolumeVO findExistingVolume(StoragePoolVO pool, String path, String name) {
+        if (pool == null) {
+            return null;
+        }
+        VolumeVO byPath = StringUtils.isNotBlank(path) ? volumeDao.findByPoolIdName(pool.getId(), path) : null;
+        if (byPath != null && byPath.getRemoved() == null) {
+            return byPath;
+        }
+        VolumeVO byName = StringUtils.isNotBlank(name) ? volumeDao.findByPoolIdName(pool.getId(), name) : null;
+        return byName != null && byName.getRemoved() == null ? byName : null;
+    }
+
+    private void normalizeImportedVolume(VolumeVO volume, DrResolvedDiskMapping disk, boolean root, Long deviceId, AccountVO owner, StoragePoolVO pool,
+            DiskOfferingVO offering, String path, String capacityBytes) {
+        boolean changed = false;
+        Volume.Type expectedType = root ? Volume.Type.ROOT : Volume.Type.DATADISK;
+        if (volume.getVolumeType() != expectedType) {
+            volume.setVolumeType(expectedType);
+            changed = true;
+        }
+        Long expectedDeviceId = root ? 0L : deviceId;
+        if (expectedDeviceId != null && !expectedDeviceId.equals(volume.getDeviceId())) {
+            volume.setDeviceId(expectedDeviceId);
+            changed = true;
+        }
+        if (!Volume.State.Ready.equals(volume.getState())) {
+            volume.setState(Volume.State.Ready);
+            changed = true;
+        }
+        Long sizeBytes = positiveLong(capacityBytes);
+        if (sizeBytes != null && !sizeBytes.equals(volume.getSize())) {
+            volume.setSize(sizeBytes);
+            changed = true;
+        }
+        if (pool != null && !Long.valueOf(pool.getId()).equals(volume.getPoolId())) {
+            volume.setPoolId(pool.getId());
+            volume.setPoolType(pool.getPoolType());
+            changed = true;
+        }
+        if (offering != null && !Long.valueOf(offering.getId()).equals(volume.getDiskOfferingId())) {
+            volume.setDiskOfferingId(offering.getId());
+            changed = true;
+        }
+        if (StringUtils.isNotBlank(path) && !StringUtils.equals(volume.getPath(), path)) {
+            volume.setPath(path);
+            changed = true;
+        }
+        if (owner != null && volume.getAccountId() != owner.getId()) {
+            volume.setAccountId(owner.getId());
+            volume.setDomainId(owner.getDomainId());
+            changed = true;
+        }
+        Storage.ImageFormat expectedFormat = expectedTargetFormat(disk, pool);
+        if (volume.getFormat() != expectedFormat) {
+            volume.setFormat(expectedFormat);
+            changed = true;
+        }
+        if (changed) {
+            volumeDao.update(volume.getId(), volume);
+        }
+    }
+
+    private Storage.ImageFormat expectedTargetFormat(DrResolvedDiskMapping disk, StoragePoolVO pool) {
+        if ((pool != null && Storage.StoragePoolType.RBD.equals(pool.getPoolType()))
+                || (disk != null && StringUtils.equalsIgnoreCase(disk.getTargetType(), "rbd"))) {
+            return Storage.ImageFormat.RAW;
+        }
+        String requested = disk != null ? StringUtils.trimToNull(disk.getTargetFormat()) : null;
+        try {
+            return Storage.ImageFormat.valueOf(StringUtils.upperCase(StringUtils.defaultIfBlank(requested, "qcow2")));
+        } catch (IllegalArgumentException e) {
+            throw new CloudRuntimeException("Unsupported DR target volume format: " + requested, e);
+        }
+    }
+
+    private VolumeVO verifyImportedVolumeFormat(VolumeVO volume, DrResolvedDiskMapping disk, StoragePoolVO pool) {
+        if (volume == null) {
+            throw new CloudRuntimeException("Imported DR target volume could not be reloaded after normalization");
+        }
+        Storage.ImageFormat expected = expectedTargetFormat(disk, pool);
+        if (volume.getFormat() != expected) {
+            throw new CloudRuntimeException("DR_TARGET_VOLUME_FORMAT_MISMATCH: volume=" + volume.getUuid()
+                    + " expected=" + expected + " actual=" + volume.getFormat());
+        }
+        return volume;
+    }
+
+    private String buildChainInfo(DrResolvedDiskMapping disk, StoragePoolVO pool) {
+        JsonObject chain = new JsonObject();
+        addString(chain, "format", disk.getTargetFormat());
+        addString(chain, "targetType", disk.getTargetType());
+        addString(chain, "storagePoolType", pool.getPoolType() != null ? pool.getPoolType().toString() : null);
+        addString(chain, "storagePath", disk.getStoragePath());
+        addString(chain, "krbdPath", disk.getKrbdPath());
+        return chain.entrySet().isEmpty() ? null : GSON.toJson(chain);
+    }
+
+    private UserVmVO ensureTargetVm(DrPlanVO plan, DrResolvedTargetPlacement placement, AccountVO owner, VolumeVO rootVolume, JsonObject runtime) {
+        String vmName = StringUtils.defaultIfBlank(placement.getTargetVmName(), StringUtils.defaultIfBlank(plan.getName(), "dr-target") + "-target");
+        VMInstanceVO existing = vmInstanceDao.findVMByHostNameInZone(vmName, placement.getZoneId());
+        if (existing != null && existing.getRemoved() == null) {
+            UserVmVO existingUserVm = userVmDao.findById(existing.getId());
+            if (existingUserVm == null) {
+                throw new CloudRuntimeException("Existing target VM name is not a user VM: " + vmName);
+            }
+            return existingUserVm;
+        }
+        ServiceOfferingVO serviceOffering = serviceOfferingDao.findById(parseLong(placement.getServiceOfferingLocalId()));
+        if (serviceOffering == null) {
+            throw new CloudRuntimeException("Target service offering was not found: " + placement.getServiceOfferingLocalId());
+        }
+        HostVO targetHost = hostDao.findById(placement.getWorkerHostId());
+        if (targetHost == null) {
+            throw new CloudRuntimeException("Target worker host was not found: " + placement.getWorkerHostId());
+        }
+        DrResolvedTargetHardware hardware = placement.getTargetHardware();
+        if (hardware == null) {
+            hardware = new DrTargetHardwareResolver().resolve(plan, guidedSpecFromMapping(plan), placement, runtime);
+        }
+        if (!placement.getBlockingReasons().isEmpty()) {
+            throw new CloudRuntimeException("DR target hardware is not ready: " + StringUtils.join(placement.getBlockingReasons(), ","));
+        }
+        Map<String, String> details = buildTargetVmDetails(plan, placement, serviceOffering, rootVolume, hardware);
+        DrReplicaDeployVMVolumeCmd deployCmd = new DrReplicaDeployVMVolumeCmd(
+                owner.getId(),
+                owner.getAccountName(),
+                owner.getDomainId(),
+                placement.getZoneId(),
+                serviceOffering.getId(),
+                vmName,
+                vmName,
+                networkIds(placement),
+                targetHost.getId(),
+                HypervisorType.KVM,
+                rootVolume.getId(),
+                details,
+                hardware);
+        try {
+            CallContext.registerSystemCallContextOnceOnly();
+            UserVm created = userVmService.createVirtualMachineVolume(deployCmd);
+            if (created == null) {
+                throw new CloudRuntimeException("CloudStack returned no VM for DR target materialization");
+            }
+            UserVmVO createdVm = userVmDao.findById(created.getId());
+            if (createdVm == null) {
+                throw new CloudRuntimeException("Created DR target VM could not be reloaded: " + created.getUuid());
+            }
+            return createdVm;
+        } catch (InsufficientCapacityException | ResourceUnavailableException | ConcurrentOperationException |
+                 ResourceAllocationException e) {
+            throw new CloudRuntimeException("Failed to create DR target VM " + vmName + ": " + e.getMessage(), e);
+        } finally {
+            CallContext.unregister();
+        }
+    }
+
+    private Map<String, String> buildTargetVmDetails(DrPlanVO plan, DrResolvedTargetPlacement placement,
+            ServiceOfferingVO serviceOffering, VolumeVO rootVolume, DrResolvedTargetHardware hardware) {
+        Map<String, String> details = new HashMap<String, String>();
+        details.put("dr.replica.vm", "true");
+        details.put("dr.plan.uuid", plan.getUuid());
+        details.put("dr.plan.id", String.valueOf(plan.getId()));
+        details.put("dr.direction", plan.getDirection());
+        details.put("dr.source.external.ref", StringUtils.defaultString(plan.getSourceExternalRef()));
+        details.put("dr.materialized.at", Instant.now().toString());
+        JsonObject sourceHardware = objectAt(objectAt(parseObject(plan.getMappingJson()), "source"), "hardware");
+        String sourceHardwareFingerprint = firstString(sourceHardware, "fingerprint");
+        if (StringUtils.isNotBlank(sourceHardwareFingerprint)) {
+            details.put("dr.source.hardware.fingerprint", sourceHardwareFingerprint);
+        }
+        details.put(VmDetailConstants.ROOT_DISK_SIZE, String.valueOf(bytesToGiBRoundedUp(rootVolume.getSize())));
+        details.put(VmDetailConstants.ROOT_DISK_CONTROLLER, StringUtils.defaultIfBlank(
+                hardware != null ? hardware.getRootDiskController() : null, "scsi"));
+        details.put(VmDetailConstants.DATA_DISK_CONTROLLER, StringUtils.defaultIfBlank(
+                hardware != null ? hardware.getDataDiskController() : null, "scsi"));
+        if (hardware != null && hardware.getBootType() != null && hardware.getBootMode() != null) {
+            details.put(hardware.getBootType().toString(), hardware.getBootMode().toString());
+            details.put(VmDetailConstants.BOOT_MODE, hardware.getBootMode().toString());
+        }
+        if (hardware != null && hardware.getIoPolicy() != null) {
+            details.put(VmDetailConstants.IO_POLICY, hardware.getIoPolicy().toString());
+        }
+        if (hardware != null && Boolean.TRUE.equals(hardware.getIoThreadsEnabled())) {
+            details.put(VmDetailConstants.IOTHREADS, "true");
+        }
+        putDynamicVmDetail(details, VmDetailConstants.CPU_NUMBER, serviceOffering != null ? serviceOffering.getCpu() : null,
+                placement != null ? placement.getTargetCpuNumber() : null);
+        putDynamicVmDetail(details, VmDetailConstants.CPU_SPEED, serviceOffering != null ? serviceOffering.getSpeed() : null,
+                placement != null ? placement.getTargetCpuSpeed() : null);
+        putDynamicVmDetail(details, VmDetailConstants.MEMORY, serviceOffering != null ? serviceOffering.getRamSize() : null,
+                placement != null ? placement.getTargetMemory() : null);
+        return details;
+    }
+
+    private void verifyTargetVmHardware(DrPlanVO plan, UserVmVO targetVm) {
+        if (plan == null || targetVm == null || vmInstanceDetailsDao == null) {
+            return;
+        }
+        JsonObject mapping = parseObject(plan.getMappingJson());
+        JsonObject sourceHardware = objectAt(objectAt(mapping, "source"), "hardware");
+        JsonObject targetHardware = objectAt(objectAt(mapping, "target"), "hardware");
+        Map<String, String> actual = vmInstanceDetailsDao.listDetailsKeyPairs(targetVm.getId());
+        String expectedBootMode = firstString(targetHardware, "bootMode", "bootmode");
+        String actualBootMode = actual.get(VmDetailConstants.BOOT_MODE);
+        if (StringUtils.isNotBlank(expectedBootMode) && !StringUtils.equalsIgnoreCase(expectedBootMode, actualBootMode)) {
+            throw new CloudRuntimeException("TARGET_VM_HARDWARE_MISMATCH: expected boot.mode=" + expectedBootMode
+                    + " but target VM has " + StringUtils.defaultString(actualBootMode, "<missing>"));
+        }
+        String expectedFingerprint = firstString(sourceHardware, "fingerprint");
+        String actualFingerprint = actual.get("dr.source.hardware.fingerprint");
+        if (StringUtils.isNotBlank(expectedFingerprint) && !StringUtils.equals(expectedFingerprint, actualFingerprint)) {
+            throw new CloudRuntimeException("TARGET_VM_HARDWARE_MISMATCH: source hardware fingerprint differs");
+        }
+        String expectedIoPolicy = firstString(targetHardware, "ioPolicy", "io.policy");
+        if (StringUtils.isNotBlank(expectedIoPolicy)
+                && !StringUtils.equalsIgnoreCase(expectedIoPolicy, actual.get(VmDetailConstants.IO_POLICY))) {
+            throw new CloudRuntimeException("TARGET_VM_HARDWARE_MISMATCH: target io.policy differs");
+        }
+        Boolean expectedIoThreads = firstBoolean(targetHardware, "ioThreadsEnabled", "iothreadsEnabled");
+        if (Boolean.TRUE.equals(expectedIoThreads)
+                && !StringUtils.equalsIgnoreCase("true", actual.get(VmDetailConstants.IOTHREADS))) {
+            throw new CloudRuntimeException("TARGET_VM_HARDWARE_MISMATCH: target iothreads differs");
+        }
+    }
+
+    private void putDynamicVmDetail(Map<String, String> details, String key, Integer offeringValue, Integer resolvedValue) {
+        if (details != null && offeringValue == null && resolvedValue != null && resolvedValue > 0) {
+            details.put(key, String.valueOf(resolvedValue));
+        }
+    }
+
+    private List<Long> networkIds(DrResolvedTargetPlacement placement) {
+        List<Long> networkIds = new ArrayList<Long>();
+        for (DrResolvedNetworkMapping network : placement.getNetworks()) {
+            Long id = parseLong(network.getNetworkLocalId());
+            if (id != null) {
+                networkIds.add(id);
+            }
+        }
+        if (networkIds.isEmpty()) {
+            throw new CloudRuntimeException("Target network is unresolved for DR target VM materialization");
+        }
+        return networkIds;
+    }
+
+    private void attachDataVolumeIfNeeded(UserVmVO targetVm, VolumeVO volume, Long deviceId) {
+        if (volume.getInstanceId() != null && volume.getInstanceId().equals(targetVm.getId())) {
+            return;
+        }
+        volumeDao.attachVolume(volume.getId(), targetVm.getId(), deviceId);
+    }
+
+    private void updateReplicaDisk(List<DrReplicaDiskVO> replicaDisks, DrResolvedDiskMapping mapping, VolumeVO volume, String state) {
+        DrReplicaDiskVO disk = findReplicaDisk(replicaDisks, mapping);
+        if (disk == null) {
+            return;
+        }
+        disk.setTargetVolumeId(volume.getId());
+        disk.setTargetDiskRef(StringUtils.defaultIfBlank(volume.getPath(), volume.getUuid()));
+        disk.setFormat(volume.getFormat() != null ? StringUtils.lowerCase(volume.getFormat().toString())
+                : StringUtils.defaultIfBlank(mapping.getTargetFormat(), disk.getFormat()));
+        disk.setState(state);
+        disk.setDetailsJson(buildDiskRuntimeJson(mapping, volume));
+        disk.markUpdated();
+        drReplicaDiskDao.update(disk.getId(), disk);
+    }
+
+    private DrReplicaDiskVO findReplicaDisk(List<DrReplicaDiskVO> disks, DrResolvedDiskMapping mapping) {
+        if (disks == null || disks.isEmpty()) {
+            return null;
+        }
+        for (DrReplicaDiskVO disk : disks) {
+            if (StringUtils.isNotBlank(mapping.getLabel()) && StringUtils.equals(mapping.getLabel(), disk.getDiskLabel())) {
+                return disk;
+            }
+            if (StringUtils.isNotBlank(mapping.getSourceRef()) && StringUtils.equals(mapping.getSourceRef(), disk.getSourceDiskRef())) {
+                return disk;
+            }
+            if (StringUtils.isNotBlank(mapping.getTargetRef()) && StringUtils.equals(mapping.getTargetRef(), disk.getTargetDiskRef())) {
+                return disk;
+            }
+        }
+        return null;
+    }
+
+    private String buildDiskRuntimeJson(DrResolvedDiskMapping mapping, VolumeVO volume) {
+        JsonObject details = mapping.toJsonObject();
+        JsonObject target = objectAt(details, "target");
+        target.addProperty("volumeId", volume.getId());
+        target.addProperty("volumeUuid", volume.getUuid());
+        target.addProperty("path", volume.getPath());
+        target.addProperty("state", volume.getState().toString());
+        target.addProperty("format", volume.getFormat() != null ? StringUtils.lowerCase(volume.getFormat().toString()) : null);
+        details.add("target", target);
+        return GSON.toJson(details);
+    }
+
+    private String buildReplicaRuntimeJson(DrPlanVO plan, UserVmVO targetVm, List<VolumeVO> volumes, JsonObject runtime) {
+        JsonObject details = runtime != null ? runtime.deepCopy() : new JsonObject();
+        details.addProperty("planUuid", plan.getUuid());
+        details.addProperty("targetVmId", targetVm.getId());
+        details.addProperty("targetExternalRef", targetVm.getUuid());
+        details.addProperty("targetVmName", targetVm.getDisplayName());
+        details.addProperty("targetMaterialized", true);
+        details.add("targetVolumes", targetVolumesJson(volumes));
+        return GSON.toJson(details);
+    }
+
+    private JsonArray targetVolumesJson(List<VolumeVO> volumes) {
+        JsonArray array = new JsonArray();
+        for (VolumeVO volume : volumes) {
+            JsonObject object = new JsonObject();
+            object.addProperty("id", volume.getId());
+            object.addProperty("uuid", volume.getUuid());
+            object.addProperty("name", volume.getName());
+            object.addProperty("path", volume.getPath());
+            object.addProperty("type", volume.getVolumeType().toString());
+            object.addProperty("deviceId", volume.getDeviceId());
+            object.addProperty("format", volume.getFormat() != null ? StringUtils.lowerCase(volume.getFormat().toString()) : null);
+            array.add(object);
+        }
+        return array;
+    }
+
+    private void updatePlanMapping(DrPlanVO plan, UserVmVO targetVm, List<VolumeVO> volumes) {
+        JsonObject mapping = parseObject(plan.getMappingJson());
+        JsonObject target = objectAt(mapping, "target");
+        target.addProperty("vmId", targetVm.getId());
+        target.addProperty("externalRef", targetVm.getUuid());
+        target.addProperty("uuid", targetVm.getUuid());
+        target.addProperty("vmName", targetVm.getDisplayName());
+        mapping.add("target", target);
+        mapping.addProperty("targetVmId", targetVm.getId());
+        mapping.addProperty("targetExternalRef", targetVm.getUuid());
+        JsonArray disks = firstArray(mapping, "disks", "diskMappings", "volumes", "volumeMappings");
+        for (int i = 0; i < disks.size() && i < volumes.size(); i++) {
+            JsonElement element = disks.get(i);
+            if (element == null || !element.isJsonObject()) {
+                continue;
+            }
+            JsonObject disk = element.getAsJsonObject();
+            VolumeVO volume = volumes.get(i);
+            JsonObject diskTarget = objectAt(disk, "target");
+            diskTarget.addProperty("volumeId", volume.getId());
+            diskTarget.addProperty("volumeUuid", volume.getUuid());
+            diskTarget.addProperty("diskRef", StringUtils.defaultIfBlank(volume.getPath(), volume.getUuid()));
+            diskTarget.addProperty("path", volume.getPath());
+            diskTarget.addProperty("format", volume.getFormat() != null ? StringUtils.lowerCase(volume.getFormat().toString()) : null);
+            disk.add("target", diskTarget);
+            disk.addProperty("targetVolumeId", volume.getId());
+            disk.addProperty("targetRef", StringUtils.defaultIfBlank(volume.getPath(), volume.getUuid()));
+            disk.addProperty("targetFormat", volume.getFormat() != null ? StringUtils.lowerCase(volume.getFormat().toString()) : null);
+        }
+        if (disks.size() > 0) {
+            mapping.add("disks", disks);
+        }
+        plan.setMappingJson(GSON.toJson(mapping));
+        plan.markUpdated();
+        drPlanDao.update(plan.getId(), plan);
+    }
+
+    private MaterializationResult buildResult(DrPlanVO plan, DrReplicaVO replica, UserVmVO targetVm, List<DrReplicaDiskVO> replicaDisks) {
+        MaterializationResult result = new MaterializationResult();
+        result.planUuid = plan.getUuid();
+        result.targetVmId = targetVm.getId();
+        result.targetExternalRef = targetVm.getUuid();
+        result.targetVmName = targetVm.getDisplayName();
+        result.targetVolumeMapJson = targetVolumeMapJson(replicaDisks);
+        result.targetReadyAt = plan.getLastTargetDurableAt() != null ? plan.getLastTargetDurableAt() : new Date();
+        result.targetReadyRpoSeconds = computeRpoSeconds(plan.getLastSourceCheckpointAt(), result.targetReadyAt);
+        result.replicaId = replica.getId();
+        return result;
+    }
+
+    private String targetVolumeMapJson(List<DrReplicaDiskVO> replicaDisks) {
+        JsonObject root = new JsonObject();
+        JsonArray disks = new JsonArray();
+        if (replicaDisks != null) {
+            for (DrReplicaDiskVO disk : replicaDisks) {
+                JsonObject object = new JsonObject();
+                addString(object, "label", disk.getDiskLabel());
+                if (disk.getTargetVolumeId() != null) {
+                    object.addProperty("targetVolumeId", disk.getTargetVolumeId());
+                }
+                addString(object, "targetDiskRef", disk.getTargetDiskRef());
+                addString(object, "sourceDiskRef", disk.getSourceDiskRef());
+                disks.add(object);
+            }
+        }
+        root.add("disks", disks);
+        return GSON.toJson(root);
+    }
+
+    private void notifyFtctlTargetMaterialized(DrPlanVO plan, DrRunVO run, MaterializationResult result) {
+        Long hostId = firstNonNull(plan.getCoordinatorWorkerHostId(), plan.getSourceWorkerHostId(), plan.getTargetWorkerHostId());
+        if (hostId == null) {
+            throw new CloudRuntimeException("Unable to notify FTCTL_DR because no worker host is bound");
+        }
+        validateFtctlTargetMaterializedCapability(plan, run, hostId);
+        FtctlDrActionCommand command = new FtctlDrActionCommand(FtctlDrActionCommand.Action.TARGET_MATERIALIZED, plan.getUuid(), run.getUuid());
+        command.setActionName(FtctlDrActionCommand.Action.TARGET_MATERIALIZED.name());
+        command.setCliCommand(FtctlDrActionCommand.Action.TARGET_MATERIALIZED.getCliCommand());
+        command.setWait(45);
+        command.setWaitForCompletion(true);
+        command.setContextParam("targetVmId", String.valueOf(result.targetVmId));
+        command.setContextParam("targetExternalRef", result.targetExternalRef);
+        command.setContextParam("targetVmName", result.targetVmName);
+        command.setContextParam("targetVolumeMapJson", result.targetVolumeMapJson);
+        if (result.targetReadyRpoSeconds != null) {
+            command.setContextParam("targetReadyRpoSeconds", String.valueOf(result.targetReadyRpoSeconds));
+        }
+        Answer answer = agentManager.easySend(hostId, command);
+        if (!(answer instanceof FtctlDrActionAnswer) || !answer.getResult()) {
+            String message = answer != null ? answer.getDetails() : "Agent returned no FTCTL_DR target materialized answer";
+            if (answer instanceof FtctlDrActionAnswer) {
+                FtctlDrActionAnswer actionAnswer = (FtctlDrActionAnswer) answer;
+                if (StringUtils.isNotBlank(actionAnswer.getErrorCode())) {
+                    message = actionAnswer.getErrorCode() + ": " + message;
+                }
+            }
+            throw new CloudRuntimeException("Failed to notify FTCTL_DR target materialization: " + message);
+        }
+    }
+
+    private void validateFtctlTargetMaterializedCapability(DrPlanVO plan, DrRunVO run, Long hostId) {
+        FtctlDrCapabilitiesCommand command = new FtctlDrCapabilitiesCommand(plan.getUuid(), run.getUuid());
+        List<String> actions = new ArrayList<String>();
+        actions.add(FtctlDrActionCommand.Action.TARGET_MATERIALIZED.name());
+        command.setRequiredActions(actions);
+        List<String> cliCommands = new ArrayList<String>();
+        cliCommands.add(FtctlDrActionCommand.Action.TARGET_MATERIALIZED.getCliCommand());
+        cliCommands.add("dr-status");
+        command.setRequiredCliCommands(cliCommands);
+
+        Answer answer = agentManager.easySend(hostId, command);
+        if (!(answer instanceof FtctlDrCapabilitiesAnswer)) {
+            String message = answer != null ? answer.getDetails() : "Agent returned no FTCTL_DR capability answer";
+            throw new CloudRuntimeException("FTCTL_DR target materialization capability check failed: " + message);
+        }
+        FtctlDrCapabilitiesAnswer capabilities = (FtctlDrCapabilitiesAnswer) answer;
+        if (!capabilities.getResult()) {
+            JsonObject details = new JsonObject();
+            details.addProperty("hostId", hostId);
+            details.addProperty("planUuid", plan.getUuid());
+            details.addProperty("runUuid", run.getUuid());
+            details.add("missingActions", GSON.toJsonTree(capabilities.getMissingActions()));
+            details.add("missingCliCommands", GSON.toJsonTree(capabilities.getMissingCliCommands()));
+            String message = StringUtils.defaultIfBlank(capabilities.getDetails(), "FTCTL_DR target materialization capability mismatch");
+            throw new CloudRuntimeException(message + " " + GSON.toJson(details));
+        }
+    }
+
+    private void completeMaterialization(long planId, long runId, MaterializationResult result, String runtimeStatusJson) {
+        DrPlanVO plan = drPlanDao.findById(planId);
+        DrRunVO run = drRunDao.findById(runId);
+        if (plan == null || run == null || run.getCompleted() != null) {
+            return;
+        }
+        Date now = new Date();
+        Date readyAt = result.targetReadyAt != null ? result.targetReadyAt : now;
+        plan.setState(DrConstants.PLAN_STATE_READY);
+        plan.setTargetReadyAt(readyAt);
+        plan.setTargetReadyRpoSeconds(result.targetReadyRpoSeconds);
+        plan.setLastErrorCode(null);
+        plan.setLastErrorMessage(null);
+        if (StringUtils.isBlank(plan.getActiveSide())) {
+            plan.setActiveSide("SOURCE");
+        }
+        plan.markUpdated();
+        drPlanDao.update(plan.getId(), plan);
+        String details = materializationDetailsJson(result, runtimeStatusJson);
+        upsertRunStep(run, "runtime-projection", STEP_ORDER_RUNTIME_PROJECTION, DrConstants.STEP_STATE_SUCCEEDED, 100, details, null, null);
+        upsertRunStep(run, "target-materialization", STEP_ORDER_TARGET_MATERIALIZATION, DrConstants.STEP_STATE_SUCCEEDED, 100, details, null, null);
+        run.setState(DrConstants.RUN_STATE_SUCCEEDED);
+        run.setCompleted(now);
+        run.setCurrentStepName("target-materialization");
+        run.setProjectionState("succeeded");
+        run.setProjectionChecked(now);
+        run.setRetryable(false);
+        run.setRetryAfterSeconds(null);
+        run.setNextRetryAt(null);
+        run.setLastStatusJson(details);
+        run.setErrorCode(null);
+        run.setErrorMessage(null);
+        run.markUpdated();
+        drRunDao.update(run.getId(), run);
+        recordEvent(plan.getId(), run.getId(), DrConstants.EVENT_TARGET_MATERIALIZED, DrConstants.EVENT_SEVERITY_INFO,
+                "DR target VM was materialized and FTCTL_DR runtime was marked ready", details);
+    }
+
+    private void failMaterialization(DrPlanVO plan, DrRunVO run, String runtimeStatusJson, RuntimeException e) {
+        String message = StringUtils.defaultIfBlank(e.getMessage(), "DR target materialization failed");
+        String details = failureDetailsJson(runtimeStatusJson, message);
+        upsertRunStep(run, "target-materialization", STEP_ORDER_TARGET_MATERIALIZATION, DrConstants.STEP_STATE_FAILED, 100,
+                details, DrConstants.ERROR_TARGET_VM_MATERIALIZE_FAILED, message);
+        run.setState(DrConstants.RUN_STATE_FAILED);
+        run.setCompleted(new Date());
+        run.setCurrentStepName("target-materialization");
+        run.setProjectionState("failed");
+        run.setProjectionChecked(new Date());
+        run.setRetryable(false);
+        run.setRetryAfterSeconds(null);
+        run.setNextRetryAt(null);
+        run.setLastStatusJson(details);
+        run.setErrorCode(DrConstants.ERROR_TARGET_VM_MATERIALIZE_FAILED);
+        run.setErrorMessage(message);
+        run.markUpdated();
+        drRunDao.update(run.getId(), run);
+        closeOpenRunSteps(run, DrConstants.ERROR_TARGET_VM_MATERIALIZE_FAILED, message);
+
+        plan.setState(DrConstants.PLAN_STATE_ERROR);
+        plan.setLastErrorCode(DrConstants.ERROR_TARGET_VM_MATERIALIZE_FAILED);
+        plan.setLastErrorMessage(message);
+        plan.markUpdated();
+        drPlanDao.update(plan.getId(), plan);
+        DrReplicaVO replica = firstActiveReplica(plan);
+        if (replica != null) {
+            replica.setState(DrConstants.REPLICA_STATE_ERROR);
+            replica.setRuntimeStateJson(details);
+            replica.markUpdated();
+            drReplicaDao.update(replica.getId(), replica);
+        }
+        recordEvent(plan.getId(), run.getId(), DrConstants.EVENT_RUN_FAILED, DrConstants.EVENT_SEVERITY_ERROR, message, details);
+    }
+
+    private void closeOpenRunSteps(DrRunVO run, String errorCode, String message) {
+        if (run == null || drRunStepDao == null) {
+            return;
+        }
+        for (DrRunStepVO step : drRunStepDao.listActiveByRunId(run.getId())) {
+            if (step == null || step.getCompleted() != null) {
+                continue;
+            }
+            step.setState(DrConstants.STEP_STATE_FAILED);
+            step.setProgress(100);
+            step.setErrorCode(errorCode);
+            step.setErrorMessage(message);
+            step.setCompleted(new Date());
+            step.markUpdated();
+            drRunStepDao.update(step.getId(), step);
+        }
+    }
+
+    private void upsertRunStep(DrRunVO run, String name, int order, String state, Integer progress, String detailsJson,
+            String errorCode, String errorMessage) {
+        DrRunStepVO step = drRunStepDao.findActiveByRunIdAndStepOrder(run.getId(), order);
+        if (step == null) {
+            step = new DrRunStepVO(run.getId(), name, order);
+        }
+        step.setState(state);
+        step.setProgress(progress);
+        step.setDetailsJson(detailsJson);
+        step.setErrorCode(errorCode);
+        step.setErrorMessage(errorMessage);
+        if (step.getStarted() == null) {
+            step.setStarted(new Date());
+        }
+        if (StringUtils.equalsAny(state, DrConstants.STEP_STATE_SUCCEEDED, DrConstants.STEP_STATE_FAILED, DrConstants.STEP_STATE_CANCELED)) {
+            step.setCompleted(new Date());
+        }
+        step.markUpdated();
+        if (step.getId() > 0) {
+            drRunStepDao.update(step.getId(), step);
+        } else {
+            drRunStepDao.persist(step);
+        }
+    }
+
+    private void recordEvent(Long planId, Long runId, String eventType, String severity, String message, String detailsJson) {
+        DrEventVO event = new DrEventVO(eventType, severity, DrConstants.EVENT_SOURCE_CLOUD);
+        event.setPlanId(planId);
+        event.setRunId(runId);
+        event.setMessage(message);
+        event.setDetailsJson(detailsJson);
+        drEventDao.persist(event);
+    }
+
+    private boolean hasDurableCheckpoint(DrPlanVO plan, JsonObject runtime) {
+        return plan.getLastTargetDurableAt() != null || StringUtils.isNotBlank(firstString(runtime, "last_target_durable_at"));
+    }
+
+    private String materializationDetailsJson(MaterializationResult result, String runtimeStatusJson) {
+        JsonObject details = parseObject(runtimeStatusJson);
+        details.addProperty("targetVmId", result.targetVmId);
+        details.addProperty("targetExternalRef", result.targetExternalRef);
+        details.addProperty("targetVmName", result.targetVmName);
+        details.addProperty("targetMaterialized", true);
+        details.add("targetVolumeMap", parseObject(result.targetVolumeMapJson));
+        return GSON.toJson(details);
+    }
+
+    private String failureDetailsJson(String runtimeStatusJson, String message) {
+        JsonObject details = parseObject(runtimeStatusJson);
+        details.addProperty("errorCode", DrConstants.ERROR_TARGET_VM_MATERIALIZE_FAILED);
+        details.addProperty("errorMessage", message);
+        details.addProperty("targetMaterialized", false);
+        return GSON.toJson(details);
+    }
+
+    private JsonObject parseObject(String json) {
+        if (StringUtils.isBlank(json)) {
+            return new JsonObject();
+        }
+        try {
+            JsonElement parsed = JsonParser.parseString(json);
+            return parsed != null && parsed.isJsonObject() ? parsed.getAsJsonObject() : new JsonObject();
+        } catch (RuntimeException e) {
+            return new JsonObject();
+        }
+    }
+
+    private JsonObject objectAt(JsonObject object, String key) {
+        JsonElement element = object != null ? object.get(key) : null;
+        if (element != null && element.isJsonObject()) {
+            return element.getAsJsonObject();
+        }
+        return new JsonObject();
+    }
+
+    private JsonArray firstArray(JsonObject object, String... keys) {
+        if (object == null || keys == null) {
+            return new JsonArray();
+        }
+        for (String key : keys) {
+            JsonElement element = object.get(key);
+            if (element != null && element.isJsonArray()) {
+                return element.getAsJsonArray();
+            }
+        }
+        return new JsonArray();
+    }
+
+    private String firstString(JsonObject object, String... keys) {
+        if (object == null || keys == null) {
+            return null;
+        }
+        for (String key : keys) {
+            JsonElement element = object.get(key);
+            if (element != null && !element.isJsonNull() && element.isJsonPrimitive()) {
+                String value = StringUtils.trimToNull(element.getAsString());
+                if (value != null) {
+                    return value;
+                }
+            }
+        }
+        return null;
+    }
+
+    private Integer firstInteger(JsonObject mapping, JsonObject target, String mappingKey, String targetKey) {
+        Long parsed = positiveLong(firstNonBlank(firstString(mapping, mappingKey), firstString(target, targetKey)));
+        return parsed != null && parsed <= Integer.MAX_VALUE ? parsed.intValue() : null;
+    }
+
+    private Boolean firstBoolean(JsonObject object, String... keys) {
+        if (object == null || keys == null) {
+            return null;
+        }
+        for (String key : keys) {
+            JsonElement element = object.get(key);
+            if (element == null || element.isJsonNull() || !element.isJsonPrimitive()) {
+                continue;
+            }
+            try {
+                return element.getAsBoolean();
+            } catch (RuntimeException ignored) {
+                String value = StringUtils.trimToNull(element.getAsString());
+                if (StringUtils.equalsAnyIgnoreCase(value, "true", "yes", "enabled", "1")) {
+                    return true;
+                }
+                if (StringUtils.equalsAnyIgnoreCase(value, "false", "no", "disabled", "0")) {
+                    return false;
+                }
+            }
+        }
+        return null;
+    }
+
+    private String firstNonBlank(String first, String second) {
+        return StringUtils.isNotBlank(first) ? first : StringUtils.trimToNull(second);
+    }
+
+    private Long firstNonNull(Long first, Long second, Long third) {
+        if (first != null) {
+            return first;
+        }
+        return second != null ? second : third;
+    }
+
+    private Long parseLong(String value) {
+        if (StringUtils.isBlank(value)) {
+            return null;
+        }
+        try {
+            return Long.valueOf(StringUtils.trim(value));
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    private Long positiveLong(String value) {
+        Long parsed = parseLong(value);
+        return parsed != null && parsed > 0 ? parsed : null;
+    }
+
+    private int bytesToGiBRoundedUp(long bytes) {
+        return (int)Math.max(1L, (bytes + GIB - 1L) / GIB);
+    }
+
+    private Integer computeRpoSeconds(Date source, Date target) {
+        if (source == null || target == null) {
+            return null;
+        }
+        long seconds = Math.max(0L, (target.getTime() - source.getTime()) / 1000L);
+        return seconds > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int)seconds;
+    }
+
+    private void addString(JsonObject object, String key, String value) {
+        if (StringUtils.isNotBlank(value)) {
+            object.addProperty(key, value);
+        }
+    }
+
+    private static final class MaterializationResult {
+        private String planUuid;
+        private long replicaId;
+        private long targetVmId;
+        private String targetExternalRef;
+        private String targetVmName;
+        private String targetVolumeMapJson;
+        private Date targetReadyAt;
+        private Integer targetReadyRpoSeconds;
+    }
+}

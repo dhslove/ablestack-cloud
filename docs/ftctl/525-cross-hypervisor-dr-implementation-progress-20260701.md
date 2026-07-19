@@ -628,3 +628,247 @@ The local implementation and build gates are complete. qemu RPM artifact generat
 Detailed final evidence is recorded in `526-cross-hypervisor-dr-final-smoke-build-handoff-20260701.md`.
 
 Next stage: commit/push the Cloud and ftctl work, run the qemu GitHub Actions package build for the RPM artifact, deploy changed Cloud classes/UI and ftctl RPM to the target environment, then execute the live 4-direction DR retest matrix.
+
+## 2026-07-07 Design Update: VMware Mover And Projection Convergence
+
+Status: implemented and build-tested for the changed Cloud modules and FTCTL
+runtime scripts.
+
+Live test summary:
+
+- Plan: `ba4f53f8-eb17-41cd-bbe6-7e746772f209`
+- Run: `459cd2fa-59e4-4a59-9a4d-e1be62413390`
+- FTCTL target disk mapping: passed
+- Target RBD image: created
+- VMware data mover: failed with `DR_VMWARE_MOVER_UNAVAILABLE`
+- Cloud projection: stale, still exposed `SYNCING/ACCEPTED`
+
+The implementation plan is now split into two linked fixes:
+
+| Layer | Required implementation |
+| --- | --- |
+| UI | show runtime-effective failure and block next actions when latest run fails |
+| API | expose mover capability and reload DB rows after projection refresh |
+| Backend | monotonic terminal projection and Cloud-owned target materialization |
+| Agent | parse final `dr-status` JSON and expose mover/status diagnostics |
+| FTCTL | bundle VMware mover, preflight before target allocation, emit `moverReady`, `moverPath`, and `qemuImg` capability |
+| DB | persist terminal failure into plan/run/step/replica/disk using existing columns |
+
+Implementation notes:
+
+- Added the bundled FTCTL mover script at `lib/ftctl/dr_vmware_mover.sh`.
+- Added runtime error mappings for `DR_VMWARE_MOVER_UNAVAILABLE`,
+  `DR_VMWARE_MOVER_FAILED`, and `DR_VMWARE_NBDKIT_FAILED`.
+- Hardened Agent JSON parsing so progress/log lines before the final FTCTL JSON
+  object do not hide terminal status projection.
+- Added targeted Cloud tests for final JSON parsing and operator-readable VMware
+  mover failure projection.
+
+Detailed design:
+
+- [542-cross-hypervisor-dr-vmware-mover-and-projection-convergence-design-20260707.md](542-cross-hypervisor-dr-vmware-mover-and-projection-convergence-design-20260707.md)
+
+## 2026-07-07 Design Update: VMware VDDK Libdir Resolution
+
+Status: design completed; implementation is the next step.
+
+Live test summary:
+
+- Plan: `8037c34e-5a50-4f4c-bc4e-16dfd54f00d1`
+- FTCTL target disk mapping: passed
+- Target RBD image: created
+- VMware mover: reached
+- Failure: `DR_VMWARE_NBDKIT_FAILED`
+- Root cause: Cloud/Agent did not populate `credentials.source.vddkLibdir`,
+  and FTCTL did not auto-discover the ABLESTACK compat VDDK path, so nbdkit
+  attempted `/usr/lib64/vmware-vix-disklib`.
+
+Required next implementation:
+
+| Layer | Required implementation |
+| --- | --- |
+| UI | show VMware data-plane readiness separately from site connection health |
+| API | expose optional `vddklibdir` override and `vmwareDataPlane` readiness |
+| Backend | resolve worker VDDK capability and enrich FTCTL source credential |
+| Agent | detect `/usr/share/ablestack/v2k/compat/*/vddk` and enrich missing profile hint |
+| FTCTL | add VDDK libdir resolver, validate nbdkit loadability, and emit specific error codes |
+| DB | store readiness/status evidence in existing JSON fields; no mandatory schema change |
+
+Detailed design:
+
+- [543-cross-hypervisor-dr-vddk-libdir-resolution-and-preflight-design-20260707.md](543-cross-hypervisor-dr-vddk-libdir-resolution-and-preflight-design-20260707.md)
+
+## 2026-07-09 Design Update: Target VM Materialization After Durable Restore Point
+
+Status: design completed; implementation is the next step.
+
+Live test summary:
+
+- Plan: `dd895181-7fff-43cc-bae6-24a5ab529db8`
+- Run: `bd0972d7-b7a9-4f00-bc6c-e2994eb6a248`
+- FTCTL status: `SYNCING`, `incremental-transfer`, `CHECKPOINT_READY`
+- Restore points: present and `READY`
+- Target storage: present
+- Target VM/network: absent
+- Cloud replica: `SKELETON_READY`, `target_vm_id=NULL`
+- Cloud replica disk: `SKELETON_READY`, `target_volume_id=NULL`
+
+The current blocker is no longer VMware source preflight, VDDK connect, CBT,
+or full seed transfer. The blocker is the missing Cloud-owned target
+materialization worker after a durable restore point exists.
+
+Required next implementation:
+
+| Layer | Required implementation |
+| --- | --- |
+| UI | show target materialization states separately from generic transfer progress; keep failover disabled until target materialized |
+| API | expose `targetmaterializationstate`, target refs, and an async retry command |
+| Backend | enqueue idempotent target materialization after restore point readiness; import/adopt target volume; deploy stopped target VM; update replica refs |
+| Agent | pass Cloud-created target refs to FTCTL through a bounded async command |
+| FTCTL | add `dr-target-materialized` state update command and heartbeat/RPO stale reporting |
+| DB | use existing `dr_run_step`, `dr_replica`, and `dr_replica_disk` fields for materialization progress and target refs |
+
+Detailed design:
+
+- [547-cross-hypervisor-dr-target-vm-materialization-contract-design-20260709.md](547-cross-hypervisor-dr-target-vm-materialization-contract-design-20260709.md)
+
+## 2026-07-14 진행 상태 보정: 대상 준비 완료 후 제어 경로 blocker
+
+Plan `73d63741-7356-49cb-a3a6-f8a3b56597de` 검증으로 위 target
+materialization blocker는 해소된 상태임을 확인했다. 대상 VM/볼륨/NIC와
+Secure Boot, `io_uring`, iothreads 설정이 준비됐고 full seed 및 후속
+incremental checkpoint가 목표 RPO 안에서 완료됐다.
+
+현재 blocker는 continuous `dr-sync-start` background worker가 legacy global
+FTCTL lock을 Scheduler 수명주기 전체에 걸쳐 보유하여 Test Failover,
+pause, release와 같은 제어 명령이 진입하지 못하는 문제다. 따라서 전체
+구현 완료 판정은 보류한다. retry 횟수 증가는 해결책이 아니며, Plan 단위
+cycle/transition/checkpoint lease와 generation 기반 quiesce control 구현 후
+Test Failover와 cleanup/resume까지 통과해야 한다.
+
+상세 구현 설계:
+
+- [553-cross-hypervisor-dr-continuous-sync-control-and-quiesce-lock-design-20260714.md](553-cross-hypervisor-dr-continuous-sync-control-and-quiesce-lock-design-20260714.md)
+
+## 2026-07-14 Cutover Readiness Reassessment
+
+위 global-lock blocker는 control protocol v2, Plan/cycle/transition lock,
+checkpoint lease 구현과 배포로 해소됐다. 다음 blocker는 VMware checkpoint를
+ABLESTACK에서 실제로 부팅 가능한 VM으로 전환하는 guest preparation path다.
+
+현재 `dr-test-failover`는 writable artifact 생성까지만 수행하며 Linux
+initramfs, Windows WinPE VirtIO, isolated test domain start, boot validation은
+구현되지 않았다. 따라서 continuous sync는 검증됐지만 VMware to KVM Test
+Failover와 real Failover는 아직 완료로 판정하지 않는다.
+
+32.x preflight에서 V2K guest-preparation 자산, libguestfs, qcow2 overlay,
+RBD snapshot/clone은 모두 실행 가능함을 확인했다. 구현 기준:
+
+- [554-cross-hypervisor-dr-vmware-to-kvm-cutover-and-virtio-bootstrap-design-20260714.md](554-cross-hypervisor-dr-vmware-to-kvm-cutover-and-virtio-bootstrap-design-20260714.md)
+
+## 2026-07-14 VMware-to-KVM Guest Preparation Implementation
+
+Status: implementation, changed-module build, deployment, and retest cleanup
+completed. Runtime acceptance is the next operator test.
+
+- FTCTL commit `741d76a36d8f8d3aefd96bd6f7e69ae95bc8a277` implements
+  V2K-compatible guest preparation, qcow2/RBD writable test layers, transient
+  test domains, cleanup, and the `CUTOVER_READY` Cloud hand-off.
+- Cloud implements typed UI/API fields, Agent status projection, cutover
+  session/disk persistence, capability gating, and idempotent target VM power-on.
+- Changed Cloud Maven modules, DR/KVM tests, and the UI production build passed.
+- FTCTL RPM `ablestack_vm_ftctl-0.9.1-1.noarch` is deployed to all three 32.x
+  hosts; changed Cloud classes and UI assets are deployed to management.
+- Retest cleanup result: active Plans 0, replicas 0, Runs 0, cutover rows 0,
+  transient test domains 0, and RBD test clones 0.
+- The deployment-readiness gate is PASS. Test Failover, boot validation, Stop
+  Test Failover cleanup, and planned Failover remain the required runtime
+  acceptance sequence.
+
+Detailed result and acceptance boundary:
+
+- [554-cross-hypervisor-dr-vmware-to-kvm-cutover-and-virtio-bootstrap-design-20260714.md](554-cross-hypervisor-dr-vmware-to-kvm-cutover-and-virtio-bootstrap-design-20260714.md#21-implementation-and-deployment-result-2026-07-14)
+
+## 2026-07-14 VMware CBT Incremental And Transfer Metrics Reassessment
+
+Status: code-level design and read-only live preflight completed; implementation
+has not started.
+
+- Source VM `vm-4486` has VMware CBT enabled.
+- Earlier S1/S2 live validation proved that an S1 changeId remains usable after
+  S1 removal and returned two changed areas totaling 131072 bytes for S2.
+- The deployed FTCTL mover still performs complete `qemu-img convert` copies
+  and does not call `QueryChangedDiskAreas`.
+- Cloud DB has no typed cycle/per-disk history tables and Run status has no
+  transfer-byte proof.
+- Repeated green RPO cycles therefore prove durable repeated replication, but
+  do not yet prove true CBT incremental transfer.
+
+Detailed implementation design and acceptance gates:
+
+- [555-cross-hypervisor-dr-vmware-cbt-incremental-and-transfer-metrics-design-20260714.md](555-cross-hypervisor-dr-vmware-cbt-incremental-and-transfer-metrics-design-20260714.md)
+
+## 2026-07-16 VMware CBT Live Acceptance Correction
+
+Status: runtime acceptance FAIL; corrective design completed, implementation
+pending.
+
+- Sequence 1 copied the VMware disk to RBD, then failed in per-disk metrics
+  serialization because jq reserved keyword `$label` was used.
+- No baseline or restore point was committed; the physical RBD is uncommitted
+  evidence and cannot be used for Test Failover.
+- Full FTCTL status was persisted as an error string, causing invalid Plan API
+  JSON for a UTF-8 datastore path and making UI data appear missing.
+- The correction adds a Plan-scoped cycle journal, typed commit/error fields,
+  concise Backend error persistence, valid API serialization tests, and UI
+  last-good-state retention.
+
+Detailed corrective design:
+
+- [557-cross-hypervisor-dr-cycle-commit-and-api-json-recovery-design-20260716.md](557-cross-hypervisor-dr-cycle-commit-and-api-json-recovery-design-20260716.md)
+
+## 2026-07-16 Cycle Commit And API Recovery Implementation
+
+Status: implementation, changed-module build, deployment, and failed-Plan
+cleanup complete. Fresh runtime acceptance is next.
+
+- FTCTL commit `46ec5b9648fdd3d695201c37db65a09d192f7e48` replaces the jq result
+  expression with a validated Python builder and adds atomic cycle journals.
+- Typed commit/error fields now flow through Agent, Backend, API, DB
+  projection, and UI without copying the complete status object into operator
+  error text.
+- FTCTL self-test, 10 KVM tests, 11 DR projection tests, changed Maven module
+  packaging, and the UI production build passed.
+- FTCTL RPM, Agent classes, management classes, and UI static assets are
+  deployed; services and timers are active and `/client/` returns HTTP 200.
+- Plan `538befc6-0efb-4304-ba1a-5243311de4fb` was released, soft-deleted, and
+  its uncommitted RBD/runtime cleaned. The Plan-owned VMware snapshot is absent.
+- The environment is clean for a new `FULL_SEED` and measured
+  `CBT_INCREMENTAL` test. Test Failover remains blocked until those runtime
+  acceptance gates pass.
+
+Detailed implementation evidence:
+
+- [557-cross-hypervisor-dr-cycle-commit-and-api-json-recovery-design-20260716.md](557-cross-hypervisor-dr-cycle-commit-and-api-json-recovery-design-20260716.md#16-implementation-build-deployment-and-cleanup-result)
+
+## 2026-07-17 Repeated Full ReSeed Reassessment
+
+Status: code-level corrective design complete; implementation pending.
+
+- Linux and Windows both pass target materialization, full-copy durability,
+  Scheduler continuity, source CBT enablement, and baseline changeId commit.
+- They fail continuous incremental acceptance because every later sequence is
+  promoted to `FULL_RESEED`.
+- FTCTL drops `baselineState` and `baselineGeneration` while converting the
+  committed disk map into mover rows, then mistakes the missing generation for
+  an invalid baseline.
+- Cloud can leave a completed Windows cycle in `TRANSFERRING` because it
+  projects only the already-advanced current sequence.
+- Normal Test Failover/planned Failover must remain blocked until a measured
+  incremental or verified no-change checkpoint is persisted end to end.
+
+The next implementation unit is the FTCTL row/mode contract, reseed circuit
+breaker, Agent fields, dual cycle projection, DB decision fields, API reason
+codes, and UI evidence display defined in:
+
+- [559-cross-hypervisor-dr-incremental-mode-decision-and-cycle-projection-design-20260717.md](559-cross-hypervisor-dr-incremental-mode-decision-and-cycle-projection-design-20260717.md)

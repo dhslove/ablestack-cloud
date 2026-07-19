@@ -23,4 +23,6 @@ import com.cloud.utils.db.GenericDao;
 
 public interface DrRunStepDao extends GenericDao<DrRunStepVO, Long> {
     List<DrRunStepVO> listActiveByRunId(long runId);
+
+    DrRunStepVO findActiveByRunIdAndStepOrder(long runId, int stepOrder);
 }

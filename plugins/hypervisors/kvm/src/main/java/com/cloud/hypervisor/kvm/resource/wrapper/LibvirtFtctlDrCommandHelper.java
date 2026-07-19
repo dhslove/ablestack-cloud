@@ -37,8 +37,18 @@ public final class LibvirtFtctlDrCommandHelper {
         }
         String safePlanUuid = StringUtils.defaultIfBlank(planUuid, "plan").replaceAll("[^A-Za-z0-9_.-]", "_");
         File file = File.createTempFile("ftctl-dr-" + safePlanUuid + "-", ".json");
+        restrictOwnerOnly(file);
         Files.write(file.toPath(), profileJson.getBytes(StandardCharsets.UTF_8));
+        restrictOwnerOnly(file);
         return file;
+    }
+
+    private static void restrictOwnerOnly(File file) {
+        file.setReadable(false, false);
+        file.setWritable(false, false);
+        file.setExecutable(false, false);
+        file.setReadable(true, true);
+        file.setWritable(true, true);
     }
 
     public static void deleteQuietly(File file) {

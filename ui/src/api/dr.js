@@ -19,20 +19,28 @@ import { getAPI, postAPI } from '@/api'
 
 const listKeys = {
   listDrSites: ['listdrsitesresponse', 'drsite'],
+  listDrSiteHealthChecks: ['listdrsitehealthchecksresponse', 'drsitehealthcheck'],
   listDrPlans: ['listdrplansresponse', 'drplan'],
   listDrRuns: ['listdrrunsresponse', 'drrun'],
   listDrRunSteps: ['listdrrunstepsresponse', 'drrunstep'],
   listDrEvents: ['listdreventsresponse', 'drevent'],
   listDrReplicas: ['listdrreplicasresponse', 'drreplica'],
-  listDrRestorePoints: ['listdrrestorepointsresponse', 'drrestorepoint']
+  listDrRestorePoints: ['listdrrestorepointsresponse', 'drrestorepoint'],
+  listDrSyncCheckpoints: ['listdrsynccheckpointsresponse', 'drrestorepoint']
 }
 
 const objectKeys = {
   getDrSite: ['getdrsiteresponse', 'drsite'],
   getDrPlan: ['getdrplanresponse', 'drplan'],
+  getDrProtectionView: ['getdrprotectionviewresponse', 'drprotectionview'],
   getDrRun: ['getdrrunresponse', 'drrun'],
   createDrSite: ['createdrsiteresponse', 'drsite'],
+  discoverDrSiteInventory: ['discoverdrsiteinventoryresponse', 'drsiteinventory'],
+  discoverDrPlanInventory: ['discoverdrplaninventoryresponse', 'drplaninventory'],
+  previewDrPlanSpec: ['previewdrplanspecresponse', 'drplanspecpreview'],
   createDrPlan: ['createdrplanresponse', 'drplan'],
+  updateDrSite: ['updatedrsiteresponse', 'drsite'],
+  updateDrPlan: ['updatedrplanresponse', 'drplan'],
   checkDrSite: ['checkdrsiteresponse', 'drsite'],
   startDrSync: ['startdrsyncresponse', 'drrun'],
   pauseDrSync: ['pausedrsyncresponse', 'drrun'],
@@ -63,8 +71,68 @@ export function extractDrObject (response, command) {
   return payload?.[itemKey] || payload || {}
 }
 
+export function extractJobId (response, command) {
+  const responseKey = command.toLowerCase() + 'response'
+  return response?.[responseKey]?.jobid || response?.jobid || ''
+}
+
+function sleep (ms) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+function extractDrJobObject (jobResult, command) {
+  const [responseKey, itemKey] = objectKeys[command] || [command.toLowerCase() + 'response', '']
+  const payload = jobResult?.[responseKey] || jobResult || {}
+  return payload?.[itemKey] || payload
+}
+
+function buildDrJobError (result, jobId, command) {
+  const error = new Error(result.jobresult?.errortext || 'Async job failed')
+  error.response = { data: { errorresponse: result.jobresult || {} } }
+  error.jobid = jobId
+  error.command = command
+  return error
+}
+
+function waitForDrJobObject (jobId, command, options = {}) {
+  const intervalMs = options.intervalMs || 1000
+  const timeoutMs = options.timeoutMs || 120000
+  const startedAt = Date.now()
+  const poll = () => getAPI('queryAsyncJobResult', { jobId }).then(response => {
+    const result = response?.queryasyncjobresultresponse || {}
+    if (result.jobstatus === 1) {
+      return extractDrJobObject(result.jobresult, command)
+    }
+    if (result.jobstatus === 2) {
+      throw buildDrJobError(result, jobId, command)
+    }
+    if (Date.now() - startedAt >= timeoutMs) {
+      const error = new Error('Async job timed out')
+      error.jobid = jobId
+      error.command = command
+      error.retryable = true
+      throw error
+    }
+    return sleep(intervalMs).then(poll)
+  })
+  return poll()
+}
+
+function postAndWaitForDrObject (command, params, options = {}) {
+  return postAPI(command, params).then(response => {
+    const jobId = extractJobId(response, command)
+    return jobId
+      ? waitForDrJobObject(jobId, command, options)
+      : extractDrObject(response, command)
+  })
+}
+
 export function listDrSites (params = {}) {
   return getAPI('listDrSites', params).then(response => extractDrList(response, 'listDrSites'))
+}
+
+export function listDrSiteHealthChecks (params = {}) {
+  return getAPI('listDrSiteHealthChecks', params).then(response => extractDrList(response, 'listDrSiteHealthChecks'))
 }
 
 export function getDrSite (id) {
@@ -72,11 +140,34 @@ export function getDrSite (id) {
 }
 
 export function checkDrSite (id, persistStatus = false) {
-  return postAPI('checkDrSite', { id, persiststatus: persistStatus }).then(response => extractDrObject(response, 'checkDrSite'))
+  return postAndWaitForDrObject('checkDrSite', { id, persiststatus: persistStatus })
 }
 
 export function createDrSite (params) {
-  return postAPI('createDrSite', params).then(response => extractDrObject(response, 'createDrSite'))
+  return postAndWaitForDrObject('createDrSite', params)
+}
+
+export function discoverDrSiteInventory (params = {}) {
+  return postAndWaitForDrObject('discoverDrSiteInventory', params)
+}
+
+export function discoverDrPlanInventory (params = {}) {
+  return postAndWaitForDrObject('discoverDrPlanInventory', params)
+}
+
+export function previewDrPlanSpec (params = {}) {
+  return postAPI('previewDrPlanSpec', params).then(response => extractDrObject(response, 'previewDrPlanSpec'))
+}
+
+export function updateDrSite (id, params) {
+  return postAndWaitForDrObject('updateDrSite', Object.assign({ id }, params))
+}
+
+export function deleteDrSite (id) {
+  return postAPI('deleteDrSite', { id }).then(response => ({
+    jobid: extractJobId(response, 'deleteDrSite'),
+    raw: response
+  }))
 }
 
 export function listDrPlans (params = {}) {
@@ -87,8 +178,30 @@ export function getDrPlan (id) {
   return getAPI('getDrPlan', { id }).then(response => extractDrObject(response, 'getDrPlan'))
 }
 
+export function getDrProtectionView (planId) {
+  return getAPI('getDrProtectionView', { planid: planId }).then(response => extractDrObject(response, 'getDrProtectionView'))
+}
+
+export function refreshDrProtectionView (planId) {
+  return postAPI('refreshDrProtectionView', { planid: planId }).then(response => ({
+    jobid: extractJobId(response, 'refreshDrProtectionView'),
+    raw: response
+  }))
+}
+
 export function createDrPlan (params) {
-  return postAPI('createDrPlan', params).then(response => extractDrObject(response, 'createDrPlan'))
+  return postAndWaitForDrObject('createDrPlan', params)
+}
+
+export function updateDrPlan (id, params) {
+  return postAndWaitForDrObject('updateDrPlan', Object.assign({ id }, params))
+}
+
+export function deleteDrPlan (id) {
+  return postAPI('deleteDrPlan', { id }).then(response => ({
+    jobid: extractJobId(response, 'deleteDrPlan'),
+    raw: response
+  }))
 }
 
 export function listDrRuns (params = {}) {
@@ -113,6 +226,10 @@ export function listDrReplicas (params = {}) {
 
 export function listDrRestorePoints (params = {}) {
   return getAPI('listDrRestorePoints', params).then(response => extractDrList(response, 'listDrRestorePoints'))
+}
+
+export function listDrSyncCheckpoints (params = {}) {
+  return getAPI('listDrSyncCheckpoints', params).then(response => extractDrList(response, 'listDrSyncCheckpoints'))
 }
 
 export function startDrAction (command, params) {

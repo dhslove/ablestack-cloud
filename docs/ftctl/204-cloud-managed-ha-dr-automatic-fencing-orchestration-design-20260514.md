@@ -154,7 +154,7 @@ Manual remote-Mold DR may still collect remote Mold API URL, API key, and secret
 
 Automatic remote-Mold DR requires one of these durable models:
 
-- a secure Cloud-side automation credential reference for the remote Mold, or
+- a secure Cloud-side encrypted automation credential model for the remote Mold, or
 - a target-side protection projection/reconciler in the remote Mold that can start the replica without calling back to the failed source Mold.
 
 Because the source Mold may be unavailable in a real disaster, the preferred long-term model is target-side orchestration:

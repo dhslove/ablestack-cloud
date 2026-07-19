@@ -57,7 +57,8 @@ public class CheckDrSiteCmd extends BaseAsyncCmd {
     @Override
     public void execute() throws ServerApiException {
         try {
-            DrSiteResponse response = drResponseGenerator.createSiteResponse(drSiteService.checkSite(id));
+            boolean persist = persistStatus == null || Boolean.TRUE.equals(persistStatus);
+            DrSiteResponse response = drResponseGenerator.createSiteResponse(drSiteService.checkSite(id, persist));
             response.setResponseName(getCommandName());
             setResponseObject(response);
         } catch (RuntimeException e) {

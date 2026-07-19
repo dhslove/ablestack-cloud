@@ -24,15 +24,18 @@ import javax.inject.Inject;
 import org.apache.cloudstack.acl.RoleType;
 import org.apache.cloudstack.api.APICommand;
 import org.apache.cloudstack.api.BaseListCmd;
+import org.apache.cloudstack.api.ApiConstants;
 import org.apache.cloudstack.api.Parameter;
 import org.apache.cloudstack.api.response.ListResponse;
 import org.apache.cloudstack.api.response.dr.DrPlanResponse;
+import org.apache.cloudstack.api.response.dr.DrSiteResponse;
 
 import com.cloud.dr.DrPlanService;
+import com.cloud.dr.DrPlanSearchCriteria;
 import com.cloud.dr.DrPlanVO;
-import com.cloud.dr.DrProjectionService;
 import com.cloud.dr.response.DrResponseGenerator;
 import com.cloud.user.Account;
+import com.cloud.utils.Pair;
 
 @APICommand(name = ListDrPlansCmd.APINAME,
         description = "List Cross Hypervisor DR plans",
@@ -44,12 +47,31 @@ public class ListDrPlansCmd extends BaseListCmd {
     @Inject
     private DrPlanService drPlanService;
     @Inject
-    private DrProjectionService drProjectionService;
-    @Inject
     private DrResponseGenerator drResponseGenerator;
 
     @Parameter(name = "keyword", type = CommandType.STRING, description = "the keyword filter")
     private String keyword;
+
+    @Parameter(name = ApiConstants.ID, type = CommandType.UUID, entityType = DrPlanResponse.class,
+            description = "the exact DR plan ID")
+    private Long id;
+
+    @Parameter(name = ApiConstants.STATE, type = CommandType.STRING, description = "the DR plan state")
+    private String state;
+
+    @Parameter(name = "sourcesiteid", type = CommandType.UUID, entityType = DrSiteResponse.class,
+            description = "the source DR site ID")
+    private Long sourceSiteId;
+
+    @Parameter(name = "targetsiteid", type = CommandType.UUID, entityType = DrSiteResponse.class,
+            description = "the target DR site ID")
+    private Long targetSiteId;
+
+    @Parameter(name = "direction", type = CommandType.STRING, description = "the DR direction")
+    private String direction;
+
+    @Parameter(name = "enginetype", type = CommandType.STRING, description = "the DR engine type")
+    private String engineType;
 
     public String getKeyword() {
         return keyword;
@@ -57,13 +79,14 @@ public class ListDrPlansCmd extends BaseListCmd {
 
     @Override
     public void execute() {
+        Pair<List<DrPlanVO>, Integer> plans = drPlanService.searchPlans(new DrPlanSearchCriteria(id, keyword, state,
+                sourceSiteId, targetSiteId, direction, engineType, getStartIndex(), getPageSizeVal()));
         List<DrPlanResponse> responses = new ArrayList<DrPlanResponse>();
-        for (DrPlanVO plan : drPlanService.listPlans()) {
-            DrPlanVO refreshedPlan = drProjectionService.refreshPlanProjection(plan.getId(), true);
-            responses.add(drResponseGenerator.createPlanResponse(refreshedPlan, drPlanService.getActionEligibility(refreshedPlan.getId())));
+        for (DrPlanVO plan : plans.first()) {
+            responses.add(drResponseGenerator.createPlanResponse(plan, drPlanService.getActionEligibility(plan.getId())));
         }
         ListResponse<DrPlanResponse> response = new ListResponse<DrPlanResponse>();
-        response.setResponses(responses);
+        response.setResponses(responses, plans.second());
         response.setResponseName(getCommandName());
         setResponseObject(response);
     }

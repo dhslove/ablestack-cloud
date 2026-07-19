@@ -97,10 +97,40 @@ sequenceDiagram
   F->>F: validate + checkpoint
   F-->>A: status/events
   A-->>B: status report
-  B-->>UI: polling shows target-ready
+  B->>B: enqueue target materialization when durable checkpoint exists
+  B->>B: import/adopt target volumes and deploy stopped target VM
+  B->>A: dr-target-materialized(target refs)
+  A->>F: update target refs in runtime state
+  B-->>UI: polling shows target-ready only after target VM refs exist
 ```
 
-### 3.3 Backend step 설계
+### 3.3 Target materialization gate
+
+The protection flow must not treat a durable restore point as a usable DR
+target by itself. VMware-to-ABLESTACK sync can finish disk transfer and still
+have no Cloud-visible target VM, volume references, or network binding. In that
+state UI/API must show `target-materializing`, not `target-ready`.
+
+The Cloud backend owns this boundary:
+
+1. Detect durable checkpoint plus missing target VM refs from
+   `FtctlDrRuntimeProjectionAdapter`.
+2. Queue `DrTargetMaterializationService` asynchronously.
+3. Import or adopt the seeded target disk artifacts into managed Cloud volumes.
+4. Deploy a stopped target VM from the imported root volume and selected
+   compute/network/offering placement.
+5. Persist `dr_replica.target_vm_id`, `dr_replica.target_external_ref`, and
+   `dr_replica_disk.target_volume_id`.
+6. Send `dr-target-materialized` through Agent to FTCTL so runtime
+   `dr-status` exposes `target_vm_present=true`,
+   `target_network_present=true`, and `target_materialized=true`.
+
+Failover, test failover, and failback eligibility must require the target
+materialization evidence above. This keeps the UI asynchronous while preventing
+the 40 percent stuck state from being mistaken for a transfer still in
+progress.
+
+### 3.4 Backend step 설계
 
 | step | `DrRunStep.name` | 설명 |
 |---|---|---|
@@ -115,7 +145,7 @@ sequenceDiagram
 | 9 | `publish-restore-point` | target-ready restore point 생성 |
 | 10 | `update-rpo` | RPO lag 계산 |
 
-### 3.4 방향별 보호 설정 차이
+### 3.5 방향별 보호 설정 차이
 
 | 방향 | source preflight | target preflight | full seed | incremental |
 |---|---|---|---|---|
@@ -328,3 +358,57 @@ UI/API는 long-running 작업을 동기식으로 처리하지 않는다.
 | reprotect | active side 기준 보호 재구성 성공 |
 
 한 방향이라도 위 항목이 빠지면 4개 방향 동일 수준 구현 완료로 보지 않는다.
+
+## 12. 2026-07-14 보강: 지속 동기화 중 전환 순서
+
+Test Failover와 planned failover는 지속 Scheduler를 강제 종료하거나
+global lock이 풀리기를 재시도하는 방식으로 시작하지 않는다.
+
+```text
+queued Run
+  -> transition lock
+  -> quiesce request generation
+  -> current cycle commit
+  -> PAUSED acknowledgment
+  -> latest completed checkpoint lease
+  -> test/failover materialization
+```
+
+Test cleanup은 test resource와 checkpoint lease를 제거한 뒤 Scheduler를
+resume하고 다음 incremental checkpoint 완료까지 확인한다. UI의 "복제본"
+표현은 임의 과거 시점 복구를 의미하지 않으며, Test Failover는 가장 최근에
+완료된 내구성 복제본을 사용한다.
+
+상세 순서와 timeout/failure 계약:
+`553-cross-hypervisor-dr-continuous-sync-control-and-quiesce-lock-design-20260714.md`.
+
+## 13. 2026-07-14 보강: Guest Preparation과 VM Boot Gate
+
+`test/failover materialization`은 다음 하위 단계로 분해한다.
+
+```text
+checkpoint lease
+  -> writable layer
+  -> guest inspection
+  -> VirtIO preparation
+  -> domain preparation
+  -> VM start
+  -> boot validation
+```
+
+Test Failover는 격리된 transient domain이 `TEST_RUNNING`에 도달해야 성공이다.
+Stop Test Failover는 domain, writable layer, snapshot, lease를 제거하고 복제를
+재개한다.
+
+실제 Failover는 FTCTL의 `CUTOVER_READY` 이후 Cloud backend가 target VM을
+시작한다. 부팅 검증 전에는 `activeSide=TARGET`으로 전환하지 않는다. Linux,
+Windows, Secure Boot 및 storage별 상세 순서는 다음 문서를 따른다.
+
+- `554-cross-hypervisor-dr-vmware-to-kvm-cutover-and-virtio-bootstrap-design-20260714.md`
+
+### 2026-07-14 Latest-Cycle Readiness Addendum
+
+Test Failover and Failover may lease only the latest Cloud-committed durable
+cycle. A VMware incremental cycle is eligible only when its aggregate and all
+disk rows have `incremental_verified=true`; see
+`555-cross-hypervisor-dr-vmware-cbt-incremental-and-transfer-metrics-design-20260714.md`.

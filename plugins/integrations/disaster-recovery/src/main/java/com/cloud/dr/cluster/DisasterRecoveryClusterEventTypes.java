@@ -40,6 +40,9 @@ public class DisasterRecoveryClusterEventTypes {
     public static final String EVENT_DR_SITE_UPDATE = "DR.SITE.UPDATE";
     public static final String EVENT_DR_SITE_DELETE = "DR.SITE.DELETE";
     public static final String EVENT_DR_SITE_CHECK = "DR.SITE.CHECK";
+    public static final String EVENT_DR_SITE_INVENTORY = "DR.SITE.INVENTORY";
+    public static final String EVENT_DR_PLAN_INVENTORY = "DR.PLAN.INVENTORY";
+    public static final String EVENT_DR_PLAN_SPEC_PREVIEW = "DR.PLAN.SPEC.PREVIEW";
     public static final String EVENT_DR_PLAN_CREATE = "DR.PLAN.CREATE";
     public static final String EVENT_DR_PLAN_UPDATE = "DR.PLAN.UPDATE";
     public static final String EVENT_DR_PLAN_DELETE = "DR.PLAN.DELETE";
@@ -51,6 +54,7 @@ public class DisasterRecoveryClusterEventTypes {
     public static final String EVENT_DR_PLAN_FAILBACK = "DR.PLAN.FAILBACK";
     public static final String EVENT_DR_PLAN_REPROTECT = "DR.PLAN.REPROTECT";
     public static final String EVENT_DR_PLAN_RELEASE = "DR.PLAN.RELEASE";
+    public static final String EVENT_DR_PLAN_PROJECTION_REFRESH = "DR.PLAN.PROJECTION.REFRESH";
     public static final String EVENT_DR_RUN_CANCEL = "DR.RUN.CANCEL";
     public static final String EVENT_DR_FENCE_CONFIRM = "DR.FENCE.CONFIRM";
 

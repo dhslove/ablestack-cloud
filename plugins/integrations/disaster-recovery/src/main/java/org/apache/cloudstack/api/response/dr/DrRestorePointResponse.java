@@ -35,6 +35,22 @@ public class DrRestorePointResponse extends BaseResponse {
     @Param(description = "the DR plan ID")
     private Long planId;
 
+    @SerializedName("runid")
+    @Param(description = "the DR run ID that produced the synchronization checkpoint")
+    private Long runId;
+
+    @SerializedName("checkpointsequence")
+    @Param(description = "the monotonically increasing synchronization checkpoint sequence")
+    private Long checkpointSequence;
+
+    @SerializedName("checkpointcycletype")
+    @Param(description = "the synchronization cycle type")
+    private String checkpointCycleType;
+
+    @SerializedName("checkpointref")
+    @Param(description = "the opaque FTCTL synchronization checkpoint reference")
+    private String checkpointRef;
+
     @SerializedName("sourcesnapshotref")
     @Param(description = "the source snapshot reference")
     private String sourceSnapshotRef;
@@ -67,6 +83,49 @@ public class DrRestorePointResponse extends BaseResponse {
     @Param(description = "the restore point state")
     private String state;
 
+    @SerializedName("effectivemode")
+    @Param(description = "the effective replication mode used by the completed cycle")
+    private String effectiveMode;
+
+    @SerializedName("requestedmode")
+    @Param(description = "the replication mode requested for the completed cycle")
+    private String requestedMode;
+
+    @SerializedName("automaticreseed")
+    @Param(description = "whether FTCTL automatically promoted an incremental request to a full reseed")
+    private Boolean automaticReseed;
+
+    @SerializedName("modedecisioncode")
+    @Param(description = "the stable FTCTL mode-decision reason code")
+    private String modeDecisionCode;
+
+    @SerializedName("reseedreason")
+    @Param(description = "the stable reason that required a full reseed")
+    private String reseedReason;
+
+    @SerializedName("invalidbaselinediskcount")
+    @Param(description = "the number of disks that failed baseline validation")
+    private Integer invalidBaselineDiskCount;
+
+    @SerializedName("incrementalverified")
+    @Param(description = "whether CBT incremental transfer was verified for the completed cycle")
+    private Boolean incrementalVerified;
+
+    @SerializedName("metricsestimated")
+    @Param(description = "whether byte metrics are estimates instead of measured transfer counters")
+    private Boolean metricsEstimated;
+
+    @SerializedName("virtualbytes") @Param(description = "the protected virtual disk bytes") private Long virtualBytes;
+    @SerializedName("changedbytes") @Param(description = "the CBT changed bytes") private Long changedBytes;
+    @SerializedName("sourcereadbytes") @Param(description = "the bytes read from the source") private Long sourceReadBytes;
+    @SerializedName("targetwrittenbytes") @Param(description = "the bytes written to the target") private Long targetWrittenBytes;
+    @SerializedName("transferpayloadbytes") @Param(description = "the transfer payload bytes") private Long transferPayloadBytes;
+    @SerializedName("changedextentcount") @Param(description = "the number of changed CBT extents") private Long changedExtentCount;
+    @SerializedName("durationms") @Param(description = "the transfer duration in milliseconds") private Long durationMs;
+    @SerializedName("throughputbps") @Param(description = "the measured source throughput in bytes per second") private Long throughputBps;
+    @SerializedName("baselinegeneration") @Param(description = "the committed CBT baseline generation") private Long baselineGeneration;
+    @SerializedName("cycletoken") @Param(description = "the idempotent engine cycle token") private String cycleToken;
+
     @SerializedName("created")
     @Param(description = "the creation time")
     private Date created;
@@ -77,6 +136,22 @@ public class DrRestorePointResponse extends BaseResponse {
 
     public void setPlanId(Long planId) {
         this.planId = planId;
+    }
+
+    public void setRunId(Long runId) {
+        this.runId = runId;
+    }
+
+    public void setCheckpointSequence(Long checkpointSequence) {
+        this.checkpointSequence = checkpointSequence;
+    }
+
+    public void setCheckpointCycleType(String checkpointCycleType) {
+        this.checkpointCycleType = checkpointCycleType;
+    }
+
+    public void setCheckpointRef(String checkpointRef) {
+        this.checkpointRef = checkpointRef;
     }
 
     public void setSourceSnapshotRef(String sourceSnapshotRef) {
@@ -110,6 +185,25 @@ public class DrRestorePointResponse extends BaseResponse {
     public void setState(String state) {
         this.state = state;
     }
+
+    public void setEffectiveMode(String effectiveMode) { this.effectiveMode = effectiveMode; }
+    public void setRequestedMode(String requestedMode) { this.requestedMode = requestedMode; }
+    public void setAutomaticReseed(Boolean automaticReseed) { this.automaticReseed = automaticReseed; }
+    public void setModeDecisionCode(String modeDecisionCode) { this.modeDecisionCode = modeDecisionCode; }
+    public void setReseedReason(String reseedReason) { this.reseedReason = reseedReason; }
+    public void setInvalidBaselineDiskCount(Integer invalidBaselineDiskCount) { this.invalidBaselineDiskCount = invalidBaselineDiskCount; }
+    public void setIncrementalVerified(Boolean incrementalVerified) { this.incrementalVerified = incrementalVerified; }
+    public void setMetricsEstimated(Boolean metricsEstimated) { this.metricsEstimated = metricsEstimated; }
+    public void setVirtualBytes(Long virtualBytes) { this.virtualBytes = virtualBytes; }
+    public void setChangedBytes(Long changedBytes) { this.changedBytes = changedBytes; }
+    public void setSourceReadBytes(Long sourceReadBytes) { this.sourceReadBytes = sourceReadBytes; }
+    public void setTargetWrittenBytes(Long targetWrittenBytes) { this.targetWrittenBytes = targetWrittenBytes; }
+    public void setTransferPayloadBytes(Long transferPayloadBytes) { this.transferPayloadBytes = transferPayloadBytes; }
+    public void setChangedExtentCount(Long changedExtentCount) { this.changedExtentCount = changedExtentCount; }
+    public void setDurationMs(Long durationMs) { this.durationMs = durationMs; }
+    public void setThroughputBps(Long throughputBps) { this.throughputBps = throughputBps; }
+    public void setBaselineGeneration(Long baselineGeneration) { this.baselineGeneration = baselineGeneration; }
+    public void setCycleToken(String cycleToken) { this.cycleToken = cycleToken; }
 
     public void setCreated(Date created) {
         this.created = created;

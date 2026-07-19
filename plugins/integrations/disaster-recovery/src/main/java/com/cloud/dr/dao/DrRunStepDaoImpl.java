@@ -29,12 +29,19 @@ import com.cloud.utils.db.SearchCriteria;
 public class DrRunStepDaoImpl extends GenericDaoBase<DrRunStepVO, Long> implements DrRunStepDao {
 
     private final SearchBuilder<DrRunStepVO> activeByRunSearch;
+    private final SearchBuilder<DrRunStepVO> activeByRunAndOrderSearch;
 
     public DrRunStepDaoImpl() {
         activeByRunSearch = createSearchBuilder();
         activeByRunSearch.and("runId", activeByRunSearch.entity().getRunId(), SearchCriteria.Op.EQ);
         activeByRunSearch.and("removed", activeByRunSearch.entity().getRemoved(), SearchCriteria.Op.NULL);
         activeByRunSearch.done();
+
+        activeByRunAndOrderSearch = createSearchBuilder();
+        activeByRunAndOrderSearch.and("runId", activeByRunAndOrderSearch.entity().getRunId(), SearchCriteria.Op.EQ);
+        activeByRunAndOrderSearch.and("stepOrder", activeByRunAndOrderSearch.entity().getStepOrder(), SearchCriteria.Op.EQ);
+        activeByRunAndOrderSearch.and("removed", activeByRunAndOrderSearch.entity().getRemoved(), SearchCriteria.Op.NULL);
+        activeByRunAndOrderSearch.done();
     }
 
     @Override
@@ -42,5 +49,13 @@ public class DrRunStepDaoImpl extends GenericDaoBase<DrRunStepVO, Long> implemen
         SearchCriteria<DrRunStepVO> sc = activeByRunSearch.create();
         sc.setParameters("runId", runId);
         return listBy(sc, new Filter(DrRunStepVO.class, "stepOrder", true, null, null));
+    }
+
+    @Override
+    public DrRunStepVO findActiveByRunIdAndStepOrder(long runId, int stepOrder) {
+        SearchCriteria<DrRunStepVO> sc = activeByRunAndOrderSearch.create();
+        sc.setParameters("runId", runId);
+        sc.setParameters("stepOrder", stepOrder);
+        return findOneBy(sc);
     }
 }

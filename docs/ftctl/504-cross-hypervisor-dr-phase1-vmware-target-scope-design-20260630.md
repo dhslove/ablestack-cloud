@@ -35,7 +35,7 @@ Phase 1에서 RTO 1시간 목표를 완전히 보장하지 않는다. RTO 목표
 
 - `VMWARE_PHASE1/VMWARE_PHASE1` replication engine이 Spring registry에 등록된다.
 - `KVM_TO_VMWARE` plan만 허용하고 source KVM, target VMware site를 검증한다.
-- target site는 vCenter endpoint와 credentialRef 또는 `vmwareDatacenterId`를 가져야 한다.
+- target site는 vCenter endpoint와 backend-managed vCenter credential 또는 `vmwareDatacenterId`를 가져야 한다.
 - `mapping_json`에는 `targetDatastoreRef`, `resourcePoolRef` 또는 `clusterRef`, `targetFolderPath`, `targetNetworkRef`가 있어야 한다.
 - `SYNC`는 `DrReplica.state=SKELETON_READY`, `power_state=POWERED_OFF`, `hypervisor_type=VMware` record를 생성/갱신한다.
 - `runtime_state_json`은 ownership marker, target mapping, `vcenterOperation=NOT_STARTED`, `materializationState=NOT_STARTED`, `targetReady=false`를 보존한다.
@@ -70,7 +70,7 @@ Phase 1에서 RTO 1시간 목표를 완전히 보장하지 않는다. RTO 목표
 입력:
 
 - target vCenter endpoint 또는 기존 VMware datacenter mapping
-- credential reference
+- 저장된 vCenter credential. UI는 credential reference를 받지 않고 vCenter URL, username, password를 write-only로 입력받는다.
 - datacenter
 - cluster 또는 resource pool
 - datastore
@@ -82,7 +82,7 @@ Phase 1에서 RTO 1시간 목표를 완전히 보장하지 않는다. RTO 목표
 
 | 항목 | 검증 |
 | --- | --- |
-| vCenter connectivity | credential reference로 session 생성 가능 |
+| vCenter connectivity | `DrSiteCredentialService`가 resolve한 저장 credential로 session 생성 가능 |
 | datacenter | 지정 datacenter 존재 |
 | cluster/resource pool | VM 생성 권한과 resource pool 존재 |
 | datastore | VMX/VMDK 생성 가능, free space 조회 가능 |

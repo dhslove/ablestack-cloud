@@ -30,6 +30,7 @@ import com.cloud.dr.dao.DrPlanDao;
 import com.cloud.dr.dao.DrReplicaDao;
 import com.cloud.dr.dao.DrRestorePointDao;
 import com.cloud.exception.InvalidParameterValueException;
+import com.cloud.utils.Pair;
 import com.cloud.utils.component.ManagerBase;
 
 public class DrProjectionServiceImpl extends ManagerBase implements DrProjectionService {
@@ -64,27 +65,47 @@ public class DrProjectionServiceImpl extends ManagerBase implements DrProjection
     @Override
     public List<DrReplicaVO> listReplicas(long planId) {
         requirePlan(planId);
-        refreshPlanProjection(planId, true);
         return drReplicaDao.listActiveByPlanId(planId);
     }
 
     @Override
     public List<DrRestorePointVO> listRestorePoints(long planId) {
         requirePlan(planId);
-        refreshPlanProjection(planId, true);
         return drRestorePointDao.listActiveByPlanId(planId);
+    }
+
+    @Override
+    public List<DrRestorePointVO> listRestorePoints(long planId, long startIndex, long pageSize) {
+        requirePlan(planId);
+        return drRestorePointDao.listActiveByPlanId(planId, startIndex, pageSize);
+    }
+
+    @Override
+    public long countRestorePoints(long planId) {
+        requirePlan(planId);
+        return drRestorePointDao.countActiveByPlanId(planId);
     }
 
     @Override
     public List<DrEventVO> listPlanEvents(long planId) {
         requirePlan(planId);
-        refreshPlanProjection(planId, true);
-        return drEventDao.listByPlanId(planId);
+        return drEventDao.listRecentByPlanId(planId, 20, false);
     }
 
     @Override
     public List<DrEventVO> listRunEvents(long runId) {
-        return drEventDao.listByRunId(runId);
+        return drEventDao.listRecentByRunId(runId, 20);
+    }
+
+    @Override
+    public Pair<List<DrEventVO>, Integer> listPlanEvents(long planId, long startIndex, long pageSize) {
+        requirePlan(planId);
+        return drEventDao.searchRecentByPlanId(planId, startIndex, pageSize, false);
+    }
+
+    @Override
+    public Pair<List<DrEventVO>, Integer> listRunEvents(long runId, long startIndex, long pageSize) {
+        return drEventDao.searchRecentByRunId(runId, startIndex, pageSize);
     }
 
     private DrPlanVO requirePlan(long planId) {

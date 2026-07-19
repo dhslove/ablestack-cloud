@@ -44,6 +44,7 @@ public class ListDrRunStepsCmd extends BaseListCmd {
 
     @Override
     public void execute() {
+        drRunService.getRun(runId);
         ListResponse<DrRunStepResponse> response = new ListResponse<DrRunStepResponse>();
         response.setResponses(drResponseGenerator.createRunStepResponses(drRunService.listRunSteps(runId)));
         response.setResponseName(getCommandName());

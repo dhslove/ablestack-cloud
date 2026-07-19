@@ -72,4 +72,12 @@ public class DrRunDaoImpl extends GenericDaoBase<DrRunVO, Long> implements DrRun
         sc.setParameters("planId", planId);
         return listBy(sc, new Filter(DrRunVO.class, "created", false, null, null));
     }
+
+    @Override
+    public DrRunVO findLatestByPlanId(long planId) {
+        SearchCriteria<DrRunVO> sc = byPlanSearch.create();
+        sc.setParameters("planId", planId);
+        List<DrRunVO> runs = listBy(sc, new Filter(DrRunVO.class, "created", false, 0L, 1L));
+        return runs != null && !runs.isEmpty() ? runs.get(0) : null;
+    }
 }

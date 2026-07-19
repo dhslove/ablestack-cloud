@@ -32,6 +32,10 @@ import org.apache.cloudstack.api.response.dr.DrSiteResponse;
 import org.apache.cloudstack.context.CallContext;
 
 import com.cloud.dr.DrConstants;
+import com.cloud.dr.DrPlanGuidedSpec;
+import com.cloud.dr.DrPlanGuidedSpecBuilder;
+import com.cloud.dr.DrPlanReadiness;
+import com.cloud.dr.DrPlanReadinessValidator;
 import com.cloud.dr.DrPlanService;
 import com.cloud.dr.DrPlanVO;
 import com.cloud.dr.DrRunService;
@@ -52,6 +56,10 @@ public class CreateDrPlanCmd extends BaseAsyncCmd {
     private DrRunService drRunService;
     @Inject
     private DrResponseGenerator drResponseGenerator;
+    @Inject
+    private DrPlanReadinessValidator drPlanReadinessValidator;
+    @Inject
+    private DrPlanGuidedSpecBuilder drPlanGuidedSpecBuilder;
 
     @Parameter(name = "name", type = CommandType.STRING, required = true, description = "the DR plan name")
     private String name;
@@ -92,16 +100,16 @@ public class CreateDrPlanCmd extends BaseAsyncCmd {
     @Parameter(name = "rtoseconds", type = CommandType.INTEGER, description = "the target RTO in seconds")
     private Integer rtoSeconds;
 
-    @Parameter(name = "schedulejson", type = CommandType.STRING, description = "the sync schedule JSON")
+    @Parameter(name = "schedulejson", type = CommandType.STRING, length = 65535, description = "the sync schedule JSON")
     private String scheduleJson;
 
-    @Parameter(name = "policyjson", type = CommandType.STRING, description = "the plan policy JSON")
+    @Parameter(name = "policyjson", type = CommandType.STRING, length = 65535, description = "the plan policy JSON")
     private String policyJson;
 
-    @Parameter(name = "mappingjson", type = CommandType.STRING, description = "the plan mapping JSON")
+    @Parameter(name = "mappingjson", type = CommandType.STRING, length = 65535, description = "the plan mapping JSON")
     private String mappingJson;
 
-    @Parameter(name = "quiescepolicyjson", type = CommandType.STRING, description = "the quiesce policy JSON")
+    @Parameter(name = "quiescepolicyjson", type = CommandType.STRING, length = 65535, description = "the quiesce policy JSON")
     private String quiescePolicyJson;
 
     @Parameter(name = "sourceworkerhostid", type = CommandType.UUID, entityType = HostResponse.class,
@@ -119,6 +127,87 @@ public class CreateDrPlanCmd extends BaseAsyncCmd {
     @Parameter(name = "startsync", type = CommandType.BOOLEAN,
             description = "whether to start the initial DR sync asynchronously after creating the plan")
     private Boolean startSync;
+
+    @Parameter(name = "guidedplan", type = CommandType.BOOLEAN, description = "whether guided inputs should generate engine JSON")
+    private Boolean guidedPlan;
+
+    @Parameter(name = "allowdraft", type = CommandType.BOOLEAN, description = "whether to allow saving an execution-incomplete draft plan")
+    private Boolean allowDraft;
+
+    @Parameter(name = "targetvmname", type = CommandType.STRING, description = "the recovery target VM name")
+    private String targetVmName;
+
+    @Parameter(name = "targetzoneid", type = CommandType.STRING, description = "the recovery target Cloud zone reference")
+    private String targetZoneId;
+
+    @Parameter(name = "targetstorageref", type = CommandType.STRING, description = "the default recovery target storage reference; disk mappings override it per disk")
+    private String targetStorageRef;
+
+    @Parameter(name = "targetcomputeref", type = CommandType.STRING, description = "the recovery target compute reference")
+    private String targetComputeRef;
+
+    @Parameter(name = "targetcpunumber", type = CommandType.INTEGER, description = "the recovery target CPU core count for dynamic compute offerings")
+    private Integer targetCpuNumber;
+
+    @Parameter(name = "targetcpuspeed", type = CommandType.INTEGER, description = "the recovery target CPU speed in MHz for dynamic compute offerings")
+    private Integer targetCpuSpeed;
+
+    @Parameter(name = "targetmemory", type = CommandType.INTEGER, description = "the recovery target memory in MiB for dynamic compute offerings")
+    private Integer targetMemory;
+
+    @Parameter(name = "targetboottype", type = CommandType.STRING, description = "the recovery target boot type, BIOS or UEFI")
+    private String targetBootType;
+
+    @Parameter(name = "targetbootmode", type = CommandType.STRING, description = "the recovery target boot mode, LEGACY or SECURE")
+    private String targetBootMode;
+
+    @Parameter(name = "targetrootdiskcontroller", type = CommandType.STRING, description = "the recovery target root disk controller")
+    private String targetRootDiskController;
+
+    @Parameter(name = "targetdatadiskcontroller", type = CommandType.STRING, description = "the recovery target data disk controller")
+    private String targetDataDiskController;
+
+    @Parameter(name = "targetiothreadsenabled", type = CommandType.BOOLEAN, description = "whether to enable KVM IOThreads on the recovery target VM")
+    private Boolean targetIoThreadsEnabled;
+
+    @Parameter(name = "targetiopolicy", type = CommandType.STRING, description = "the recovery target KVM IO policy; defaults to io_uring")
+    private String targetIoPolicy;
+
+    @Parameter(name = "targetnetworkref", type = CommandType.STRING, description = "the recovery target network reference")
+    private String targetNetworkRef;
+
+    @Parameter(name = "targetfolderpath", type = CommandType.STRING, description = "the VMware target folder path")
+    private String targetFolderPath;
+
+    @Parameter(name = "diskmappingsjson", type = CommandType.STRING, length = 65535, description = "the compact guided disk mapping JSON array; per-disk target storage is authoritative")
+    private String diskMappingsJson;
+
+    @Parameter(name = "consistencymode", type = CommandType.STRING, description = "the consistency mode")
+    private String consistencyMode;
+
+    @Parameter(name = "testnetworkmode", type = CommandType.STRING, description = "the test failover network mode")
+    private String testNetworkMode;
+
+    @Parameter(name = "testbootvalidationmode", type = CommandType.STRING, description = "test failover boot validation mode: POWER_STATE_ONLY or QGA_REQUIRED")
+    private String testBootValidationMode;
+
+    @Parameter(name = "testboottimeoutseconds", type = CommandType.INTEGER, description = "test failover boot validation timeout in seconds")
+    private Integer testBootTimeoutSeconds;
+
+    @Parameter(name = "failoverpoweron", type = CommandType.BOOLEAN, description = "whether failover should power on the target VM")
+    private Boolean failoverPowerOn;
+
+    @Parameter(name = "syncintervalseconds", type = CommandType.INTEGER, description = "the continuous sync interval in seconds")
+    private Integer syncIntervalSeconds;
+
+    @Parameter(name = "retentioncount", type = CommandType.INTEGER, description = "the restore point retention count")
+    private Integer retentionCount;
+
+    @Parameter(name = "bandwidthlimitmbps", type = CommandType.INTEGER, description = "the optional bandwidth limit in Mbps")
+    private Integer bandwidthLimitMbps;
+
+    @Parameter(name = "retrycount", type = CommandType.INTEGER, description = "the retry count")
+    private Integer retryCount;
 
     @Override
     public void execute() throws ServerApiException {
@@ -139,6 +228,8 @@ public class CreateDrPlanCmd extends BaseAsyncCmd {
             plan.setSourceWorkerHostId(sourceWorkerHostId);
             plan.setTargetWorkerHostId(targetWorkerHostId);
             plan.setCoordinatorWorkerHostId(coordinatorWorkerHostId);
+            guidedSpecBuilder().applyIfRequested(plan, buildGuidedSpec());
+            validateDraftPolicy(plan);
             DrPlanVO created = drPlanService.createPlan(plan);
             if (Boolean.TRUE.equals(startSync)) {
                 drRunService.startRun(created.getId(), DrConstants.RUN_TYPE_SYNC, "create-plan-initial-sync:" + created.getUuid(),
@@ -148,6 +239,8 @@ public class CreateDrPlanCmd extends BaseAsyncCmd {
             DrPlanResponse response = drResponseGenerator.createPlanResponse(created, drPlanService.getActionEligibility(created.getId()));
             response.setResponseName(getCommandName());
             setResponseObject(response);
+        } catch (ServerApiException e) {
+            throw e;
         } catch (RuntimeException e) {
             throw new ServerApiException(ApiErrorCode.INTERNAL_ERROR, e.getMessage());
         }
@@ -184,5 +277,52 @@ public class CreateDrPlanCmd extends BaseAsyncCmd {
         request.addProperty("initialProtectionSetup", true);
         request.addProperty("reason", "createDrPlan startSync");
         return request.toString();
+    }
+
+    private DrPlanGuidedSpec buildGuidedSpec() {
+        DrPlanGuidedSpec spec = new DrPlanGuidedSpec();
+        spec.setGuidedPlan(guidedPlan);
+        spec.setTargetVmName(targetVmName);
+        spec.setTargetZoneId(targetZoneId);
+        spec.setTargetStorageRef(targetStorageRef);
+        spec.setTargetComputeRef(targetComputeRef);
+        spec.setTargetCpuNumber(targetCpuNumber);
+        spec.setTargetCpuSpeed(targetCpuSpeed);
+        spec.setTargetMemory(targetMemory);
+        spec.setTargetBootType(targetBootType);
+        spec.setTargetBootMode(targetBootMode);
+        spec.setTargetRootDiskController(targetRootDiskController);
+        spec.setTargetDataDiskController(targetDataDiskController);
+        spec.setTargetIoThreadsEnabled(targetIoThreadsEnabled);
+        spec.setTargetIoPolicy(targetIoPolicy);
+        spec.setTargetNetworkRef(targetNetworkRef);
+        spec.setTargetFolderPath(targetFolderPath);
+        spec.setDiskMappingsJson(diskMappingsJson);
+        spec.setConsistencyMode(consistencyMode);
+        spec.setTestNetworkMode(testNetworkMode);
+        spec.setTestBootValidationMode(testBootValidationMode);
+        spec.setTestBootTimeoutSeconds(testBootTimeoutSeconds);
+        spec.setFailoverPowerOn(failoverPowerOn);
+        spec.setSyncIntervalSeconds(syncIntervalSeconds);
+        spec.setRetentionCount(retentionCount);
+        spec.setBandwidthLimitMbps(bandwidthLimitMbps);
+        spec.setRetryCount(retryCount);
+        return spec;
+    }
+
+    private DrPlanGuidedSpecBuilder guidedSpecBuilder() {
+        return drPlanGuidedSpecBuilder != null ? drPlanGuidedSpecBuilder : new DrPlanGuidedSpecBuilder();
+    }
+
+    private void validateDraftPolicy(DrPlanVO plan) {
+        if (drPlanReadinessValidator == null) {
+            return;
+        }
+        DrPlanReadiness readiness = drPlanReadinessValidator.validateForExecution(plan);
+        boolean draftAllowed = allowDraft == null || Boolean.TRUE.equals(allowDraft);
+        if ((Boolean.TRUE.equals(startSync) || !draftAllowed) && !readiness.isExecutionReady()) {
+            throw new ServerApiException(ApiErrorCode.PARAM_ERROR,
+                    "DR plan is not execution-ready: " + readiness.getBlockingReasons());
+        }
     }
 }

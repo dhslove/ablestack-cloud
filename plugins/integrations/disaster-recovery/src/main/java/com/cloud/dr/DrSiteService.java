@@ -21,7 +21,11 @@ import java.util.List;
 public interface DrSiteService {
     DrSiteVO createSite(DrSiteVO site);
 
+    DrSiteVO createSite(DrSiteVO site, DrSiteCredentialInput credentialInput);
+
     DrSiteVO updateSite(long siteId, DrSiteVO update);
+
+    DrSiteVO updateSite(long siteId, DrSiteVO update, DrSiteCredentialInput credentialInput, boolean clearCredential);
 
     DrSiteVO getSite(long siteId);
 
@@ -30,4 +34,8 @@ public interface DrSiteService {
     boolean deleteSite(long siteId);
 
     DrSiteVO checkSite(long siteId);
+
+    DrSiteVO checkSite(long siteId, boolean persistStatus);
+
+    DrSiteVO checkSite(long siteId, boolean persistStatus, String triggerType, String jobId);
 }

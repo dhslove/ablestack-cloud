@@ -118,9 +118,27 @@ CREATE TABLE IF NOT EXISTS `cloud`.`dr_site` (
     `hypervisor_type` varchar(64) NOT NULL,
     `endpoint` varchar(2048) NULL,
     `credential_ref` varchar(255) NULL,
+    `credential_id` bigint unsigned NULL,
     `zone_id` bigint unsigned NULL,
+    `zone_external_id` varchar(255) NULL,
+    `zone_name` varchar(255) NULL,
     `vmware_datacenter_id` bigint unsigned NULL,
+    `vmware_datacenter_external_id` varchar(255) NULL,
+    `vmware_datacenter_name` varchar(255) NULL,
     `state` varchar(64) NULL,
+    `effective_mode` varchar(32) NULL,
+    `incremental_verified` tinyint(1) NULL,
+    `metrics_estimated` tinyint(1) NULL,
+    `virtual_bytes` bigint unsigned NULL,
+    `changed_bytes` bigint unsigned NULL,
+    `source_read_bytes` bigint unsigned NULL,
+    `target_written_bytes` bigint unsigned NULL,
+    `transfer_payload_bytes` bigint unsigned NULL,
+    `changed_extent_count` bigint unsigned NULL,
+    `duration_ms` bigint unsigned NULL,
+    `throughput_bps` bigint unsigned NULL,
+    `baseline_generation` bigint unsigned NULL,
+    `cycle_token` varchar(255) NULL,
     `health_state` varchar(64) NULL,
     `capabilities_json` text NULL,
     `last_checked` datetime NULL,
@@ -130,8 +148,66 @@ CREATE TABLE IF NOT EXISTS `cloud`.`dr_site` (
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_dr_site__uuid` (`uuid`),
     KEY `i_dr_site__name` (`name`),
+    KEY `i_dr_site__credential_id` (`credential_id`),
     KEY `i_dr_site__zone_id` (`zone_id`),
     CONSTRAINT `fk_dr_site__zone_id` FOREIGN KEY (`zone_id`) REFERENCES `data_center` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_site', 'credential_id', 'bigint unsigned NULL AFTER `credential_ref`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_site', 'zone_external_id', 'varchar(255) NULL AFTER `zone_id`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_site', 'zone_name', 'varchar(255) NULL AFTER `zone_external_id`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_site', 'vmware_datacenter_external_id', 'varchar(255) NULL AFTER `vmware_datacenter_id`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_site', 'vmware_datacenter_name', 'varchar(255) NULL AFTER `vmware_datacenter_external_id`');
+CALL `cloud`.`IDEMPOTENT_ADD_KEY`('i_dr_site__credential_id', 'cloud.dr_site', '(`credential_id`)');
+
+CREATE TABLE IF NOT EXISTS `cloud`.`dr_site_credential` (
+    `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+    `uuid` varchar(40) NOT NULL,
+    `site_id` bigint unsigned NOT NULL,
+    `credential_type` varchar(64) NOT NULL,
+    `endpoint` varchar(2048) NULL,
+    `principal` varchar(255) NULL,
+    `secret_payload` text NULL,
+    `tls_verify` tinyint(1) NOT NULL DEFAULT 1,
+    `state` varchar(64) NULL,
+    `last_validated` datetime NULL,
+    `created` datetime NOT NULL,
+    `updated` datetime NULL,
+    `removed` datetime NULL,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_dr_site_credential__uuid` (`uuid`),
+    KEY `i_dr_site_credential__site_id` (`site_id`),
+    KEY `i_dr_site_credential__state` (`state`),
+    CONSTRAINT `fk_dr_site_credential__site_id` FOREIGN KEY (`site_id`) REFERENCES `dr_site` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+CREATE TABLE IF NOT EXISTS `cloud`.`dr_site_health_check` (
+    `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+    `uuid` varchar(40) NOT NULL,
+    `site_id` bigint unsigned NOT NULL,
+    `site_uuid` varchar(40) NOT NULL,
+    `site_name` varchar(255) NOT NULL,
+    `site_type` varchar(64) NOT NULL,
+    `hypervisor_type` varchar(64) NOT NULL,
+    `endpoint` varchar(2048) NULL,
+    `credential_id` bigint unsigned NULL,
+    `credential_state` varchar(64) NULL,
+    `trigger_type` varchar(64) NOT NULL,
+    `health_state` varchar(64) NOT NULL,
+    `reason_code` varchar(128) NULL,
+    `message` text NULL,
+    `latency_ms` bigint NULL,
+    `checked_at` datetime NOT NULL,
+    `management_server_id` bigint unsigned NULL,
+    `job_id` varchar(255) NULL,
+    `details_json` text NULL,
+    `created` datetime NOT NULL,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_dr_site_health_check__uuid` (`uuid`),
+    KEY `i_dr_site_health_check__site_checked` (`site_id`, `checked_at`),
+    KEY `i_dr_site_health_check__state_checked` (`health_state`, `checked_at`),
+    KEY `i_dr_site_health_check__trigger_checked` (`trigger_type`, `checked_at`),
+    CONSTRAINT `fk_dr_site_health_check__site_id` FOREIGN KEY (`site_id`) REFERENCES `dr_site` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `cloud`.`dr_site_pair` (
@@ -195,6 +271,7 @@ CREATE TABLE IF NOT EXISTS `cloud`.`dr_plan` (
     KEY `i_dr_plan__source_site_id` (`source_site_id`),
     KEY `i_dr_plan__target_site_id` (`target_site_id`),
     KEY `i_dr_plan__source_vm_id` (`source_vm_id`),
+    KEY `i_dr_plan__source_site_external_ref_removed` (`source_site_id`, `source_external_ref`(255), `removed`),
     KEY `i_dr_plan__engine_binding` (`engine_binding_type`, `engine_binding_id`),
     KEY `i_dr_plan__state` (`state`),
     CONSTRAINT `fk_dr_plan__source_site_id` FOREIGN KEY (`source_site_id`) REFERENCES `dr_site` (`id`) ON DELETE CASCADE,
@@ -208,11 +285,16 @@ CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan', 'target_worker_host_id', '
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan', 'coordinator_worker_host_id', 'bigint unsigned NULL AFTER `target_worker_host_id`');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan', 'last_source_checkpoint_at', 'datetime NULL AFTER `coordinator_worker_host_id`');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan', 'last_target_durable_at', 'datetime NULL AFTER `last_source_checkpoint_at`');
+CALL `cloud`.`IDEMPOTENT_ADD_KEY`('i_dr_plan__source_site_external_ref_removed', 'cloud.dr_plan', '(`source_site_id`, `source_external_ref`(255), `removed`)');
 
 CREATE TABLE IF NOT EXISTS `cloud`.`dr_restore_point` (
     `id` bigint unsigned NOT NULL AUTO_INCREMENT,
     `uuid` varchar(40) NOT NULL,
     `plan_id` bigint unsigned NOT NULL,
+    `run_id` bigint unsigned NULL,
+    `checkpoint_sequence` bigint unsigned NULL,
+    `checkpoint_cycle_type` varchar(32) NULL,
+    `checkpoint_ref_hash` binary(32) NULL,
     `source_snapshot_ref` varchar(2048) NULL,
     `source_created` datetime NULL,
     `target_ready_at` datetime NULL,
@@ -226,10 +308,63 @@ CREATE TABLE IF NOT EXISTS `cloud`.`dr_restore_point` (
     `removed` datetime NULL,
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_dr_restore_point__uuid` (`uuid`),
+    UNIQUE KEY `uk_dr_restore_point__plan_checkpoint_hash` (`plan_id`, `checkpoint_ref_hash`),
     KEY `i_dr_restore_point__plan_id` (`plan_id`),
     KEY `i_dr_restore_point__target_ready_at` (`target_ready_at`),
+    KEY `i_dr_restore_point__plan_ready_removed` (`plan_id`, `target_ready_at`, `removed`),
     CONSTRAINT `fk_dr_restore_point__plan_id` FOREIGN KEY (`plan_id`) REFERENCES `dr_plan` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_restore_point', 'run_id', 'bigint unsigned NULL AFTER `plan_id`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_restore_point', 'checkpoint_sequence', 'bigint unsigned NULL AFTER `run_id`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_restore_point', 'checkpoint_cycle_type', 'varchar(32) NULL AFTER `checkpoint_sequence`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_restore_point', 'checkpoint_ref_hash', 'binary(32) NULL AFTER `checkpoint_cycle_type`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_restore_point', 'effective_mode', 'varchar(32) NULL AFTER `state`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_restore_point', 'requested_mode', 'varchar(32) NULL AFTER `state`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_restore_point', 'automatic_reseed', 'tinyint(1) NULL AFTER `effective_mode`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_restore_point', 'mode_decision_code', 'varchar(128) NULL AFTER `automatic_reseed`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_restore_point', 'reseed_reason', 'varchar(128) NULL AFTER `mode_decision_code`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_restore_point', 'invalid_baseline_disk_count', 'int unsigned NULL AFTER `reseed_reason`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_restore_point', 'incremental_verified', 'tinyint(1) NULL AFTER `effective_mode`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_restore_point', 'metrics_estimated', 'tinyint(1) NULL AFTER `incremental_verified`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_restore_point', 'virtual_bytes', 'bigint unsigned NULL AFTER `metrics_estimated`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_restore_point', 'changed_bytes', 'bigint unsigned NULL AFTER `virtual_bytes`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_restore_point', 'source_read_bytes', 'bigint unsigned NULL AFTER `changed_bytes`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_restore_point', 'target_written_bytes', 'bigint unsigned NULL AFTER `source_read_bytes`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_restore_point', 'transfer_payload_bytes', 'bigint unsigned NULL AFTER `target_written_bytes`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_restore_point', 'changed_extent_count', 'bigint unsigned NULL AFTER `transfer_payload_bytes`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_restore_point', 'duration_ms', 'bigint unsigned NULL AFTER `changed_extent_count`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_restore_point', 'throughput_bps', 'bigint unsigned NULL AFTER `duration_ms`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_restore_point', 'baseline_generation', 'bigint unsigned NULL AFTER `throughput_bps`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_restore_point', 'cycle_token', 'varchar(255) NULL AFTER `baseline_generation`');
+UPDATE `cloud`.`dr_restore_point` rp
+JOIN (SELECT `plan_id`, MAX(`id`) AS `run_id` FROM `cloud`.`dr_run` WHERE `removed` IS NULL GROUP BY `plan_id`) latest_run
+  ON latest_run.`plan_id` = rp.`plan_id`
+SET rp.`run_id` = latest_run.`run_id`
+WHERE rp.`removed` IS NULL AND rp.`run_id` IS NULL;
+UPDATE `cloud`.`dr_restore_point`
+SET `checkpoint_sequence` = CAST(SUBSTRING_INDEX(`source_snapshot_ref`, ':', -1) AS UNSIGNED),
+    `checkpoint_cycle_type` = IF(CAST(SUBSTRING_INDEX(`source_snapshot_ref`, ':', -1) AS UNSIGNED) = 1, 'full-seed', 'incremental')
+WHERE `removed` IS NULL AND `checkpoint_sequence` IS NULL
+  AND `source_snapshot_ref` LIKE 'ftctl:%'
+  AND SUBSTRING_INDEX(`source_snapshot_ref`, ':', -1) REGEXP '^[0-9]+$';
+UPDATE `cloud`.`dr_restore_point`
+SET `checkpoint_ref_hash` = UNHEX(SHA2(`source_snapshot_ref`, 256))
+WHERE `removed` IS NULL AND `source_snapshot_ref` IS NOT NULL AND `checkpoint_ref_hash` IS NULL;
+UPDATE `cloud`.`dr_restore_point` rp
+JOIN (
+    SELECT `plan_id`, `checkpoint_ref_hash`, MAX(`id`) AS `keep_id`
+    FROM `cloud`.`dr_restore_point`
+    WHERE `removed` IS NULL AND `checkpoint_ref_hash` IS NOT NULL
+    GROUP BY `plan_id`, `checkpoint_ref_hash`
+    HAVING COUNT(*) > 1
+) duplicate_checkpoint
+  ON duplicate_checkpoint.`plan_id` = rp.`plan_id`
+ AND duplicate_checkpoint.`checkpoint_ref_hash` = rp.`checkpoint_ref_hash`
+SET rp.`removed` = COALESCE(rp.`removed`, NOW()), rp.`checkpoint_ref_hash` = NULL, rp.`updated` = NOW()
+WHERE rp.`id` <> duplicate_checkpoint.`keep_id`;
+CALL `cloud`.`IDEMPOTENT_ADD_UNIQUE_KEY`('cloud.dr_restore_point', 'uk_dr_restore_point__plan_checkpoint_hash', '(`plan_id`, `checkpoint_ref_hash`)');
+CALL `cloud`.`IDEMPOTENT_ADD_KEY`('i_dr_restore_point__plan_ready_removed', 'cloud.dr_restore_point', '(`plan_id`, `target_ready_at`, `removed`)');
 
 CREATE TABLE IF NOT EXISTS `cloud`.`dr_restore_point_artifact` (
     `id` bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -321,6 +456,17 @@ CREATE TABLE IF NOT EXISTS `cloud`.`dr_run` (
     `requested_by_user_id` bigint unsigned NULL,
     `async_job_id` bigint unsigned NULL,
     `external_job_ref` varchar(2048) NULL,
+    `engine_accepted` tinyint(1) NOT NULL DEFAULT 0,
+    `accepted_at` datetime NULL,
+    `dispatch_started` datetime NULL,
+    `dispatch_completed` datetime NULL,
+    `projection_state` varchar(64) NULL,
+    `projection_checked` datetime NULL,
+    `retryable` tinyint(1) NOT NULL DEFAULT 0,
+    `retry_count` int NOT NULL DEFAULT 0,
+    `retry_after_seconds` int NULL,
+    `next_retry_at` datetime NULL,
+    `last_status_json` mediumtext NULL,
     `current_step_name` varchar(255) NULL,
     `error_code` varchar(128) NULL,
     `error_message` text NULL,
@@ -332,6 +478,8 @@ CREATE TABLE IF NOT EXISTS `cloud`.`dr_run` (
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_dr_run__uuid` (`uuid`),
     KEY `i_dr_run__plan_id` (`plan_id`),
+    KEY `i_dr_run__plan_created` (`plan_id`, `created`),
+    KEY `i_dr_run__plan_state_completed` (`plan_id`, `state`, `completed`),
     KEY `i_dr_run__idempotency` (`plan_id`, `idempotency_key`),
     KEY `i_dr_run__async_job_id` (`async_job_id`),
     CONSTRAINT `fk_dr_run__plan_id` FOREIGN KEY (`plan_id`) REFERENCES `dr_plan` (`id`) ON DELETE CASCADE,
@@ -358,8 +506,27 @@ CREATE TABLE IF NOT EXISTS `cloud`.`dr_run_step` (
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_dr_run_step__uuid` (`uuid`),
     KEY `i_dr_run_step__run_id` (`run_id`),
+    KEY `i_dr_run_step__run_order` (`run_id`, `step_order`),
     CONSTRAINT `fk_dr_run_step__run_id` FOREIGN KEY (`run_id`) REFERENCES `dr_run` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+ALTER TABLE `cloud`.`dr_run`
+    ADD COLUMN IF NOT EXISTS `engine_accepted` tinyint(1) NOT NULL DEFAULT 0 AFTER `external_job_ref`,
+    ADD COLUMN IF NOT EXISTS `accepted_at` datetime NULL AFTER `engine_accepted`,
+    ADD COLUMN IF NOT EXISTS `dispatch_started` datetime NULL AFTER `accepted_at`,
+    ADD COLUMN IF NOT EXISTS `dispatch_completed` datetime NULL AFTER `dispatch_started`,
+    ADD COLUMN IF NOT EXISTS `projection_state` varchar(64) NULL AFTER `dispatch_completed`,
+    ADD COLUMN IF NOT EXISTS `projection_checked` datetime NULL AFTER `projection_state`,
+    ADD COLUMN IF NOT EXISTS `retryable` tinyint(1) NOT NULL DEFAULT 0 AFTER `projection_checked`,
+    ADD COLUMN IF NOT EXISTS `retry_count` int NOT NULL DEFAULT 0 AFTER `retryable`,
+    ADD COLUMN IF NOT EXISTS `retry_after_seconds` int NULL AFTER `retry_count`,
+    ADD COLUMN IF NOT EXISTS `next_retry_at` datetime NULL AFTER `retry_after_seconds`,
+    ADD COLUMN IF NOT EXISTS `last_status_json` mediumtext NULL AFTER `next_retry_at`,
+    ADD INDEX IF NOT EXISTS `i_dr_run__plan_created` (`plan_id`, `created`),
+    ADD INDEX IF NOT EXISTS `i_dr_run__plan_state_completed` (`plan_id`, `state`, `completed`);
+
+ALTER TABLE `cloud`.`dr_run_step`
+    ADD INDEX IF NOT EXISTS `i_dr_run_step__run_order` (`run_id`, `step_order`);
 
 CREATE TABLE IF NOT EXISTS `cloud`.`dr_event` (
     `id` bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -380,6 +547,127 @@ CREATE TABLE IF NOT EXISTS `cloud`.`dr_event` (
     CONSTRAINT `fk_dr_event__plan_id` FOREIGN KEY (`plan_id`) REFERENCES `dr_plan` (`id`) ON DELETE SET NULL,
     CONSTRAINT `fk_dr_event__run_id` FOREIGN KEY (`run_id`) REFERENCES `dr_run` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+CREATE TABLE IF NOT EXISTS `cloud`.`dr_plan_view_cache` (
+    `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+    `plan_id` bigint unsigned NOT NULL,
+    `snapshot_version` int unsigned NOT NULL DEFAULT 1,
+    `snapshot_json` mediumtext NOT NULL,
+    `projection_state` varchar(32) NOT NULL DEFAULT 'READY',
+    `last_error` varchar(4096) DEFAULT NULL,
+    `last_refresh_error_code` varchar(255) DEFAULT NULL,
+    `last_refresh_error_message` varchar(4096) DEFAULT NULL,
+    `last_refresh_failed_at` datetime DEFAULT NULL,
+    `generated_at` datetime NOT NULL,
+    `created` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated` datetime DEFAULT NULL,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_dr_plan_view_cache__plan_id` (`plan_id`),
+    KEY `i_dr_plan_view_cache__generated_at` (`generated_at`),
+    CONSTRAINT `fk_dr_plan_view_cache__plan_id` FOREIGN KEY (`plan_id`) REFERENCES `dr_plan` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `cloud`.`dr_plan_runtime` (
+    `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+    `plan_id` bigint unsigned NOT NULL,
+    `engine_run_uuid` varchar(40) DEFAULT NULL,
+    `runtime_generation` bigint unsigned NOT NULL DEFAULT 0,
+    `scheduler_state` varchar(32) DEFAULT NULL,
+    `scheduler_pid_alive` tinyint(1) NOT NULL DEFAULT 0,
+    `worker_state` varchar(32) DEFAULT NULL,
+    `current_cycle_sequence` bigint unsigned DEFAULT NULL,
+    `current_cycle_state` varchar(32) DEFAULT NULL,
+    `current_cycle_mode` varchar(32) DEFAULT NULL,
+    `baseline_state` varchar(32) DEFAULT NULL,
+    `reseed_reason` varchar(128) DEFAULT NULL,
+    `protection_state` varchar(32) NOT NULL DEFAULT 'UNKNOWN',
+    `freshness_state` varchar(32) NOT NULL DEFAULT 'UNKNOWN',
+    `last_status_at` datetime DEFAULT NULL,
+    `last_source_checkpoint_at` datetime DEFAULT NULL,
+    `last_target_durable_at` datetime DEFAULT NULL,
+    `rpo_age_seconds` bigint unsigned DEFAULT NULL,
+    `rpo_overdue` tinyint(1) NOT NULL DEFAULT 0,
+    `error_code` varchar(128) DEFAULT NULL,
+    `error_message` varchar(4096) DEFAULT NULL,
+    `status_json` mediumtext,
+    `created` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated` datetime DEFAULT NULL,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_dr_plan_runtime__plan_id` (`plan_id`),
+    KEY `i_dr_plan_runtime__state_updated` (`protection_state`, `freshness_state`, `updated`),
+    CONSTRAINT `fk_dr_plan_runtime__plan_id` FOREIGN KEY (`plan_id`) REFERENCES `dr_plan` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `cloud`.`dr_sync_cycle` (
+    `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+    `uuid` varchar(40) NOT NULL,
+    `plan_id` bigint unsigned NOT NULL,
+    `run_id` bigint unsigned DEFAULT NULL,
+    `engine_run_uuid` varchar(40) NOT NULL,
+    `sequence` bigint unsigned NOT NULL,
+    `requested_mode` varchar(32) DEFAULT NULL,
+    `effective_mode` varchar(32) DEFAULT NULL,
+    `state` varchar(32) NOT NULL,
+    `commit_state` varchar(32) DEFAULT NULL,
+    `baseline_generation` bigint unsigned DEFAULT NULL,
+    `baseline_state` varchar(32) DEFAULT NULL,
+    `reseed_reason` varchar(128) DEFAULT NULL,
+    `incremental_verified` tinyint(1) DEFAULT NULL,
+    `metrics_estimated` tinyint(1) DEFAULT NULL,
+    `virtual_bytes` bigint unsigned DEFAULT NULL,
+    `changed_bytes` bigint unsigned DEFAULT NULL,
+    `source_read_bytes` bigint unsigned DEFAULT NULL,
+    `target_written_bytes` bigint unsigned DEFAULT NULL,
+    `transfer_payload_bytes` bigint unsigned DEFAULT NULL,
+    `changed_extent_count` bigint unsigned DEFAULT NULL,
+    `duration_ms` bigint unsigned DEFAULT NULL,
+    `throughput_bps` bigint unsigned DEFAULT NULL,
+    `source_checkpoint_at` datetime DEFAULT NULL,
+    `target_durable_at` datetime DEFAULT NULL,
+    `error_code` varchar(128) DEFAULT NULL,
+    `error_message` varchar(4096) DEFAULT NULL,
+    `started` datetime DEFAULT NULL,
+    `completed` datetime DEFAULT NULL,
+    `created` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated` datetime DEFAULT NULL,
+    `removed` datetime DEFAULT NULL,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_dr_sync_cycle__uuid` (`uuid`),
+    UNIQUE KEY `uk_dr_sync_cycle__plan_run_sequence` (`plan_id`, `engine_run_uuid`, `sequence`),
+    KEY `i_dr_sync_cycle__plan_sequence` (`plan_id`, `sequence`),
+    KEY `i_dr_sync_cycle__plan_state_updated` (`plan_id`, `state`, `updated`),
+    CONSTRAINT `fk_dr_sync_cycle__plan_id` FOREIGN KEY (`plan_id`) REFERENCES `dr_plan` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_dr_sync_cycle__run_id` FOREIGN KEY (`run_id`) REFERENCES `dr_run` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'last_mode_decision_code', 'varchar(128) NULL AFTER `reseed_reason`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'consecutive_automatic_reseed_count', 'int unsigned NOT NULL DEFAULT 0 AFTER `last_mode_decision_code`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'latest_completed_cycle_sequence', 'bigint unsigned NULL AFTER `consecutive_automatic_reseed_count`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'latest_completed_incremental_verified', 'tinyint(1) NULL AFTER `latest_completed_cycle_sequence`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_sync_cycle', 'automatic_reseed', 'tinyint(1) NULL AFTER `reseed_reason`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_sync_cycle', 'mode_decision_code', 'varchar(128) NULL AFTER `automatic_reseed`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_sync_cycle', 'invalid_baseline_disk_count', 'int unsigned NULL AFTER `mode_decision_code`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_sync_cycle', 'cycle_token', 'varchar(255) NULL AFTER `sequence`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'projection_integrity_state', 'varchar(32) NULL AFTER `latest_completed_incremental_verified`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'projection_integrity_code', 'varchar(128) NULL AFTER `projection_integrity_state`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'projection_integrity_sequence', 'bigint unsigned NULL AFTER `projection_integrity_code`');
+
+
+ALTER TABLE `cloud`.`dr_plan_view_cache`
+    ADD COLUMN IF NOT EXISTS `last_refresh_error_code` varchar(255) DEFAULT NULL AFTER `last_error`,
+    ADD COLUMN IF NOT EXISTS `last_refresh_error_message` varchar(4096) DEFAULT NULL AFTER `last_refresh_error_code`,
+    ADD COLUMN IF NOT EXISTS `last_refresh_failed_at` datetime DEFAULT NULL AFTER `last_refresh_error_message`;
+
+ALTER TABLE `cloud`.`dr_event`
+    ADD INDEX IF NOT EXISTS `i_dr_event__plan_created_id` (`plan_id`, `created`, `id`);
+
+UPDATE `cloud`.`volumes` v
+JOIN `cloud`.`dr_replica_disk` d ON d.target_volume_id = v.id AND d.removed IS NULL
+JOIN `cloud`.`storage_pool` p ON p.id = v.pool_id AND p.removed IS NULL
+SET v.format = 'RAW'
+WHERE v.removed IS NULL
+  AND UPPER(p.pool_type) = 'RBD'
+  AND UPPER(COALESCE(v.format, '')) <> 'RAW';
 
 -- Create webhook_filter table
 DROP TABLE IF EXISTS `cloud`.`webhook_filter`;
@@ -451,3 +739,22 @@ CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.vpc_offerings','conserve_mode', 'tin
 
 --- Disable/enable NICs
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.nics','enabled', 'TINYINT(1) NOT NULL DEFAULT 1 COMMENT ''Indicates whether the NIC is enabled or not'' ');
+CREATE TABLE IF NOT EXISTS `cloud`.`dr_cutover_session` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT, `uuid` varchar(40) NOT NULL, `plan_id` bigint unsigned NOT NULL,
+  `run_id` bigint unsigned NOT NULL, `mode` varchar(16) NOT NULL, `checkpoint_sequence` bigint unsigned DEFAULT NULL,
+  `state` varchar(64) NOT NULL, `guest_os_family` varchar(32), `guest_preparation_state` varchar(64),
+  `virtio_state` varchar(32), `secure_boot_state` varchar(32), `domain_name` varchar(255),
+  `boot_validation_state` varchar(64), `cleanup_required` tinyint(1) NOT NULL DEFAULT 0,
+  `details_json` mediumtext, `error_code` varchar(128), `error_message` varchar(1024),
+  `created` datetime NOT NULL, `updated` datetime NOT NULL, `removed` datetime,
+  PRIMARY KEY (`id`), UNIQUE KEY `uk_dr_cutover_session_uuid` (`uuid`),
+  KEY `idx_dr_cutover_session_plan_active` (`plan_id`,`removed`), KEY `idx_dr_cutover_session_run` (`run_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS `cloud`.`dr_cutover_disk` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT, `session_id` bigint unsigned NOT NULL, `disk_index` int unsigned NOT NULL,
+  `provider` varchar(32) NOT NULL, `checkpoint_ref` varchar(1024) NOT NULL, `writable_ref` varchar(1024),
+  `rollback_ref` varchar(1024), `state` varchar(64) NOT NULL, `details_json` mediumtext,
+  `created` datetime NOT NULL, `updated` datetime NOT NULL, `removed` datetime,
+  PRIMARY KEY (`id`), UNIQUE KEY `uk_dr_cutover_disk_session_index` (`session_id`,`disk_index`),
+  KEY `idx_dr_cutover_disk_session_active` (`session_id`,`removed`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

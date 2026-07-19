@@ -11,6 +11,7 @@
 - [502-cross-hypervisor-dr-adapter-contract-design-20260630.md](502-cross-hypervisor-dr-adapter-contract-design-20260630.md)
 - [503-cross-hypervisor-dr-state-machine-and-worker-design-20260630.md](503-cross-hypervisor-dr-state-machine-and-worker-design-20260630.md)
 - [506-cross-hypervisor-dr-cloud-ui-design-20260630.md](506-cross-hypervisor-dr-cloud-ui-design-20260630.md)
+- [530-cross-hypervisor-dr-site-inventory-and-detail-ux-design-20260703.md](530-cross-hypervisor-dr-site-inventory-and-detail-ux-design-20260703.md)
 
 ## 1. 목적
 
@@ -83,7 +84,9 @@ API command는 다음 규칙을 따른다.
 | `createDrSite` | `CreateDrSiteCmd` | `BaseAsyncCmd` | `DrSiteResponse` | DR endpoint 등록 |
 | `listDrSites` | `ListDrSitesCmd` | `BaseListCmd` | `ListResponse<DrSiteResponse>` | site 목록/필터 |
 | `getDrSite` | `GetDrSiteCmd` | `BaseCmd` | `DrSiteResponse` | 단일 site 상세 |
-| `updateDrSite` | `UpdateDrSiteCmd` | `BaseAsyncCmd` | `DrSiteResponse` | endpoint, credential ref, capability 갱신 |
+| `updateDrSite` | `UpdateDrSiteCmd` | `BaseAsyncCmd` | `DrSiteResponse` | endpoint, mapping, capability 갱신 |
+| `updateDrSiteCredential` | `UpdateDrSiteCredentialCmd` | `BaseAsyncCmd` | `DrSiteResponse` | Mold/vCenter 인증정보 갱신 |
+| `clearDrSiteCredential` | `ClearDrSiteCredentialCmd` | `BaseAsyncCmd` | `DrSiteResponse` | 저장된 인증정보 삭제 |
 | `deleteDrSite` | `DeleteDrSiteCmd` | `BaseAsyncCmd` | `SuccessResponse` 또는 `DrSiteResponse` | site soft delete |
 | `checkDrSite` | `CheckDrSiteCmd` | `BaseAsyncCmd` | `DrSiteCheckResponse` | connectivity/capability preflight |
 
@@ -96,13 +99,100 @@ API command는 다음 규칙을 따른다.
 | `siteType` | yes | `MOLD_KVM`, `MOLD_VMWARE`, `VMWARE_DIRECT` |
 | `hypervisorType` | yes | `KVM`, `VMWARE` |
 | `endpoint` | conditional | remote Mold URL 또는 vCenter URL |
-| `credentialRef` | conditional | secret 직접 값이 아니라 credential reference |
-| `zoneId` | conditional | local Mold zone 연결 시 사용 |
-| `vmwareDcId` | conditional | Mold-managed VMware datacenter 연결 시 사용 |
+| `zoneId` | no | local Cloud internal Zone id. 하위 호환/로컬 참조 전용 |
+| `zoneExternalId` | conditional | remote Mold/vCenter Zone id 또는 uuid |
+| `zoneName` | no | remote Zone 표시 이름 |
+| `vmwareDcId` | no | local VMware datacenter internal id. 하위 호환/로컬 참조 전용 |
+| `vmwareDcExternalId` | conditional | remote VMware datacenter id, uuid 또는 MoRef |
+| `vmwareDcName` | no | remote VMware datacenter 표시 이름 |
 | `certificatePolicy` | no | `STRICT`, `TRUST_ON_FIRST_USE`, `INSECURE_ALLOWED` |
 | `capabilityJson` | no | 사전 수집 capability snapshot |
 
-`checkDrSite` result는 `DrSite.status`를 무조건 바꾸지 않는다. check가 성공하면 `last_check_*`를 갱신하고, 명시적 `persistStatus=true`가 있을 때만 status를 갱신한다.
+Credential parameters는 사용자 입력을 그대로 reference로 저장하지 않고 write-only로 처리한다.
+
+| Parameter | Required | 설명 |
+| --- | --- | --- |
+| `moldApiUrl` | conditional | Mold site 접속 API URL |
+| `moldApiKey` | conditional | Mold API Key. response/log 노출 금지 |
+| `moldSecretKey` | conditional | Mold Secret Key. response/log 노출 금지 |
+| `vcenterUrl` | conditional | vCenter 접속 URL |
+| `vcenterUsername` | conditional | vCenter username |
+| `vcenterPassword` | conditional | vCenter password. response/log 노출 금지 |
+| `tlsVerify` | no | TLS certificate 검증 여부 |
+
+`credentialRef`는 legacy 호환 파라미터로만 남기며 신규 UI는 전송하지 않는다. 신규 backend는 인증정보를 `dr_site_credential`에 암호화 저장하고 `dr_site.credential_id`를 갱신한다.
+
+`checkDrSite` result는 `DrSite.state`를 무조건 바꾸지 않는다. check가 성공하면 site health 관련 필드를 갱신하고, 명시적 `persistStatus=true`가 있을 때만 `health_state`, `last_checked`, health summary를 저장한다.
+
+#### 4.1.1 2026-07-02 site health check 보강
+
+`checkDrSite`의 세부 구현은 [528-cross-hypervisor-dr-site-health-check-and-delete-consistency-design-20260702.md](528-cross-hypervisor-dr-site-health-check-and-delete-consistency-design-20260702.md)를 따른다.
+
+현재 구현처럼 `lastChecked`만 갱신하는 방식은 허용하지 않는다. `CheckDrSiteCmd`는 `persiststatus` parameter를 `DrSiteService.checkSite(siteId, persistStatus)`로 전달해야 하며, backend는 저장 credential을 사용해 Mold/vCenter endpoint를 실제로 검증해야 한다.
+
+Mold/ABLESTACK site의 `MOLD_API` credential 검증은 CloudStack API signature 규칙을 따른다. `DrMoldSiteProbe`는 `listCapabilities` 요청을 signed GET으로 호출하며, 서명 알고리즘은 backend 고정값 `HmacSHA256`이다. UI/API는 `signatureAlgorithm` 같은 입력값을 받지 않는다. 세부 코드 설계는 [528-cross-hypervisor-dr-site-health-check-and-delete-consistency-design-20260702.md](528-cross-hypervisor-dr-site-health-check-and-delete-consistency-design-20260702.md)의 `2026-07-03 ABLESTACK/Mold API 서명 알고리즘 보강` 절을 따른다.
+
+응답 field는 기존 `DrSiteResponse` 호환을 유지하면서 다음 optional field를 추가한다.
+
+| Field | 설명 |
+| --- | --- |
+| `healthstate` | `CONNECTED`, `DEGRADED`, `DISCONNECTED`, `UNKNOWN` |
+| `healthreasoncode` | `CREDENTIAL_MISSING`, `CREDENTIAL_INVALID` 등 |
+| `healthmessage` | 사용자 표시용 짧은 메시지. secret 포함 금지 |
+| `healthlatencyms` | probe 소요 시간 |
+| `credentialconfigured` | `state=CONFIGURED`이고 `removed IS NULL`인 usable credential 존재 여부 |
+| `credentialstate` | latest credential state 또는 `MISSING`/`LEGACY_REF` |
+
+`persiststatus=false`이면 probe는 수행하지만 DB `health_state`, `last_checked`, credential `last_validated`는 변경하지 않는다.
+
+`checkDrSite` async job 성공은 API command 실행 성공을 의미한다. 실제 endpoint 인증 실패는 job 실패로 숨기지 않고 `DrSiteResponse.healthstate=DISCONNECTED`, `healthreasoncode=CREDENTIAL_INVALID`, `healthmessage=Mold API authentication failed with HTTP 401`처럼 health field에 표현한다. UI는 job 성공 후 반드시 site response 또는 refresh 결과의 health field를 확인해야 한다.
+
+#### 4.1.2 UI wrapper contract
+
+`ui/src/api/dr.js`는 DR Site CRUD와 check를 모두 노출한다. UI 화면은 내부 `credential_id`나 legacy `credentialref`를 직접 다루지 않는다.
+
+```js
+const objectKeys = {
+  createDrSite: ['createdrsiteresponse', 'drsite'],
+  updateDrSite: ['updatedrsiteresponse', 'drsite'],
+  checkDrSite: ['checkdrsiteresponse', 'drsite']
+}
+
+function extractJobId (response, responseKey) {
+  return response?.[responseKey]?.jobid || response?.jobid
+}
+
+export function updateDrSite (id, params) {
+  return postAPI('updateDrSite', { id, ...params })
+    .then(response => extractDrObject(response, 'updateDrSite'))
+}
+
+export function deleteDrSite (id) {
+  return postAPI('deleteDrSite', { id })
+    .then(response => ({
+      jobid: extractJobId(response, 'deletedrsiteresponse'),
+      raw: response
+    }))
+}
+```
+
+`deleteDrSite`와 `deleteDrPlan`은 `BaseAsyncCmd`이므로 UI wrapper는 `success` object를 최종 성공으로 취급하지 않는다. 응답에서 `jobid`를 추출하고 `$pollJob` 또는 `queryAsyncJobResult`로 최종 상태를 확인한 뒤 목록/상세를 갱신한다. job이 실패하면 async job의 `errortext`를 사용자에게 표시한다.
+
+`updateDrSite` 요청 규칙:
+
+- 이름, 설명, site type, endpoint, Zone, VMware datacenter 같은 site metadata는 부분 갱신을 허용한다.
+- secret 입력값이 모두 비어 있으면 인증정보는 유지한다.
+- Mold 또는 vCenter credential 필드가 새로 입력되면 backend는 새 credential row를 만들고 기존 row는 soft delete한다.
+- `clearCredential=true`는 별도 확인이 필요한 destructive 옵션으로만 보낸다.
+
+`deleteDrSite` 요청 규칙:
+
+- 연결된 active `DrPlan`이 있으면 실패해야 한다.
+- 실패 response는 `DR_SITE_IN_USE` 또는 이에 준하는 명확한 code/message를 반환한다.
+- 삭제는 credential soft delete와 site soft delete를 함께 수행한다.
+- backend는 `markRemoved()+update()`를 사용하지 않고 `drSiteDao.remove(siteId)`, `drSiteCredentialDao.remove(credentialId)`로 `removed`를 저장한다.
+- delete job 성공 조건은 `findByIdIncludingRemoved(siteId).removed != null` 검증까지 통과하는 것이다.
+- 삭제된 site에는 이후 `checkDrSite`와 scheduler health check가 수행되면 안 된다.
 
 ### 4.2 DrPlan commands
 
@@ -138,13 +228,61 @@ API command는 다음 규칙을 따른다.
 | `dryRun` | no | preflight만 수행 |
 | `idempotencyKey` | no | retry 중복 방지 |
 
+2026-07-05 이후 기본 UI/API 경로에서는 `scheduleJson`, `storageMappingJson`, `networkMappingJson`, `computeMappingJson`, `fencingPolicyJson`, `quiescePolicyJson`을 사용자가 직접 작성한 raw JSON으로 받지 않는다. 이 field들은 backward compatibility와 expert override 용도로만 유지한다. 일반 생성/수정 요청은 `targetvmname`, `targetstorageoption`, `targetcomputeoption`, `targetnetworkoption`, `syncintervalseconds`, `retentioncount`, `consistencymode`, `testnetworkmode`, `failoverpoweron`, `bandwidthlimitmbps`, `retrycount` 같은 typed parameter를 받고, backend가 canonical `mapping_json`, `schedule_json`, `policy_json`, `quiesce_policy_json`을 생성한다.
+
+2026-07-06 이후 `VMWARE_TO_KVM` 일반 생성/수정 요청은 위 typed parameter를 더 구체화한다. `targetcomputeoption`은 KVM target에서 service offering을 의미하며, worker host와 혼용하지 않는다. `discoverDrPlanInventory`는 `sourceexternalref`, `sourcevmid`, `includeplacement`, `includedisks`, `includenetworks`를 받아 source disk/NIC와 target service offering, disk offering, network, worker, storage 후보를 함께 반환해야 한다. 후보가 없으면 API는 빈 목록만 반환하지 않고 `blockingreasons`에 `TARGET_SITE_ZONE_REQUIRED`, `TARGET_STORAGE_REQUIRED`, `TARGET_NETWORK_REQUIRED`, `TARGET_SERVICE_OFFERING_REQUIRED`, `SOURCE_DISK_INVENTORY_REQUIRED` 같은 원인을 포함한다. 상세 설계는 [531-cross-hypervisor-dr-plan-guided-spec-design-20260705.md](531-cross-hypervisor-dr-plan-guided-spec-design-20260705.md)의 15장을 따른다.
+
+추가 typed parameter:
+
+| Parameter | Required | 설명 |
+| --- | --- | --- |
+| `targetVmName` | conditional | target replica VM 표시명. target resource 생성 경로에서 필요 |
+| `targetStorageOption` | conditional | target datastore/storage pool/disk offering option reference |
+| `targetComputeOption` | conditional | target resource pool/cluster/host/service offering option reference |
+| `targetNetworkOption` | conditional | target network/portgroup option reference |
+| `syncIntervalSeconds` | no | RPO 기반 동기화 주기. 지정하지 않으면 `rpoSeconds` 사용 |
+| `retentionCount` | no | target-ready restore point 보존 개수 |
+| `consistencyMode` | no | `CRASH_CONSISTENT`, `GUEST_QUIESCE`, `APPLICATION_CONSISTENT` |
+| `testNetworkMode` | no | test failover network mode. 기본 `ISOLATED` |
+| `failoverPowerOn` | no | failover 후 target VM 전원 on 여부 |
+| `bandwidthLimitMbps` | no | transport bandwidth 제한. 0 또는 null은 제한 없음 |
+| `retryCount` | no | engine action retry 횟수 |
+
 필수 validation:
 
 - source와 target site가 모두 active여야 한다.
 - direction과 site type 조합이 `DrAdapterRegistry`에서 지원되어야 한다.
 - 동일 source VM에 active `DrPlan` 또는 active `ftctl_protection`이 있으면 기본적으로 거부한다.
 - `KVM_TO_KVM`에서 기존 FTCTL 보호를 연결하는 경우 `importExistingFtctlProtection=true` 같은 명시 parameter가 있어야 한다.
-- mapping JSON은 문자열로 받더라도 backend에서 구조 검증을 수행해야 한다.
+- raw mapping JSON은 문자열로 받더라도 expert/backward compatibility 경로에서만 허용하며, backend에서 구조 검증을 수행해야 한다.
+- 기본 경로에서는 `DrPlanSpecBuilder`가 생성한 mapping/schedule/policy/quiesce spec을 방향별 validator가 의미 검증해야 한다.
+
+#### 4.2.0 DR Plan spec preview API
+
+DR Plan 생성 전에 UI가 backend-generated spec과 preflight warning을 확인할 수 있도록 `previewDrPlanSpec` async API를 추가한다.
+
+| 항목 | 값 |
+| --- | --- |
+| API name | `previewDrPlanSpec` |
+| Command class | `PreviewDrPlanSpecCmd` |
+| Service | `DrPlanSpecService.preview` |
+| Response | `DrPlanSpecPreviewResponse` |
+| 용도 | DB insert 없이 typed 입력값을 canonical JSON과 검증 결과로 변환 |
+
+`previewDrPlanSpec` response:
+
+| Field | 설명 |
+| --- | --- |
+| `enginetype` | backend가 결정한 engine |
+| `mappingjson` | backend-generated canonical mapping JSON |
+| `schedulejson` | backend-generated canonical schedule JSON |
+| `policyjson` | backend-generated canonical policy JSON |
+| `quiescepolicyjson` | backend-generated canonical quiesce policy JSON |
+| `sourceworkerhostid` | 자동 선택 또는 사용자가 선택한 source worker |
+| `targetworkerhostid` | 자동 선택 또는 사용자가 선택한 target worker |
+| `coordinatorworkerhostid` | 자동 선택 또는 사용자가 선택한 coordinator |
+| `warnings` | 진행 가능하지만 확인이 필요한 항목 |
+| `blockers` | 생성/수정 전 반드시 해결해야 하는 항목 |
 
 `listDrPlans` filters:
 
@@ -162,6 +300,48 @@ API command는 다음 규칙을 따른다.
 | `rpoExceeded` | target-ready RPO threshold 초과 |
 | `engineBindingType` | `FTCTL`, `V2K`, `VMWARE_NATIVE`, `KVM_SNAPSHOT` |
 | `page`, `pagesize` | `BaseListCmd` 표준 pagination |
+
+#### 4.2.1 UI wrapper contract
+
+`ui/src/api/dr.js`는 plan 수정/삭제와 runtime action을 구분해서 제공한다.
+
+```js
+const objectKeys = {
+  createDrPlan: ['createdrplanresponse', 'drplan'],
+  updateDrPlan: ['updatedrplanresponse', 'drplan'],
+  startDrSync: ['startdrsyncresponse', 'drrun']
+}
+
+export function updateDrPlan (id, params) {
+  return postAPI('updateDrPlan', { id, ...params })
+    .then(response => extractDrObject(response, 'updateDrPlan'))
+}
+
+export function deleteDrPlan (id) {
+  return postAPI('deleteDrPlan', { id })
+    .then(response => ({
+      jobid: extractJobId(response, 'deletedrplanresponse'),
+      raw: response
+    }))
+}
+
+export function startDrAction (command, params) {
+  return postAPI(command, params).then(response => extractDrObject(response, command))
+}
+```
+
+`updateDrPlan` 요청 규칙:
+
+- `name`, `description`, `rpoSeconds`, `rtoSeconds`, typed schedule/policy/quiesce/target mapping field, worker host 선택값은 수정 가능하다. `scheduleJson`, `policyJson`, `mappingJson`, `quiescePolicyJson` raw field는 expert/backward compatibility 경로에서만 수정 가능하다.
+- `sourceSiteId`, `targetSiteId`, `direction`, `sourceVmId`, `sourceExternalRef`, `engineType`, `engineBindingType`, `engineBindingId`는 plan이 `NEW/CREATED`이고 active run/protection이 없을 때만 수정 가능하다.
+- active run이 있으면 `DR_ACTIVE_RUN_EXISTS`로 실패해야 한다.
+- 이미 FTCTL/VMware runtime resource가 생성된 plan에서 topology 변경이 필요하면 delete/recreate 또는 release 후 recreate 흐름으로 유도한다.
+
+`deleteDrPlan` 요청 규칙:
+
+- active run이 있으면 실패한다.
+- active protection, replica, restore point, transport resource가 남아 있으면 단순 삭제 대신 `releaseDrProtection` 또는 cleanup action을 먼저 수행하도록 실패해야 한다.
+- 삭제 성공은 plan soft delete이며 장시간 engine cleanup을 암묵적으로 동기 수행하지 않는다.
 
 ### 4.3 Action commands
 
@@ -256,7 +436,7 @@ API command는 다음 규칙을 따른다.
 - private key 원문
 - vCenter session token
 
-credential은 `credentialAlias`, `credentialRefMasked`, `credentialUpdated` 정도만 표시한다.
+credential은 `credentialState`, `credentialType`, `credentialEndpoint`, `credentialPrincipal`, `credentialLastUpdated`, `credentialLastValidated` 정도만 표시한다. secret 원문, API key 원문, password 원문, 내부 `credential_id`는 표시하지 않는다.
 
 ### 5.2 DrPlanResponse
 
@@ -288,6 +468,8 @@ credential은 `credentialAlias`, `credentialRefMasked`, `credentialUpdated` 정�
 - `removed`
 
 `actionEligibility`는 UI가 임의로 상태 조합을 재해석하지 않도록 backend가 제공한다.
+
+`actionEligibility`에는 runtime action뿐 아니라 `update`, `delete` 가능 여부도 포함할 수 있다. UI는 이를 작업 메뉴 disabled reason으로 사용하되 backend 검증을 대체하지 않는다.
 
 예시:
 
@@ -454,7 +636,68 @@ UI는 `accepted=true`인 job success를 최종 보호 성공으로 표시하면 
 - API response에 secret 원문이 포함되지 않는다.
 - 기존 `DisasterRecoveryCluster`와 FTCTL API는 제거하거나 semantic을 바꾸지 않는다.
 
-## 10. AS-IS / TO-BE 요약
+## 10. 2026-07-02 추가 설계: DR Site health check history API
+
+상세 설계는 [529-cross-hypervisor-dr-site-health-check-history-and-scheduler-design-20260702.md](529-cross-hypervisor-dr-site-health-check-history-and-scheduler-design-20260702.md)를 따른다.
+
+### 10.1 신규 command
+
+| API | Command class | Base | Response | 설명 |
+| --- | --- | --- | --- | --- |
+| `listDrSiteHealthChecks` | `ListDrSiteHealthChecksCmd` | `BaseListCmd` | `DrSiteHealthCheckResponse` | DR Site 상태 체크 이력 조회 |
+
+`checkDrSite`는 수동 점검 실행 API이고, `listDrSiteHealthChecks`는 저장된 이력 조회 API다. UI는 상태 체크 이력 탭에서 `listDrSiteHealthChecks`만 호출한다.
+
+### 10.2 request parameter
+
+| Parameter | Required | 설명 |
+| --- | --- | --- |
+| `siteid` | no | 특정 DR Site 이력만 조회. 상세 화면에서는 항상 전달 |
+| `healthstate` | no | `CONNECTED`, `DEGRADED`, `DISCONNECTED`, `UNKNOWN` |
+| `reasoncode` | no | `CREDENTIAL_MISSING`, `CREDENTIAL_INVALID`, `ENDPOINT_UNREACHABLE` 등 |
+| `triggertype` | no | `MANUAL`, `SCHEDULED`, `CREATE`, `UPDATE`, `PREFLIGHT` |
+| `startdate` | no | 점검 시각 시작 |
+| `enddate` | no | 점검 시각 종료 |
+| `page`, `pagesize` | no | 표준 pagination |
+
+### 10.3 response field
+
+| Field | 설명 |
+| --- | --- |
+| `id` | health check history uuid |
+| `siteid` | DR Site uuid |
+| `sitename` | 점검 당시 site name snapshot |
+| `sitetype` | 점검 당시 site type |
+| `hypervisortype` | 점검 당시 hypervisor type |
+| `endpoint` | 점검 당시 endpoint snapshot |
+| `triggertype` | 실행 원인 |
+| `healthstate` | 점검 결과 |
+| `healthreasoncode` | 점검 사유 code |
+| `healthmessage` | 사용자 표시용 요약 메시지 |
+| `healthlatencyms` | probe 소요 시간 |
+| `credentialstate` | 점검 당시 credential state snapshot |
+| `checkedat` | 점검 시각 |
+| `managementserverid` | scheduler/API를 수행한 management server id |
+| `jobid` | 수동 async job id가 있는 경우 |
+
+`DrResponseGenerator`에는 `createSiteHealthCheckResponse(DrSiteHealthCheckVO)`를 추가한다. secret, password, API key, secret key, token은 응답에 포함하지 않는다.
+
+health check history 내부 `details_json`에는 `MOLD_API` 점검 시 `authAlgorithm=HmacSHA256`, `apiCommand=listCapabilities`, `probe=DrMoldSiteProbe`를 포함할 수 있다. 이 값은 운영 진단용 non-secret metadata이며, API key, secret key, password, token, Authorization header는 포함하지 않는다. UI는 기본 테이블에 이 값을 필수 표시하지 않아도 되지만, 장애 분석용 확장 상세에서는 노출 가능하다.
+
+### 10.4 UI wrapper
+
+```js
+const listKeys = {
+  listDrSiteHealthChecks: ['listdrsitehealthchecksresponse', 'drsitehealthcheck']
+}
+
+export function listDrSiteHealthChecks (params = {}) {
+  return getAPI('listDrSiteHealthChecks', params)
+    .then(response => extractDrList(response, 'listDrSiteHealthChecks'))
+}
+```
+
+## 11. AS-IS / TO-BE 요약
 
 | 구분 | AS-IS | TO-BE |
 | --- | --- | --- |
@@ -463,3 +706,525 @@ UI는 `accepted=true`인 job success를 최종 보호 성공으로 표시하면 
 | async 결과 | Cloud async job 성공만 보고 최종 성공으로 오해 가능 | `jobid`, `runid`, `runstate`, `accepted`를 함께 반환 |
 | 권한/resource | 기존 resource type으로 충분히 표현하기 어려움 | `DrSite`, `DrPlan`, `DrRun`, `DrReplica`, `DrRestorePoint` resource type 추가 |
 | 오류 응답 | 엔진별 메시지가 섞임 | 표준 `DR_*` error code, retryable, actionable, stepName으로 표현 |
+
+## 12. 2026-07-02 구현 반영: 수정/삭제 API 응답 계약
+
+이번 구현에서는 UI 표준 작업 메뉴에서 `updateDrSite`, `deleteDrSite`, `updateDrPlan`, `deleteDrPlan`을 직접 호출하도록 `ui/src/api/dr.js` wrapper를 추가했다.
+
+응답 보강:
+
+- `DrSiteResponse.activeplancount`: site를 참조하는 active plan 수. UI는 이 값이 0보다 크면 site 삭제 action을 비활성화한다.
+- `DrPlanResponse.schedulejson`, `policyjson`, `mappingjson`, `quiescepolicyjson`: plan 수정 화면이 기존 고급 설정을 잃지 않도록 response에 포함한다.
+- `DrPlanResponse.actioneligibility.update/delete`: backend guard 결과를 UI action disabled 상태에 반영한다.
+
+삭제 API 계약:
+
+- `deleteDrSite`는 active plan 참조가 있으면 `DR_ACTIVE_PLAN_EXISTS` 계열 오류로 실패한다.
+- `deleteDrPlan`은 active run, replica, restore point, target-ready/protected state가 남아 있으면 `DR_RUNTIME_RESOURCE_EXISTS` 계열 오류로 실패한다.
+- 삭제 API는 장시간 engine cleanup을 동기 수행하지 않는다. 보호/런타임 자원 정리는 `releaseDrProtection` 등 명시 action으로 먼저 수행한다.
+- 두 삭제 API는 async job 완료 후에도 DB soft-delete 검증을 수행한다. `removed`가 채워지지 않았으면 job 실패로 반환한다.
+- CloudStack DAO 규칙상 `removed` 컬럼은 일반 update 대상이 아니므로 `markRemoved()+update()` 구현은 금지하고 `GenericDao.remove(id)`를 사용한다.
+
+## 13. 2026-07-03 추가 설계: DR Site inventory discovery API
+
+상세 설계는 [530-cross-hypervisor-dr-site-inventory-and-detail-ux-design-20260703.md](530-cross-hypervisor-dr-site-inventory-and-detail-ux-design-20260703.md)를 따른다.
+
+신규 command:
+
+`org.apache.cloudstack.api.command.admin.dr.DiscoverDrSiteInventoryCmd`
+
+API name:
+
+`discoverDrSiteInventory`
+
+응답:
+
+- `org.apache.cloudstack.api.response.dr.DrSiteInventoryResponse`
+- `org.apache.cloudstack.api.response.dr.DrInventoryOptionResponse`
+
+설계 기준:
+
+1. command는 `BaseAsyncCmd`로 구현한다. 원격 Mold API 호출이 UI thread를 막지 않도록 Cloud async job으로 처리한다.
+2. 기존 site 조회는 `id`를 받고 저장 credential을 사용한다.
+3. 생성 전 조회는 `moldapiurl`, `moldapikey`, `moldsecretkey`, `tlsverify`를 write-only parameter로 받아 DB에 저장하지 않고 조회에만 사용한다.
+4. `MOLD_KVM`은 `listZones`, `MOLD_VMWARE`는 `listZones`와 `listVmwareDcs` option을 반환한다.
+5. `VMWARE_DIRECT`는 Mold inventory 대상이 아니므로 empty option과 reason을 반환한다.
+6. 응답에는 secret/API key/password/token/Authorization header를 포함하지 않는다.
+7. 이 API는 inventory 조회용이므로 `dr_site.health_state`와 `dr_site_health_check` 이력을 갱신하지 않는다.
+
+### 13.1 2026-07-03 Remote inventory external id API 보정
+
+상세 설계는 [530-cross-hypervisor-dr-site-inventory-and-detail-ux-design-20260703.md](530-cross-hypervisor-dr-site-inventory-and-detail-ux-design-20260703.md)의
+`Remote Inventory ID 모델 보정` 절을 따른다.
+
+`createDrSite`와 `updateDrSite`는 local internal id와 remote external id를 분리한다.
+
+| Parameter | Type | 설명 |
+| --- | --- | --- |
+| `zoneid` | LONG | local Cloud internal Zone id. 하위 호환용 |
+| `zoneexternalid` | STRING | 원격 Mold/vCenter Zone id 또는 uuid |
+| `zonename` | STRING | 원격 Zone 표시 이름 |
+| `vmwaredcid` | LONG | local VMware DC internal id. 하위 호환용 |
+| `vmwaredcexternalid` | STRING | 원격 VMware DC id, uuid 또는 MoRef |
+| `vmwaredcname` | STRING | 원격 VMware DC 표시 이름 |
+
+`discoverDrSiteInventory`도 VMware DC 조회 filter를 external id 중심으로 보강한다.
+
+| Parameter | Type | 설명 |
+| --- | --- | --- |
+| `zoneexternalid` | STRING | `listVmwareDcs` 호출 시 원격 Mold API에 전달할 Zone id |
+| `zoneid` | LONG | local legacy filter. `zoneexternalid`가 없을 때만 fallback |
+
+`DrInventoryOptionResponse` 보강:
+
+| Field | Type | 설명 |
+| --- | --- | --- |
+| `id` | STRING | 원격 provider raw id |
+| `value` | STRING | UI select value. 기본은 external id |
+| `externalid` | STRING | 원격 provider stable id |
+| `localid` | LONG | local DB id가 확인되는 경우에만 optional |
+| `name` | STRING | 표시 이름 |
+| `type` | STRING | `ZONE`, `VMWARE_DATACENTER` |
+
+API 응답 규칙:
+
+- UUID external id는 정상 값이다.
+- external id가 있으면 option은 selectable이다.
+- secret/API key/password/token은 계속 response에 포함하지 않는다.
+- `selectable=false`는 id 자체가 없는 비정상 inventory row에만 사용한다.
+
+## 2026-07-06 보강: Action API와 조회 API 응답 계약
+
+DR action 실행 상태 계약은 [533-cross-hypervisor-dr-dispatch-projection-recovery-design-20260706.md](533-cross-hypervisor-dr-dispatch-projection-recovery-design-20260706.md)를 우선한다.
+
+API 구현 원칙:
+
+- `startDrSync` 같은 action command는 비동기 요청만 시작하고 FTCTL 작업 완료를 기다리지 않는다.
+- `DrPlanResponse`는 latest run summary를 포함해야 한다.
+- `DrRunResponse.accepted` 또는 `engineaccepted`는 Cloud API 접수가 아니라 FTCTL engine acceptance를 의미한다.
+- Agent dispatch timeout은 `DR_AGENT_DISPATCH_TIMEOUT`, runtime 미생성은 `DR_RUNTIME_NOT_CREATED`로 구분한다.
+- UI polling은 `getDrPlan`, `listDrRuns`, `listDrRunSteps` 조합으로 현재 상태를 재구성할 수 있어야 한다.
+
+## 14. 2026-07-06 추가 보강: action/read/projection API 분리
+
+상세 기준은 [533-cross-hypervisor-dr-dispatch-projection-recovery-design-20260706.md](533-cross-hypervisor-dr-dispatch-projection-recovery-design-20260706.md)의 17장을 따른다.
+
+API command는 다음 세 종류로 분리한다.
+
+| 종류 | 예 | 동작 원칙 |
+| --- | --- | --- |
+| Read API | `listDrPlans`, `getDrPlan`, `listDrRuns`, `listDrRunSteps` | DB snapshot만 읽고 Agent/ftctl을 inline 호출하지 않는다. |
+| Action API | `startDrSync`, `pauseDrSync`, `startDrFailover` | validation, `dr_run` 생성, queue 등록 후 즉시 run/job id를 반환한다. |
+| Projection API | `refreshDrProtectionView` | status refresh를 별도 async run/job으로 큐잉한다. UI 조회 thread를 막지 않는다. |
+
+`getDrPlan` 또는 `listDrPlans`에 `refreshprojection=true` 같은 hidden blocking option을 넣지 않는다. 명시적인 `refreshDrProtectionView` API만 Cloud async job으로 투영을 갱신한다.
+
+Action API response 최소 필드:
+
+```java
+@SerializedName("runid")
+private String runId;
+
+@SerializedName("jobid")
+private String jobId;
+
+@SerializedName("state")
+private String state; // QUEUED, RETRYING, ACCEPTED 등
+
+@SerializedName("accepted")
+private Boolean accepted; // API가 요청을 접수했다는 의미
+```
+
+`DrRunResponse`의 engine acceptance 필드는 action API 접수와 분리한다.
+
+```java
+@SerializedName("engineaccepted")
+private Boolean engineAccepted;
+
+@SerializedName("retryable")
+private Boolean retryable;
+
+@SerializedName("retryafterseconds")
+private Integer retryAfterSeconds;
+
+@SerializedName("nextretryat")
+private Date nextRetryAt;
+```
+
+표준 error code:
+
+| Code | API 의미 |
+| --- | --- |
+| `DR_PLAN_RUN_ACTIVE` | 같은 plan에 충돌되는 active run이 있어 즉시 실행할 수 없음 |
+| `DR_ENGINE_BUSY_RETRYABLE` | FTCTL이 retryable lock을 반환함 |
+| `DR_ENGINE_BUSY_TIMEOUT` | retryable lock이 retry window를 초과함 |
+| `DR_STATUS_TIMEOUT` | status refresh가 hard timeout으로 종료됨 |
+| `DR_PROJECTION_STALE` | 최신 runtime projection을 갱신하지 못해 저장된 projection을 반환 중 |
+
+수용 기준:
+
+- `listDrPlans`/`getDrPlan` 호출만으로 host의 `ablestack_vm_ftctl dr-status` 프로세스가 생성되지 않는다.
+- action API 성공 응답은 장기 작업 성공으로 해석하지 않고 `runid`/`jobid` 추적 시작으로만 해석한다.
+- `locked retryable` 응답은 raw JSON이 아니라 표준 error code와 retry metadata로 변환되어 response에 포함된다.
+
+## 15. 2026-07-06 추가 보강: readiness response 계약
+
+상세 기준은 [534-cross-hypervisor-dr-sync-readiness-and-materialization-contract-design-20260706.md](534-cross-hypervisor-dr-sync-readiness-and-materialization-contract-design-20260706.md)를 따른다.
+
+`listDrPlans`, `getDrPlan`, `queryAsyncJobResult`는 action accepted, runtime progress, target materialization을 분리해서 반환한다.
+
+`DrPlanResponse` 추가 필드:
+
+```java
+@SerializedName("readinessstate")
+private String readinessState;
+
+@SerializedName("readinessreasoncode")
+private String readinessReasonCode;
+
+@SerializedName("readinessmessage")
+private String readinessMessage;
+
+@SerializedName("engineaccepted")
+private Boolean engineAccepted;
+
+@SerializedName("targetmaterialized")
+private Boolean targetMaterialized;
+
+@SerializedName("targetvmpresent")
+private Boolean targetVmPresent;
+
+@SerializedName("targetstoragepresent")
+private Boolean targetStoragePresent;
+
+@SerializedName("targetnetworkpresent")
+private Boolean targetNetworkPresent;
+
+@SerializedName("restorepointcount")
+private Integer restorePointCount;
+
+@SerializedName("lasttargetdurableat")
+private String lastTargetDurableAt;
+```
+
+`startDrPlanSync` 응답은 다음 의미만 가진다.
+
+- API 요청 접수
+- Cloud async job 생성
+- DR run 생성
+- Agent/ftctl dispatch 시도 또는 접수 시작
+
+`startDrPlanSync` 응답이 의미하지 않는 것:
+
+- target VM 생성 완료
+- restore point 생성 완료
+- Failover 가능 상태
+- RPO 충족
+
+표준 reason code:
+
+| Code | 의미 |
+| --- | --- |
+| `DR_ENGINE_ACCEPTED_TARGET_PENDING` | 엔진은 접수했지만 target materialization 전 |
+| `DR_TARGET_VM_NOT_FOUND` | target VM reference 또는 inventory가 없음 |
+| `DR_TARGET_STORAGE_NOT_FOUND` | target volume/disk materialization 미확인 |
+| `DR_RESTORE_POINT_NOT_FOUND` | restore point 또는 durable checkpoint 없음 |
+| `DR_RPO_NOT_SATISFIED` | 최신 durable checkpoint가 목표 RPO를 벗어남 |
+
+## 2026-07-07 Update: API Readiness Contract For VMWARE_TO_KVM
+
+`previewDrPlanSpec`, `createDrPlan`, and `updateDrPlan` now share the same
+execution-readiness contract for VMware to ABLESTACK plans.
+
+API behavior:
+
+- `previewDrPlanSpec` returns `executionready=false` with structured blocking
+  reasons when any selected disk has unresolved source size.
+- `createDrPlan` and `updateDrPlan` reject `startsync=true` for invalid disk
+  maps instead of accepting a run that is known to fail in FTCTL.
+- The response should include `diskreadiness` entries so UI can mark the exact
+  disk row.
+- Read APIs should refresh or expose latest projection fields for active runs,
+  including runtime terminal errors.
+
+Canonical blocking codes include:
+
+- `SOURCE_DISK_SIZE_UNRESOLVED`
+- `TARGET_STORAGE_UNRESOLVED`
+- `TARGET_DISK_FORMAT_INVALID`
+- `DR_TARGET_DISK_SIZE_UNRESOLVED`
+
+Detailed request/response design:
+`538-cross-hypervisor-dr-vmware-to-kvm-disk-size-and-projection-hardening-design-20260707.md`.
+
+## 2026-07-07 Update: API Semantics For Default Target Storage
+
+The DR Plan guided API parameter contract is refined by
+[539-cross-hypervisor-dr-plan-storage-default-and-modal-layout-design-20260707.md](539-cross-hypervisor-dr-plan-storage-default-and-modal-layout-design-20260707.md).
+
+API rules:
+
+- `targetstorageref` means default/fallback target storage for KVM target plans.
+- `diskmappingsjson` remains the compact guided disk mapping payload and keeps
+  `length = 65535`.
+- If `diskmappingsjson` contains disk rows, the API must validate storage at
+  disk level and must not reject the request only because `targetstorageref` is
+  blank.
+- If disk rows are absent for a legacy or non-guided-compatible path,
+  `targetstorageref` may still be required for a KVM target.
+- Blocking reasons should identify the row where possible, for example
+  `TARGET_STORAGE_REQUIRED:<index>` or `TARGET_STORAGE_INVALID:<index>`.
+
+No new API command is required.
+
+## 2026-07-07 Update: DR Plan Dialog Standard API Impact
+
+The SharedFS-style DR Plan dialog standard is a UI structure change. Detailed
+design is in
+[540-cross-hypervisor-dr-plan-sharedfs-dialog-standard-design-20260707.md](540-cross-hypervisor-dr-plan-sharedfs-dialog-standard-design-20260707.md).
+
+API contract rules:
+
+- No API command is added for dialog sections.
+- No existing API parameter is repurposed for collapse state or review panel
+  state.
+- `discoverDrPlanInventory`, `previewDrPlanSpec`, `createDrPlan`, and
+  `updateDrPlan` remain the only APIs required by the guided dialog.
+- UI section validation uses existing local field names and backend blocking
+  reasons. Backend responses may include row-qualified reasons such as
+  `TARGET_STORAGE_REQUIRED:<index>`, but section names are not part of the API
+  contract.
+- The API continues to receive canonical guided DR fields and compact JSON
+  payloads only.
+
+Therefore, the implementation must not add parameters such as
+`activesections`, `dialoglayout`, or `reviewstate`.
+
+## 2026-07-07 Update: API Impact Of Modal Alert And Gutter Refinement
+
+The DR Plan modal dark-mode alert and right-gutter refinement is defined in
+[540-cross-hypervisor-dr-plan-sharedfs-dialog-standard-design-20260707.md](540-cross-hypervisor-dr-plan-sharedfs-dialog-standard-design-20260707.md#13-2026-07-07-refinement-dark-alert-and-right-gutter).
+
+API design remains unchanged:
+
+- no new command;
+- no request parameter for modal width, alert style, scroll position, or right
+  gutter;
+- no response field for UI layout hints;
+- no change to `previewDrPlanSpec`, `createDrPlan`, `updateDrPlan`, or
+  `discoverDrPlanInventory`.
+
+This fix must be implemented entirely in UI CSS and must not leak presentation
+state into API contracts.
+
+## 2026-07-07 Update: VMware VDDK Data-Plane API Contract
+
+The VMware source sync failure with `DR_VMWARE_NBDKIT_FAILED` showed that
+site credential validation and worker data-plane readiness are different API
+concepts. Detailed design:
+[543-cross-hypervisor-dr-vddk-libdir-resolution-and-preflight-design-20260707.md](543-cross-hypervisor-dr-vddk-libdir-resolution-and-preflight-design-20260707.md).
+
+API additions:
+
+- `createDrSite` and `updateDrSite` may accept optional `vddklibdir` for
+  VMware Direct sites as an advanced operator override.
+- The parameter is not secret credential material and must be stored in site
+  capability JSON, not in `dr_site_credential.secret_payload`.
+- `checkDrSite`, `listDrSites`, `getDrSite`, `previewDrPlanSpec`, and
+  `getDrPlan` should expose a `vmwareDataPlane` capability object when known.
+
+Canonical response fragment:
+
+```json
+{
+  "capabilities": {
+    "vmwareDataPlane": {
+      "state": "READY",
+      "hostId": 1,
+      "moverReady": true,
+      "nbdkitVddkReady": true,
+      "qemuImgAvailable": true,
+      "vddkLibdir": "/usr/share/ablestack/v2k/compat/vsphere80/vddk",
+      "vddkLibraryVersion": "8",
+      "reasonCode": null
+    }
+  }
+}
+```
+
+Execution-readiness blocking codes:
+
+- `DR_VDDK_LIBDIR_UNRESOLVED`
+- `DR_VDDK_LIBRARY_LOAD_FAILED`
+- `DR_VMWARE_NBDKIT_FAILED`
+- `DR_VMWARE_MOVER_UNAVAILABLE`
+
+`startDrPlanSync` must remain asynchronous, but it must reject a VMware source
+plan before dispatch when the selected worker has blocking data-plane
+readiness.
+
+## 2026-07-07 Update: VMware Mover Source Graph API Impact
+
+The VMware mover NBD source graph design is defined in
+[544-cross-hypervisor-dr-vmware-mover-nbd-source-graph-design-20260707.md](544-cross-hypervisor-dr-vmware-mover-nbd-source-graph-design-20260707.md).
+
+No new API command is required.
+
+API response additions are limited to allowing the following terminal error code
+in existing plan/run/step responses:
+
+```text
+DR_VMWARE_MOVER_SOURCE_GRAPH_INVALID
+```
+
+Affected responses:
+
+- `getDrPlan`
+- `listDrPlans`
+- `listDrRuns`
+- `listDrRunSteps`
+
+Expected response semantics:
+
+- `effectivestate=ERROR`
+- latest run `state=FAILED`
+- latest run or step `errorcode=DR_VMWARE_MOVER_SOURCE_GRAPH_INVALID`
+- `startDrPlanSync` remains asynchronous and must not wait for qemu-img copy
+
+This error is discovered only after the ftctl worker starts nbdkit and probes
+the source socket, so it is not a create/update validation parameter.
+
+## 2026-07-08 Update: Initial Sync Pending API Contract
+
+The API must not expose a healthy active full-seed pending condition as a
+runtime failure.
+
+Runtime error response rule:
+
+- If FTCTL runtime `error_code` is non-empty, expose it as `runtimeErrorCode`.
+- If FTCTL runtime `state` is `ERROR` or `FAILED`, expose terminal error fields.
+- If FTCTL `worker_state=FAILED`, expose terminal error fields.
+- If latest run state is `FAILED`, expose terminal error fields.
+- Otherwise, do not promote `dr_run.error_code` to `runtimeErrorCode`.
+
+For `SYNCING/full-seed-transfer` with `targetStoragePresent=true`,
+`targetVmPresent=false`, `restorePointPresent=false`, and empty FTCTL error,
+the response must indicate active progress, not Fail.
+
+Recommended response additions:
+
+```java
+@SerializedName("targetmaterializationstate")
+private String targetMaterializationState;
+
+@SerializedName("targetmaterializationmessage")
+private String targetMaterializationMessage;
+
+@SerializedName("initialsyncinprogress")
+private Boolean initialSyncInProgress;
+```
+
+If these fields are not added in the first implementation pass,
+`DrResponseGenerator` must still compute equivalent effective state using
+existing runtime fields and must clear or suppress stale pending run errors in
+the API response.
+
+Detailed design:
+`546-cross-hypervisor-dr-initial-sync-pending-projection-contract-design-20260708.md`.
+
+## 2026-07-10 Normative Checkpoint And History API Update
+
+`listDrSyncCheckpoints` is the preferred API. `listDrRestorePoints` is a
+temporary compatibility alias and must not imply point-in-time recovery.
+Checkpoint and event APIs are paged newest-first, and events default to 20
+significant rows with unchanged projection refreshes excluded.
+
+FTCTL_DR action APIs no longer expose historical checkpoint selection. A
+legacy checkpoint ID can only validate the latest durable row and is converted
+server-side to a String checkpoint reference. Numeric DB IDs never reach
+FTCTL.
+
+Detailed design:
+`549-cross-hypervisor-dr-checkpoint-history-event-rpo-design-20260710.md`.
+
+## 2026-07-10 Normative Cached Read And Explicit Refresh API Update
+
+Add read-only `getDrProtectionView` and asynchronous
+`refreshDrProtectionView` commands. `getDrProtectionView` returns the latest
+versioned/redacted DB snapshot and never invokes Agent or FTCTL. Explicit
+refresh returns an async job before Agent completion.
+
+Remove direct projection refresh from all get/list DR commands. Event and
+checkpoint list commands honor `BaseListCmd` pagination and return filtered
+total counts. The UI default for Events is `page=1,pagesize=20`.
+
+Detailed command, response, stale, and compatibility contracts:
+`550-cross-hypervisor-dr-protection-view-cache-and-completed-checkpoint-design-20260710.md`.
+
+## 2026-07-14 Normative Async Resource Completion Contract
+
+`createDrPlan`, `updateDrPlan`, `createDrSite`, `updateDrSite`, and
+`checkDrSite` are `BaseAsyncCmd` commands. UI wrappers must extract the job ID,
+poll `queryAsyncJobResult`, and consume the final typed resource response.
+List reconciliation starts only after job success. This does not wait for a DR
+data copy; it only establishes that the resource transaction and action enqueue
+have completed.
+
+`getDrProtectionView` remains a synchronous DB-cache-only read.
+`refreshDrProtectionView` remains the only explicit asynchronous projection
+refresh command. Detailed design:
+`552-cross-hypervisor-dr-async-read-consistency-and-live-cache-ui-design-20260714.md`.
+
+## 2026-07-14 Normative Action Readiness And Quiesce Contract
+
+`DrPlanResponse.actioneligibility` remains for compatibility and is augmented
+with typed `actionreadiness`. The typed response provides `eligible`,
+`reasonCode`, `coordinationRequired`, `requiredTransition`, `schedulerState`,
+`controlState`, and `projectionAgeSeconds`.
+
+`startDrTestFailover` does not synchronously pause FTCTL or wait for a test VM.
+It validates cached control capability/freshness, creates a queued Run, and
+returns the async job/run identity. A running continuous scheduler is not a
+blocker when it advertises control protocol v2; it means
+`coordinationRequired=true` and `requiredTransition=QUIESCE_SYNC`.
+
+Normative request/response and error contracts:
+`553-cross-hypervisor-dr-continuous-sync-control-and-quiesce-lock-design-20260714.md`.
+
+## 2026-07-14 Cutover API Addendum
+
+Plan API에는 `guestpreparationpolicy`, `testnetworkid`,
+`bootvalidationpolicy`, `boottimeoutseconds` typed field를 추가한다.
+`startDrTestFailover`는 restore point와 test-specific override만 받고 즉시
+async job/Run identity를 반환한다.
+
+Run/Plan response의 typed `cutover` object는 guest preparation, VirtIO,
+Secure Boot, domain power, boot validation, cleanup-required 상태를 제공한다.
+상세 계약: `554-cross-hypervisor-dr-vmware-to-kvm-cutover-and-virtio-bootstrap-design-20260714.md`.
+
+## 2026-07-16 Plan And Run JSON Safety Addendum
+
+Plan, Run, and operation responses expose bounded typed fields for
+`errorcode`, `errormessage`, `failedcomponent`, `datacommitstate`,
+`datacopied`, `metadatacommitted`, `targetdurable`, and `cycleretrymode`.
+`errormessage` must never contain the complete FTCTL status document. The full
+runtime payload remains available only through the dedicated status/projection
+field and is serialized once by the API framework.
+
+API regression tests cover Korean text, literal backslashes, escaped quotes,
+control characters, and nested JSON text. A response that cannot be parsed by
+a standards-compliant JSON decoder is an API failure even when HTTP status is
+200.
+
+Detailed response contract:
+`557-cross-hypervisor-dr-cycle-commit-and-api-json-recovery-design-20260716.md`.
+
+## 2026-07-17 Mode Decision And Eligibility API Addendum
+
+Checkpoint responses expose requested/effective mode, automatic-reseed flag,
+decision code, reseed reason, invalid baseline disk count, and incremental
+verification. Compatibility eligibility booleans remain, and a parallel typed
+reason map explains blocking conditions. Normal cutover requires verified
+incremental proof; forced emergency failover is separate and audited. The
+normative response and error contract is in
+`559-cross-hypervisor-dr-incremental-mode-decision-and-cycle-projection-design-20260717.md`.

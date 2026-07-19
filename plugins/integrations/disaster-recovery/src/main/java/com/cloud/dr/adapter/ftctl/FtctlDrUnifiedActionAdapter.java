@@ -16,6 +16,8 @@
 // under the License.
 package com.cloud.dr.adapter.ftctl;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -29,16 +31,30 @@ import com.cloud.agent.AgentManager;
 import com.cloud.agent.api.Answer;
 import com.cloud.agent.api.FtctlDrActionAnswer;
 import com.cloud.agent.api.FtctlDrActionCommand;
+import com.cloud.agent.api.FtctlDrCapabilitiesAnswer;
+import com.cloud.agent.api.FtctlDrCapabilitiesCommand;
+import com.cloud.agent.api.FtctlDrStatusAnswer;
+import com.cloud.agent.api.FtctlDrStatusCommand;
 import com.cloud.dr.DrConstants;
 import com.cloud.dr.DrPlanVO;
+import com.cloud.dr.DrRestorePointVO;
+import com.cloud.dr.DrResolvedSiteCredential;
 import com.cloud.dr.DrRunVO;
+import com.cloud.dr.DrSiteCredentialService;
+import com.cloud.dr.DrSiteVO;
 import com.cloud.dr.adapter.DrAdapterResult;
 import com.cloud.dr.adapter.DrExecutionContext;
 import com.cloud.dr.adapter.DrReplicationEngine;
+import com.cloud.dr.dao.DrSiteDao;
+import com.cloud.dr.dao.DrRestorePointDao;
+import com.cloud.dr.health.DrSiteProbeSupport;
 import com.cloud.exception.AgentUnavailableException;
 import com.cloud.exception.OperationTimedoutException;
+import com.cloud.host.DetailVO;
+import com.cloud.host.Host;
 import com.cloud.host.HostVO;
 import com.cloud.host.dao.HostDao;
+import com.cloud.host.dao.HostDetailsDao;
 import com.cloud.utils.component.ManagerBase;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -49,12 +65,21 @@ import com.google.gson.JsonParser;
 public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplicationEngine {
     private static final Logger LOGGER = LogManager.getLogger(FtctlDrUnifiedActionAdapter.class);
     private static final Gson GSON = new Gson();
-    private static final int AGENT_ACCEPT_TIMEOUT_SECONDS = 60;
+    private static final int AGENT_ACCEPT_TIMEOUT_SECONDS = 30;
+    private static final int VCENTER_THUMBPRINT_TIMEOUT_MS = 10000;
 
     @Inject
     private AgentManager agentManager;
     @Inject
     private HostDao hostDao;
+    @Inject
+    private HostDetailsDao hostDetailsDao;
+    @Inject
+    private DrSiteDao drSiteDao;
+    @Inject
+    private DrSiteCredentialService drSiteCredentialService;
+    @Inject
+    private DrRestorePointDao drRestorePointDao;
 
     @Override
     public String getEngineType() {
@@ -77,7 +102,84 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
             return DrAdapterResult.failure(DrConstants.ERROR_ENGINE_UNSUPPORTED,
                     "FTCTL_DR does not support direction " + plan.getDirection(), GSON.toJson(buildValidationDetails(plan)));
         }
+        DrAdapterResult credentialResult = validateVmwareCredentials(plan, direction);
+        if (credentialResult != null) {
+            return credentialResult;
+        }
+        DrAdapterResult mappingResult = validateKvmTargetMapping(plan, direction);
+        if (mappingResult != null) {
+            return mappingResult;
+        }
         return DrAdapterResult.success("FTCTL_DR plan contract is valid", GSON.toJson(buildValidationDetails(plan)));
+    }
+
+    private DrAdapterResult validateKvmTargetMapping(DrPlanVO plan, String direction) {
+        if (!StringUtils.endsWithIgnoreCase(direction, "_KVM")) {
+            return null;
+        }
+        JsonObject mapping = parseObject(plan.getMappingJson());
+        JsonObject target = objectAt(mapping, "target");
+        JsonArray disks = firstArray(mapping, "disks", "diskMappings", "volumes", "volumeMappings");
+        JsonArray missing = new JsonArray();
+        if (StringUtils.isBlank(firstString(mapping, "targetStorageRef", "targetDatastoreRef"))
+                && StringUtils.isBlank(firstString(target, "storageRef", "storagePoolId", "targetStorageRef"))
+                && !diskMappingsProvideTargetStorage(disks)) {
+            missing.add("TARGET_STORAGE_REQUIRED");
+        }
+        if (StringUtils.isBlank(firstString(mapping, "targetComputeRef", "serviceOfferingId"))
+                && StringUtils.isBlank(firstString(target, "serviceOfferingId", "serviceOfferingRef", "computeOfferingId"))) {
+            missing.add("TARGET_SERVICE_OFFERING_REQUIRED");
+        }
+        if (StringUtils.isBlank(firstString(mapping, "targetNetworkRef", "networkRef"))
+                && firstArray(target, "networks", "networkRefs", "networkMappings").size() == 0) {
+            missing.add("TARGET_NETWORK_REQUIRED");
+        }
+        if (disks.size() == 0) {
+            missing.add("DISK_MAPPING_REQUIRED");
+        }
+        for (int i = 0; i < disks.size(); i++) {
+            JsonElement element = disks.get(i);
+            if (element == null || !element.isJsonObject()) {
+                missing.add("DISK_MAPPING_REQUIRED:" + i);
+                continue;
+            }
+            JsonObject disk = element.getAsJsonObject();
+            JsonObject diskTarget = objectAt(disk, "target");
+            if (StringUtils.isBlank(firstString(disk, "targetStorageRef", "storageRef"))
+                    && StringUtils.isBlank(firstString(diskTarget, "storageRef", "storagePoolId", "targetStorageRef"))) {
+                missing.add("TARGET_STORAGE_REQUIRED:" + i);
+            }
+            if (StringUtils.isBlank(firstString(disk, "targetDiskOfferingId", "diskOfferingId"))
+                    && StringUtils.isBlank(firstString(diskTarget, "diskOfferingId", "diskOfferingRef", "offeringId"))) {
+                missing.add("TARGET_DISK_OFFERING_REQUIRED:" + i);
+            }
+        }
+        if (missing.size() == 0) {
+            return null;
+        }
+        JsonObject details = buildValidationDetails(plan);
+        details.add("blockingReasons", missing);
+        return DrAdapterResult.failure(DrConstants.ERROR_TARGET_MAPPING_INVALID,
+                "FTCTL_DR target KVM mapping is incomplete: " + missing, GSON.toJson(details));
+    }
+
+    private boolean diskMappingsProvideTargetStorage(JsonArray disks) {
+        if (disks == null || disks.size() == 0) {
+            return false;
+        }
+        for (int i = 0; i < disks.size(); i++) {
+            JsonElement element = disks.get(i);
+            if (element == null || !element.isJsonObject()) {
+                return false;
+            }
+            JsonObject disk = element.getAsJsonObject();
+            JsonObject target = objectAt(disk, "target");
+            if (StringUtils.isBlank(firstNonBlank(firstString(disk, "targetStorageRef", "storageRef"),
+                    firstString(target, "storageRef", "storagePoolId", "targetStorageRef")))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override
@@ -94,14 +196,31 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
             return DrAdapterResult.failure(DrConstants.ERROR_TARGET_MAPPING_INVALID, message, GSON.toJson(buildExecutionDetails(context, action, null)));
         }
 
+        DrAdapterResult capabilityResult = validateCapabilities(context, action, coordinatorHostId);
+        if (capabilityResult != null) {
+            return capabilityResult;
+        }
+
+        DrAdapterResult checkpointValidation = validateLatestCheckpoint(context, action);
+        if (checkpointValidation != null) {
+            return checkpointValidation;
+        }
         FtctlDrActionCommand command = buildActionCommand(context, action);
         try {
             Answer answer = agentManager.send(coordinatorHostId, command);
             return toAdapterResult(context, action, coordinatorHostId, answer);
-        } catch (AgentUnavailableException | OperationTimedoutException e) {
+        } catch (OperationTimedoutException e) {
             LOGGER.warn("Unable to dispatch FTCTL_DR run {} to host {}: {}", context.getRun().getId(), coordinatorHostId, e.getMessage());
-            return DrAdapterResult.failure(DrConstants.ERROR_ENGINE_UNAVAILABLE,
+            DrAdapterResult acceptedFromStatus = probeAcceptedStatus(context, action, coordinatorHostId);
+            if (acceptedFromStatus != null) {
+                return acceptedFromStatus;
+            }
+            return DrAdapterResult.failure(DrConstants.ERROR_AGENT_DISPATCH_TIMEOUT,
                     "Unable to dispatch FTCTL_DR run to Agent: " + e.getMessage(), GSON.toJson(buildExecutionDetails(context, action, coordinatorHostId)));
+        } catch (AgentUnavailableException e) {
+            LOGGER.warn("FTCTL_DR coordinator Agent is unavailable for run {} on host {}: {}", context.getRun().getId(), coordinatorHostId, e.getMessage());
+            return DrAdapterResult.failure(DrConstants.ERROR_AGENT_UNAVAILABLE,
+                    "FTCTL_DR coordinator Agent is unavailable: " + e.getMessage(), GSON.toJson(buildExecutionDetails(context, action, coordinatorHostId)));
         }
     }
 
@@ -110,7 +229,15 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         DrRunVO run = context.getRun();
         JsonObject request = requestJson(run);
         JsonObject redactedRequest = redactJson(request).getAsJsonObject();
+        DrRestorePointVO latestCheckpoint = requiresLatestCheckpoint(action)
+                ? drRestorePointDao.findLatestTargetReadyByPlanId(plan.getId()) : null;
+        redactedRequest.remove("restorePointId");
+        if (latestCheckpoint != null) {
+            redactedRequest.addProperty("restorePointRef", latestCheckpoint.getSourceSnapshotRef());
+        }
         FtctlDrActionCommand command = new FtctlDrActionCommand(action, plan.getUuid(), run.getUuid());
+        command.setActionName(action.name());
+        command.setCliCommand(action.getCliCommand());
         command.setRunType(run.getRunType());
         command.setDirection(plan.getDirection());
         command.setRole("coordinator");
@@ -120,13 +247,136 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         command.setProfileJson(buildProfileJson(plan, run, redactedRequest));
         command.setRequestJson(GSON.toJson(redactedRequest));
         command.setMode(requestString(request, "mode"));
-        command.setRestorePointId(requestLong(request, "restorePointId"));
+        command.setCheckpointRef(latestCheckpoint != null ? latestCheckpoint.getSourceSnapshotRef() : null);
         command.setForce(requestBoolean(request, "force", false));
         command.setDryRun(requestBoolean(request, "dryRun", false));
         command.setWaitForCompletion(false);
         command.setWait(AGENT_ACCEPT_TIMEOUT_SECONDS);
         command.setContext(toStringMap(redactedRequest));
         return command;
+    }
+
+    private DrAdapterResult validateLatestCheckpoint(DrExecutionContext context, FtctlDrActionCommand.Action action) {
+        if (!requiresLatestCheckpoint(action)) {
+            return null;
+        }
+        DrRestorePointVO latest = drRestorePointDao.findLatestTargetReadyByPlanId(context.getPlan().getId());
+        if (latest != null && StringUtils.isNotBlank(latest.getSourceSnapshotRef())) {
+            return null;
+        }
+        return DrAdapterResult.failure(DrConstants.ERROR_TARGET_NOT_READY,
+                "The latest synchronized target checkpoint is not ready",
+                GSON.toJson(buildExecutionDetails(context, action, resolveCoordinatorHostId(context.getPlan()))));
+    }
+
+    private boolean requiresLatestCheckpoint(FtctlDrActionCommand.Action action) {
+        return action == FtctlDrActionCommand.Action.TEST_FAILOVER || action == FtctlDrActionCommand.Action.FAILOVER;
+    }
+
+    private DrAdapterResult validateCapabilities(DrExecutionContext context, FtctlDrActionCommand.Action action, long hostId) {
+        FtctlDrCapabilitiesCommand command = new FtctlDrCapabilitiesCommand(context.getPlan().getUuid(), context.getRun().getUuid());
+        List<String> requiredActions = new ArrayList<String>();
+        requiredActions.add(action.name());
+        command.setRequiredActions(requiredActions);
+        List<String> requiredCliCommands = new ArrayList<String>();
+        requiredCliCommands.add(action.getCliCommand());
+        requiredCliCommands.add("dr-status");
+        command.setRequiredCliCommands(requiredCliCommands);
+        try {
+            Answer answer = agentManager.send(hostId, command);
+            JsonObject details = buildExecutionDetails(context, action, hostId);
+            details.add("capabilityCheck", GSON.toJsonTree(redactedCapabilities(answer)));
+            if (!(answer instanceof FtctlDrCapabilitiesAnswer)) {
+                String message = answer != null ? answer.getDetails() : "Agent returned no FTCTL_DR capability answer";
+                details.addProperty("answerType", answer != null ? answer.getClass().getName() : null);
+                return DrAdapterResult.failure(DrConstants.ERROR_AGENT_CAPABILITY_MISMATCH, message, GSON.toJson(details));
+            }
+            FtctlDrCapabilitiesAnswer capabilities = (FtctlDrCapabilitiesAnswer) answer;
+            if (!capabilities.getResult()) {
+                String message = StringUtils.defaultIfBlank(capabilities.getDetails(), "FTCTL_DR Agent capability mismatch");
+                return DrAdapterResult.failure(DrConstants.ERROR_AGENT_CAPABILITY_MISMATCH, message, GSON.toJson(details));
+            }
+            if (requiresControlProtocol(action) && !supportsFeature(capabilities.getSupportedFeatures(), "control-protocol-v2")) {
+                return DrAdapterResult.failure(DrConstants.ERROR_CONTROL_PROTOCOL_UNSUPPORTED,
+                        "FTCTL_DR control protocol v2 is required for coordinated DR actions", GSON.toJson(details));
+            }
+            if (requiresVmwareGuestPreparation(context, action)) {
+                String missingFeature = firstMissingFeature(capabilities.getSupportedFeatures(),
+                        "guest-preparation-v1",
+                        action == FtctlDrActionCommand.Action.TEST_FAILOVER ? "test-domain-lifecycle-v1" : "cutover-ready-v1");
+                if (missingFeature != null) {
+                    details.addProperty("missingFeature", missingFeature);
+                    return DrAdapterResult.failure(DrConstants.ERROR_AGENT_CAPABILITY_MISMATCH,
+                            "FTCTL_DR host does not provide required guest preparation capability: " + missingFeature,
+                            GSON.toJson(details));
+                }
+            }
+            return null;
+        } catch (OperationTimedoutException e) {
+            LOGGER.warn("FTCTL_DR capability check timed out for run {} on host {}: {}", context.getRun().getId(), hostId, e.getMessage());
+            return DrAdapterResult.failure(DrConstants.ERROR_AGENT_CAPABILITY_MISMATCH,
+                    "FTCTL_DR capability check timed out: " + e.getMessage(), GSON.toJson(buildExecutionDetails(context, action, hostId)));
+        } catch (AgentUnavailableException e) {
+            LOGGER.warn("FTCTL_DR capability check failed because Agent is unavailable for run {} on host {}: {}",
+                    context.getRun().getId(), hostId, e.getMessage());
+            return DrAdapterResult.failure(DrConstants.ERROR_AGENT_UNAVAILABLE,
+                    "FTCTL_DR coordinator Agent is unavailable: " + e.getMessage(), GSON.toJson(buildExecutionDetails(context, action, hostId)));
+        }
+    }
+
+    private boolean requiresControlProtocol(FtctlDrActionCommand.Action action) {
+        return action != null && action != FtctlDrActionCommand.Action.TARGET_MATERIALIZED;
+    }
+
+    private boolean supportsFeature(List<String> features, String requiredFeature) {
+        if (features == null) {
+            return false;
+        }
+        for (String feature : features) {
+            if (StringUtils.equalsIgnoreCase(feature, requiredFeature)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean requiresVmwareGuestPreparation(DrExecutionContext context, FtctlDrActionCommand.Action action) {
+        return context != null && context.getPlan() != null
+                && StringUtils.equalsIgnoreCase(context.getPlan().getDirection(), "VMWARE_TO_KVM")
+                && (action == FtctlDrActionCommand.Action.TEST_FAILOVER || action == FtctlDrActionCommand.Action.FAILOVER);
+    }
+
+    private String firstMissingFeature(List<String> features, String... requiredFeatures) {
+        for (String requiredFeature : requiredFeatures) {
+            if (!supportsFeature(features, requiredFeature)) {
+                return requiredFeature;
+            }
+        }
+        return null;
+    }
+
+    private DrAdapterResult probeAcceptedStatus(DrExecutionContext context, FtctlDrActionCommand.Action action, long hostId) {
+        try {
+            FtctlDrStatusCommand statusCommand = new FtctlDrStatusCommand(context.getPlan().getUuid(), context.getRun().getUuid());
+            statusCommand.setWait(10);
+            Answer answer = agentManager.easySend(hostId, statusCommand);
+            if (!(answer instanceof FtctlDrStatusAnswer)) {
+                return null;
+            }
+            FtctlDrStatusAnswer status = (FtctlDrStatusAnswer) answer;
+            if (!isAcceptedStatus(status)) {
+                return null;
+            }
+            JsonObject details = buildExecutionDetails(context, action, hostId);
+            details.add("statusProbe", GSON.toJsonTree(redactedStatus(status)));
+            String externalJobRef = StringUtils.defaultIfBlank(stringValue(parseObject(status.getStatusJson()), "external_job_ref"), context.getRun().getUuid());
+            return DrAdapterResult.accepted("FTCTL_DR action " + action + " accepted by Agent after timeout status probe",
+                    GSON.toJson(details), externalJobRef);
+        } catch (RuntimeException e) {
+            LOGGER.debug("Ignoring FTCTL_DR status probe failure for run {} after dispatch timeout: {}",
+                    context.getRun().getId(), e.getMessage());
+            return null;
+        }
     }
 
     private DrAdapterResult toAdapterResult(DrExecutionContext context, FtctlDrActionCommand.Action action, long hostId, Answer answer) {
@@ -140,6 +390,17 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         FtctlDrActionAnswer actionAnswer = (FtctlDrActionAnswer) answer;
         details.add("agentAnswer", GSON.toJsonTree(redactedAnswer(actionAnswer)));
         if (!actionAnswer.getResult()) {
+            JsonObject lockPayload = retryableLockPayload(actionAnswer);
+            if (lockPayload != null) {
+                details.add("retryableLock", lockPayload);
+                Integer retryAfterSeconds = integerValue(lockPayload, "retry_after_sec");
+                String holderCommand = stringValue(lockPayload, "holder_command");
+                String message = "FTCTL_DR engine is busy";
+                if (StringUtils.isNotBlank(holderCommand)) {
+                    message += " while " + holderCommand + " is holding the lock";
+                }
+                return DrAdapterResult.retryable(DrConstants.ERROR_ENGINE_BUSY_RETRYABLE, message, GSON.toJson(details), retryAfterSeconds);
+            }
             String errorCode = StringUtils.defaultIfBlank(actionAnswer.getErrorCode(), DrConstants.ERROR_ENGINE_ACTION_FAILED);
             String message = StringUtils.defaultIfBlank(actionAnswer.getDetails(), "FTCTL_DR Agent command failed");
             return DrAdapterResult.failure(errorCode, message, GSON.toJson(details));
@@ -159,6 +420,19 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
             return DrAdapterResult.success("FTCTL_DR control action " + action + " accepted by Agent", GSON.toJson(details));
         }
         return DrAdapterResult.accepted("FTCTL_DR action " + action + " accepted by Agent", GSON.toJson(details), externalJobRef);
+    }
+
+    private boolean isAcceptedStatus(FtctlDrStatusAnswer status) {
+        if (status == null) {
+            return false;
+        }
+        JsonObject runtime = parseObject(status.getStatusJson());
+        String result = StringUtils.lowerCase(StringUtils.defaultIfBlank(status.getFtctlResult(), stringValue(runtime, "result")), Locale.ROOT);
+        String state = StringUtils.upperCase(StringUtils.defaultIfBlank(status.getState(), stringValue(runtime, "state")), Locale.ROOT);
+        return status.getResult()
+                && (booleanValue(runtime, "accepted")
+                || StringUtils.equalsAny(result, "accepted", "ok", "success", "delegated", "warn")
+                || StringUtils.equalsAny(state, "SYNCING", "RUNNING", "READY", "TARGET_READY", "PAUSED", "TESTING"));
     }
 
     private FtctlDrActionCommand.Action resolveAction(DrRunVO run) {
@@ -227,22 +501,52 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         profile.addProperty("activeSide", plan.getActiveSide());
         profile.addProperty("rpoTargetSeconds", plan.getRpoSeconds());
         profile.addProperty("rtoTargetSeconds", plan.getRtoSeconds());
-        profile.add("source", buildEndpoint(plan.getDirection(), true, plan.getSourceVmId(), plan.getSourceExternalRef()));
-        profile.add("target", buildEndpoint(plan.getDirection(), false, null, null));
+        DrSiteVO sourceSite = drSiteDao != null ? drSiteDao.findById(plan.getSourceSiteId()) : null;
+        DrSiteVO targetSite = drSiteDao != null ? drSiteDao.findById(plan.getTargetSiteId()) : null;
+        JsonObject mapping = parseObject(plan.getMappingJson());
+        profile.add("source", buildEndpoint(plan.getDirection(), true, sourceSite, plan.getSourceVmId(), plan.getSourceExternalRef()));
+        profile.add("target", buildTargetEndpoint(plan.getDirection(), targetSite, mapping));
+        profile.add("credentials", buildCredentials(plan, sourceSite, targetSite));
         profile.add("workers", buildWorkers(plan));
         profile.add("policy", parseObject(plan.getPolicyJson()));
-        profile.add("mapping", parseObject(plan.getMappingJson()));
+        profile.add("mapping", mapping);
         profile.add("schedule", parseObject(plan.getScheduleJson()));
         profile.add("quiescePolicy", parseObject(plan.getQuiescePolicyJson()));
         profile.add("request", request);
         return GSON.toJson(profile);
     }
 
-    private JsonObject buildEndpoint(String direction, boolean source, Long vmId, String externalRef) {
+    private JsonObject buildTargetEndpoint(String direction, DrSiteVO targetSite, JsonObject mapping) {
+        JsonObject endpoint = buildEndpoint(direction, false, targetSite, null, null);
+        JsonObject targetMapping = objectAt(mapping, "target");
+        for (Map.Entry<String, JsonElement> entry : targetMapping.entrySet()) {
+            if (!endpoint.has(entry.getKey()) && entry.getValue() != null && !entry.getValue().isJsonNull()) {
+                endpoint.add(entry.getKey(), entry.getValue().deepCopy());
+            }
+        }
+        return endpoint;
+    }
+
+    private JsonObject buildEndpoint(String direction, boolean source, DrSiteVO site, Long vmId, String externalRef) {
         JsonObject endpoint = new JsonObject();
         boolean vmware = source ? StringUtils.startsWith(direction, "VMWARE_") : StringUtils.endsWith(direction, "_VMWARE");
         endpoint.addProperty("provider", vmware ? "VMWARE" : "ABLESTACK");
         endpoint.addProperty("driver", vmware ? (source ? "VMWARE_CBT" : "VMWARE_VDDK") : (source ? "KVM_QMP" : "ABLESTACK"));
+        if (source && vmware) {
+            JsonObject cbtPolicy = new JsonObject();
+            cbtPolicy.addProperty("required", true);
+            cbtPolicy.addProperty("autoEnable", true);
+            cbtPolicy.addProperty("failIfPreExistingSnapshots", false);
+            endpoint.add("cbtPolicy", cbtPolicy);
+        }
+        if (site != null) {
+            endpoint.addProperty("siteId", site.getId());
+            endpoint.addProperty("siteUuid", site.getUuid());
+            endpoint.addProperty("siteName", site.getName());
+            endpoint.addProperty("siteType", site.getSiteType());
+            endpoint.addProperty("hypervisorType", site.getHypervisorType());
+            endpoint.addProperty("endpoint", site.getEndpoint());
+        }
         if (vmId != null) {
             endpoint.addProperty("vmId", vmId);
         }
@@ -252,12 +556,127 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         return endpoint;
     }
 
+    private JsonObject buildCredentials(DrPlanVO plan, DrSiteVO sourceSite, DrSiteVO targetSite) {
+        JsonObject credentials = new JsonObject();
+        addCredential(credentials, "source", sourceSite, plan, true);
+        addCredential(credentials, "target", targetSite, plan, false);
+        return credentials;
+    }
+
+    private void addCredential(JsonObject credentials, String key, DrSiteVO site, DrPlanVO plan, boolean source) {
+        if (drSiteCredentialService == null || site == null) {
+            return;
+        }
+        DrResolvedSiteCredential credential = drSiteCredentialService.resolveCredential(site);
+        if (credential != null && credential.hasSecrets()) {
+            JsonObject runtime = credential.toRuntimeJson();
+            if (source && isVmwareSourcePlan(plan)) {
+                enrichVmwareSourceCredential(runtime, plan);
+            }
+            credentials.add(key, runtime);
+        }
+    }
+
+    private boolean isVmwareSourcePlan(DrPlanVO plan) {
+        return plan != null && StringUtils.startsWithIgnoreCase(plan.getDirection(), "VMWARE_");
+    }
+
+    private void enrichVmwareSourceCredential(JsonObject credential, DrPlanVO plan) {
+        Long hostId = resolveVmwareDataPlaneHostId(plan);
+        if (hostId == null || credential == null) {
+            return;
+        }
+        String libDir = hostDetailValue(hostId, Host.HOST_VDDK_LIB_DIR);
+        if (StringUtils.isNotBlank(libDir)) {
+            credential.addProperty("vddkLibdir", libDir);
+        }
+        String version = hostDetailValue(hostId, Host.HOST_VDDK_VERSION);
+        if (StringUtils.isNotBlank(version)) {
+            credential.addProperty("vddkVersion", version);
+        }
+        credential.addProperty("dataPlaneHostId", hostId);
+        credential.addProperty("dataPlaneHostUuid", resolveHostUuid(hostId));
+        enrichVmwareSourceThumbprint(credential);
+    }
+
+    private void enrichVmwareSourceThumbprint(JsonObject credential) {
+        if (credential == null || booleanValue(credential, "tlsVerify")) {
+            return;
+        }
+        String thumbprint = firstString(credential, "thumbprint", "tlsThumbprint");
+        if (StringUtils.isNotBlank(thumbprint)) {
+            credential.addProperty("thumbprint", thumbprint);
+            if (StringUtils.isBlank(firstString(credential, "thumbprintSource"))) {
+                credential.addProperty("thumbprintSource", "runtime");
+            }
+            return;
+        }
+        String endpoint = firstString(credential, "endpoint");
+        if (StringUtils.isBlank(endpoint)) {
+            credential.addProperty("thumbprintPresent", false);
+            credential.addProperty("thumbprintSource", "missing-endpoint");
+            return;
+        }
+        try {
+            thumbprint = DrSiteProbeSupport.fetchSha1Thumbprint(endpoint, VCENTER_THUMBPRINT_TIMEOUT_MS);
+            if (StringUtils.isNotBlank(thumbprint)) {
+                credential.addProperty("thumbprint", thumbprint);
+                credential.addProperty("thumbprintPresent", true);
+                credential.addProperty("thumbprintSource", "backend-auto");
+                return;
+            }
+        } catch (Exception e) {
+            LOGGER.warn("Unable to resolve vCenter thumbprint for DR source endpoint {}: {}", endpoint, e.getMessage());
+        }
+        credential.addProperty("thumbprintPresent", false);
+        credential.addProperty("thumbprintSource", "backend-unresolved");
+    }
+
+    private Long resolveVmwareDataPlaneHostId(DrPlanVO plan) {
+        if (plan == null) {
+            return null;
+        }
+        if (StringUtils.endsWithIgnoreCase(plan.getDirection(), "_KVM") && plan.getTargetWorkerHostId() != null) {
+            return plan.getTargetWorkerHostId();
+        }
+        return resolveCoordinatorHostId(plan);
+    }
+
+    private String hostDetailValue(Long hostId, String name) {
+        if (hostId == null || StringUtils.isBlank(name) || hostDetailsDao == null) {
+            return null;
+        }
+        DetailVO detail = hostDetailsDao.findDetail(hostId, name);
+        return detail != null ? StringUtils.trimToNull(detail.getValue()) : null;
+    }
+
     private JsonObject buildWorkers(DrPlanVO plan) {
         JsonObject workers = new JsonObject();
         workers.addProperty("coordinator", resolveHostUuid(resolveCoordinatorHostId(plan)));
         workers.addProperty("source", resolveHostUuid(plan.getSourceWorkerHostId()));
         workers.addProperty("target", resolveHostUuid(plan.getTargetWorkerHostId()));
         return workers;
+    }
+
+    private DrAdapterResult validateVmwareCredentials(DrPlanVO plan, String direction) {
+        if (drSiteDao == null || drSiteCredentialService == null) {
+            return null;
+        }
+        if (StringUtils.startsWith(direction, "VMWARE_")) {
+            DrSiteVO sourceSite = drSiteDao.findById(plan.getSourceSiteId());
+            if (!drSiteCredentialService.hasUsableCredential(sourceSite)) {
+                return DrAdapterResult.failure(DrConstants.ERROR_CREDENTIAL_INVALID,
+                        "Source VMware DR site requires stored credentials", GSON.toJson(buildValidationDetails(plan)));
+            }
+        }
+        if (StringUtils.endsWith(direction, "_VMWARE")) {
+            DrSiteVO targetSite = drSiteDao.findById(plan.getTargetSiteId());
+            if (!drSiteCredentialService.hasUsableCredential(targetSite)) {
+                return DrAdapterResult.failure(DrConstants.ERROR_CREDENTIAL_INVALID,
+                        "Target VMware DR site requires stored credentials", GSON.toJson(buildValidationDetails(plan)));
+            }
+        }
+        return null;
     }
 
     private JsonObject buildValidationDetails(DrPlanVO plan) {
@@ -283,6 +702,7 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         details.addProperty("runType", context.getRun() != null ? context.getRun().getRunType() : null);
         details.addProperty("action", action != null ? action.name() : null);
         details.addProperty("agentHostId", hostId);
+        details.addProperty("agentAcceptTimeoutSeconds", AGENT_ACCEPT_TIMEOUT_SECONDS);
         if (context.getPlan() != null) {
             details.addProperty("planId", context.getPlan().getId());
             details.addProperty("planUuid", context.getPlan().getUuid());
@@ -314,6 +734,47 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         return object;
     }
 
+    private JsonObject redactedCapabilities(Answer answer) {
+        JsonObject object = new JsonObject();
+        if (!(answer instanceof FtctlDrCapabilitiesAnswer)) {
+            object.addProperty("result", answer != null && answer.getResult());
+            object.addProperty("details", answer != null ? answer.getDetails() : null);
+            object.addProperty("answerType", answer != null ? answer.getClass().getName() : null);
+            return object;
+        }
+        FtctlDrCapabilitiesAnswer capabilities = (FtctlDrCapabilitiesAnswer) answer;
+        object.addProperty("result", capabilities.getResult());
+        object.addProperty("details", capabilities.getDetails());
+        object.addProperty("planUuid", capabilities.getPlanUuid());
+        object.addProperty("runUuid", capabilities.getRunUuid());
+        object.addProperty("ftctlVersion", capabilities.getFtctlVersion());
+        object.addProperty("runtimeSchemaVersion", capabilities.getRuntimeSchemaVersion());
+        object.addProperty("actionContractVersion", capabilities.getActionContractVersion());
+        object.addProperty("actionCommandCodeSource", capabilities.getActionCommandCodeSource());
+        object.addProperty("wrapperCodeSource", capabilities.getWrapperCodeSource());
+        object.add("supportedActions", GSON.toJsonTree(capabilities.getSupportedActions()));
+        object.add("supportedCliCommands", GSON.toJsonTree(capabilities.getSupportedCliCommands()));
+        object.add("supportedFeatures", GSON.toJsonTree(capabilities.getSupportedFeatures()));
+        object.add("missingActions", GSON.toJsonTree(capabilities.getMissingActions()));
+        object.add("missingCliCommands", GSON.toJsonTree(capabilities.getMissingCliCommands()));
+        return object;
+    }
+
+    private JsonObject redactedStatus(FtctlDrStatusAnswer status) {
+        JsonObject object = new JsonObject();
+        object.addProperty("planUuid", status.getPlanUuid());
+        object.addProperty("runUuid", status.getRunUuid());
+        object.addProperty("result", status.getFtctlResult());
+        object.addProperty("state", status.getState());
+        object.addProperty("step", status.getStep());
+        object.addProperty("progress", status.getProgress());
+        object.addProperty("eventsOffset", status.getEventsOffset());
+        object.addProperty("errorCode", status.getErrorCode());
+        object.addProperty("exitCode", status.getExitCode());
+        object.add("status", redactJson(parseElement(status.getStatusJson())));
+        return object;
+    }
+
     private JsonObject requestJson(DrRunVO run) {
         if (run == null || StringUtils.isBlank(run.getRequestJson())) {
             return new JsonObject();
@@ -325,6 +786,83 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
     private JsonObject parseObject(String json) {
         JsonElement element = parseElement(json);
         return element != null && element.isJsonObject() ? element.getAsJsonObject() : new JsonObject();
+    }
+
+    private JsonObject objectAt(JsonObject object, String key) {
+        JsonElement value = object != null ? object.get(key) : null;
+        return value != null && value.isJsonObject() ? value.getAsJsonObject() : new JsonObject();
+    }
+
+    private JsonArray firstArray(JsonObject object, String... keys) {
+        for (String key : keys) {
+            JsonElement value = object != null ? object.get(key) : null;
+            if (value != null && value.isJsonArray()) {
+                return value.getAsJsonArray();
+            }
+        }
+        return new JsonArray();
+    }
+
+    private String firstString(JsonObject object, String... keys) {
+        for (String key : keys) {
+            JsonElement value = object != null ? object.get(key) : null;
+            if (value != null && value.isJsonPrimitive()) {
+                String result = StringUtils.trimToNull(value.getAsString());
+                if (result != null) {
+                    return result;
+                }
+            }
+        }
+        return null;
+    }
+
+    private String firstNonBlank(String first, String second) {
+        return StringUtils.isNotBlank(first) ? first : second;
+    }
+
+    private String stringValue(JsonObject object, String key) {
+        JsonElement value = object != null ? object.get(key) : null;
+        return value != null && !value.isJsonNull() && value.isJsonPrimitive() ? value.getAsString() : null;
+    }
+
+    private boolean booleanValue(JsonObject object, String key) {
+        JsonElement value = object != null ? object.get(key) : null;
+        return value != null && !value.isJsonNull() && value.isJsonPrimitive() && value.getAsBoolean();
+    }
+
+    private Integer integerValue(JsonObject object, String key) {
+        JsonElement value = object != null ? object.get(key) : null;
+        if (value == null || value.isJsonNull() || !value.isJsonPrimitive()) {
+            return null;
+        }
+        try {
+            return value.getAsInt();
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    private JsonObject retryableLockPayload(FtctlDrActionAnswer answer) {
+        JsonObject payload = firstNonEmptyObject(answer.getStatusJson(), answer.getOutput(), answer.getDetails());
+        if (payload.entrySet().isEmpty()) {
+            return null;
+        }
+        String result = StringUtils.lowerCase(stringValue(payload, "result"), Locale.ROOT);
+        String command = StringUtils.lowerCase(stringValue(payload, "command"), Locale.ROOT);
+        boolean retryable = booleanValue(payload, "retryable");
+        boolean locked = StringUtils.equals(result, "locked") || StringUtils.contains(command, "lock")
+                || StringUtils.equalsIgnoreCase(stringValue(payload, "error_code"), "locked");
+        return retryable && locked ? payload : null;
+    }
+
+    private JsonObject firstNonEmptyObject(String... values) {
+        for (String value : values) {
+            JsonObject object = parseObject(value);
+            if (object != null && !object.entrySet().isEmpty()) {
+                return object;
+            }
+        }
+        return new JsonObject();
     }
 
     private JsonElement parseElement(String json) {

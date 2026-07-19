@@ -211,7 +211,7 @@
 - 신규 response helper 추가
   - `com.cloud.dr.response.DrResponseGenerator`
   - VO를 API response로 변환
-  - `credentialRef`는 뒤 4자리만 남기고 masking
+  - `credentialRef` masking은 legacy 응답에만 적용한다. 신규 설계는 `dr_site_credential` 암호화 저장과 credential 상태 summary를 사용한다.
   - `DrRunResponse`에 `accepted`, `planid`, `runstate`, `steps`, `progresspercent` 계열 정보 제공
 - 신규 site command 추가
   - `CreateDrSiteCmd`
@@ -585,7 +585,7 @@
   - FTCTL plan의 기존 action surface는 유지
 - `VmwarePhase1TargetAdapter`를 추가했다.
   - `DrReplicationEngine` 구현체로 `VMWARE_PHASE1/VMWARE_PHASE1` registry key를 사용
-  - `validatePlan`에서 `KVM_TO_VMWARE`, source KVM, target VMware, vCenter endpoint 또는 `vmwareDatacenterId`, credentialRef, mapping JSON을 검증
+  - `validatePlan`에서 `KVM_TO_VMWARE`, source KVM, target VMware, vCenter endpoint 또는 `vmwareDatacenterId`, backend-managed vCenter credential, mapping JSON을 검증
   - mapping 필수 항목: `targetDatastoreRef`, `resourcePoolRef` 또는 `clusterRef`, `targetFolderPath`, `targetNetworkRef`
   - `PRODUCTION_ON_FAILOVER` network connect mode는 Phase 1 skeleton에서 거부
   - `SYNC` 실행 시 `DrReplica`를 `SKELETON_READY`/`POWERED_OFF`/`VMware`로 기록
@@ -772,3 +772,34 @@
 남은 단계:
 
 - `0`
+
+### 2026-07-02 추가 구현: DR 상세 화면 표준화
+
+상태: 완료
+
+구현 내용:
+
+- DR Site/Plan 상세 화면의 custom left card와 `a-descriptions bordered` 기반 상세 표를 제거했다.
+- `DrResourceInfoCard.vue`를 추가해 볼륨 상세의 `vm-info-card`, `resource-details`, `resource-detail-item` class 계약을 따르는 DR 전용 좌측 정보 카드를 제공한다.
+- `DrResourceDetailsTab.vue`를 추가해 볼륨 상세의 row 기반 `DetailsTab` 계열과 같은 label/value 목록을 제공한다.
+- `DrSiteList.vue`, `DrPlanList.vue`, `DrPlanOverview.vue`를 표준 컴포넌트 기반으로 연결했다.
+- 상세 첫 탭은 `details`/`label.details`를 사용하며, 기존 `overview` URL state는 `details`로 normalize한다.
+- `cross-dr.less`에 DR 표준 상세 row/card의 줄바꿈, 링크 색상, 다크모드 대비 보강 스타일을 추가했다.
+
+계층별 판단:
+
+| 계층 | 변경 | 판단 |
+|---|---|---|
+| UI | 있음 | 화면 표준화 대상 |
+| API | 없음 | 기존 `DrSiteResponse`, `DrPlanResponse` 필드를 그대로 사용 |
+| Backend | 없음 | action/state/run 흐름 변경 없음 |
+| Agent | 없음 | host command 계약 변경 없음 |
+| ftctl | 없음 | runtime profile/status/event 계약 변경 없음 |
+| DB | 없음 | 신규 스키마/데이터 변경 불필요 |
+
+검증 기준:
+
+- UI build 성공
+- 활성 webapp에 `dr-standard-info-card`, `dr-standard-detail-row` marker 반영
+- `/usr/share/cloudstack-management/webapp/WEB-INF` 보존
+- management `/client/` HTTP 200 응답

@@ -29,7 +29,6 @@ import org.apache.cloudstack.api.response.dr.DrRunResponse;
 
 import com.cloud.dr.DrRunService;
 import com.cloud.dr.DrRunVO;
-import com.cloud.dr.DrProjectionService;
 import com.cloud.dr.response.DrResponseGenerator;
 import com.cloud.user.Account;
 
@@ -41,8 +40,6 @@ public class GetDrRunCmd extends BaseCmd {
     @Inject
     private DrRunService drRunService;
     @Inject
-    private DrProjectionService drProjectionService;
-    @Inject
     private DrResponseGenerator drResponseGenerator;
 
     @Parameter(name = "id", type = CommandType.UUID, entityType = DrRunResponse.class, required = true, description = "the DR run ID")
@@ -52,8 +49,6 @@ public class GetDrRunCmd extends BaseCmd {
     public void execute() throws ServerApiException {
         try {
             DrRunVO run = drRunService.getRun(id);
-            drProjectionService.refreshPlanProjection(run.getPlanId(), true);
-            run = drRunService.getRun(id);
             DrRunResponse response = drResponseGenerator.createRunResponse(run, drRunService.listRunSteps(run.getId()), false);
             response.setResponseName(getCommandName());
             setResponseObject(response);

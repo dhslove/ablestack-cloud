@@ -19,6 +19,7 @@ package com.cloud.dr.dao;
 import java.util.List;
 
 import com.cloud.dr.DrEventVO;
+import com.cloud.utils.Pair;
 import com.cloud.utils.db.DB;
 import com.cloud.utils.db.Filter;
 import com.cloud.utils.db.GenericDaoBase;
@@ -30,6 +31,7 @@ public class DrEventDaoImpl extends GenericDaoBase<DrEventVO, Long> implements D
 
     private final SearchBuilder<DrEventVO> byPlanSearch;
     private final SearchBuilder<DrEventVO> byRunSearch;
+    private final SearchBuilder<DrEventVO> significantByPlanSearch;
     private final SearchBuilder<DrEventVO> byPlanAndEventTypeSearch;
 
     public DrEventDaoImpl() {
@@ -40,6 +42,11 @@ public class DrEventDaoImpl extends GenericDaoBase<DrEventVO, Long> implements D
         byRunSearch = createSearchBuilder();
         byRunSearch.and("runId", byRunSearch.entity().getRunId(), SearchCriteria.Op.EQ);
         byRunSearch.done();
+
+        significantByPlanSearch = createSearchBuilder();
+        significantByPlanSearch.and("planId", significantByPlanSearch.entity().getPlanId(), SearchCriteria.Op.EQ);
+        significantByPlanSearch.and("eventType", significantByPlanSearch.entity().getEventType(), SearchCriteria.Op.NEQ);
+        significantByPlanSearch.done();
 
         byPlanAndEventTypeSearch = createSearchBuilder();
         byPlanAndEventTypeSearch.and("planId", byPlanAndEventTypeSearch.entity().getPlanId(), SearchCriteria.Op.EQ);
@@ -55,10 +62,48 @@ public class DrEventDaoImpl extends GenericDaoBase<DrEventVO, Long> implements D
     }
 
     @Override
+    public List<DrEventVO> listRecentByPlanId(long planId, int limit, boolean includeProjectionRefresh) {
+        int normalizedLimit = Math.max(1, Math.min(limit, 100));
+        SearchCriteria<DrEventVO> sc = includeProjectionRefresh ? byPlanSearch.create() : significantByPlanSearch.create();
+        sc.setParameters("planId", planId);
+        if (!includeProjectionRefresh) {
+            sc.setParameters("eventType", "PROJECTION_REFRESH");
+        }
+        return listBy(sc, new Filter(DrEventVO.class, "created", false, 0L, (long) normalizedLimit));
+    }
+
+    @Override
     public List<DrEventVO> listByRunId(long runId) {
         SearchCriteria<DrEventVO> sc = byRunSearch.create();
         sc.setParameters("runId", runId);
         return listBy(sc, new Filter(DrEventVO.class, "created", false, null, null));
+    }
+
+    @Override
+    public List<DrEventVO> listRecentByRunId(long runId, int limit) {
+        SearchCriteria<DrEventVO> sc = byRunSearch.create();
+        sc.setParameters("runId", runId);
+        int normalizedLimit = Math.max(1, Math.min(limit, 100));
+        return listBy(sc, new Filter(DrEventVO.class, "created", false, 0L, (long) normalizedLimit));
+    }
+
+    @Override
+    public Pair<List<DrEventVO>, Integer> searchRecentByPlanId(long planId, long offset, long limit, boolean includeProjectionRefresh) {
+        SearchCriteria<DrEventVO> sc = includeProjectionRefresh ? byPlanSearch.create() : significantByPlanSearch.create();
+        sc.setParameters("planId", planId);
+        if (!includeProjectionRefresh) {
+            sc.setParameters("eventType", "PROJECTION_REFRESH");
+        }
+        long normalizedLimit = Math.max(1L, Math.min(limit, 100L));
+        return searchAndCount(sc, new Filter(DrEventVO.class, "created", false, Math.max(0L, offset), normalizedLimit));
+    }
+
+    @Override
+    public Pair<List<DrEventVO>, Integer> searchRecentByRunId(long runId, long offset, long limit) {
+        SearchCriteria<DrEventVO> sc = byRunSearch.create();
+        sc.setParameters("runId", runId);
+        long normalizedLimit = Math.max(1L, Math.min(limit, 100L));
+        return searchAndCount(sc, new Filter(DrEventVO.class, "created", false, Math.max(0L, offset), normalizedLimit));
     }
 
     @Override

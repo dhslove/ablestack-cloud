@@ -26,5 +26,7 @@ public interface DrRunDao extends GenericDao<DrRunVO, Long> {
 
     DrRunVO findByPlanIdAndIdempotencyKey(long planId, String idempotencyKey);
 
+    DrRunVO findLatestByPlanId(long planId);
+
     List<DrRunVO> listByPlanId(long planId);
 }

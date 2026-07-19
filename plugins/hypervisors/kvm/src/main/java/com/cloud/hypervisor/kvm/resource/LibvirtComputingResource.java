@@ -391,7 +391,18 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
     public static final String WINDOWS_GUEST_CONVERSION_SUPPORTED_CHECK_CMD = "rpm -qa | grep -i virtio-win";
     public static final String UBUNTU_WINDOWS_GUEST_CONVERSION_SUPPORTED_CHECK_CMD = "dpkg -l virtio-win";
     public static final String UBUNTU_NBDKIT_PKG_CHECK_CMD = "dpkg -l nbdkit";
-    public static final String VDDK_AUTODETECT_PATH_CMD = "find / -type d -name 'vmware-vix-disklib-distrib' 2>/dev/null | head -n 1";
+    public static final String VDDK_AUTODETECT_PATH_CMD =
+            "for candidate in " +
+            "\"${VDDK_LIBDIR:-}\" " +
+            "\"/opt/vmware-vix-disklib-distrib\" " +
+            "\"/usr/share/ablestack/v2k/compat/vsphere80/vddk\" " +
+            "\"/usr/share/ablestack/v2k/compat/vsphere67/vddk\" " +
+            "\"/usr/share/ablestack/v2k/compat/vsphere60/vddk\"; do " +
+            "[ -n \"$candidate\" ] && [ -d \"$candidate/lib64\" ] && ls \"$candidate\"/lib64/libvixDiskLib.so* >/dev/null 2>&1 && { printf '%s\\n' \"$candidate\"; exit 0; }; " +
+            "done; " +
+            "find /usr/share/ablestack/v2k/compat -maxdepth 3 -type d -name vddk 2>/dev/null | while read -r candidate; do " +
+            "[ -d \"$candidate/lib64\" ] && ls \"$candidate\"/lib64/libvixDiskLib.so* >/dev/null 2>&1 && { printf '%s\\n' \"$candidate\"; break; }; " +
+            "done";
 
     public static final int LIBVIRT_CGROUP_CPU_SHARES_MIN = 2;
     public static final int LIBVIRT_CGROUP_CPU_SHARES_MAX = 262144;
@@ -1320,7 +1331,7 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
             LOGGER.warn("Could not detect a valid VDDK library dir; VDDK conversion will be unavailable");
         }
 
-        vddkVersion = detectVddkVersion();
+        vddkVersion = detectVddkVersion(vddkLibDir);
         if (StringUtils.isNotBlank(vddkVersion)) {
             LOGGER.info("Detected nbdkit VDDK plugin version: {}", vddkVersion);
         }
@@ -6878,7 +6889,9 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
         if (StringUtils.isBlank(effectiveVddkLibDir) || !isVddkLibDirValid(effectiveVddkLibDir)) {
             effectiveVddkLibDir = detectVddkLibDir();
         }
-        return hostSupportsInstanceConversion() && isVddkLibDirValid(effectiveVddkLibDir) && StringUtils.isNotBlank(detectVddkVersion());
+        return hostSupportsInstanceConversion()
+                && isVddkLibDirLoadable(effectiveVddkLibDir)
+                && StringUtils.isNotBlank(detectVddkVersion(effectiveVddkLibDir));
     }
 
     protected boolean isVddkLibDirValid(String path) {
@@ -6895,15 +6908,22 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
 
     protected String detectVddkLibDir() {
         String detectedPath = StringUtils.trimToNull(Script.runSimpleBashScript(VDDK_AUTODETECT_PATH_CMD));
-        if (StringUtils.isNotBlank(detectedPath) && isVddkLibDirValid(detectedPath)) {
+        if (StringUtils.isNotBlank(detectedPath) && isVddkLibDirLoadable(detectedPath)) {
             return detectedPath;
         }
         return null;
     }
 
     protected String detectVddkVersion() {
+        return detectVddkVersion(null);
+    }
+
+    protected String detectVddkVersion(String libDir) {
         try {
-            ProcessBuilder pb = new ProcessBuilder("nbdkit", "vddk", "--version");
+            ProcessBuilder pb = StringUtils.isNotBlank(libDir)
+                    ? new ProcessBuilder("nbdkit", "--dump-plugin", "vddk", "libdir=" + libDir)
+                    : new ProcessBuilder("nbdkit", "vddk", "--version");
+            pb.redirectErrorStream(true);
             Process process = pb.start();
 
             String output = new String(process.getInputStream().readAllBytes());
@@ -6915,6 +6935,9 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
 
             for (String line : output.split("\\R")) {
                 String trimmed = StringUtils.trimToEmpty(line);
+                if (trimmed.startsWith("vddk_library_version=")) {
+                    return StringUtils.trimToNull(trimmed.substring("vddk_library_version=".length()));
+                }
                 if (trimmed.startsWith("vddk ")) {
                     return StringUtils.trimToNull(trimmed.substring("vddk ".length()));
                 }
@@ -6924,6 +6947,18 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
             LOGGER.error("Failed to detect vddk version: {}", e.getMessage());
             return null;
         }
+    }
+
+    protected boolean isVddkLibDirLoadable(String path) {
+        if (!isVddkLibDirValid(path)) {
+            return false;
+        }
+        String command = "nbdkit --dump-plugin vddk libdir=" + shellQuote(path) + " >/dev/null 2>&1";
+        return Script.runSimpleBashScriptForExitValue(command) == 0;
+    }
+
+    protected String shellQuote(String value) {
+        return "'" + StringUtils.defaultString(value).replace("'", "'\"'\"'") + "'";
     }
 
     public boolean hostSupportsWindowsGuestConversion() {

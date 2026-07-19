@@ -19,14 +19,22 @@ package com.cloud.dr.dao;
 import java.util.List;
 
 import com.cloud.dr.DrPlanVO;
+import com.cloud.utils.Pair;
 import com.cloud.utils.db.GenericDao;
 
 public interface DrPlanDao extends GenericDao<DrPlanVO, Long> {
     DrPlanVO findActiveBySourceVmId(long sourceVmId);
+
+    DrPlanVO findActiveBySourceSiteAndExternalRef(long sourceSiteId, String sourceExternalRef);
 
     DrPlanVO findActiveByEngineBinding(String engineBindingType, long engineBindingId);
 
     List<DrPlanVO> listActive();
 
     List<DrPlanVO> listActiveByState(String state);
+
+    Pair<List<DrPlanVO>, Integer> searchActive(Long id, String keyword, String state, Long sourceSiteId,
+            Long targetSiteId, String direction, String engineType, Long offset, Long limit);
+
+    long countActiveBySiteId(long siteId);
 }

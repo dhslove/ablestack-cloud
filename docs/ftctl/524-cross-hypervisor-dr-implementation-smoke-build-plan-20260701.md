@@ -538,3 +538,11 @@ aspkg -qpl ablestack_vm_ftctl-*.rpm | grep '/usr/local/lib/ablestack-qemu-exec-t
 5. 4단계 ABLESTACK -> ABLESTACK vertical slice
 
 2단계와 3단계는 일부 병렬 가능하지만, 실제 smoke는 FTCTL runtime core가 먼저 있어야 닫힌다. 따라서 문서/코드 진행은 1 -> 3 -> 2 -> 4 순서가 가장 안전하다.
+
+### 2026-07-14 VMware CBT Smoke Addendum
+
+Mock full/incremental labels are insufficient. The VMware smoke gate must
+compare effective mode, CBT query evidence, baseline generation, transfer-byte
+metrics, and target content across full seed, incremental, no-change, invalid
+baseline, and explicit reseed cases. The current gate is defined in
+`555-cross-hypervisor-dr-vmware-cbt-incremental-and-transfer-metrics-design-20260714.md`.

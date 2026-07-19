@@ -6,6 +6,12 @@
 
 상위 문서: [500-cross-hypervisor-dr-architecture-plan-20260630.md](500-cross-hypervisor-dr-architecture-plan-20260630.md)
 
+Credential 보강 문서: [527-cross-hypervisor-dr-site-credential-management-design-20260702.md](527-cross-hypervisor-dr-site-credential-management-design-20260702.md)
+
+Site health/delete 정합성 보강 문서: [528-cross-hypervisor-dr-site-health-check-and-delete-consistency-design-20260702.md](528-cross-hypervisor-dr-site-health-check-and-delete-consistency-design-20260702.md)
+
+Site inventory/상세 UX 보강 문서: [530-cross-hypervisor-dr-site-inventory-and-detail-ux-design-20260703.md](530-cross-hypervisor-dr-site-inventory-and-detail-ux-design-20260703.md)
+
 ## 1. 목적
 
 이 문서는 `Cross Hypervisor DR`의 공통 도메인 모델과 논리 DB schema를 구체화한다.
@@ -19,7 +25,7 @@
 - 복구 가능 시점은 `DrRestorePoint`로 관리한다.
 - target site에 실제로 준비된 VM과 디스크는 `DrReplica`와 하위 disk/artifact 모델로 관리한다.
 - 실행 이력과 현재 진행 중인 작업은 `DrRun`, `DrRunStep`으로 추적한다.
-- secret은 직접 저장하지 않는다. 모든 credential은 credential reference만 저장한다.
+- UI/API response에는 secret을 직접 저장하거나 반환하지 않는다. UI는 Mold/vCenter 인증정보를 write-only로 입력받고, backend는 `dr_site_credential.secret_payload`를 암호화 저장한 뒤 `dr_site.credential_id`로 현재 credential을 참조한다.
 - 기존 FTCTL/V2K/VMware 기능은 각 엔진 binding으로 연결하고, 기존 성공 로직은 도메인 모델 아래로 흡수한다.
 
 ## 3. 도메인 관계
@@ -117,6 +123,15 @@ erDiagram
 - `ROLLBACK_REQUIRED`
 - `ROLLED_BACK`
 
+`DrSiteHealthState`
+
+- `CONNECTED`
+- `DEGRADED`
+- `DISCONNECTED`
+- `UNKNOWN`
+
+`UNKNOWN`은 아직 점검하지 않았거나 지원되지 않는 조합처럼 판정할 수 없는 상태에만 사용한다. credential 누락, 인증 실패, 네트워크 실패는 `DISCONNECTED`와 reason code로 표현한다.
+
 ## 5. Table: `dr_site`
 
 `dr_site`는 Mold 또는 VMware endpoint를 나타낸다.
@@ -129,22 +144,61 @@ erDiagram
 | `site_type` | varchar(32) | no | `DrSiteType` |
 | `hypervisor_type` | varchar(32) | no | site 기본 hypervisor |
 | `endpoint` | varchar(1024) | yes | Mold API URL 또는 vCenter URL |
-| `credential_ref` | varchar(255) | yes | 암호화 credential reference |
-| `zone_id` | bigint | yes | Mold 내부 zone 연결 시 사용 |
-| `vmware_dc_id` | bigint | yes | VMware datacenter mapping 연결 시 사용 |
-| `capability_json` | text | yes | datastore/network/fencing capability snapshot |
-| `status` | varchar(32) | no | `ENABLED`, `DISABLED`, `ERROR`, `REMOVED` |
-| `last_check_result` | varchar(32) | yes | 최근 connectivity/preflight 결과 |
-| `last_check_message` | text | yes | 최근 오류 요약 |
+| `credential_id` | bigint | yes | 현재 active `dr_site_credential.id` |
+| `credential_ref` | varchar(255) | yes | legacy 호환 필드. 신규 UI/API 입력으로 사용하지 않음 |
+| `zone_id` | bigint | yes | local Cloud internal Zone id. 원격 inventory UUID 저장용이 아님 |
+| `zone_external_id` | varchar(255) | yes | 원격 Mold/vCenter Zone id 또는 uuid |
+| `zone_name` | varchar(255) | yes | 원격 Zone 표시 이름 |
+| `vmware_dc_id` / `vmware_datacenter_id` | bigint | yes | local VMware datacenter mapping id. 원격 inventory UUID/MoRef 저장용이 아님 |
+| `vmware_datacenter_external_id` | varchar(255) | yes | 원격 VMware datacenter id, uuid 또는 MoRef |
+| `vmware_datacenter_name` | varchar(255) | yes | 원격 VMware datacenter 표시 이름 |
+| `capabilities_json` | text | yes | datastore/network/fencing capability snapshot |
+| `state` | varchar(32) | no | 구현 기준 `ENABLED`, `DISABLED`. 기존 논리 문서의 `status`에 해당 |
+| `health_state` | varchar(32) | yes | 최근 site health 결과. `CONNECTED`, `DEGRADED`, `DISCONNECTED`, `UNKNOWN` |
+| `last_checked` | datetime | yes | 최근 check 시각 |
 | `created` | datetime | no | 생성 시각 |
 | `removed` | datetime | yes | 삭제 시각 |
+
+구현 시점의 schema는 `state`, `health_state`, `last_checked`, `capabilities_json`을 사용한다. health reason/message는 우선 `capabilities_json.healthCheck`에 저장한다. 별도 `last_check_reason_code`, `last_check_message` 컬럼은 [528 문서](528-cross-hypervisor-dr-site-health-check-and-delete-consistency-design-20260702.md)의 hardening 후보로 관리한다.
 
 권장 index:
 
 - unique: `uuid`
 - unique active: `name`, `removed`
-- lookup: `site_type`, `hypervisor_type`, `status`
-- lookup: `zone_id`, `vmware_dc_id`
+- lookup: `site_type`, `hypervisor_type`, `state`
+- lookup: `zone_id`, `vmware_dc_id` 또는 `vmware_datacenter_id`
+- lookup: `zone_external_id`, `vmware_datacenter_external_id`
+- lookup: `credential_id`
+
+### 5.1 Table: `dr_site_credential`
+
+`dr_site_credential`는 DR site 접속에 필요한 Mold/vCenter 인증정보를 암호화 저장한다. 사용자는 credential reference를 입력하지 않는다.
+
+| column | type | nullable | 설명 |
+| --- | --- | --- | --- |
+| `id` | bigint | no | internal id |
+| `uuid` | varchar(40) | no | API id |
+| `site_id` | bigint | no | parent `dr_site.id` |
+| `credential_type` | varchar(32) | no | `MOLD_API`, `VCENTER` |
+| `endpoint` | varchar(1024) | yes | 연결 대상 URL |
+| `principal` | varchar(255) | yes | 표시 가능한 계정명. API key 원문은 저장하지 않음 |
+| `secret_payload` | text | no | `@Encrypt` 또는 `DBEncryptionUtil`로 암호화한 credential JSON |
+| `secret_fingerprint` | varchar(128) | yes | rotation/audit용 hash |
+| `state` | varchar(32) | no | 구현 기준 `CONFIGURED`, `CLEARED`. 확장 후보 `INVALID`, `LEGACY_REF`, `REMOVED` |
+| `last_validated` | datetime | yes | 마지막 연결 검증 시각 |
+| `last_validation_result` | varchar(32) | yes | `CONNECTED`, `DEGRADED`, `DISCONNECTED`, `UNKNOWN` |
+| `last_validation_message` | text | yes | 마지막 검증 메시지 |
+| `created` | datetime | no | 생성 시각 |
+| `updated` | datetime | yes | 갱신 시각 |
+| `removed` | datetime | yes | 삭제 시각 |
+
+권장 index:
+
+- unique: `uuid`
+- lookup: `site_id`, `removed`
+- lookup: `credential_type`, `state`
+
+Usable credential 조회는 `site_id`, `state=CONFIGURED`, `removed IS NULL`을 모두 만족해야 한다. `dr_site.credential_id`가 있으면 해당 id와 site id가 일치하는 configured row를 우선 사용한다. `CLEARED` row는 active credential이 아니며 `credentialconfigured=true`로 응답하면 안 된다.
 
 ## 6. Table: `dr_site_pair`
 
@@ -191,14 +245,12 @@ erDiagram
 | `rpo_policy_seconds` | bigint | yes | 목표 source RPO |
 | `target_ready_rpo_policy_seconds` | bigint | yes | 목표 target-ready RPO |
 | `rto_policy_seconds` | bigint | yes | 목표 RTO |
-| `schedule_json` | text | yes | sync schedule |
-| `storage_mapping_json` | text | yes | pool/datastore/path mapping |
-| `network_mapping_json` | text | yes | network/portgroup/IP/MAC policy |
-| `compute_mapping_json` | text | yes | cluster/resource pool/host/service offering mapping |
-| `fencing_policy_json` | text | yes | source type별 fencing policy |
-| `quiesce_policy_json` | text | yes | QGA/VMware Tools/application consistency policy |
+| `schedule_json` | text | yes | backend-generated sync schedule canonical JSON |
+| `mapping_json` | text | yes | backend-generated VM/disk/storage/compute/network mapping canonical JSON |
+| `policy_json` | text | yes | backend-generated failover/test/retry/transport policy canonical JSON |
+| `quiesce_policy_json` | text | yes | backend-generated QGA/VMware Tools/application consistency policy canonical JSON |
 | `compatibility_json` | text | yes | driver, controller, guest OS check 결과 |
-| `engine_binding_type` | varchar(64) | yes | `FTCTL`, `V2K`, `VMWARE_NATIVE`, `KVM_SNAPSHOT` |
+| `engine_binding_type` | varchar(64) | yes | `FTCTL_DR`, `FTCTL`, `V2K`, `VMWARE_NATIVE`, `KVM_SNAPSHOT` |
 | `engine_binding_id` | bigint | yes | `ftctl_protection.id` 등 |
 | `last_restore_point_id` | bigint | yes | 최근 source-ready restore point |
 | `last_target_ready_restore_point_id` | bigint | yes | 최근 target-ready restore point |
@@ -206,6 +258,14 @@ erDiagram
 | `last_error` | text | yes | 최근 오류 |
 | `created` | datetime | no | 생성 시각 |
 | `removed` | datetime | yes | 삭제 시각 |
+
+2026-07-05 구현 기준 보정:
+
+- 초기 논리 모델은 storage/network/compute/fencing mapping을 분리해서 설명했지만, 현재 Cloud 구현과 guided spec 설계는 위 consolidated column을 기준으로 한다.
+- `mapping_json`에는 target VM, disk, storage, compute, network mapping을 `schemaVersion`과 함께 저장한다.
+- `policy_json`에는 failover/test/retry/transport policy를 저장한다.
+- 사용자가 raw JSON을 직접 입력하는 것이 아니라 backend `DrPlanSpecBuilder`가 canonical JSON을 생성한다.
+- 상세 구현 기준은 [531-cross-hypervisor-dr-plan-guided-spec-design-20260705.md](531-cross-hypervisor-dr-plan-guided-spec-design-20260705.md)를 따른다.
 
 권장 index:
 
@@ -397,6 +457,7 @@ erDiagram
 | `ftctl_protection` | `dr_plan.engine_binding_type=FTCTL`, `engine_binding_id` | FTCTL 성공 로직 보존 |
 | `vm_instance_details ftctl.*` | `dr_replica.runtime_state_json` 또는 projection | runtime state는 중복 저장 최소화 |
 | VMware datacenter mapping | `dr_site.vmware_dc_id` | VMware site capability로 사용 |
+| Mold/vCenter credential | `dr_site.credential_id`, `dr_site_credential` | UI write-only credential을 backend가 암호화 저장 |
 | V2K import task | `dr_run.external_job_ref`, `engine_binding_type=V2K` | 사용자가 V2K 세부 단계를 직접 다루지 않게 감쌈 |
 
 ## 16. Retention 정책
@@ -410,7 +471,7 @@ erDiagram
 
 1. `uuid` 생성과 API id 노출 방식은 기존 CloudStack entity pattern을 따른다.
 2. JSON column은 초기 구현 속도를 위해 text로 시작하되, 자주 조회하는 값은 별도 column으로 승격한다.
-3. credential reference 저장소는 기존 Cloud secret 저장 방식과 연계한다.
+3. credential 저장소는 `dr_site_credential`를 기준으로 구현하고, secret field에는 Cloud DB 암호화 패턴인 `@Encrypt` 또는 `DBEncryptionUtil`를 적용한다.
 4. `target_ready_rpo_seconds` 계산은 `target_ready_at`과 현재 시각 기준으로 표준화한다.
 5. 기존 `DisasterRecoveryCluster` API wrapper가 신규 테이블을 언제 생성할지 결정해야 한다.
 6. FTCTL projection은 중복 저장으로 인해 source of truth가 흔들리지 않도록 읽기 우선 정책을 명확히 해야 한다.
@@ -424,3 +485,104 @@ erDiagram
 | 복제 결과 | 기능별 detail/protection/runtime 값에 분산 | `DrReplica`, `DrReplicaDisk`, `DrRestorePoint`로 표준화 |
 | 실행 이력 | Cloud async job 또는 외부 엔진 로그에 의존 | `DrRun`, `DrRunStep`, `DrEvent`로 장기 추적 |
 | 확장성 | FTCTL/VMware/V2K마다 별도 상태 표현 | source/target hypervisor와 engine binding을 공통 schema에서 표현 |
+
+## 19. 2026-07-03 Remote Site Inventory Identity 보정
+
+상세 설계는 [530-cross-hypervisor-dr-site-inventory-and-detail-ux-design-20260703.md](530-cross-hypervisor-dr-site-inventory-and-detail-ux-design-20260703.md)의
+`Remote Inventory ID 모델 보정` 절을 따른다.
+
+도메인 원칙:
+
+- `dr_site.zone_id`와 `dr_site.vmware_datacenter_id`는 로컬 Cloud DB 내부 `bigint` 참조다.
+- 원격 Mold/vCenter에서 조회한 Zone/Datacenter는 로컬 내부 id가 아니므로 별도 external identity로 저장한다.
+- 신규 DR Site inventory UI/API는 external identity를 기본 선택값으로 사용한다.
+- UUID 형태의 원격 Zone id는 정상적인 식별자이며, 선택 불가 상태로 취급하면 안 된다.
+
+`dr_site` 논리 schema 보강:
+
+| column | type | nullable | 설명 |
+| --- | --- | --- | --- |
+| `zone_external_id` | varchar(255) | yes | 원격 Mold/vCenter Zone id 또는 uuid |
+| `zone_name` | varchar(255) | yes | 원격 Zone 표시 이름 |
+| `vmware_datacenter_external_id` | varchar(255) | yes | 원격 VMware DC id, uuid 또는 MoRef |
+| `vmware_datacenter_name` | varchar(255) | yes | 원격 VMware DC 표시 이름 |
+
+조회/표시 우선순위:
+
+1. UI 표시명은 `zone_name`, `vmware_datacenter_name`을 우선 사용한다.
+2. backend/adapter가 원격 API를 호출할 때는 `zone_external_id`, `vmware_datacenter_external_id`를 우선 사용한다.
+3. local Cloud DAO/FK 조회가 필요한 경우에만 `zone_id`, `vmware_datacenter_id`를 사용한다.
+## 2026-07-10 Normative Checkpoint Terminology
+
+Cross Hypervisor DR does not provide point-in-time recovery. Existing
+`DrRestorePoint` entity and `dr_restore_point` table names are persistence
+compatibility names only. Product, UI, and new API contracts use
+`Synchronization Checkpoint`. Historical checkpoint rows are synchronization
+evidence and are not user-selectable rollback targets.
+
+The normative schema correction, deduplication key, run/sequence fields, and
+compatibility rules are defined in
+`549-cross-hypervisor-dr-checkpoint-history-event-rpo-design-20260710.md`.
+
+## 2026-07-10 Normative Protection View Cache Entity
+
+Add `DrPlanViewCache` / `dr_plan_view_cache` as a read-model entity separate
+from authoritative Plan, Run, Replica, and synchronization checkpoint rows.
+It stores one schema-versioned, redacted JSON snapshot per Plan, a payload
+hash/revision, projection timestamps, expiry, and the next background refresh
+time. It never stores credentials or complete raw FTCTL status.
+
+`DrRestorePoint` remains the compatibility entity name, but a row is
+user-visible only when it represents a latest-completed FTCTL checkpoint.
+Current transfer sequence and latest completed sequence are different domain
+values and must not be collapsed.
+
+Detailed schema and lifecycle rules:
+`550-cross-hypervisor-dr-protection-view-cache-and-completed-checkpoint-design-20260710.md`.
+
+## 2026-07-14 Normative Cutover Session Entities
+
+Add `DrCutoverSession` and `DrCutoverDisk` as authoritative operational
+entities. A session binds one Test Failover or real Failover Run to a sealed
+checkpoint, guest preparation state, transient domain or target VM, boot
+validation, and cleanup requirement. Disk rows bind each checkpoint disk to
+its writable or rollback artifact.
+
+These entities are soft-deleted after complete cleanup. `DrRun.detailsJson`,
+FTCTL status, and `dr_plan_view_cache` are projections and cannot replace the
+artifact authority required for crash recovery. Detailed columns and indexes:
+
+- `554-cross-hypervisor-dr-vmware-to-kvm-cutover-and-virtio-bootstrap-design-20260714.md`
+
+### 2026-07-14 VMware CBT Cycle Schema Addendum
+
+The older restore-point artifact model does not replace cycle-level replication
+evidence. VMware CBT baselines use typed `dr_replica_disk` generation/changeId
+columns plus `dr_sync_cycle` and `dr_sync_cycle_disk` history as defined in
+`555-cross-hypervisor-dr-vmware-cbt-incremental-and-transfer-metrics-design-20260714.md`.
+
+### 2026-07-16 Cycle Commit Evidence Addendum
+
+Cycle history distinguishes `DATA_COPIED` from a committed checkpoint.
+`dr_sync_cycle` and `dr_sync_cycle_disk` retain typed commit state, copied-byte
+metrics, source checkpoint/change identity, and normalized failure evidence.
+The complete FTCTL status remains a bounded read projection and is not copied
+into Plan or Run error text.
+
+The corrective release does not require a new table. Existing cycle, step,
+event, replica-disk, and status JSON fields carry the first implementation;
+schema expansion is considered only if query or retention measurements show a
+separate journal projection is required.
+
+Detailed persistence contract:
+`557-cross-hypervisor-dr-cycle-commit-and-api-json-recovery-design-20260716.md`.
+
+### 2026-07-17 Cycle Decision Persistence Addendum
+
+`dr_sync_cycle` stores the requested mode separately from effective mode and
+adds typed automatic-reseed, decision-code, and invalid-baseline-disk counts.
+`dr_plan_runtime` stores latest completed incremental proof and the consecutive
+automatic-reseed count used by readiness. Per-disk decision detail remains in
+the FTCTL journal rather than an opaque Cloud JSON column. Forward-only schema,
+backfill, and ownership rules are defined in
+`559-cross-hypervisor-dr-incremental-mode-decision-and-cycle-projection-design-20260717.md`.

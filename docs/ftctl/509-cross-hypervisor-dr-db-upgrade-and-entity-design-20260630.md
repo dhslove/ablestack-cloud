@@ -97,23 +97,103 @@ CREATE TABLE `cloud`.`dr_site` (
   `site_type` varchar(32) NOT NULL,
   `hypervisor_type` varchar(32) NOT NULL,
   `endpoint` varchar(1024) DEFAULT NULL,
+  `credential_id` bigint unsigned DEFAULT NULL,
   `credential_ref` varchar(255) DEFAULT NULL,
   `zone_id` bigint unsigned DEFAULT NULL,
+  `zone_external_id` varchar(255) DEFAULT NULL,
+  `zone_name` varchar(255) DEFAULT NULL,
   `vmware_dc_id` bigint unsigned DEFAULT NULL,
-  `capability_json` text DEFAULT NULL,
-  `status` varchar(32) NOT NULL,
-  `last_check_result` varchar(32) DEFAULT NULL,
-  `last_check_message` text DEFAULT NULL,
-  `last_check_time` datetime DEFAULT NULL,
+  `vmware_datacenter_external_id` varchar(255) DEFAULT NULL,
+  `vmware_datacenter_name` varchar(255) DEFAULT NULL,
+  `capabilities_json` text DEFAULT NULL,
+  `state` varchar(32) NOT NULL,
+  `health_state` varchar(32) DEFAULT NULL,
+  `last_checked` datetime DEFAULT NULL,
   `created` datetime NOT NULL,
   `removed` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_dr_site__uuid` (`uuid`),
-  KEY `i_dr_site__type_status` (`site_type`, `hypervisor_type`, `status`),
+  KEY `i_dr_site__type_state` (`site_type`, `hypervisor_type`, `state`),
+  KEY `i_dr_site__credential_id` (`credential_id`),
   KEY `i_dr_site__zone_id` (`zone_id`),
-  KEY `i_dr_site__vmware_dc_id` (`vmware_dc_id`)
+  KEY `i_dr_site__zone_external_id` (`zone_external_id`),
+  KEY `i_dr_site__vmware_dc_id` (`vmware_dc_id`),
+  KEY `i_dr_site__vmware_dc_external_id` (`vmware_datacenter_external_id`)
 );
 ```
+
+`credential_ref`는 legacy 호환 필드다. 신규 UI/API는 이 값을 입력받지 않고, backend가 `dr_site_credential` row를 생성한 뒤 `credential_id`를 갱신한다.
+
+### 4.2.1 dr_site_credential
+
+```sql
+CREATE TABLE `cloud`.`dr_site_credential` (
+  `id` bigint unsigned NOT NULL auto_increment,
+  `uuid` varchar(40) NOT NULL,
+  `site_id` bigint unsigned NOT NULL,
+  `credential_type` varchar(32) NOT NULL,
+  `endpoint` varchar(1024) DEFAULT NULL,
+  `principal` varchar(255) DEFAULT NULL,
+  `secret_payload` text NOT NULL,
+  `secret_fingerprint` varchar(128) DEFAULT NULL,
+  `state` varchar(32) NOT NULL DEFAULT 'STORED',
+  `last_validated` datetime DEFAULT NULL,
+  `last_validation_result` varchar(32) DEFAULT NULL,
+  `last_validation_message` text DEFAULT NULL,
+  `created` datetime NOT NULL,
+  `updated` datetime DEFAULT NULL,
+  `removed` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_dr_site_credential__uuid` (`uuid`),
+  KEY `i_dr_site_credential__site_removed` (`site_id`, `removed`),
+  KEY `i_dr_site_credential__type_state` (`credential_type`, `state`),
+  CONSTRAINT `fk_dr_site_credential__site_id` FOREIGN KEY (`site_id`) REFERENCES `dr_site` (`id`) ON DELETE CASCADE
+);
+```
+
+`secret_payload`는 `@Encrypt` annotation 또는 `DBEncryptionUtil`를 통해 DB 암호화 대상이 된다. Mold API key, Mold secret key, vCenter password는 response/log에 노출하지 않는다.
+
+### 4.2.2 2026-07-02 health check 저장 보강
+
+Site health check와 삭제 정합성의 상세 설계는 [528-cross-hypervisor-dr-site-health-check-and-delete-consistency-design-20260702.md](528-cross-hypervisor-dr-site-health-check-and-delete-consistency-design-20260702.md)를 따른다.
+
+즉시 구현은 현재 schema를 우선 사용한다.
+
+| Table | Column | 저장 값 |
+| --- | --- | --- |
+| `dr_site` | `health_state` | `OK`, `DEGRADED`, `FAILED`, `UNKNOWN` |
+| `dr_site` | `last_checked` | 마지막 probe 시각 |
+| `dr_site` | `capabilities_json` | `healthCheck` object와 non-secret capability snapshot |
+| `dr_site_credential` | `state` | `CONFIGURED`, `CLEARED` |
+| `dr_site_credential` | `last_validated` | credential 검증 성공 시각 |
+| `dr_site_credential` | `removed` | credential clear/delete soft delete |
+
+운영 분석을 위해 별도 컬럼이 필요하면 다음 hardening DDL을 fresh schema와 upgrade schema에 함께 반영한다.
+
+```sql
+ALTER TABLE `cloud`.`dr_site`
+  ADD COLUMN `last_check_reason_code` varchar(128) DEFAULT NULL AFTER `last_checked`,
+  ADD COLUMN `last_check_message` text DEFAULT NULL AFTER `last_check_reason_code`;
+
+ALTER TABLE `cloud`.`dr_site_credential`
+  ADD COLUMN `last_validation_result` varchar(64) DEFAULT NULL AFTER `last_validated`,
+  ADD COLUMN `last_validation_message` text DEFAULT NULL AFTER `last_validation_result`;
+
+ALTER TABLE `cloud`.`dr_site_credential`
+  ADD KEY `i_dr_site_credential__site_state_removed` (`site_id`, `state`, `removed`);
+```
+
+`dr_site_credential` active lookup index는 `site_id`, `state`, `removed` 조합을 기준으로 한다. `state=CLEARED`이며 `removed IS NULL`인 오염 row가 존재하더라도 configured credential로 취급하면 안 된다.
+
+CloudStack 공통 DAO는 `removed` 컬럼을 `DaoGenerated`와 `Updatable=false`로 처리한다. 따라서 `removed`를 채우는 삭제 구현은 `vo.markRemoved(); dao.update(id, vo);`가 아니라 `GenericDao.remove(id)` 경로를 사용해야 한다.
+
+| Entity | 삭제 API/service | soft-delete 구현 |
+| --- | --- | --- |
+| `DrSiteVO` | `deleteDrSite` / `DrSiteServiceImpl.deleteSite` | credential 참조 제거 update 후 `drSiteDao.remove(siteId)` |
+| `DrSiteCredentialVO` | credential clear/delete | `state=CLEARED` update 후 `drSiteCredentialDao.remove(credentialId)` |
+| `DrPlanVO` | `deleteDrPlan` / `DrPlanServiceImpl.deletePlan` | runtime guard 통과 후 `drPlanDao.remove(planId)` |
+
+각 삭제 service는 `findByIdIncludingRemoved(id).removed != null` 검증을 완료해야 성공으로 간주한다. 이 검증이 실패하면 async job을 실패 처리한다.
 
 Active name unique는 MySQL의 NULL unique 동작 때문에 단순 `UNIQUE(name, removed)`만으로 충분하지 않을 수 있다. 구현 시 아래 중 하나를 선택한다.
 
@@ -167,14 +247,15 @@ CREATE TABLE `cloud`.`dr_plan` (
   `rpo_seconds` bigint DEFAULT NULL,
   `rto_seconds` bigint DEFAULT NULL,
   `schedule_json` text DEFAULT NULL,
-  `storage_mapping_json` text DEFAULT NULL,
-  `network_mapping_json` text DEFAULT NULL,
-  `compute_mapping_json` text DEFAULT NULL,
-  `fencing_policy_json` text DEFAULT NULL,
+  `policy_json` text DEFAULT NULL,
+  `mapping_json` text DEFAULT NULL,
   `quiesce_policy_json` text DEFAULT NULL,
   `compatibility_json` text DEFAULT NULL,
   `engine_binding_type` varchar(64) DEFAULT NULL,
   `engine_binding_id` bigint unsigned DEFAULT NULL,
+  `source_worker_host_id` bigint unsigned DEFAULT NULL,
+  `target_worker_host_id` bigint unsigned DEFAULT NULL,
+  `coordinator_worker_host_id` bigint unsigned DEFAULT NULL,
   `last_restore_point_id` bigint unsigned DEFAULT NULL,
   `last_target_ready_restore_point_id` bigint unsigned DEFAULT NULL,
   `last_error_code` varchar(128) DEFAULT NULL,
@@ -399,6 +480,7 @@ CREATE TABLE `cloud`.`dr_event` (
 | VO | Table | 주요 interface |
 | --- | --- | --- |
 | `DrSiteVO` | `dr_site` | `InternalIdentity` |
+| `DrSiteCredentialVO` | `dr_site_credential` | `InternalIdentity` |
 | `DrSitePairVO` | `dr_site_pair` | `InternalIdentity` |
 | `DrPlanVO` | `dr_plan` | `InternalIdentity`, account/domain getter |
 | `DrRestorePointVO` | `dr_restore_point` | `InternalIdentity` |
@@ -414,8 +496,9 @@ VO 규칙:
 - constructor에서 `uuid = UUID.randomUUID().toString()` 생성
 - enum은 Java enum field가 아니라 String field로 시작한다.
 - JSON field는 `String`으로 저장하고 parser/helper에서 구조화한다.
-- secret 값은 VO에 저장하지 않는다.
+- secret 원문은 response VO에 저장하지 않는다. DB entity에는 `DrSiteCredentialVO.secretPayload`처럼 암호화 대상 field로만 저장한다.
 - `removed`가 null이 아니면 active 조회에서 제외한다.
+- `removed`는 VO setter/update로 직접 저장하지 않는다. soft delete는 DAO `remove(id)` 전용 경로로 수행한다.
 
 ## 6. DAO class 설계
 
@@ -530,25 +613,596 @@ DAO 검증:
 - 기존 `ftctl_protection` table 영향 없음
 - 기존 FTCTL 보호 row가 있어도 신규 table 생성/upgrade 성공
 
-## 11. 구현 수용 기준
+## 11. 2026-07-02 추가 설계: DR Site health check history table
+
+상세 설계는 [529-cross-hypervisor-dr-site-health-check-history-and-scheduler-design-20260702.md](529-cross-hypervisor-dr-site-health-check-history-and-scheduler-design-20260702.md)를 따른다.
+
+Site health check는 최신 상태만 `dr_site`에 저장하고, 이력은 신규 `dr_site_health_check` table에 append-only로 저장한다.
+
+대상 schema 파일:
+
+- `engine/schema/src/main/resources/META-INF/db/schema-42200to42210.sql`
+- `engine/schema/src/main/resources/META-INF/db/schema-42210to42300.sql`
+- `engine/schema/src/main/resources/META-INF/db/schema-Europa-After.sql`
+
+DDL 기준:
+
+```sql
+CREATE TABLE IF NOT EXISTS `cloud`.`dr_site_health_check` (
+    `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+    `uuid` varchar(40) NOT NULL,
+    `site_id` bigint unsigned NOT NULL,
+    `site_uuid` varchar(40) NOT NULL,
+    `site_name` varchar(255) NOT NULL,
+    `site_type` varchar(64) NOT NULL,
+    `hypervisor_type` varchar(64) NOT NULL,
+    `endpoint` varchar(1024) NULL,
+    `credential_id` bigint unsigned NULL,
+    `credential_state` varchar(64) NULL,
+    `trigger_type` varchar(64) NOT NULL,
+    `health_state` varchar(64) NOT NULL,
+    `reason_code` varchar(128) NULL,
+    `message` text NULL,
+    `latency_ms` bigint NULL,
+    `checked_at` datetime NOT NULL,
+    `management_server_id` bigint unsigned NULL,
+    `job_id` varchar(255) NULL,
+    `details_json` text NULL,
+    `created` datetime NOT NULL,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_dr_site_health_check__uuid` (`uuid`),
+    KEY `i_dr_site_health_check__site_checked` (`site_id`, `checked_at`),
+    KEY `i_dr_site_health_check__state_checked` (`health_state`, `checked_at`),
+    KEY `i_dr_site_health_check__trigger_checked` (`trigger_type`, `checked_at`),
+    CONSTRAINT `fk_dr_site_health_check__site_id` FOREIGN KEY (`site_id`) REFERENCES `dr_site` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+```
+
+보존 정책:
+
+- `dr.site.health.check.history.retention.days` 기본값은 30일이다.
+- scheduler cleanup 단계가 `checked_at` 기준으로 오래된 row를 삭제한다.
+- password, API key, secret key, token은 `details_json`에 저장하지 않는다.
+
+VO/DAO:
+
+| Class | 책임 |
+| --- | --- |
+| `DrSiteHealthCheckVO` | `dr_site_health_check` entity |
+| `DrSiteHealthCheckDao` | site/time/state/trigger 기준 조회, retention cleanup |
+| `DrSiteHealthCheckDaoImpl` | `SearchBuilder` 기반 pagination search |
+
+## 12. 구현 수용 기준
 
 - `setup/db/create-schema.sql` fresh install 경로에 모든 신규 table이 있다.
 - active upgrade 경로에 동일 schema 변경이 있다.
 - 신규 VO/DAO가 Spring context에 등록된다.
+- `DrSiteCredentialVO`, `DrSiteCredentialDao`, `DrSiteCredentialDaoImpl`이 추가되고 `secretPayload` 암호화가 검증된다.
 - `git diff --check`와 DB bootstrap smoke가 통과한다.
 - `createDrPlan` 전에 DAO로 source VM active plan 중복을 조회할 수 있다.
 - `startDrSync` 전에 DAO로 active run 중복을 조회할 수 있다.
 - `listDrPlans`가 account/domain/removed/state filter를 사용할 수 있다.
 - `listDrEvents`가 plan/run/time filter를 사용할 수 있다.
 
-## 12. AS-IS / TO-BE 요약
+## 13. AS-IS / TO-BE 요약
 
 | 구분 | AS-IS | TO-BE |
 | --- | --- | --- |
 | DB 모델 | 기존 DR cluster, FTCTL protection 별도 | `dr_site`, `dr_plan`, `dr_run` 중심 공통 모델 |
+| Site 인증정보 | `dr_site.credential_ref` 문자열 중심 | `dr_site_credential.secret_payload` 암호화 저장과 `dr_site.credential_id` 참조 |
 | Fresh install | 기존 table만 생성 | `create-schema.sql`에 신규 table 포함 |
 | Upgrade | 신규 DR table 없음 | active upgrade path에 DDL 포함 |
 | Entity | 기존 VO/DAO만 존재 | 신규 VO/DAO/DaoImpl 추가 |
 | 실행 상태 | async job 또는 engine별 상태 | `dr_run`, `dr_run_step`, `dr_event`로 통합 |
 | Runtime projection | VM details 또는 engine event에 분산 | `dr_replica.runtime_state_json`와 event로 projection |
 | Soft delete | 기존 모델별 개별 처리 | 모든 주요 table `removed` 기준 active 조회 |
+| Plan JSON | 사용자가 입력한 raw JSON 저장 가능 | backend-generated canonical spec JSON 저장 |
+
+## 14. 2026-07-03 Remote Inventory External ID DDL
+
+상세 설계는 [530-cross-hypervisor-dr-site-inventory-and-detail-ux-design-20260703.md](530-cross-hypervisor-dr-site-inventory-and-detail-ux-design-20260703.md)의
+`Remote Inventory ID 모델 보정` 절을 따른다.
+
+### 14.1 DDL
+
+`dr_site.zone_id`와 `dr_site.vmware_datacenter_id`는 local internal id로 유지한다.
+원격 Mold/vCenter inventory 선택값은 별도 external field에 저장한다.
+
+Fresh schema의 `dr_site` 정의에 다음 컬럼과 index를 포함한다.
+
+```sql
+`zone_external_id` varchar(255) DEFAULT NULL,
+`zone_name` varchar(255) DEFAULT NULL,
+`vmware_datacenter_external_id` varchar(255) DEFAULT NULL,
+`vmware_datacenter_name` varchar(255) DEFAULT NULL,
+KEY `i_dr_site__zone_external_id` (`zone_external_id`),
+KEY `i_dr_site__vmware_dc_external_id` (`vmware_datacenter_external_id`)
+```
+
+Upgrade SQL 기준:
+
+```sql
+ALTER TABLE `cloud`.`dr_site`
+  ADD COLUMN `zone_external_id` varchar(255) DEFAULT NULL AFTER `zone_id`,
+  ADD COLUMN `zone_name` varchar(255) DEFAULT NULL AFTER `zone_external_id`,
+  ADD COLUMN `vmware_datacenter_external_id` varchar(255) DEFAULT NULL AFTER `vmware_datacenter_id`,
+  ADD COLUMN `vmware_datacenter_name` varchar(255) DEFAULT NULL AFTER `vmware_datacenter_external_id`,
+  ADD KEY `i_dr_site__zone_external_id` (`zone_external_id`),
+  ADD KEY `i_dr_site__vmware_dc_external_id` (`vmware_datacenter_external_id`);
+```
+
+제품 DB가 `vmware_dc_id` 컬럼명을 사용하는 branch라면 `AFTER vmware_dc_id`와
+`vmware_dc_external_id`, `vmware_dc_name`으로 맞춘다. 현재 배포/Java entity 기준 컬럼명은
+`vmware_datacenter_id`이므로 구현 기본값은 `vmware_datacenter_*`이다.
+
+### 14.2 Entity mapping
+
+`DrSiteVO` 추가 field:
+
+```java
+@Column(name = "zone_external_id")
+private String zoneExternalId;
+
+@Column(name = "zone_name")
+private String zoneName;
+
+@Column(name = "vmware_datacenter_external_id")
+private String vmwareDatacenterExternalId;
+
+@Column(name = "vmware_datacenter_name")
+private String vmwareDatacenterName;
+```
+
+수용 기준:
+
+- `create-schema.sql`와 active upgrade SQL 결과가 동일해야 한다.
+- existing row의 `zone_id`, `vmware_datacenter_id`는 자동으로 external id로 복사하지 않는다.
+- `createDrSite`/`updateDrSite`로 external field 저장 후 `listDrSites`, `getDrSite` response에서 동일 값이 확인되어야 한다.
+- UUID external id가 저장되어도 DB 오류가 없어야 한다.
+
+## 15. 2026-07-05 DR Plan Guided Spec DB 기준
+
+상세 설계는 [531-cross-hypervisor-dr-plan-guided-spec-design-20260705.md](531-cross-hypervisor-dr-plan-guided-spec-design-20260705.md)를 따른다.
+
+이번 개선은 신규 DB column을 요구하지 않는다. 현재 fresh/upgrade schema와 `DrPlanVO`는 다음 consolidated JSON column을 사용한다.
+
+| Column | 용도 |
+| --- | --- |
+| `schedule_json` | backend-generated schedule canonical JSON |
+| `mapping_json` | backend-generated target/resource/disk/network mapping canonical JSON |
+| `policy_json` | backend-generated failover/test/retry/transport policy canonical JSON |
+| `quiesce_policy_json` | backend-generated consistency/quiesce canonical JSON |
+| `source_worker_host_id` | source worker host binding |
+| `target_worker_host_id` | target worker host binding |
+| `coordinator_worker_host_id` | coordinator worker host binding |
+
+기존 4장 초기 DDL 예시에 남아 있는 `storage_mapping_json`, `network_mapping_json`, `compute_mapping_json`, `fencing_policy_json` 분리 모델은 초기 논리 설계 표현이다. 현재 구현 기준은 `mapping_json`과 `policy_json`으로 통합된 모델이며, guided spec builder도 이 consolidated column에 `schemaVersion`을 포함한 canonical JSON을 저장한다.
+
+후속 검색/필터 요구가 생기기 전까지는 다음 항목을 별도 column으로 만들지 않는다.
+
+- `sync_interval_seconds`
+- `retention_count`
+- `consistency_mode`
+- `test_network_mode`
+
+수용 기준:
+
+- guided spec 구현 후에도 fresh schema와 upgrade schema에 신규 DR Plan column이 추가되지 않는다.
+- `createDrPlan`/`updateDrPlan`이 typed parameter를 받아도 최종 저장은 기존 JSON column에 이루어진다.
+- expert raw JSON override가 사용되더라도 저장 전 JSON syntax와 direction별 semantic validation을 통과해야 한다.
+
+## 16. 2026-07-06 VMware -> ABLESTACK Plan Placement DB 기준
+
+`VMWARE_TO_KVM` Plan 보강에서도 1차 구현은 신규 `dr_plan` column을 추가하지 않는다. target ABLESTACK 배치 정보는 기존 site/entity column과 `mapping_json`에 canonical 구조로 저장한다.
+
+| 데이터 | 저장 위치 |
+| --- | --- |
+| target site Zone | `dr_site.zone_id`, `dr_site.zone_external_id`, `dr_site.zone_name` |
+| Plan target Zone snapshot | `dr_plan.mapping_json.target.zoneId` |
+| service offering | `dr_plan.mapping_json.target.serviceOfferingId` |
+| target network | `dr_plan.mapping_json.target.networks[]` |
+| target storage pool | `dr_plan.mapping_json.target.storageRef`, `dr_plan.mapping_json.disks[].target.storageRef` |
+| disk offering | `dr_plan.mapping_json.disks[].target.diskOfferingId` |
+| target worker | `dr_plan.target_worker_host_id` |
+| coordinator worker | `dr_plan.coordinator_worker_host_id` |
+
+KVM target site에 `zone_id`가 없으면 Plan inventory는 target option을 임의 생성하지 않고 `TARGET_SITE_ZONE_REQUIRED`를 반환한다. site 수정에서 Zone을 저장한 뒤 Plan inventory를 다시 조회하는 것이 정상 흐름이다.
+
+후속으로 검색/감사 요구가 생기면 `dr_plan_disk_mapping` 같은 normalized table을 검토할 수 있으나, 실행 준비성 보강의 1차 범위에서는 기존 JSON column과 worker host column을 유지한다.
+
+## 2026-07-06 보강: Run Acceptance와 Projection 상태 저장
+
+DR run/plan 상태 정합성 보강은 [533-cross-hypervisor-dr-dispatch-projection-recovery-design-20260706.md](533-cross-hypervisor-dr-dispatch-projection-recovery-design-20260706.md)를 따른다.
+
+DB 설계 원칙:
+
+- `dr_run`은 engine acceptance 여부를 명시적으로 저장한다.
+- 권장 컬럼은 `engine_accepted`, `accepted_at`, `dispatch_started`, `dispatch_completed`, `projection_state`, `projection_checked`이다.
+- `dr_run_step`은 `(run_id, step_order)` 기준으로 upsert되도록 DAO를 보강한다.
+- unique key는 기존 중복 데이터 정리 후 2단계로 적용한다.
+- latest run 조회 성능을 위해 `dr_run(plan_id, created)`와 `dr_run(plan_id, state, completed)` 인덱스를 유지한다.
+
+## 17. 2026-07-06 추가 보강: retryable lock과 projection stale 저장 기준
+
+상세 기준은 [533-cross-hypervisor-dr-dispatch-projection-recovery-design-20260706.md](533-cross-hypervisor-dr-dispatch-projection-recovery-design-20260706.md)의 21장을 따른다.
+
+### 17.1 `dr_run` 보강
+
+retryable FTCTL lock과 status timeout을 UI/API가 안정적으로 표시하려면 run에 retry metadata가 남아야 한다.
+
+권장 DDL:
+
+```sql
+ALTER TABLE `cloud`.`dr_run`
+  ADD COLUMN `retryable` tinyint(1) NOT NULL DEFAULT 0 AFTER `projection_checked`,
+  ADD COLUMN `retry_count` int NOT NULL DEFAULT 0 AFTER `retryable`,
+  ADD COLUMN `retry_after_seconds` int DEFAULT NULL AFTER `retry_count`,
+  ADD COLUMN `next_retry_at` datetime DEFAULT NULL AFTER `retry_after_seconds`,
+  ADD COLUMN `last_status_json` mediumtext DEFAULT NULL AFTER `next_retry_at`;
+```
+
+기존 운영 DB에 컬럼이 일부 존재하면 `ADD COLUMN IF NOT EXISTS`를 지원하지 않는 MySQL 버전을 고려해 배포 스크립트에서 information_schema 확인 후 반영한다.
+
+Entity 보강:
+
+```java
+@Column(name = "retryable")
+private boolean retryable;
+
+@Column(name = "retry_count")
+private int retryCount;
+
+@Column(name = "retry_after_seconds")
+private Integer retryAfterSeconds;
+
+@Column(name = "next_retry_at")
+private Date nextRetryAt;
+
+@Column(name = "last_status_json")
+private String lastStatusJson;
+```
+
+### 17.2 `dr_plan` projection stale 보강
+
+`dr-status` timeout은 runtime failure가 아니라 조회 실패일 수 있으므로 plan projection 상태를 별도로 저장한다.
+
+권장 DDL:
+
+```sql
+ALTER TABLE `cloud`.`dr_plan`
+  ADD COLUMN `projection_refreshing` tinyint(1) NOT NULL DEFAULT 0,
+  ADD COLUMN `projection_error_code` varchar(128) DEFAULT NULL,
+  ADD COLUMN `projection_error_message` varchar(1024) DEFAULT NULL,
+  ADD COLUMN `projection_checked` datetime DEFAULT NULL;
+```
+
+이미 plan response가 `runtimeprojectionstate/message`를 다른 컬럼에서 계산한다면 중복 컬럼을 만들지 않고 DAO/response mapping을 그 컬럼에 맞춘다. 핵심은 status refresh 실패가 `plan.state=ERROR`로 즉시 승격되지 않는 것이다.
+
+### 17.3 `dr_run_step` 중복 정리와 unique key
+
+현재 장애에서 같은 run에 `execute` step이 중복되고, 실패 이후에도 `QUEUED`/`RUNNING` step이 남는 문제가 확인되었다.
+
+1차 구현:
+
+- DAO `recordStep`을 `(run_id, step_order)` upsert로 변경한다.
+- terminal run 전환 시 open step을 닫는다.
+
+중복 확인:
+
+```sql
+SELECT run_id, step_order, COUNT(*) AS cnt
+  FROM `cloud`.`dr_run_step`
+ WHERE removed IS NULL
+ GROUP BY run_id, step_order
+HAVING cnt > 1;
+```
+
+2차 적용:
+
+```sql
+ALTER TABLE `cloud`.`dr_run_step`
+  ADD UNIQUE KEY `uk_dr_run_step__run_order` (`run_id`, `step_order`);
+```
+
+### 17.4 현재 장애 데이터 보정 기준
+
+구현 후 운영 보정 시 다음 기준을 적용한다.
+
+- 최신 run이 `FAILED`이고 `engine_accepted=0`이면 plan은 `SYNCING`이 될 수 없다.
+- plan `last_error_code/message`는 최신 terminal run error를 반영한다.
+- 같은 run의 open step은 `FAILED` 또는 `SKIPPED`로 닫는다.
+- retryable lock 실패는 `retryable=1`, `retry_after_seconds`, `next_retry_at`을 보존한다.
+
+수용 기준:
+
+- `dr_run` 최신 상태만으로 UI가 retry 가능 여부와 다음 재시도 시각을 표시할 수 있다.
+- `dr_plan` projection stale 여부와 terminal runtime failure가 구분된다.
+- fresh schema, upgrade schema, active DB 수동 보정 스크립트가 같은 컬럼 집합을 만든다.
+
+## 18. 2026-07-06 추가 보강: readiness 계산과 false-success 데이터 보정
+
+상세 기준은 [534-cross-hypervisor-dr-sync-readiness-and-materialization-contract-design-20260706.md](534-cross-hypervisor-dr-sync-readiness-and-materialization-contract-design-20260706.md)를 따른다.
+
+1차 구현은 새 컬럼 없이 기존 테이블로 readiness를 계산한다.
+
+계산 입력:
+
+- `dr_plan.state`
+- `dr_run.state`, `projection_state`, `external_job_ref`
+- `dr_replica.target_vm_id`, `target_external_ref`, `target_vm_name`
+- `dr_restore_point`
+- target site의 `vm_instance`, `volumes`, `nics`
+- ftctl runtime의 `last_target_durable_at`
+
+조회 성능 때문에 캐시가 필요하면 다음 컬럼을 2차로 추가한다.
+
+```sql
+ALTER TABLE `cloud`.`dr_plan`
+  ADD COLUMN `readiness_state` varchar(32) DEFAULT NULL,
+  ADD COLUMN `readiness_reason_code` varchar(64) DEFAULT NULL,
+  ADD COLUMN `readiness_message` varchar(1024) DEFAULT NULL,
+  ADD COLUMN `target_materialized` tinyint(1) DEFAULT 0,
+  ADD COLUMN `last_target_durable_at` datetime DEFAULT NULL;
+```
+
+false success 후보 점검 SQL:
+
+```sql
+SELECT p.id, p.uuid, p.state, r.state AS run_state,
+       rp.target_vm_id, rp.target_external_ref,
+       COUNT(pt.id) AS restore_points
+  FROM `cloud`.`dr_plan` p
+  JOIN `cloud`.`dr_run` r ON r.plan_id = p.id AND r.removed IS NULL
+  LEFT JOIN `cloud`.`dr_replica` rp ON rp.plan_id = p.id AND rp.removed IS NULL
+  LEFT JOIN `cloud`.`dr_restore_point` pt ON pt.plan_id = p.id AND pt.removed IS NULL
+ WHERE p.removed IS NULL
+ GROUP BY p.id, r.id, rp.id
+HAVING r.state = 'SUCCEEDED'
+   AND (rp.target_vm_id IS NULL OR rp.target_external_ref IS NULL OR restore_points = 0);
+```
+
+운영 보정 원칙:
+
+- 배포 전 수동 SQL로 성공 상태를 임의 확정하지 않는다.
+- projection worker가 target materialization verifier 결과를 근거로 `TARGET_MATERIALIZING`, `DEGRADED`, `READY` 중 하나로 보정한다.
+- `dr_run`이 이미 `SUCCEEDED`로 기록되었더라도 target readiness가 없으면 보정 run 또는 projection repair로 상태를 낮춘다.
+
+## 2026-07-07 Update: DB Projection Consistency For Disk Readiness Failures
+
+No new table is required for the current disk readiness hardening, but existing
+rows must be updated consistently when FTCTL reports a terminal target-map
+failure.
+
+Required persistence behavior:
+
+- `dr_plan.state=ERROR`
+- `dr_plan.last_error_code=DR_TARGET_DISK_SIZE_UNRESOLVED`
+- `dr_plan.last_error_message` contains the disk index and source disk id when
+  available.
+- `dr_run.state=FAILED`
+- `dr_run.projection_state=terminal_error`
+- `dr_run.projection_checked` is updated when runtime status is reconciled.
+- `dr_replica.state=ERROR` or `DISK_MAP_INVALID`; it must not remain
+  `SKELETON_READY` without target VM/disk references.
+- `dr_restore_point` remains empty until a durable checkpoint is actually
+  produced.
+
+DAO queries should provide active accepted/running runs for projection
+reconciliation. Detailed field mapping is in
+`538-cross-hypervisor-dr-vmware-to-kvm-disk-size-and-projection-hardening-design-20260707.md`.
+
+## 2026-07-07 Update: DB Contract For Default And Disk-level Storage
+
+The default-storage and disk-level-storage refinement is documented in
+[539-cross-hypervisor-dr-plan-storage-default-and-modal-layout-design-20260707.md](539-cross-hypervisor-dr-plan-storage-default-and-modal-layout-design-20260707.md).
+
+No schema change is required.
+
+Persistence rules:
+
+- `dr_plan.mapping_json.target.storageRef` stores the backend-resolved default
+  or fallback storage when available.
+- `dr_plan.mapping_json.disks[].target.storageRef` stores the effective
+  disk-level target storage and is authoritative for that disk.
+- Runtime fields under `mapping_json.disks[].target`, such as `storagePath`,
+  `storagePoolType`, `storageHostAddress`, and `krbdPath`, remain
+  backend-owned.
+- Legacy rows that only have top-level storage remain readable. Preview or
+  update should rebuild canonical JSON through the guided spec builder and
+  preserve disk-level storage where present.
+
+## 2026-07-07 Update: DB Impact Of DR Plan SharedFS Dialog Standard
+
+The SharedFS-style DR Plan dialog standard is a UI-only structural change. The
+detailed design is documented in
+[540-cross-hypervisor-dr-plan-sharedfs-dialog-standard-design-20260707.md](540-cross-hypervisor-dr-plan-sharedfs-dialog-standard-design-20260707.md).
+
+No DB schema change or migration is required.
+
+Do not persist:
+
+- active collapse section keys;
+- review panel values;
+- UI-only field hint state;
+- validation focus section;
+- dialog scroll position.
+
+Existing DR Plan rows remain canonical through `dr_plan.mapping_json`,
+`dr_plan.schedule_json`, `dr_plan.policy_json`, and
+`dr_plan.quiesce_policy_json`. When an existing plan is opened for edit, the UI
+must rehydrate display state from those canonical JSON fields and current
+inventory API responses.
+
+## 2026-07-07 Update: DB Impact Of Modal Alert And Gutter Refinement
+
+The DR Plan modal alert/gutter refinement is documented in
+[540-cross-hypervisor-dr-plan-sharedfs-dialog-standard-design-20260707.md](540-cross-hypervisor-dr-plan-sharedfs-dialog-standard-design-20260707.md#13-2026-07-07-refinement-dark-alert-and-right-gutter).
+
+No DB schema or migration change is required.
+
+Do not store:
+
+- dark-mode alert preference;
+- modal width;
+- right gutter width;
+- scroll position;
+- browser-specific layout state.
+
+The persisted DR Plan contract remains limited to canonical business state and
+runtime state, not UI presentation state.
+
+## 2026-07-07 Update: VMware Data-Plane DB Contract
+
+The VMware source VDDK libdir readiness design is defined in
+[543-cross-hypervisor-dr-vddk-libdir-resolution-and-preflight-design-20260707.md](543-cross-hypervisor-dr-vddk-libdir-resolution-and-preflight-design-20260707.md).
+
+No mandatory DB schema migration is required for the immediate fix. Existing
+JSON extension fields are sufficient:
+
+| Table | Field | Usage |
+| --- | --- | --- |
+| `dr_site` | `capabilities_json` | latest `vmwareDataPlane` readiness and optional `vmware.vddkLibdirOverride` |
+| `dr_site_health_check` | `details_json` | historical site check and data-plane snapshot when available |
+| `dr_run` | `last_status_json` | FTCTL status with `vmware_data_plane` diagnostics |
+| `dr_run_step` | `details_json` | preflight or mover failure detail |
+| `dr_event` | `details_json` | operator-facing runtime evidence |
+
+Do not store VDDK libdir in `dr_site_credential.secret_payload`; it is not a
+secret. If an operator override is needed, store it in site capability JSON.
+
+Optional future indexed columns may be added only if listing/filtering by
+VMware data-plane state becomes a product requirement:
+
+```sql
+ALTER TABLE dr_site
+  ADD COLUMN vmware_vddk_libdir varchar(1024) DEFAULT NULL,
+  ADD COLUMN vmware_dataplane_state varchar(32) DEFAULT NULL,
+  ADD COLUMN vmware_dataplane_checked datetime DEFAULT NULL;
+```
+
+## 2026-07-07 Update: VMware Mover Source Graph DB Contract
+
+The VMware mover NBD source graph design is defined in
+[544-cross-hypervisor-dr-vmware-mover-nbd-source-graph-design-20260707.md](544-cross-hypervisor-dr-vmware-mover-nbd-source-graph-design-20260707.md).
+
+No DB schema migration is required.
+
+Persist the new terminal error through existing fields:
+
+| Table | Field | Usage |
+| --- | --- | --- |
+| `dr_plan` | `state`, `last_error_code`, `last_error_message` | `ERROR`, `DR_VMWARE_MOVER_SOURCE_GRAPH_INVALID`, sanitized operator message |
+| `dr_run` | `state`, `projection_state`, `completed`, `last_status_json`, `error_code`, `error_message` | terminal failed run and raw projected FTCTL status |
+| `dr_run_step` | `step_name`, `state`, `error_code`, `details_json` | failed `runtime-projection` step |
+| `dr_event` | `event_type`, `severity`, `details_json` | operator-facing runtime projection evidence |
+| `dr_replica` / `dr_replica_disk` | existing state/details fields | do not mark target ready when only target storage exists |
+
+The runtime may leave a pre-created target RBD image when failure happens after
+target preparation. That is operational cleanup state, not a schema reason to
+mark the plan ready.
+
+## 2026-07-08 Update: DB Contract For Snapshot MoRef Resolve And Payload Size
+
+The VMware VDDK connect follow-up is documented in
+[545-cross-hypervisor-dr-vmware-vddk-connect-contract-design-20260708.md](545-cross-hypervisor-dr-vmware-vddk-connect-contract-design-20260708.md#29-live-snapshot-moref-resolve-and-payload-stability-follow-up---2026-07-08).
+
+No DB schema migration is required for the immediate fix.
+
+Persistence rules:
+
+| Table | Field | Required content |
+| --- | --- | --- |
+| `dr_plan` | `state` | `ERROR` while snapshot ref cannot be resolved |
+| `dr_plan` | `last_error_code` | `DR_VMWARE_SNAPSHOT_REF_UNRESOLVED` when the run snapshot exists but MoRef resolve failed |
+| `dr_plan` | `last_error_message` | short operator message, never raw `dr-status --json` |
+| `dr_run` | `state` | `FAILED` for terminal snapshot resolve failure |
+| `dr_run` | `last_status_json` | full redacted runtime status, including `source_snapshot` and `source_open` |
+| `dr_run_step` | `details_json` | compact projection summary; do not duplicate full runtime status for every step |
+| `dr_event` | `details_json` | operator-facing evidence, including cleanup hint when a run snapshot remains |
+| `dr_replica` / `dr_replica_disk` | state fields | remain `ERROR` until a durable checkpoint and materialized target exist |
+
+Existing failed rows that already contain raw JSON in `last_error_message` or
+oversized step `details_json` do not require schema migration. A cleanup or
+projection repair task may rewrite them to the short-message discipline before
+the next retest.
+
+## 2026-07-10 Normative Checkpoint Deduplication Update
+
+The physical `dr_restore_point` table remains for compatibility but stores
+synchronization checkpoint history, not point-in-time recovery artifacts.
+Add run ID, checkpoint sequence, cycle type, and nullable SHA-256 reference
+hash columns. Active rows are unique by `(plan_id, checkpoint_ref_hash)`.
+Duplicate active rows are repaired before index creation, and soft delete
+clears the active hash.
+
+Event queries require plan/run plus created-time indexes and server-side
+pagination. Successful unchanged projection polls are not persisted.
+
+Detailed DDL and repair order:
+`549-cross-hypervisor-dr-checkpoint-history-event-rpo-design-20260710.md`.
+
+## 2026-07-10 Normative Protection View Cache And Completed Row Update
+
+Add `dr_plan_view_cache` with one row per Plan, schema version, revision,
+SHA-256 payload hash, redacted `MEDIUMTEXT` JSON, projection/generated/expiry
+timestamps, refresh state, and next-refresh index. This is a derived read
+model; authoritative domain rows remain unchanged.
+
+Synchronization History queries return only completed rows. An existing READY
+row for current sequence N is downgraded to `IN_PROGRESS` when FTCTL reports
+latest completed sequence N-1. It becomes READY only after FTCTL publishes the
+matching completed reference and timestamps.
+
+Successful informational `PROJECTION_REFRESH` rows are removed in bounded
+batches after new persistence policy deployment.
+
+Detailed DDL, DAO methods, repair, and cleanup design:
+`550-cross-hypervisor-dr-protection-view-cache-and-completed-checkpoint-design-20260710.md`.
+
+## 2026-07-14 Async Read Consistency DB Impact
+
+No schema migration is required for the UI live-cache correction.
+`dr_plan_view_cache` remains the single derived snapshot row per Plan and
+`generated_at` remains the freshness marker. UI polling reads this row through
+`getDrProtectionView`; it does not write domain, event, checkpoint, or cache
+rows. Scheduler and explicit async refresh remain the only cache producers.
+
+Detailed consumer and acceptance design:
+`552-cross-hypervisor-dr-async-read-consistency-and-live-cache-ui-design-20260714.md`.
+
+## 2026-07-14 Cutover Session Schema Addendum
+
+Guest preparation과 test artifact cleanup은 derived cache만으로 복구할 수
+없으므로 schema migration이 필요하다. `dr_cutover_session`은 Plan/Run,
+checkpoint, guest preparation, domain/boot, cleanup state를 저장하고,
+`dr_cutover_disk`는 disk별 checkpoint, writable layer, rollback reference를
+저장한다.
+
+Europa upgrade path와 clean schema에 동일 DDL을 추가한다. Protection-view
+cache의 `cutover` object는 read projection이며 authoritative cleanup source가
+아니다. 상세 DDL:
+`554-cross-hypervisor-dr-vmware-to-kvm-cutover-and-virtio-bootstrap-design-20260714.md`.
+
+## 2026-07-16 Cycle Failure Persistence Addendum
+
+No mandatory schema migration is required for the first corrective release.
+Existing Plan/Run error columns store only bounded normalized messages, the
+complete runtime status remains in `last_status_json`, and step/event rows keep
+the durable failure evidence. A restore point is inserted only after FTCTL has
+reported `LOCAL_DURABLE` and Cloud projection has completed.
+
+Deployment reconciliation must normalize legacy rows whose error text contains
+a complete status JSON document. It must not delete Plan, Run, replica, or
+checkpoint evidence while repairing read compatibility.
+
+Detailed persistence and reconciliation rules:
+`557-cross-hypervisor-dr-cycle-commit-and-api-json-recovery-design-20260716.md`.
+
+## 2026-07-17 Incremental Decision Schema Addendum
+
+A forward-only idempotent migration adds typed mode-decision aggregates to
+`dr_sync_cycle` and latest incremental/reseed-loop authority to
+`dr_plan_runtime`. Backfill joins existing READY checkpoint evidence and fills
+only non-null facts; it never fabricates requested mode or incremental proof.
+The exact columns and reconciliation order are defined in
+`559-cross-hypervisor-dr-incremental-mode-decision-and-cycle-projection-design-20260717.md`.

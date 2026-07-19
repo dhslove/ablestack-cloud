@@ -414,3 +414,165 @@ rto_actual_seconds = failoverCompletedAt - failoverRequestedAt
 
 - [Broadcom VDDK latest overview](https://developer.broadcom.com/sdks/vmware-virtual-disk-development-kit-vddk/latest)
 - [Broadcom VDDK programming guide - changed block tracking](https://techdocs.broadcom.com/us/en/vmware-cis/vsphere/vsphere-sdks-tools/8-0/virtual-disk-development-kit-programming-guide/backing-up-virtual-disks-in-vsphere/low-level-backup-procedures/changed-block-tracking-on-virtual-disks.html)
+
+## 19. 2026-07-06 추가 보강: source 정상과 target readiness 분리
+
+상세 기준은 [534-cross-hypervisor-dr-sync-readiness-and-materialization-contract-design-20260706.md](534-cross-hypervisor-dr-sync-readiness-and-materialization-contract-design-20260706.md)를 따른다.
+
+VMware source VM이 vCenter에서 정상 조회되고 전원이 켜져 있어도, DR Plan이 target-ready라는 뜻은 아니다. FTCTL_DR 엔진은 source validation, data transfer acceptance, target materialization, restore point creation을 별도 상태로 기록해야 한다.
+
+FTCTL event 단계:
+
+| event | 의미 | Cloud 해석 |
+|---|---|---|
+| `source-validated` | VMware/KVM source inventory 확인 | source 정상 |
+| `sync-start-accepted` | worker 시작 요청 접수 | 엔진 접수 |
+| `target-volume-created` | target disk 생성 또는 attach 준비 | 대상 생성 중 |
+| `target-vm-created` | target VM skeleton/materialized | 대상 VM 확인 |
+| `restore-point-created` | durable checkpoint 생성 | RPO 산정 가능 |
+| `target-ready` | Failover 가능한 target 준비 완료 | Plan READY 후보 |
+
+`dr-status`는 위 이벤트를 요약해 `target_materialized`, `restore_point_present`, `last_target_durable_at`를 반환한다. 단, `dr-status` 자체가 remote inventory probe를 수행하지 않고 worker가 기록한 bounded state만 읽는다.
+
+lock 설계 보강:
+
+- action parent process는 accepted state 기록 후 global lock을 해제한다.
+- worker는 plan/run lock으로 실행한다.
+- worker가 lock에 막히면 `retryable=true`로 기록하고 `target-ready` 이벤트를 만들지 않는다.
+
+완료 기준:
+
+- `sync-start-accepted`만 있는 run은 Cloud에서 `SUCCEEDED`가 될 수 없다.
+- `target-ready` event에는 target reference와 durable checkpoint가 포함된다.
+- target writer가 실패하거나 lock에 막힌 경우 마지막 정상 restore point가 유지되고 신규 restore point가 생성된 것처럼 보고하지 않는다.
+## 20. 2026-07-07 Update: VMware Source Disk Size And ABLESTACK Target Map Guard
+
+The VMware to ABLESTACK validation for plan
+`05527cbe-974e-4ca8-b65e-f844cb3420e7` failed correctly in FTCTL with
+`DR_TARGET_DISK_SIZE_UNRESOLVED`. Both `vmware-disks.json` and
+`ablestack-disks.json` contained disk `2000` with `sizeBytes=0`.
+
+The FTCTL_DR engine contract is tightened:
+
+- VMware source disk ids such as `2000` are inventory references, not local file
+  paths.
+- Source disk size must come from Cloud guided inventory, VMware/VDDK metadata,
+  or an explicit validated override.
+- For `VMWARE_TO_KVM`, missing or zero disk size is terminal and must be
+  reported as a specific source/target disk readiness error.
+- ABLESTACK RBD target storage must normalize to `targetType=rbd` and canonical
+  raw block target semantics before materialization.
+- `dr-status --plan <plan> --run <run> --json` must expose terminal error,
+  worker state, source/target disk-map paths, and invalid disk counts.
+- Selftests must include both unresolved source disk size and positive-size
+  success paths.
+
+The paired Cloud-side detailed design is
+`538-cross-hypervisor-dr-vmware-to-kvm-disk-size-and-projection-hardening-design-20260707.md`.
+
+## 21. 2026-07-07 Update: VMware Source VDDK Resolver
+
+The VMware source driver must resolve and validate the actual VDDK library
+directory before it starts nbdkit. Detailed layer design:
+[543-cross-hypervisor-dr-vddk-libdir-resolution-and-preflight-design-20260707.md](543-cross-hypervisor-dr-vddk-libdir-resolution-and-preflight-design-20260707.md).
+
+Implementation notes for `ablestack-qemu-exec-tools`:
+
+- Add a reusable resolver in `lib/ftctl/dr_vddk.sh`.
+- Candidate order:
+  1. `credentials.source.vddkLibdir` or `credentials.source.libdir`
+  2. `FTCTL_DR_VMWARE_VDDK_LIBDIR`
+  3. `VDDK_LIBDIR`
+  4. `/etc/profile.d/v2k-vddk.sh`
+  5. `/opt/vmware-vix-disklib-distrib`
+  6. `/usr/share/ablestack/v2k/compat/vsphere80/vddk`
+  7. `/usr/share/ablestack/v2k/compat/vsphere67/vddk`
+  8. `/usr/share/ablestack/v2k/compat/vsphere60/vddk`
+- Validate a candidate with both file checks and
+  `nbdkit --dump-plugin vddk libdir=<candidate>`.
+- `ftctl_dr_vmware_write_capability()` must not mark `vddkReady=true` merely
+  because `nbdkit vddk --help` succeeds.
+- `dr_vmware_mover.sh` must pass `libdir=<resolved>` explicitly to nbdkit.
+- The DR engine may reuse the installed VDDK asset layout that v2k installs,
+  but it must not call v2k as the DR mover.
+
+New FTCTL error mapping:
+
+| Exit | Error code |
+| --- | --- |
+| 70 | `DR_VDDK_LIBDIR_UNRESOLVED` |
+| 71 | `DR_VDDK_LIBRARY_LOAD_FAILED` |
+| 69 | `DR_VMWARE_NBDKIT_FAILED` |
+
+The scheduler must run VMware data-plane preflight before target storage
+preparation so a missing VDDK library cannot create a partial target disk.
+
+## 22. 2026-07-07 Update: VMware Mover NBD Source Graph
+
+The VMware source driver now has an additional runtime contract after VDDK
+libdir resolution and nbdkit startup. The VDDK-backed NBD socket must be passed
+to `qemu-img` as a valid raw-over-NBD graph, not as a direct NBD JSON node with
+`-f raw`.
+
+Detailed design:
+[544-cross-hypervisor-dr-vmware-mover-nbd-source-graph-design-20260707.md](544-cross-hypervisor-dr-vmware-mover-nbd-source-graph-design-20260707.md).
+
+FTCTL implementation rules:
+
+- Add `ftctl_vmware_mover_source_image_opts()` in
+  `lib/ftctl/dr_vmware_mover.sh`.
+- Use `qemu-img info --force-share --image-opts <source_opts>` as a bounded
+  source graph preflight.
+- Use `qemu-img convert --force-share -p -n --image-opts -O raw <source_opts>
+  <target_uri>` for the VMware to ABLESTACK RBD full seed path.
+- Remove the previous direct `json:{"driver":"nbd"...}` plus `-f raw` source
+  form.
+- Map source graph preflight failure to exit 72 and
+  `DR_VMWARE_MOVER_SOURCE_GRAPH_INVALID`.
+
+Error-code boundary:
+
+| Code | Layer |
+| --- | --- |
+| `DR_VDDK_LIBDIR_UNRESOLVED` | VDDK path discovery |
+| `DR_VDDK_LIBRARY_LOAD_FAILED` | VDDK library loadability |
+| `DR_VMWARE_NBDKIT_FAILED` | nbdkit process/socket startup |
+| `DR_VMWARE_MOVER_SOURCE_GRAPH_INVALID` | QEMU source image graph |
+| `DR_VMWARE_MOVER_FAILED` | convert/data copy after graph validation |
+
+## 2026-07-14 Cutover Driver Addendum
+
+VMware mover의 durable checkpoint 이후에 별도 cutover driver를 둔다.
+`dr_cutover_storage.sh`는 qcow2 overlay와 RBD snapshot/clone을 provider별로
+처리하고, `dr_cutover.sh`는 guest inspection, VirtIO preparation, isolated
+test domain, boot validation 상태머신을 소유한다.
+
+V2K 전체 Phase2는 호출하지 않는다. `lib/guestprep` shared library를 만들고
+기존 V2K public function은 compatibility wrapper로 유지한다. FTCTL capability는
+guest preparation, test domain, qcow2/RBD layer, QGA validation을 개별 feature로
+광고한다. 상세 설계:
+`554-cross-hypervisor-dr-vmware-to-kvm-cutover-and-virtio-bootstrap-design-20260714.md`.
+
+### 2026-07-14 VMware Driver Correction
+
+The old statement "invalid changeId switches to full resync" is not an
+automatic fallback. FTCTL must return `RESEED_REQUIRED`; only an explicit,
+audited action may execute `FULL_RESEED`. Shared CBT query/extent/patch
+primitives, local journal, and Cloud commit acknowledgement follow
+`555-cross-hypervisor-dr-vmware-cbt-incremental-and-transfer-metrics-design-20260714.md`.
+
+### 2026-07-17 VMware Driver Mode-Decision Correction
+
+The driver must not overwrite Scheduler intent. It builds a complete execution
+row containing changeId, `LOCAL_DURABLE` state, baseline generation, last
+sequence, and disk identity; then returns a structured requested/effective mode
+decision.
+
+One typed automatic whole-VM reseed may repair a missing baseline. A repeated
+identical automatic reseed fails with `DR_CBT_RESEED_LOOP_DETECTED` before
+opening source or target data. Empty or malformed helper JSON is a typed error,
+not a raw traceback. Full-copy duration is measured, and incremental metrics
+must be non-estimated.
+
+Normative functions and tests:
+`559-cross-hypervisor-dr-incremental-mode-decision-and-cycle-projection-design-20260717.md`.

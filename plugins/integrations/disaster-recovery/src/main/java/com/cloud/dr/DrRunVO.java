@@ -66,6 +66,44 @@ public class DrRunVO implements InternalIdentity {
     @Column(name = "external_job_ref")
     private String externalJobRef;
 
+    @Column(name = "engine_accepted")
+    private boolean engineAccepted;
+
+    @Column(name = "accepted_at")
+    @Temporal(value = TemporalType.TIMESTAMP)
+    private Date acceptedAt;
+
+    @Column(name = "dispatch_started")
+    @Temporal(value = TemporalType.TIMESTAMP)
+    private Date dispatchStarted;
+
+    @Column(name = "dispatch_completed")
+    @Temporal(value = TemporalType.TIMESTAMP)
+    private Date dispatchCompleted;
+
+    @Column(name = "projection_state")
+    private String projectionState;
+
+    @Column(name = "projection_checked")
+    @Temporal(value = TemporalType.TIMESTAMP)
+    private Date projectionChecked;
+
+    @Column(name = "retryable")
+    private boolean retryable;
+
+    @Column(name = "retry_count")
+    private Integer retryCount = 0;
+
+    @Column(name = "retry_after_seconds")
+    private Integer retryAfterSeconds;
+
+    @Column(name = "next_retry_at")
+    @Temporal(value = TemporalType.TIMESTAMP)
+    private Date nextRetryAt;
+
+    @Column(name = "last_status_json", length = 16777215)
+    private String lastStatusJson;
+
     @Column(name = "current_step_name")
     private String currentStepName;
 
@@ -144,6 +182,50 @@ public class DrRunVO implements InternalIdentity {
         return externalJobRef;
     }
 
+    public boolean isEngineAccepted() {
+        return engineAccepted;
+    }
+
+    public Date getAcceptedAt() {
+        return acceptedAt;
+    }
+
+    public Date getDispatchStarted() {
+        return dispatchStarted;
+    }
+
+    public Date getDispatchCompleted() {
+        return dispatchCompleted;
+    }
+
+    public String getProjectionState() {
+        return projectionState;
+    }
+
+    public Date getProjectionChecked() {
+        return projectionChecked;
+    }
+
+    public boolean isRetryable() {
+        return retryable;
+    }
+
+    public Integer getRetryCount() {
+        return retryCount;
+    }
+
+    public Integer getRetryAfterSeconds() {
+        return retryAfterSeconds;
+    }
+
+    public Date getNextRetryAt() {
+        return nextRetryAt;
+    }
+
+    public String getLastStatusJson() {
+        return lastStatusJson;
+    }
+
     public String getCurrentStepName() {
         return currentStepName;
     }
@@ -198,6 +280,50 @@ public class DrRunVO implements InternalIdentity {
 
     public void setExternalJobRef(String externalJobRef) {
         this.externalJobRef = externalJobRef;
+    }
+
+    public void setEngineAccepted(boolean engineAccepted) {
+        this.engineAccepted = engineAccepted;
+    }
+
+    public void setAcceptedAt(Date acceptedAt) {
+        this.acceptedAt = acceptedAt;
+    }
+
+    public void setDispatchStarted(Date dispatchStarted) {
+        this.dispatchStarted = dispatchStarted;
+    }
+
+    public void setDispatchCompleted(Date dispatchCompleted) {
+        this.dispatchCompleted = dispatchCompleted;
+    }
+
+    public void setProjectionState(String projectionState) {
+        this.projectionState = projectionState;
+    }
+
+    public void setProjectionChecked(Date projectionChecked) {
+        this.projectionChecked = projectionChecked;
+    }
+
+    public void setRetryable(boolean retryable) {
+        this.retryable = retryable;
+    }
+
+    public void setRetryCount(Integer retryCount) {
+        this.retryCount = retryCount;
+    }
+
+    public void setRetryAfterSeconds(Integer retryAfterSeconds) {
+        this.retryAfterSeconds = retryAfterSeconds;
+    }
+
+    public void setNextRetryAt(Date nextRetryAt) {
+        this.nextRetryAt = nextRetryAt;
+    }
+
+    public void setLastStatusJson(String lastStatusJson) {
+        this.lastStatusJson = lastStatusJson;
     }
 
     public void setCurrentStepName(String currentStepName) {

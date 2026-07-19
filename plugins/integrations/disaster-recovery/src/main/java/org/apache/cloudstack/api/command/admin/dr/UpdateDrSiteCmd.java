@@ -29,6 +29,7 @@ import org.apache.cloudstack.api.response.dr.DrSiteResponse;
 import org.apache.cloudstack.context.CallContext;
 
 import com.cloud.dr.DrSiteService;
+import com.cloud.dr.DrSiteCredentialInput;
 import com.cloud.dr.DrSiteVO;
 import com.cloud.dr.cluster.DisasterRecoveryClusterEventTypes;
 import com.cloud.dr.response.DrResponseGenerator;
@@ -66,11 +67,50 @@ public class UpdateDrSiteCmd extends BaseAsyncCmd {
     @Parameter(name = "credentialref", type = CommandType.STRING, description = "the credential reference")
     private String credentialRef;
 
+    @Parameter(name = "credentialtype", type = CommandType.STRING, description = "the credential type. Supported values: MOLD_API, VCENTER")
+    private String credentialType;
+
+    @Parameter(name = "moldapiurl", type = CommandType.STRING, description = "the Mold API URL for the DR site")
+    private String moldApiUrl;
+
+    @Parameter(name = "moldapikey", type = CommandType.STRING, description = "the Mold API key for the DR site")
+    private String moldApiKey;
+
+    @Parameter(name = "moldsecretkey", type = CommandType.STRING, description = "the Mold secret key for the DR site")
+    private String moldSecretKey;
+
+    @Parameter(name = "vcenterurl", type = CommandType.STRING, description = "the vCenter URL for the DR site")
+    private String vCenterUrl;
+
+    @Parameter(name = "vcenterusername", type = CommandType.STRING, description = "the vCenter username for the DR site")
+    private String vCenterUsername;
+
+    @Parameter(name = "vcenterpassword", type = CommandType.STRING, description = "the vCenter password for the DR site")
+    private String vCenterPassword;
+
+    @Parameter(name = "tlsverify", type = CommandType.BOOLEAN, description = "true to verify TLS certificates for the DR site endpoint")
+    private Boolean tlsVerify;
+
+    @Parameter(name = "clearcredential", type = CommandType.BOOLEAN, description = "true to remove stored DR site credentials")
+    private Boolean clearCredential;
+
     @Parameter(name = "zoneid", type = CommandType.LONG, description = "the local CloudStack zone ID")
     private Long zoneId;
 
+    @Parameter(name = "zoneexternalid", type = CommandType.STRING, description = "the remote site zone external ID")
+    private String zoneExternalId;
+
+    @Parameter(name = "zonename", type = CommandType.STRING, description = "the remote site zone display name")
+    private String zoneName;
+
     @Parameter(name = "vmwaredcid", type = CommandType.LONG, description = "the VMware datacenter ID")
     private Long vmwareDatacenterId;
+
+    @Parameter(name = "vmwaredcexternalid", type = CommandType.STRING, description = "the remote site VMware datacenter external ID")
+    private String vmwareDatacenterExternalId;
+
+    @Parameter(name = "vmwaredcname", type = CommandType.STRING, description = "the remote site VMware datacenter display name")
+    private String vmwareDatacenterName;
 
     @Parameter(name = "state", type = CommandType.STRING, description = "the site state")
     private String state;
@@ -89,11 +129,16 @@ public class UpdateDrSiteCmd extends BaseAsyncCmd {
             update.setEndpoint(endpoint);
             update.setCredentialRef(credentialRef);
             update.setZoneId(zoneId);
+            update.setZoneExternalId(zoneExternalId);
+            update.setZoneName(zoneName);
             update.setVmwareDatacenterId(vmwareDatacenterId);
+            update.setVmwareDatacenterExternalId(vmwareDatacenterExternalId);
+            update.setVmwareDatacenterName(vmwareDatacenterName);
             update.setState(state);
             update.setHealthState(healthState);
             update.setCapabilitiesJson(capabilitiesJson);
-            DrSiteResponse response = drResponseGenerator.createSiteResponse(drSiteService.updateSite(id, update));
+            DrSiteResponse response = drResponseGenerator.createSiteResponse(
+                    drSiteService.updateSite(id, update, buildCredentialInput(), Boolean.TRUE.equals(clearCredential)));
             response.setResponseName(getCommandName());
             setResponseObject(response);
         } catch (RuntimeException e) {
@@ -129,5 +174,21 @@ public class UpdateDrSiteCmd extends BaseAsyncCmd {
     @Override
     public Long getApiResourceId() {
         return id;
+    }
+
+    private DrSiteCredentialInput buildCredentialInput() {
+        DrSiteCredentialInput input = new DrSiteCredentialInput();
+        input.setCredentialType(credentialType);
+        input.setTlsVerify(tlsVerify);
+        if (vCenterUrl != null || vCenterUsername != null || vCenterPassword != null) {
+            input.setEndpoint(vCenterUrl);
+            input.setPrincipal(vCenterUsername);
+            input.setPassword(vCenterPassword);
+        } else {
+            input.setEndpoint(moldApiUrl);
+            input.setApiKey(moldApiKey);
+            input.setSecretKey(moldSecretKey);
+        }
+        return input.hasCredentialData() ? input : null;
     }
 }

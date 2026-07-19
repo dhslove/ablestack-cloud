@@ -258,6 +258,72 @@ Cloud adapter는 FTCTL raw message를 보존하되 UI에는 표준 error code와
 
 ## 12. Idempotency
 
+## 2026-07-07 Update: VMware VDDK Libdir Runtime Contract
+
+The VMware to ABLESTACK sync path now requires an explicit data-plane
+contract for the worker host that runs the VMware source mover. The detailed
+layer-by-layer design is
+[543-cross-hypervisor-dr-vddk-libdir-resolution-and-preflight-design-20260707.md](543-cross-hypervisor-dr-vddk-libdir-resolution-and-preflight-design-20260707.md).
+
+Runtime profile and credential contract:
+
+```json
+{
+  "credentials": {
+    "source": {
+      "type": "VCENTER",
+      "endpoint": "10.10.21.10",
+      "principal": "administrator@ablecloud.local",
+      "tlsVerify": true,
+      "auth": {
+        "password": "secret"
+      },
+      "vddkLibdir": "/usr/share/ablestack/v2k/compat/vsphere80/vddk",
+      "dataPlaneHostId": 1,
+      "dataPlaneHostUuid": "host-uuid"
+    }
+  }
+}
+```
+
+Rules:
+
+- `vddkLibdir` is a non-secret runtime hint.
+- Cloud should populate it from worker host details or an operator override
+  when available.
+- Agent should enrich the profile with its detected host VDDK path when the
+  backend profile is missing the value.
+- FTCTL must still auto-discover and validate VDDK libdir as the final safety
+  layer.
+- The runtime must not depend on v2k execution. It may only reuse the
+  installed VDDK asset layout under `/usr/share/ablestack/v2k/compat`.
+
+Status JSON should include a VMware data-plane diagnostic object:
+
+```json
+{
+  "vmware_data_plane": {
+    "vddk_ready": true,
+    "vddk_libdir": "/usr/share/ablestack/v2k/compat/vsphere80/vddk",
+    "vddk_library_version": "8",
+    "nbdkit_vddk": true,
+    "mover_ready": true,
+    "missing_code": ""
+  }
+}
+```
+
+Error mapping is extended:
+
+| FTCTL condition | Cloud error code |
+| --- | --- |
+| no usable VDDK libdir candidate | `DR_VDDK_LIBDIR_UNRESOLVED` |
+| libdir exists but nbdkit cannot load it | `DR_VDDK_LIBRARY_LOAD_FAILED` |
+| nbdkit process/socket fails after libdir resolution | `DR_VMWARE_NBDKIT_FAILED` |
+
+These fields must be copied into `dr_run.last_status_json` and projection
+events without exposing credential secrets.
+
 Cloud idempotency:
 
 - `DrRun.idempotency_key`로 중복 action을 막는다.
@@ -352,3 +418,449 @@ Integration smoke:
 | Failback/adopt | 기존 FTCTL action 분리 | 신규 DR API에서도 source-controller/replica-controller 분리 유지 |
 | Cleanup | FTCTL release/forced cleanup | Cloud cleanup과 FTCTL cleanup 책임 분리 |
 | qemu 변경 | 기존 성공 경로 검증됨 | optional metadata/event 안정화만 허용 |
+
+## 2026-07-06 보강: FTCTL Acceptance와 Background Worker 계약
+
+FTCTL runtime action 계약은 [533-cross-hypervisor-dr-dispatch-projection-recovery-design-20260706.md](533-cross-hypervisor-dr-dispatch-projection-recovery-design-20260706.md)를 우선한다.
+
+FTCTL 구현 원칙:
+
+- `--wait=false` action은 장기 sync/failover/failback 작업을 같은 CLI 프로세스에서 수행하지 않는다.
+- action command는 profile 저장, run/status accepted 기록, background worker spawn 후 즉시 accepted JSON을 반환한다.
+- background worker는 실제 transfer/scheduler/driver 작업과 progress 갱신을 담당한다.
+- `dr-status`는 `accepted`, `runtime_exists`, `profile_exists`, `run_exists`, `external_job_ref`를 반환한다.
+- Cloud projection adapter가 run state와 grace를 기준으로 `not_found`의 terminal 여부를 판단한다.
+
+## 2026-07-06 추가 보강: retryable lock과 bounded status contract
+
+상세 기준은 [533-cross-hypervisor-dr-dispatch-projection-recovery-design-20260706.md](533-cross-hypervisor-dr-dispatch-projection-recovery-design-20260706.md)의 19장과 20장을 따른다.
+
+### Agent contract
+
+`LibvirtFtctlDrStatusCommandWrapper`는 Cloud command wait 값만 신뢰하지 않고 host process hard timeout을 적용한다.
+
+권장 기준:
+
+- status hard timeout: 5 seconds
+- kill-after grace: 2 seconds
+- timeout result: `DR_STATUS_TIMEOUT`
+- timeout은 plan terminal failure가 아니라 projection stale로 해석한다.
+- 동일 plan/run status 호출은 single-flight로 합친다.
+
+Agent timeout response 예:
+
+```json
+{
+  "command": "dr-status",
+  "result": "timeout",
+  "state": "UNKNOWN",
+  "step": "status-timeout",
+  "progress": 0,
+  "error_code": "DR_STATUS_TIMEOUT",
+  "retryable": true
+}
+```
+
+### FTCTL lock contract
+
+`dr-sync-start`, `dr-sync-pause`, `dr-sync-resume`, failover/failback 계열 action이 FTCTL lock에 막히면 JSON은 retryable metadata를 유지한다.
+
+```json
+{
+  "command": "dr-sync-start",
+  "result": "locked",
+  "lock_file": "/run/ablestack-vm-ftctl/lock",
+  "holder_command": "dr-sync-pause",
+  "holder_pid": "3981802",
+  "holder_age_sec": "14",
+  "exit_code": 20,
+  "retryable": true,
+  "retry_after_sec": 2
+}
+```
+
+Cloud는 이 응답을 `DR_ENGINE_BUSY_RETRYABLE`로 변환하고, retry window 초과 전에는 terminal failure로 보지 않는다.
+
+### `dr-status` contract
+
+`dr-status`는 다음 작업을 수행하지 않는다.
+
+- global FTCTL lock 획득
+- scheduler/worker 시작
+- remote Mold/vCenter 호출
+- qemu/libvirt/blockjob 실시간 probe
+- 전체 events.log unbounded scan
+
+`dr-status`는 다음 파일만 bounded 방식으로 읽는다.
+
+- plan `profile.json`
+- plan `status.state`
+- run `runs/<run_uuid>.state`
+- bounded event tail
+
+수용 기준:
+
+- `ablestack_vm_ftctl dr-status --plan <uuid> --json`은 정상 상태에서 1초 이내 반환한다.
+- 비정상 파일/로그 상태에서도 5초 이내 timeout JSON을 반환한다.
+- status timeout 후 host에 orphan `dr-status` 프로세스가 남지 않는다.
+
+## 2026-07-06 추가 보강: sync accepted와 target readiness 분리
+
+상세 기준은 [534-cross-hypervisor-dr-sync-readiness-and-materialization-contract-design-20260706.md](534-cross-hypervisor-dr-sync-readiness-and-materialization-contract-design-20260706.md)를 따른다.
+
+`dr-sync-start`는 장기 동기화 완료가 아니라 작업 접수와 worker 시작을 의미한다. 따라서 accepted 응답은 다음 범위까지만 보장한다.
+
+- profile 저장
+- run state `ENGINE_ACCEPTED` 또는 `ACCEPTED` 기록
+- background worker spawn 예약 또는 시작
+- Cloud가 추적할 run id 반환
+
+worker는 target materialization 진행 중 다음 event를 기록한다.
+
+```json
+{"event":"target-volume-created","volume":"...","at":"..."}
+{"event":"target-vm-created","target_vm_id":"...","at":"..."}
+{"event":"restore-point-created","restore_point_id":"...","durable_at":"..."}
+{"event":"target-ready","target_vm_id":"...","durable_at":"..."}
+```
+
+`dr-status` 추가 필드:
+
+```json
+{
+  "target_materialized": false,
+  "target_vm_present": false,
+  "target_storage_present": true,
+  "target_network_present": false,
+  "restore_point_present": false,
+  "last_target_durable_at": ""
+}
+```
+
+lock 설계:
+
+- parent action process는 global lock을 짧게 잡고 profile/run accepted 상태만 기록한다.
+- background worker는 parent lock release 이후 시작한다.
+- worker는 plan/run 단위 lock을 사용한다.
+- worker가 lock에 막히면 `retryable=true`, `retry_after_sec`를 기록하고 run을 terminal success로 만들지 않는다.
+
+## 2026-07-07 Addendum: Serving process and disk map authority
+
+The terminal projection contract is valid only when the Cloud API process serving `:8080` is the same process that loaded the updated DR classes. After changed-class deployment, operational validation must compare `mold.service` `MainPID` with the PID owning listener port `8080`. If they differ, API/UI responses are stale and the deployment is not valid for DR testing.
+
+The FTCTL runtime status contract now separates source and target disk maps:
+
+```json
+{
+  "source_disk_map_path": "/run/ablestack-vm-ftctl/dr-runtime/plans/<plan>/vmware-disks.json",
+  "target_disk_map_path": "/run/ablestack-vm-ftctl/dr-runtime/plans/<plan>/ablestack-disks.json",
+  "disk_map_role": "target",
+  "disk_map_path": "/run/ablestack-vm-ftctl/dr-runtime/plans/<plan>/ablestack-disks.json"
+}
+```
+
+`disk_map_path` remains for backward compatibility. For an ABLESTACK target it must point to the target map, never to VMware source metadata. VMware source disk ids such as `2000` are source inventory references and must not be used as local qemu paths for target preparation or size detection.
+
+The detailed layered design is documented in [537-cross-hypervisor-dr-serving-process-and-disk-map-contract-design-20260707.md](537-cross-hypervisor-dr-serving-process-and-disk-map-contract-design-20260707.md).
+
+## 2026-07-07 Update: FTCTL Runtime Disk Map Contract
+
+For VMware to ABLESTACK sync, FTCTL must reject unresolved disk maps before
+creating target disks or target VMs.
+
+Runtime contract additions:
+
+- VMware disk ids are inventory references; they are not local file paths.
+- `vmware-disks.json` must contain positive `sizeBytes` for every selected
+  source disk.
+- `ablestack-disks.json` must normalize RBD target storage to canonical
+  `targetType=rbd` and raw block semantics.
+- `dr-status --plan <uuid> --run <uuid> --json` returns terminal fields even
+  after the initial action process has released the global lock.
+- Terminal JSON must include `state`, `step`, `error_code`, `worker_state`,
+  invalid disk count, and source/target disk map paths.
+
+Cloud-side projection and DB mapping are specified in
+`538-cross-hypervisor-dr-vmware-to-kvm-disk-size-and-projection-hardening-design-20260707.md`.
+
+## 2026-07-07 Update: ftctl Contract For Disk-level Storage Authority
+
+The Cloud/API/UI storage semantics are refined in
+[539-cross-hypervisor-dr-plan-storage-default-and-modal-layout-design-20260707.md](539-cross-hypervisor-dr-plan-storage-default-and-modal-layout-design-20260707.md).
+
+ftctl does not require a CLI or state-file schema change for this pass.
+
+Runtime rules:
+
+- ftctl consumes Cloud's backend-generated canonical profile.
+- For disk placement, `mapping.disks[].target.storageRef` and the backend-owned
+  runtime fields under the same target object are authoritative.
+- Top-level storage is only a Cloud guided fallback for legacy or incomplete
+  disk-row input.
+- ftctl keeps its final preflight guard and returns `CONFIG_INCOMPLETE` or
+  `DR_TARGET_MAPPING_INVALID` when the canonical profile lacks target storage
+  or target path data.
+
+## 2026-07-07 Update: ftctl Impact Of DR Plan SharedFS Dialog Standard
+
+The SharedFS-style DR Plan dialog standard is documented in
+[540-cross-hypervisor-dr-plan-sharedfs-dialog-standard-design-20260707.md](540-cross-hypervisor-dr-plan-sharedfs-dialog-standard-design-20260707.md).
+
+No ftctl CLI, profile, or state-file schema change is required.
+
+ftctl contract rules:
+
+- ftctl receives only backend-generated canonical profiles.
+- UI section names, active collapse keys, field hints, and review summary
+  values must never be written into ftctl profile JSON.
+- Disk-level storage authority remains the contract defined in
+  [539-cross-hypervisor-dr-plan-storage-default-and-modal-layout-design-20260707.md](539-cross-hypervisor-dr-plan-storage-default-and-modal-layout-design-20260707.md).
+- ftctl continues to validate runtime paths and target mappings as the final
+  safety guard after Cloud backend validation.
+
+This keeps the UI presentation standard independent from the runtime engine
+contract.
+
+## 2026-07-07 Update: ftctl Impact Of Modal Alert And Gutter Refinement
+
+The DR Plan modal alert/gutter refinement is documented in
+[540-cross-hypervisor-dr-plan-sharedfs-dialog-standard-design-20260707.md](540-cross-hypervisor-dr-plan-sharedfs-dialog-standard-design-20260707.md#13-2026-07-07-refinement-dark-alert-and-right-gutter).
+
+No ftctl change is required.
+
+Runtime contract remains:
+
+- ftctl receives backend-generated profile JSON only;
+- alert style, modal dimensions, scrollbars, and CSS class names are never
+  written to ftctl profiles;
+- ftctl validation continues to operate on storage, disk mapping, worker, and
+  runtime path data only.
+
+This confirms the visual fix is outside the engine boundary.
+
+## 2026-07-07 Update: VMware Mover Runtime Contract
+
+The VMware to ABLESTACK sync test for plan
+`ba4f53f8-eb17-41cd-bbe6-7e746772f209` reached target disk preparation but
+failed during the VMware data-plane cycle with
+`DR_VMWARE_MOVER_UNAVAILABLE`.
+
+The complete layered design is documented in
+[542-cross-hypervisor-dr-vmware-mover-and-projection-convergence-design-20260707.md](542-cross-hypervisor-dr-vmware-mover-and-projection-convergence-design-20260707.md).
+
+Runtime contract additions:
+
+- `FTCTL_DR_VMWARE_MOVER` is no longer an operator-only hidden prerequisite.
+  FTCTL must ship a default mover path and expose mover capability through
+  preflight/status JSON.
+- VMware mover availability must be checked before ABLESTACK target storage is
+  allocated.
+- `dr-status --json` terminal fields are authoritative even when the original
+  action answer was `accepted`.
+- `DR_VMWARE_MOVER_UNAVAILABLE` maps to terminal sync failure unless the
+  runtime explicitly marks it retryable.
+- `DR_VMWARE_MOVER_FAILED` and `DR_VMWARE_NBDKIT_FAILED` are terminal
+  data-plane failures surfaced from the bundled mover after preflight succeeds.
+- `target_storage_present=true` with `target_vm_present=false` remains a
+  failure or pending materialization state; it is never READY.
+
+## 2026-07-07 Update: VMware Mover Source Graph Runtime Contract
+
+The VMware to ABLESTACK sync test for plan
+`987bb250-3b5a-4053-9720-2ff93b4cc88c` reached VDDK/nbdkit successfully but
+failed because `dr_vmware_mover.sh` passed a direct NBD JSON node to `qemu-img`
+while forcing `-f raw`.
+
+Detailed design:
+[544-cross-hypervisor-dr-vmware-mover-nbd-source-graph-design-20260707.md](544-cross-hypervisor-dr-vmware-mover-nbd-source-graph-design-20260707.md).
+
+Runtime contract additions:
+
+- `dr_vmware_mover.sh` must expose VDDK NBD sockets to `qemu-img` as an explicit
+  raw-over-NBD source graph.
+- `qemu-img info --image-opts` source graph preflight failure maps to exit 72
+  and `DR_VMWARE_MOVER_SOURCE_GRAPH_INVALID`.
+- `dr-status --json` must project exit 72 as terminal `state=ERROR`,
+  `worker_state=FAILED`, and `worker_exit_code=72`.
+- `DR_VMWARE_MOVER_SOURCE_GRAPH_INVALID` is terminal for the current run, but it
+  does not imply a DB schema problem or a vCenter credential problem.
+- Existing `dr_plan`, `dr_run`, `dr_run_step`, `dr_event`, `dr_replica`, and
+  `dr_replica_disk` projection fields carry the error; no new table or column is
+  required.
+
+## 2026-07-08 Update: VMware VDDK Connect Contract Runtime Contract
+
+The VMware to ABLESTACK sync test for plan
+`71182935-11c6-4ed3-aeec-ebde1486bdfa` reached the raw-over-NBD source graph but
+failed inside VDDK connect:
+
+```text
+VixDiskLib_ConnectEx: One of the parameters was invalid
+```
+
+Detailed design:
+[545-cross-hypervisor-dr-vmware-vddk-connect-contract-design-20260708.md](545-cross-hypervisor-dr-vmware-vddk-connect-contract-design-20260708.md).
+
+Runtime contract additions:
+
+- Cloud must generate a canonical VMware `source` object in the FTCTL profile
+  mapping, not only top-level `sourceExternalRef`.
+- VMware source readiness must validate endpoint, credential, source VM ref,
+  and source disk paths before long-running sync work is dispatched.
+- The async FTCTL worker must create a run snapshot for powered-on VMware
+  sources before source-open preflight and base transfer.
+- Before creating that snapshot, the worker must check VM/disk CBT state and
+  enable `ctkEnabled=true` plus selected disk `<scsiX:Y>.ctkEnabled=true` when
+  policy allows auto-enable.
+- The mover must pass `snapshot=<snapshot-moref>` and the base VMDK path read
+  from source inventory.
+- FTCTL must validate VDDK connect parameters separately from QEMU graph
+  validation.
+- Exit 73 maps to `DR_VMWARE_VDDK_CONNECT_INVALID`.
+- Exit 74 maps to `DR_VMWARE_VDDK_EXPORT_UNAVAILABLE`.
+- Exit 75 maps to `DR_VMWARE_VDDK_SOURCE_LOCKED`.
+- Exit 76 maps to `DR_VMWARE_VDDK_OPEN_DENIED`.
+- Exit 77 maps to `DR_VMWARE_CBT_DISABLED`.
+- Exit 78 maps to `DR_VMWARE_CBT_ENABLE_FAILED`.
+- Exit 79 maps to `DR_VMWARE_CBT_VERIFY_FAILED`.
+- Exit 80 maps to `DR_VMWARE_CBT_DISK_ID_UNRESOLVED`.
+- Exit 84 maps to `DR_VMWARE_CBT_SNAPSHOT_CONFLICT`.
+- Exit 72 remains `DR_VMWARE_MOVER_SOURCE_GRAPH_INVALID`.
+- Existing plan/run/status JSON fields carry these errors; no DB migration is
+  required.
+
+## 2026-07-08 Update: VMware Snapshot MoRef Resolve Runtime Contract
+
+The VMware to ABLESTACK sync test for plan
+`e08b9ef0-8a7a-42f6-bf0a-9e9f41f2fbee` proved that a run snapshot can be
+created successfully while `govc snapshot.tree -json` still does not expose the
+snapshot MoRef required by VDDK.
+
+Detailed design:
+[545-cross-hypervisor-dr-vmware-vddk-connect-contract-design-20260708.md](545-cross-hypervisor-dr-vmware-vddk-connect-contract-design-20260708.md#29-live-snapshot-moref-resolve-and-payload-stability-follow-up---2026-07-08).
+
+Runtime contract additions:
+
+- ftctl must resolve run snapshot MoRef with
+  `govc object.collect -json <vm-ref> snapshot.rootSnapshotList` first.
+- `govc snapshot.tree -json` remains only a fallback resolver.
+- Exit `81` maps to `DR_VMWARE_SNAPSHOT_REF_UNRESOLVED`.
+- Snapshot cleanup ownership starts immediately after successful
+  `snapshot.create`, not after successful MoRef resolve.
+- `dr-status --json` must include a redacted `source_snapshot` object that
+  reports create, resolve, ref-present, cleanup-required, and error state.
+- If snapshot resolve fails before VDDK source-open starts, `source_open` must
+  be present with `checked=false` and
+  `skippedReason=SOURCE_SNAPSHOT_REF_UNRESOLVED`.
+- Cloud may store full redacted status in `dr_run.last_status_json`, but step
+  details and plan/run error messages must use compact summaries.
+
+## 2026-07-10 Normative Scheduler And Checkpoint Update
+
+- FTCTL checkpoints are synchronization evidence, not user-selectable
+  point-in-time recovery images.
+- Test failover and failover atomically lock the latest completed checkpoint.
+- The checkpoint reference includes Plan UUID, run UUID, and sequence.
+- Scheduler cadence is start-to-start; transfer duration is not added to the
+  configured RPO interval.
+- Source checkpoint acquisition and target durability timestamps are measured
+  independently.
+- Preferred status fields use `checkpoint_*`; `restore_point_*` remains a
+  temporary read-only alias.
+
+Detailed design:
+`549-cross-hypervisor-dr-checkpoint-history-event-rpo-design-20260710.md`.
+
+## 2026-07-10 Normative Current/Completed Checkpoint Status Contract
+
+FTCTL status separates the current transfer checkpoint from the latest
+completed checkpoint. Cycle start changes only `current_checkpoint_*` fields;
+successful target flush/verification and restore-points JSONL append advance
+`latest_completed_checkpoint_*` fields.
+
+`dr-status --json` exposes both sets. When completed state keys are absent, it
+reconstructs them from the last valid JSONL record. Cloud must not use legacy
+`checkpoint_sequence` as completed evidence. Agent typed answers carry both
+sets without credentials or raw secret-bearing profile data.
+
+Detailed shell write ordering, fallback, Agent mapping, and self-tests:
+`550-cross-hypervisor-dr-protection-view-cache-and-completed-checkpoint-design-20260710.md`.
+
+## 2026-07-14 UI Live Cache Impact
+
+No FTCTL command, profile, scheduler, checkpoint, CBT, VDDK, or snapshot
+contract changes are required. Steady UI refresh reads the Cloud DB cache only.
+FTCTL status is still collected exclusively by the Cloud projection scheduler
+or an explicit `refreshDrProtectionView` async job through Agent.
+
+The UI/API read-consistency design and the test that guards against accidental
+direct FTCTL polling are defined in
+`552-cross-hypervisor-dr-async-read-consistency-and-live-cache-ui-design-20260714.md`.
+
+## 2026-07-14 Normative DR Lock And Quiesce Contract
+
+The long-lived `FTCTL_DR_RUNTIME_WORKER=1 dr-sync-start` process must not hold
+the legacy global FTCTL lock. The legacy lock remains unchanged for existing
+FT/HA, blockcopy, and xcolo paths. DR uses plan-scoped locks:
+
+```text
+plan.lock       short profile/run mutations
+cycle.lock      one replication cycle only
+transition.lock one test/failover/failback/release transition
+checkpoint-N.lease selected completed checkpoint lifetime
+```
+
+Pause/resume/stop uses an atomic generation-based control request and
+acknowledgment. Test Failover first quiesces the Scheduler, then leases the
+latest completed checkpoint. No lock is held during RPO interval sleep or
+while a worker waits for a control acknowledgment.
+
+Detailed shell helper contracts, lock ordering, status fields, and self-tests:
+`553-cross-hypervisor-dr-continuous-sync-control-and-quiesce-lock-design-20260714.md`.
+
+## 2026-07-14 Normative Guest Preparation And Cutover Contract
+
+`dr-test-failover`의 성공 조건은 test overlay 생성이 아니다. FTCTL은 아래
+단계를 모두 완료한 경우에만 `TEST_RUNNING`을 반환한다.
+
+1. Scheduler pause acknowledgment와 checkpoint lease
+2. qcow2 또는 RBD writable test layer 생성
+3. guest OS inspection
+4. Linux initramfs 또는 Windows WinPE VirtIO preparation
+5. source firmware/Secure Boot와 일치하는 isolated test domain 정의
+6. domain start와 configured boot validation 성공
+
+실제 `dr-failover`는 guest preparation 후 `CUTOVER_READY`에서 FTCTL 책임을
+끝낸다. Cloud-managed target VM start와 active-side commit은 Cloud backend
+책임이다. Runtime capability에는 storage driver, guest preparation, test domain,
+boot validation 지원 여부를 각각 명시한다.
+
+상세 파일, 상태, 오류, cleanup 계약:
+`554-cross-hypervisor-dr-vmware-to-kvm-cutover-and-virtio-bootstrap-design-20260714.md`.
+
+## 2026-07-16 Cycle Journal And Commit-State Addendum
+
+Each VMware replication cycle persists a Plan-scoped journal through
+`DATA_COPIED`, `METADATA_PREPARED`, and `LOCAL_DURABLE`. The mover validates
+its result JSON with the same serializer before any source snapshot or CBT
+baseline mutation. Invalid result serialization returns the typed error
+`DR_CBT_METRICS_INVALID` and preserves enough journal evidence to select a
+deterministic retry mode.
+
+Metadata-only resume is allowed only when the journal proves source snapshot,
+CBT range, target disk identity, copied-byte result, and target durability.
+Missing or inconsistent proof requires `RESEED_REQUIRED`; successful physical
+copy alone never advances the committed CBT baseline.
+
+Detailed file layout, atomic writes, recovery rules, and exit mapping:
+`557-cross-hypervisor-dr-cycle-commit-and-api-json-recovery-design-20260716.md`.
+
+## 2026-07-17 Baseline Row And Mode Decision Addendum
+
+Every mover row carries disk identity, committed changeId, baseline state,
+baseline generation, and last sequence. Scheduler-requested mode is immutable;
+the mover produces a separate structured effective-mode decision. An identical
+second automatic reseed stops before source open, and malformed helper JSON is
+a typed error without raw traceback. The journal/status field set and live
+acceptance contract are defined in
+`559-cross-hypervisor-dr-incremental-mode-decision-and-cycle-projection-design-20260717.md`.

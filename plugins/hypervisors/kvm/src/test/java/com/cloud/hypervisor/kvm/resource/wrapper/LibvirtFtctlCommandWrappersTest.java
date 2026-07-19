@@ -23,6 +23,8 @@ import com.cloud.agent.api.FtctlCheckAnswer;
 import com.cloud.agent.api.FtctlCheckCommand;
 import com.cloud.agent.api.FtctlEventsAnswer;
 import com.cloud.agent.api.FtctlEventsCommand;
+import com.cloud.agent.api.FtctlDrStatusAnswer;
+import com.cloud.agent.api.FtctlDrStatusCommand;
 import com.cloud.agent.api.FtctlHealthAnswer;
 import com.cloud.agent.api.FtctlHealthCommand;
 import com.cloud.agent.api.FtctlRemotePreflightCommand;
@@ -368,6 +370,110 @@ public class LibvirtFtctlCommandWrappersTest {
             Mockito.verify(script).add("--secondary-ssh-key-file", "/root/.ssh/ftctl-dr/vm-a/id_ed25519");
             Mockito.verify(script).add("--remote-nbd-export-addr", "10.0.0.12:10809");
             Mockito.verify(script).add("--json");
+        }
+    }
+
+    @Test
+    public void testDrStatusWrapperParsesStrictPlanOwnedJson() {
+        LibvirtFtctlDrStatusCommandWrapper wrapper = new LibvirtFtctlDrStatusCommandWrapper();
+        FtctlDrStatusCommand command = new FtctlDrStatusCommand("plan-a", "run-a");
+        String mixedOutput = "{\"command\":\"dr-status\",\"result\":\"ok\",\"plan_uuid\":\"plan-a\",\"run_uuid\":\"run-a\","
+                + "\"state\":\"ERROR\",\"step\":\"replication-cycle-failed\","
+                + "\"progress\":100,\"worker_state\":\"FAILED\",\"worker_exit_code\":68,"
+                + "\"error_code\":\"DR_CBT_METRICS_INVALID\","
+                + "\"error_message\":\"Disk data copied, but cycle metadata validation failed\","
+                + "\"failed_component\":\"vmware-mover\",\"data_commit_state\":\"DATA_COPIED_METADATA_FAILED\","
+                + "\"data_copied\":true,\"metadata_committed\":false,\"target_durable\":false,"
+                + "\"cycle_retry_mode\":\"RESEED_REQUIRED\",\"target_vm_present\":false,"
+                + "\"current_checkpoint_sequence\":7,\"current_checkpoint_state\":\"FAILED\","
+                + "\"latest_completed_checkpoint_sequence\":6,\"latest_completed_checkpoint_ref\":\"ftctl:plan-a:run-a:6\","
+                + "\"latest_completed_checkpoint_state\":\"READY\",\"latest_completed_target_ready_rpo_seconds\":18,"
+                + "\"control_protocol_version\":2,\"control_generation\":9,\"control_ack_generation\":9,"
+                + "\"control_state\":\"RUNNING\",\"cycle_state\":\"IDLE\",\"transition_state\":\"COMPLETED\","
+                + "\"checkpoint_lease_state\":\"RELEASED\"}\n";
+
+        try (MockedConstruction<Script> scripts = Mockito.mockConstruction(Script.class, (mock, context) -> {
+            Mockito.when(mock.execute(Mockito.any())).thenReturn(mixedOutput);
+            Mockito.when(mock.getExitValue()).thenReturn(0);
+        })) {
+            Answer answer = wrapper.execute(command, resource);
+
+            Assert.assertTrue(answer instanceof FtctlDrStatusAnswer);
+            FtctlDrStatusAnswer statusAnswer = (FtctlDrStatusAnswer) answer;
+            Assert.assertTrue(statusAnswer.getResult());
+            Assert.assertEquals("ERROR", statusAnswer.getState());
+            Assert.assertEquals("replication-cycle-failed", statusAnswer.getStep());
+            Assert.assertEquals("FAILED", statusAnswer.getWorkerState());
+            Assert.assertEquals(Integer.valueOf(68), statusAnswer.getWorkerExitCode());
+            Assert.assertEquals("DR_CBT_METRICS_INVALID", statusAnswer.getErrorCode());
+            Assert.assertEquals("Disk data copied, but cycle metadata validation failed", statusAnswer.getErrorMessage());
+            Assert.assertEquals("vmware-mover", statusAnswer.getFailedComponent());
+            Assert.assertEquals("DATA_COPIED_METADATA_FAILED", statusAnswer.getDataCommitState());
+            Assert.assertEquals(Boolean.TRUE, statusAnswer.getDataCopied());
+            Assert.assertEquals(Boolean.FALSE, statusAnswer.getMetadataCommitted());
+            Assert.assertEquals(Boolean.FALSE, statusAnswer.getTargetDurable());
+            Assert.assertEquals("RESEED_REQUIRED", statusAnswer.getCycleRetryMode());
+            Assert.assertEquals("Disk data copied, but cycle metadata validation failed", statusAnswer.getDetails());
+            Assert.assertEquals(Boolean.FALSE, statusAnswer.getTargetVmPresent());
+            Assert.assertEquals(Long.valueOf(7), statusAnswer.getCurrentCheckpointSequence());
+            Assert.assertEquals("FAILED", statusAnswer.getCurrentCheckpointState());
+            Assert.assertEquals(Long.valueOf(6), statusAnswer.getLatestCompletedCheckpointSequence());
+            Assert.assertEquals("ftctl:plan-a:run-a:6", statusAnswer.getLatestCompletedCheckpointRef());
+            Assert.assertEquals("READY", statusAnswer.getLatestCompletedCheckpointState());
+            Assert.assertEquals(Integer.valueOf(18), statusAnswer.getLatestCompletedTargetReadyRpoSeconds());
+            Assert.assertEquals(Integer.valueOf(2), statusAnswer.getControlProtocolVersion());
+            Assert.assertEquals(Long.valueOf(9), statusAnswer.getControlGeneration());
+            Assert.assertEquals(Long.valueOf(9), statusAnswer.getControlAckGeneration());
+            Assert.assertEquals("RUNNING", statusAnswer.getControlState());
+            Assert.assertEquals("IDLE", statusAnswer.getCycleState());
+            Assert.assertEquals("COMPLETED", statusAnswer.getTransitionState());
+            Assert.assertEquals("RELEASED", statusAnswer.getCheckpointLeaseState());
+            Assert.assertEquals(Integer.valueOf(1), statusAnswer.getCycleContractVersion());
+            Assert.assertNotNull(statusAnswer.getLatestCompletedCycle());
+            Assert.assertEquals(Long.valueOf(6), statusAnswer.getLatestCompletedCycle().getSequence());
+            Assert.assertEquals("plan-a:6", statusAnswer.getLatestCompletedCycle().getCycleToken());
+            Assert.assertTrue(statusAnswer.getStatusJson().contains("\"worker_state\":\"FAILED\""));
+            Mockito.verify(scripts.constructed().get(0)).add("--events-limit");
+            Mockito.verify(scripts.constructed().get(0)).add("0");
+        }
+    }
+
+    @Test
+    public void testDrStatusWrapperRejectsMixedCompletedCycleGeneration() {
+        LibvirtFtctlDrStatusCommandWrapper wrapper = new LibvirtFtctlDrStatusCommandWrapper();
+        FtctlDrStatusCommand command = new FtctlDrStatusCommand("plan-a", "run-a");
+        String output = "{\"command\":\"dr-status\",\"result\":\"ok\",\"plan_uuid\":\"plan-a\","
+                + "\"run_uuid\":\"run-a\",\"state\":\"READY\","
+                + "\"latest_completed_checkpoint_sequence\":7,\"latest_completed_checkpoint_state\":\"READY\","
+                + "\"latest_completed_cycle_token\":\"plan-a:7\","
+                + "\"latest_completed_baseline_generation\":8,"
+                + "\"latest_completed_changed_bytes\":0,\"latest_completed_target_written_bytes\":0,"
+                + "\"latest_completed_effective_mode\":\"NO_CHANGE\"}";
+
+        try (MockedConstruction<Script> scripts = Mockito.mockConstruction(Script.class, (mock, context) -> {
+            Mockito.when(mock.execute(Mockito.any())).thenReturn(output);
+            Mockito.when(mock.getExitValue()).thenReturn(0);
+        })) {
+            FtctlDrStatusAnswer answer = (FtctlDrStatusAnswer) wrapper.execute(command, resource);
+            Assert.assertFalse(answer.getResult());
+            Assert.assertEquals("DR_STATUS_CYCLE_SNAPSHOT_INCOHERENT", answer.getErrorCode());
+        }
+    }
+
+    @Test
+    public void testDrStatusWrapperRejectsProgressPrefixedJson() {
+        LibvirtFtctlDrStatusCommandWrapper wrapper = new LibvirtFtctlDrStatusCommandWrapper();
+        FtctlDrStatusCommand command = new FtctlDrStatusCommand("plan-a", "run-a");
+        String output = "100% | transferring disk\n"
+                + "{\"command\":\"dr-status\",\"result\":\"ok\",\"plan_uuid\":\"plan-a\",\"run_uuid\":\"run-a\"}";
+
+        try (MockedConstruction<Script> scripts = Mockito.mockConstruction(Script.class, (mock, context) -> {
+            Mockito.when(mock.execute(Mockito.any())).thenReturn(output);
+            Mockito.when(mock.getExitValue()).thenReturn(0);
+        })) {
+            FtctlDrStatusAnswer answer = (FtctlDrStatusAnswer) wrapper.execute(command, resource);
+            Assert.assertFalse(answer.getResult());
+            Assert.assertEquals("DR_STATUS_INVALID_JSON", answer.getErrorCode());
         }
     }
 

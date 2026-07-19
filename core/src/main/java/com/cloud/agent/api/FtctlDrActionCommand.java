@@ -21,6 +21,8 @@ import java.util.Map;
 
 public class FtctlDrActionCommand extends Command {
 
+    public static final String ACTION_CONTRACT_VERSION = "2026-07-14";
+
     public enum Action {
         SYNC("dr-sync-start"),
         PAUSE_SYNC("dr-sync-pause"),
@@ -30,6 +32,7 @@ public class FtctlDrActionCommand extends Command {
         FAILOVER("dr-failover"),
         FAILBACK("dr-failback"),
         REPROTECT("dr-reprotect"),
+        TARGET_MATERIALIZED("dr-target-materialized"),
         RELEASE("dr-release");
 
         private final String cliCommand;
@@ -44,6 +47,8 @@ public class FtctlDrActionCommand extends Command {
     }
 
     private Action action;
+    private String actionName;
+    private String cliCommand;
     private String planUuid;
     private String runUuid;
     private String runType;
@@ -52,13 +57,18 @@ public class FtctlDrActionCommand extends Command {
     private String sourceWorkerUuid;
     private String targetWorkerUuid;
     private String coordinatorWorkerUuid;
+    @LogLevel(LogLevel.Log4jLevel.Off)
     private String profileJson;
+    @LogLevel(LogLevel.Log4jLevel.Off)
     private String requestJson;
     private String mode;
+    private String checkpointRef;
+    @Deprecated
     private Long restorePointId;
     private boolean force;
     private boolean dryRun;
     private boolean waitForCompletion;
+    @LogLevel(LogLevel.Log4jLevel.Off)
     private Map<String, String> context = new HashMap<>();
 
     public FtctlDrActionCommand() {
@@ -66,12 +76,46 @@ public class FtctlDrActionCommand extends Command {
 
     public FtctlDrActionCommand(Action action, String planUuid, String runUuid) {
         this.action = action;
+        if (action != null) {
+            this.actionName = action.name();
+            this.cliCommand = action.getCliCommand();
+        }
         this.planUuid = planUuid;
         this.runUuid = runUuid;
     }
 
     public Action getAction() {
         return action;
+    }
+
+    public void setAction(Action action) {
+        this.action = action;
+        if (action != null) {
+            this.actionName = action.name();
+            this.cliCommand = action.getCliCommand();
+        }
+    }
+
+    public String getActionName() {
+        if (actionName != null && !actionName.trim().isEmpty()) {
+            return actionName;
+        }
+        return action != null ? action.name() : null;
+    }
+
+    public void setActionName(String actionName) {
+        this.actionName = actionName;
+    }
+
+    public String getCliCommand() {
+        if (cliCommand != null && !cliCommand.trim().isEmpty()) {
+            return cliCommand;
+        }
+        return action != null ? action.getCliCommand() : null;
+    }
+
+    public void setCliCommand(String cliCommand) {
+        this.cliCommand = cliCommand;
     }
 
     public String getPlanUuid() {
@@ -152,6 +196,14 @@ public class FtctlDrActionCommand extends Command {
 
     public void setMode(String mode) {
         this.mode = mode;
+    }
+
+    public String getCheckpointRef() {
+        return checkpointRef;
+    }
+
+    public void setCheckpointRef(String checkpointRef) {
+        this.checkpointRef = checkpointRef;
     }
 
     public Long getRestorePointId() {

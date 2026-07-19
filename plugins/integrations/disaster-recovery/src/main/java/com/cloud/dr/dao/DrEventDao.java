@@ -19,12 +19,21 @@ package com.cloud.dr.dao;
 import java.util.List;
 
 import com.cloud.dr.DrEventVO;
+import com.cloud.utils.Pair;
 import com.cloud.utils.db.GenericDao;
 
 public interface DrEventDao extends GenericDao<DrEventVO, Long> {
     List<DrEventVO> listByPlanId(long planId);
 
+    List<DrEventVO> listRecentByPlanId(long planId, int limit, boolean includeProjectionRefresh);
+
     List<DrEventVO> listByRunId(long runId);
+
+    List<DrEventVO> listRecentByRunId(long runId, int limit);
+
+    Pair<List<DrEventVO>, Integer> searchRecentByPlanId(long planId, long offset, long limit, boolean includeProjectionRefresh);
+
+    Pair<List<DrEventVO>, Integer> searchRecentByRunId(long runId, long offset, long limit);
 
     DrEventVO findLatestByPlanIdAndEventType(long planId, String eventType);
 }

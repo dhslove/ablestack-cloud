@@ -28,7 +28,6 @@ import org.apache.cloudstack.api.response.dr.DrPlanResponse;
 
 import com.cloud.dr.DrPlanService;
 import com.cloud.dr.DrPlanVO;
-import com.cloud.dr.DrProjectionService;
 import com.cloud.dr.response.DrResponseGenerator;
 import com.cloud.user.Account;
 
@@ -42,8 +41,6 @@ public class GetDrPlanCmd extends BaseCmd {
     @Inject
     private DrPlanService drPlanService;
     @Inject
-    private DrProjectionService drProjectionService;
-    @Inject
     private DrResponseGenerator drResponseGenerator;
 
     @Parameter(name = "id", type = CommandType.UUID, entityType = DrPlanResponse.class, required = true,
@@ -53,7 +50,7 @@ public class GetDrPlanCmd extends BaseCmd {
     @Override
     public void execute() throws ServerApiException {
         try {
-            DrPlanVO plan = drProjectionService.refreshPlanProjection(id, true);
+            DrPlanVO plan = drPlanService.getPlan(id);
             DrPlanResponse response = drResponseGenerator.createPlanResponse(plan, drPlanService.getActionEligibility(plan.getId()));
             response.setResponseName(getCommandName());
             setResponseObject(response);

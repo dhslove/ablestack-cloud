@@ -30,13 +30,28 @@ import org.mockito.junit.MockitoJUnitRunner;
 import com.cloud.dr.adapter.DrAdapterRegistry;
 import com.cloud.dr.adapter.DrReplicationEngine;
 import com.cloud.dr.dao.DrPlanDao;
+import com.cloud.dr.dao.DrPlanRuntimeDao;
+import com.cloud.dr.dao.DrPlanViewCacheDao;
+import com.cloud.dr.dao.DrReplicaDao;
+import com.cloud.dr.dao.DrRestorePointDao;
 import com.cloud.dr.dao.DrRunDao;
 import com.cloud.dr.dao.DrSiteDao;
+import com.cloud.dr.dao.DrSyncCycleDao;
 
 @RunWith(MockitoJUnitRunner.class)
 public class DrPlanServiceImplTest {
     @Mock
     private DrPlanDao drPlanDao;
+    @Mock
+    private DrPlanRuntimeDao drPlanRuntimeDao;
+    @Mock
+    private DrSyncCycleDao drSyncCycleDao;
+    @Mock
+    private DrPlanViewCacheDao drPlanViewCacheDao;
+    @Mock
+    private DrReplicaDao drReplicaDao;
+    @Mock
+    private DrRestorePointDao drRestorePointDao;
     @Mock
     private DrRunDao drRunDao;
     @Mock
@@ -45,9 +60,28 @@ public class DrPlanServiceImplTest {
     private DrAdapterRegistry drAdapterRegistry;
     @Mock
     private DrReplicationEngine replicationEngine;
+    @Mock
+    private DrPlanReadinessValidator drPlanReadinessValidator;
+    @Mock
+    private DrProtectionAuthorityService drProtectionAuthorityService;
 
     @InjectMocks
     private DrPlanServiceImpl service;
+
+    @Test
+    public void deletePlanRemovesRuntimeAuthorityAndCycleCache() {
+        DrPlanVO plan = new DrPlanVO("delete-cleanup", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        DrPlanVO removedPlan = new DrPlanVO("delete-cleanup", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        removedPlan.markRemoved();
+        Mockito.when(drPlanDao.findById(plan.getId())).thenReturn(plan);
+        Mockito.when(drPlanDao.remove(plan.getId())).thenReturn(true);
+        Mockito.when(drPlanDao.findByIdIncludingRemoved(plan.getId())).thenReturn(removedPlan);
+
+        Assert.assertTrue(service.deletePlan(plan.getId()));
+
+        Mockito.verify(drSyncCycleDao).removeByPlanId(plan.getId());
+        Mockito.verify(drPlanRuntimeDao).removeByPlanId(plan.getId());
+    }
 
     @Test
     public void vmwarePhase1AllowsOnlySyncBeforeTargetReady() {
@@ -126,6 +160,10 @@ public class DrPlanServiceImplTest {
         Mockito.when(drPlanDao.findById(plan.getId())).thenReturn(plan);
         Mockito.when(drAdapterRegistry.getReplicationEngine(DrConstants.ENGINE_TYPE_FTCTL_DR, DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR))
                 .thenReturn(replicationEngine);
+        Mockito.when(drRunDao.findLatestByPlanId(plan.getId())).thenReturn(controlReadyRun(plan));
+        Mockito.when(drPlanReadinessValidator.validateForRelease(plan)).thenReturn(releaseReady());
+        Mockito.when(drProtectionAuthorityService.getAuthority(plan.getId()))
+                .thenReturn(new DrProtectionAuthoritySnapshot(new DrPlanRuntimeVO(plan.getId()), true));
 
         Map<String, Boolean> eligibility = service.getActionEligibility(plan.getId());
 
@@ -153,6 +191,8 @@ public class DrPlanServiceImplTest {
         Mockito.when(drPlanDao.findById(plan.getId())).thenReturn(plan);
         Mockito.when(drAdapterRegistry.getReplicationEngine(DrConstants.ENGINE_TYPE_FTCTL_DR, DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR))
                 .thenReturn(replicationEngine);
+        Mockito.when(drRunDao.findLatestByPlanId(plan.getId())).thenReturn(controlReadyRun(plan));
+        Mockito.when(drPlanReadinessValidator.validateForRelease(plan)).thenReturn(releaseReady());
 
         Map<String, Boolean> eligibility = service.getActionEligibility(plan.getId());
 
@@ -173,6 +213,7 @@ public class DrPlanServiceImplTest {
         DrPlanVO plan = new DrPlanVO("ftctl-dr-" + direction, 1L, 2L, direction);
         plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
         plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
+        plan.setSourceExternalRef("source-vm-" + direction);
         Mockito.when(drSiteDao.findById(1L)).thenReturn(new DrSiteVO("source", "PRIMARY", sourceHypervisor));
         Mockito.when(drSiteDao.findById(2L)).thenReturn(new DrSiteVO("target", "SECONDARY", targetHypervisor));
         Mockito.when(drPlanDao.persist(plan)).thenReturn(plan);
@@ -182,5 +223,18 @@ public class DrPlanServiceImplTest {
         Assert.assertEquals(DrConstants.ENGINE_TYPE_FTCTL_DR, created.getEngineType());
         Assert.assertEquals(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR, created.getEngineBindingType());
         Assert.assertEquals("SOURCE", created.getActiveSide());
+    }
+
+    private DrRunVO controlReadyRun(DrPlanVO plan) {
+        DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_SYNC);
+        run.setLastStatusJson("{\"control_protocol_version\":2,\"control_generation\":7,"
+                + "\"control_ack_generation\":7,\"control_state\":\"RUNNING\"}");
+        return run;
+    }
+
+    private DrPlanReadiness releaseReady() {
+        DrPlanReadiness readiness = new DrPlanReadiness();
+        readiness.setReleaseReady(true);
+        return readiness;
     }
 }

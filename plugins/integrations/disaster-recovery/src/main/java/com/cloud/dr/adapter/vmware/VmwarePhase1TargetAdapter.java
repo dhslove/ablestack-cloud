@@ -30,6 +30,7 @@ import com.cloud.dr.DrConstants;
 import com.cloud.dr.DrPlanVO;
 import com.cloud.dr.DrReplicaVO;
 import com.cloud.dr.DrRunVO;
+import com.cloud.dr.DrSiteCredentialService;
 import com.cloud.dr.DrSiteVO;
 import com.cloud.dr.adapter.DrAdapterResult;
 import com.cloud.dr.adapter.DrExecutionContext;
@@ -54,6 +55,8 @@ public class VmwarePhase1TargetAdapter extends ManagerBase implements DrReplicat
     private DrReplicaDao drReplicaDao;
     @Inject
     private DrPlanDao drPlanDao;
+    @Inject
+    private DrSiteCredentialService drSiteCredentialService;
 
     @Override
     public String getEngineType() {
@@ -193,14 +196,19 @@ public class VmwarePhase1TargetAdapter extends ManagerBase implements DrReplicat
             String message = "VMware target site requires a vCenter endpoint or vmwareDatacenterId";
             return DrAdapterResult.failure(DrConstants.ERROR_TARGET_UNAVAILABLE, message, spec.toJsonString());
         }
-        if (targetSite.getVmwareDatacenterId() == null && StringUtils.isNotBlank(targetSite.getEndpoint()) && StringUtils.isBlank(targetSite.getCredentialRef())) {
-            String message = "VMware target site endpoint requires credentialRef";
+        if (targetSite.getVmwareDatacenterId() == null && StringUtils.isNotBlank(targetSite.getEndpoint())
+                && !hasUsableCredential(targetSite)) {
+            String message = "VMware target site endpoint requires stored vCenter credentials";
             return DrAdapterResult.failure(DrConstants.ERROR_CREDENTIAL_INVALID, message, spec.toJsonString());
         }
         spec.targetSiteName = targetSite.getName();
         spec.vmwareDatacenterId = targetSite.getVmwareDatacenterId();
         spec.endpoint = targetSite.getEndpoint();
         return null;
+    }
+
+    private boolean hasUsableCredential(DrSiteVO site) {
+        return drSiteCredentialService != null ? drSiteCredentialService.hasUsableCredential(site) : StringUtils.isNotBlank(site.getCredentialRef());
     }
 
     private VmwarePhase1Spec buildSpec(DrPlanVO plan) {

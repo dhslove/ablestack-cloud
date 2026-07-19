@@ -11,6 +11,7 @@
 - [502-cross-hypervisor-dr-adapter-contract-design-20260630.md](502-cross-hypervisor-dr-adapter-contract-design-20260630.md)
 - [503-cross-hypervisor-dr-state-machine-and-worker-design-20260630.md](503-cross-hypervisor-dr-state-machine-and-worker-design-20260630.md)
 - [507-cross-hypervisor-dr-cloud-api-command-design-20260630.md](507-cross-hypervisor-dr-cloud-api-command-design-20260630.md)
+- [530-cross-hypervisor-dr-site-inventory-and-detail-ux-design-20260703.md](530-cross-hypervisor-dr-site-inventory-and-detail-ux-design-20260703.md)
 
 ## 1. 목적
 
@@ -79,7 +80,7 @@ API package:
 책임:
 
 - `DrSite` CRUD
-- credential reference 검증
+- `DrSiteCredentialService`와 연동한 credential 상태 검증
 - connectivity/capability check
 - 기존 `DisasterRecoveryCluster`와의 호환 projection
 
@@ -93,6 +94,113 @@ DrSiteResponse updateDrSite(UpdateDrSiteCmd cmd);
 boolean deleteDrSite(DeleteDrSiteCmd cmd);
 DrSiteCheckResponse checkDrSite(CheckDrSiteCmd cmd);
 ```
+
+### 4.1.1 DrSiteCredentialService
+
+책임:
+
+- Mold/vCenter 인증정보 write-only 입력 검증
+- `dr_site_credential.secret_payload` 암호화 저장
+- `dr_site.credential_id` 갱신
+- API response용 credential summary 생성
+- Adapter/worker dispatch용 credential resolve
+- check/rotation/clear 처리
+
+필수 method:
+
+```java
+DrSiteCredentialVO storeOrReplace(long siteId, DrSiteCredentialInput input);
+DrSiteCredentialSummary summarize(long siteId);
+DrResolvedCredential resolve(long siteId, String requiredType);
+DrSiteCredentialSummary validate(long siteId);
+boolean clear(long siteId);
+boolean hasUsableCredential(long siteId, String requiredType);
+```
+
+`DrResolvedCredential`은 secret-bearing object이므로 log/event/response에 직접 전달하지 않는다. 사용 후 `close()` 또는 finally block에서 내부 secret map을 비운다.
+
+### 4.1.2 DrSite update/delete guard
+
+`DrSiteServiceImpl`은 UI action gating과 별개로 update/delete 가능 여부를 최종 검증한다.
+
+필수 dependency:
+
+```java
+@Inject DrSiteDao drSiteDao;
+@Inject DrPlanDao drPlanDao;
+@Inject DrSiteCredentialService drSiteCredentialService;
+```
+
+`updateSite` 규칙:
+
+```java
+public DrSiteVO updateSite(long siteId, DrSiteVO update, DrSiteCredentialInput credentialInput, boolean clearCredential) {
+    DrSiteVO site = requireActiveSite(siteId);
+    assertNoImmutableChangeWhenReferenced(site, update);
+    applyMutableSiteFields(site, update);
+    drSiteDao.update(siteId, site);
+
+    if (clearCredential) {
+        assertNoActivePlanReferences(siteId);
+        drSiteCredentialService.clear(siteId);
+    } else if (credentialInput != null && credentialInput.hasCredentialData()) {
+        drSiteCredentialService.storeOrReplace(siteId, credentialInput);
+    }
+    return drSiteDao.findById(siteId);
+}
+```
+
+`deleteSite` 규칙:
+
+```java
+public boolean deleteSite(long siteId) {
+    DrSiteVO site = requireActiveSite(siteId);
+    if (drPlanDao.countActiveBySiteId(siteId) > 0) {
+        throw new InvalidParameterValueException("DR_SITE_IN_USE: active DR plan references site " + site.getUuid());
+    }
+    site.setCredentialId(null);
+    site.setCredentialRef(null);
+    if (!drSiteDao.update(siteId, site)) {
+        throw new CloudRuntimeException("Failed to clear DR site credential reference " + site.getUuid());
+    }
+    drSiteCredentialService.clearCredentialsForDeletedSite(siteId);
+    if (!drSiteDao.remove(siteId)) {
+        throw new CloudRuntimeException("Failed to soft delete DR site " + site.getUuid());
+    }
+    DrSiteVO removedSite = drSiteDao.findByIdIncludingRemoved(siteId);
+    return removedSite != null && removedSite.getRemoved() != null;
+}
+```
+
+`countActiveBySiteId`는 source site 또는 target site 어느 쪽이든 참조하면 count해야 한다.
+
+### 4.1.3 2026-07-02 site health/delete consistency 보강
+
+상세 구현 기준은 [528-cross-hypervisor-dr-site-health-check-and-delete-consistency-design-20260702.md](528-cross-hypervisor-dr-site-health-check-and-delete-consistency-design-20260702.md)를 따른다.
+
+추가 backend package:
+
+| Package | 내용 |
+| --- | --- |
+| `com.cloud.dr.health` | `DrSiteHealthCheckService`, `DrSiteProbe`, Mold/vCenter probe client, health result DTO |
+
+`DrSiteServiceImpl.checkSite`는 timestamp 갱신만 수행하지 않고 `DrSiteHealthCheckService.check(siteId, persistStatus)`로 위임한다.
+
+`DrSiteCredentialDaoImpl.findActiveBySiteId`는 `removed IS NULL`만 확인하지 않는다. `findConfiguredBySiteId`, `findConfiguredByIdAndSiteId`, `findLatestBySiteId`로 분리하고, usable credential은 `state=CONFIGURED`와 `removed IS NULL`을 모두 만족해야 한다.
+
+`DrResponseGenerator`의 `credentialconfigured`는 configured credential이 있을 때만 true다. `CLEARED` row, legacy `credential_ref`, missing credential은 false로 응답하고 `credentialstate`로 원인을 노출한다.
+
+`deleteSite`는 site soft delete와 credential clear를 하나의 transaction으로 묶는다. credential clear를 먼저 수행한 뒤 site update가 실패해 site는 남고 credential만 해제되는 부분 변경은 허용하지 않는다.
+
+CloudStack DAO는 `removed` 컬럼을 `DaoGenerated`로 취급하여 일반 `update()`에서 제외한다. 따라서 `DrSiteServiceImpl`, `DrPlanServiceImpl`, `DrSiteCredentialServiceImpl`의 삭제 경로는 `vo.markRemoved(); dao.update(id, vo);`를 사용하지 않고 다음 전용 경로를 사용한다.
+
+| 대상 | 금지 패턴 | 사용 패턴 | 완료 검증 |
+| --- | --- | --- | --- |
+| DR Site | `site.markRemoved(); drSiteDao.update(...)` | `drSiteDao.remove(siteId)` | `findByIdIncludingRemoved(siteId).getRemoved() != null` |
+| DR Site Credential | `credential.markRemoved(); drSiteCredentialDao.update(...)` | `state=CLEARED` update 후 `drSiteCredentialDao.remove(id)` | `findByIdIncludingRemoved(id).getRemoved() != null` |
+| DR Plan | `plan.markRemoved(); drPlanDao.update(...)` | `drPlanDao.remove(planId)` | `findByIdIncludingRemoved(planId).getRemoved() != null` |
+
+삭제된 site는 `DrSiteDao.listActive()`와 `DrSiteService.listSites()`에서 제외되어 scheduler 대상이 아니어야 한다. `DrSiteServiceImpl.checkSite(...)`는 삭제된 site에 대해 probe, `dr_site` update, `dr_site_health_check` insert를 수행하지 않는다.
 
 ### 4.2 DrPlanService
 
@@ -114,6 +222,78 @@ DrPlanResponse enableDrPlan(EnableDrPlanCmd cmd);
 DrPlanResponse disableDrPlan(DisableDrPlanCmd cmd);
 DrPlanResponse deleteDrPlan(DeleteDrPlanCmd cmd);
 Map<String, DrActionEligibility> getActionEligibility(DrPlanVO plan);
+```
+
+### 4.2.1 DrPlan update/delete guard
+
+`DrPlanServiceImpl`은 계획 수정과 삭제를 단순 row update로 처리하지 않는다. DR 실행 엔진이 이미 runtime resource를 만들었는지 확인한 뒤 허용 범위를 제한한다.
+
+필수 dependency:
+
+```java
+@Inject DrPlanDao drPlanDao;
+@Inject DrRunDao drRunDao;
+@Inject DrReplicaDao drReplicaDao;
+@Inject DrRestorePointDao drRestorePointDao;
+@Inject DrAdapterRegistry drAdapterRegistry;
+```
+
+`updatePlan` 규칙:
+
+```java
+public DrPlanVO updatePlan(long planId, DrPlanVO update) {
+    DrPlanVO plan = requireActivePlan(planId);
+    assertNoActiveRun(planId);
+
+    boolean topologyChange = hasTopologyChange(plan, update);
+    if (topologyChange && hasRuntimeResource(planId)) {
+        throw new InvalidParameterValueException("DR_PLAN_TOPOLOGY_LOCKED: release or recreate the plan");
+    }
+
+    applyMutablePlanFields(plan, update);
+    normalizePlanEngine(plan);
+    validatePlan(plan);
+    drPlanDao.update(planId, plan);
+    return drPlanDao.findById(planId);
+}
+```
+
+기본 허용 필드:
+
+- 항상 허용: `name`, `description`, `rpoSeconds`, `rtoSeconds`, `scheduleJson`, `policyJson`, `quiescePolicyJson`
+- 제한 허용: `sourceWorkerHostId`, `targetWorkerHostId`, `coordinatorWorkerHostId`
+- runtime resource 생성 전만 허용: `sourceSiteId`, `targetSiteId`, `direction`, `sourceVmId`, `sourceExternalRef`, `engineType`, `engineBindingType`, `engineBindingId`, `mappingJson`
+
+`deletePlan` 규칙:
+
+```java
+public boolean deletePlan(long planId) {
+    DrPlanVO plan = requireActivePlan(planId);
+    assertNoActiveRun(planId);
+    if (hasActiveProtection(plan) || hasRuntimeResource(planId)) {
+        throw new InvalidParameterValueException("DR_PLAN_DELETE_BLOCKED: release protection before delete");
+    }
+    if (!drPlanDao.remove(planId)) {
+        throw new CloudRuntimeException("Failed to soft delete DR plan " + plan.getUuid());
+    }
+    DrPlanVO removedPlan = drPlanDao.findByIdIncludingRemoved(planId);
+    return removedPlan != null && removedPlan.getRemoved() != null;
+}
+```
+
+장시간 cleanup이 필요한 경우 `deleteDrPlan`이 agent/ftctl cleanup을 동기 실행하지 않는다. UI는 `releaseDrProtection` 또는 별도 cleanup action을 먼저 수행하고, 삭제는 남은 Cloud metadata를 soft delete하는 단계로 유지한다.
+
+`getActionEligibility`는 기존 runtime action 외에 다음 key를 추가할 수 있다.
+
+```json
+{
+  "update": { "enabled": true },
+  "delete": {
+    "enabled": false,
+    "reasonCode": "DR_PLAN_DELETE_BLOCKED",
+    "message": "Release protection before deleting this DR plan."
+  }
+}
 ```
 
 ### 4.3 DrRunService
@@ -305,10 +485,11 @@ DAO impl은 `GenericDaoBase` 패턴을 따른다.
 <bean id="drRunExecutorImpl" class="com.cloud.dr.orchestrator.DrRunExecutorImpl" />
 <bean id="drAdapterRegistryImpl" class="com.cloud.dr.adapter.DrAdapterRegistryImpl" />
 <bean id="drProjectionServiceImpl" class="com.cloud.dr.orchestrator.DrProjectionServiceImpl" />
+<bean id="drSiteCredentialServiceImpl" class="com.cloud.dr.credential.DrSiteCredentialServiceImpl" />
 <bean id="drResponseGenerator" class="com.cloud.dr.response.DrResponseGenerator" />
 ```
 
-DAO bean도 같은 context에 추가한다.
+DAO bean도 같은 context에 추가한다. `DrSiteCredentialDaoImpl`은 `dr_site_credential` 조회와 active credential soft delete를 담당한다.
 
 FTCTL adapter bean은 `plugins/integrations/ftctl-service/src/main/resources/META-INF/cloudstack/ftctl-service/spring-ftctl-service-context.xml`에 추가한다.
 
@@ -326,7 +507,7 @@ Transaction 안에서 수행:
 
 1. source/target site row lock
 2. active plan/protection conflict check
-3. mapping JSON validation result 저장
+3. typed plan input을 `DrPlanSpecBuilder`로 canonical mapping/schedule/policy/quiesce JSON으로 변환하고 validation result 저장
 4. `dr_plan` insert
 5. optional `dr_replica` skeleton intent insert
 6. event 기록
@@ -336,6 +517,7 @@ Transaction 밖에서 수행:
 - remote endpoint connectivity check
 - vCenter inventory refresh
 - FTCTL runtime status read
+- `previewDrPlanSpec` 또는 create preflight에서 수행한 target resource/worker host 의미 검증 재확인
 
 외부 호출을 DB transaction 안에 오래 잡아두지 않는다.
 
@@ -462,7 +644,70 @@ API command가 직접 여러 DAO를 호출해 response를 조립하지 않는다
 9. UI API wrapper 연결
 10. FTCTL adapter bridge 추가
 
-## 15. AS-IS / TO-BE 요약
+## 15. 2026-07-02 추가 설계: DR Site health scheduler/history backend
+
+상세 설계는 [529-cross-hypervisor-dr-site-health-check-history-and-scheduler-design-20260702.md](529-cross-hypervisor-dr-site-health-check-history-and-scheduler-design-20260702.md)를 따른다.
+
+### 15.1 신규 backend 구성요소
+
+| Package/Class | 책임 |
+| --- | --- |
+| `com.cloud.dr.DrSiteHealthCheckVO` | `dr_site_health_check` entity |
+| `com.cloud.dr.dao.DrSiteHealthCheckDao` | site health check history 조회/정리 |
+| `com.cloud.dr.dao.DrSiteHealthCheckDaoImpl` | `site_id`, `checked_at`, `state`, `trigger` 기준 검색 |
+| `com.cloud.dr.DrSiteHealthCheckHistoryService` | health result를 history row로 기록 |
+| `com.cloud.dr.DrSiteHealthCheckHistoryServiceImpl` | redacted details_json 구성, retention cleanup |
+| `com.cloud.dr.health.DrSiteHealthCheckScheduler` | active DR site 주기 점검 |
+| `org.apache.cloudstack.api.command.admin.dr.ListDrSiteHealthChecksCmd` | health check history list API |
+| `org.apache.cloudstack.api.response.dr.DrSiteHealthCheckResponse` | UI table 응답 |
+
+### 15.2 DrSiteService 변경
+
+`DrSiteService`는 기존 호환 메서드를 유지하고 trigger/jobId를 받는 overload를 추가한다.
+
+```java
+DrSiteVO checkSite(long siteId);
+DrSiteVO checkSite(long siteId, boolean persistStatus);
+DrSiteVO checkSite(long siteId, boolean persistStatus, String triggerType, String jobId);
+```
+
+`persistStatus=true`일 때 처리 순서:
+
+1. transaction 밖에서 `DrSiteHealthCheckService.checkSite(site, true)` 실행
+2. transaction 안에서 `dr_site.health_state`, `last_checked`, `capabilities_json.healthCheck` 갱신
+3. 같은 transaction 안에서 `DrSiteHealthCheckHistoryService.record(...)` 호출
+
+history insert 실패 시 최신 상태만 갱신되는 부분 성공을 허용하지 않는다.
+
+### 15.3 Scheduler
+
+`DrSiteHealthCheckScheduler`는 `ScheduledExecutorService + ManagedContextRunnable + GlobalLock` 패턴을 사용한다.
+
+```java
+executor.scheduleWithFixedDelay(new HealthCheckTask(), interval, interval, TimeUnit.SECONDS);
+```
+
+worker 기준:
+
+- config `dr.site.health.check.enabled=true`일 때만 동작
+- `dr.site.health.check.interval` 기본 300초
+- `dr.site.health.check.batch.size` 기본 25개
+- `GlobalLock.getInternLock("dr.site.health.check.scheduler")`로 다중 management 중복 실행 방지
+- `drSiteDao.listDueForHealthCheck(batchSize, interval)`로 대상 선정
+- 각 site는 `drSiteService.checkSite(site.getId(), true, HEALTH_TRIGGER_SCHEDULED, null)` 호출
+- cleanup은 `dr.site.health.check.history.retention.days` 기본 30일 기준
+
+### 15.4 Spring wiring
+
+```xml
+<bean id="drSiteHealthCheckDaoImpl" class="com.cloud.dr.dao.DrSiteHealthCheckDaoImpl"/>
+<bean id="drSiteHealthCheckHistoryServiceImpl" class="com.cloud.dr.DrSiteHealthCheckHistoryServiceImpl"/>
+<bean id="drSiteHealthCheckScheduler" class="com.cloud.dr.health.DrSiteHealthCheckScheduler"/>
+```
+
+Agent/ftctl에는 명령을 보내지 않는다. 이 기능은 Cloud management control-plane에서 끝나는 endpoint/credential inventory 검증이다.
+
+## 16. AS-IS / TO-BE 요약
 
 | 구분 | AS-IS | TO-BE |
 | --- | --- | --- |
@@ -470,6 +715,542 @@ API command가 직접 여러 DAO를 호출해 response를 조립하지 않는다
 | Engine 호출 | 기능별 service가 직접 호출 | adapter registry를 통해 engine 호출 |
 | FTCTL 연계 | UI/API가 FTCTL service 직접 사용 | 신규 DR는 FTCTL adapter를 통해 사용, 기존 FTCTL API 유지 |
 | 상태 실행 | Cloud async job 중심 | Cloud async job + `DrRun` source of truth |
+| Site 삭제 검증 | UI에서만 참조 여부를 판단할 수 있음 | `DrSiteService.deleteSite`가 active plan 참조를 DAO로 최종 검증 |
+| Plan 수정/삭제 | row update/delete로 오해 가능 | active run/protection/runtime resource guard 후 제한적 update/soft delete |
 | Response 조립 | command/service별 개별 조립 | `DrResponseGenerator`로 통일 |
 | Lock | 기능별 guard | plan row lock + active run guard |
 | Spring wiring | 기존 DR/FTCTL bean만 존재 | DR service/DAO/registry/executor/adapter bean 추가 |
+
+## 17. 2026-07-02 구현 반영: 서비스 guard
+
+이번 구현에서는 UI의 사전 disabled 상태와 무관하게 backend service가 최종 안전성을 검증하도록 다음 guard를 추가한다.
+
+| 구현 위치 | guard | 결과 |
+| --- | --- | --- |
+| `DrPlanDao.countActiveBySiteId(long siteId)` | active `dr_plan` 중 source/target site 참조 수 계산 | `DrSiteResponse.activeplancount`와 site 삭제 검증에 사용 |
+| `DrSiteServiceImpl.deleteSite` | `countActiveBySiteId(siteId) > 0` | `DR_ACTIVE_PLAN_EXISTS` 오류로 site 삭제 거부 |
+| `DrPlanServiceImpl.updatePlan` | active run 존재 | `DR_ACTIVE_RUN_EXISTS` 오류로 plan 수정 거부 |
+| `DrPlanServiceImpl.updatePlan` | replica/restore point/target-ready가 있고 source/engine/worker/mapping 변경 요청 | `DR_RUNTIME_RESOURCE_EXISTS` 오류로 위험 변경 거부 |
+| `DrPlanServiceImpl.deletePlan` | active run, runtime resource, protected state 존재 | `DR_RUNTIME_RESOURCE_EXISTS` 오류로 plan 삭제 거부 |
+| `DrPlanServiceImpl.getActionEligibility` | `update`, `delete` key 추가 | UI `ActionButton` disabled 판단에 사용 |
+
+`DrResponseGenerator`는 site 응답에 `activeplancount`, plan 응답에 `schedulejson`, `policyjson`, `mappingjson`, `quiescepolicyjson`을 포함한다. 신규 DB 컬럼은 없으며, 기존 `dr_plan`, `dr_replica`, `dr_restore_point`, `dr_run` projection을 기준으로 판단한다.
+
+## 18. 2026-07-03 추가 설계: DR Site inventory backend wiring
+
+상세 설계는 [530-cross-hypervisor-dr-site-inventory-and-detail-ux-design-20260703.md](530-cross-hypervisor-dr-site-inventory-and-detail-ux-design-20260703.md)를 따른다.
+
+추가 package:
+
+`com.cloud.dr.inventory`
+
+추가 class:
+
+| class | 역할 |
+| --- | --- |
+| `DrSiteInventoryService` | `DiscoverDrSiteInventoryCmd`가 호출하는 service contract |
+| `DrSiteInventoryServiceImpl` | 기존 site credential resolve와 create-mode write-only credential 처리 |
+| `DrSiteInventoryRequest` | command parameter DTO |
+| `DrSiteInventoryResult` | service result DTO |
+| `DrInventoryOption` | Zone/VMware DC select option DTO |
+| `DrMoldInventoryClient` | HmacSHA256 signed Mold API request로 `listZones`, `listVmwareDcs` 호출 |
+
+Spring wiring:
+
+```xml
+<bean id="drSiteInventoryServiceImpl" class="com.cloud.dr.inventory.DrSiteInventoryServiceImpl"/>
+<bean id="drMoldInventoryClient" class="com.cloud.dr.inventory.DrMoldInventoryClient"/>
+```
+
+Backend 원칙:
+
+1. `discoverDrSiteInventory`는 control-plane inventory 조회이며 Agent/ftctl로 명령을 보내지 않는다.
+2. 기존 site 조회 시 삭제된 site는 거부한다.
+3. create mode의 `moldsecretkey`는 DB에 저장하지 않고 요청 서명에만 사용한다.
+4. Mold API 서명 알고리즘은 health probe와 동일하게 `HmacSHA256`을 사용한다.
+5. 조회 결과는 UI select option으로만 쓰며 `dr_site.health_state`, `dr_site_health_check`를 갱신하지 않는다.
+6. 신규 DB migration은 없다. `dr_site.zone_id`, `dr_site.vmware_datacenter_id`는 선택된 ID 저장소로 유지한다.
+
+### 18.1 2026-07-03 Remote inventory external id backend 보정
+
+상세 설계는 [530-cross-hypervisor-dr-site-inventory-and-detail-ux-design-20260703.md](530-cross-hypervisor-dr-site-inventory-and-detail-ux-design-20260703.md)의
+`Remote Inventory ID 모델 보정` 절을 따른다.
+
+Backend 원칙을 다음처럼 수정한다.
+
+1. `dr_site.zone_id`, `dr_site.vmware_datacenter_id`는 local internal id 저장소다.
+2. 원격 Mold/vCenter inventory 선택값은 `zone_external_id`, `zone_name`, `vmware_datacenter_external_id`, `vmware_datacenter_name`에 저장한다.
+3. `DrMoldInventoryClient`는 numeric id 추출을 선택 가능 조건으로 삼지 않는다.
+4. `DrInventoryOption.value`는 원격 external id를 기본값으로 한다.
+5. `listVmwareDcs` 호출은 `zoneExternalId`를 우선 사용하고, 없을 때만 legacy `zoneId`를 fallback으로 사용한다.
+6. Adapter는 remote Mold API 호출 시 external id를 사용하고, local DAO/FK 조회가 필요한 경로에서만 local id를 사용한다.
+
+추가/변경 class 책임:
+
+| Class | 변경 |
+| --- | --- |
+| `DrSiteVO` | `zoneExternalId`, `zoneName`, `vmwareDatacenterExternalId`, `vmwareDatacenterName` 추가 |
+| `CreateDrSiteCmd` | `zoneexternalid`, `zonename`, `vmwaredcexternalid`, `vmwaredcname` parameter 추가 |
+| `UpdateDrSiteCmd` | 동일 parameter 추가 및 부분 갱신 지원 |
+| `DiscoverDrSiteInventoryCmd` | `zoneexternalid` parameter 추가 |
+| `DrSiteInventoryRequest` | `zoneExternalId` field 추가 |
+| `DrMoldInventoryClient` | `DrInventoryOption.value=externalId`, `localId` optional 처리 |
+| `DrResponseGenerator` | site response와 inventory option response에 external/name field 포함 |
+
+기존 문서의 "신규 DB migration은 없다"는 2026-07-03 최초 inventory select 보강에 한정된 내용이다.
+external id를 정상 저장하려면 DB migration이 필요하며, 구현 시 [509 문서](509-cross-hypervisor-dr-db-upgrade-and-entity-design-20260630.md)의
+Remote inventory external id DDL을 함께 반영해야 한다.
+
+## 19. 2026-07-05 추가 설계: DR Plan guided spec backend wiring
+
+DR Plan 생성/수정에서 raw JSON을 사용자 입력으로 받는 흐름은 기본 경로에서 제거한다. Backend는 typed API parameter와 inventory/preflight 결과를 canonical JSON으로 변환한 뒤 기존 `dr_plan` JSON column에 저장한다. 상세 설계는 [531-cross-hypervisor-dr-plan-guided-spec-design-20260705.md](531-cross-hypervisor-dr-plan-guided-spec-design-20260705.md)를 따른다.
+
+2026-07-06 보강 기준으로 `VMWARE_TO_KVM` backend wiring은 target ABLESTACK placement를 완성해야 한다. `DrPlanInventoryServiceImpl`은 target Zone을 먼저 resolve하고, KVM target에서는 worker host, primary storage, service offering, disk offering, network를 Zone 기준으로 조회한다. `DrVmwareInventoryClient`는 source VM 목록 조회에 더해 선택된 VM의 disk/NIC 상세를 조회한다. `DrPlanGuidedSpecBuilder`는 service offering, network, storage, worker, disk offering을 `mapping_json.target`과 `mapping_json.disks[]`에 저장하고, `DrPlanReadinessValidator`는 target placement 누락을 `CONFIG_INCOMPLETE` blocker로 계산한다.
+
+추가 package:
+
+`com.cloud.dr.plan.spec`
+
+| class | 역할 |
+| --- | --- |
+| `DrPlanSpecService` | preview/create/update에서 spec build와 validation을 제공 |
+| `DrPlanSpecServiceImpl` | site, workload, worker, target resource option을 조합 |
+| `DrPlanSpecRequest` | `CreateDrPlanCmd`, `UpdateDrPlanCmd`, `PreviewDrPlanSpecCmd` 공통 typed request |
+| `DrPlanSpec` | engine, worker host, mapping/schedule/policy/quiesce JSON aggregate |
+| `DrPlanSpecBuilder` | direction/engine별 canonical JSON 생성 |
+| `FtctlDrPlanSpecValidator` | FTCTL_DR worker/disk mapping/profile schema 검증 |
+| `VmwareTargetPlanSpecValidator` | VMware datastore/resource pool/folder/network 검증 |
+| `KvmTargetPlanSpecValidator` | ABLESTACK target storage/network/service offering 검증 |
+
+Spring wiring:
+
+```xml
+<bean id="drPlanSpecServiceImpl" class="com.cloud.dr.plan.spec.DrPlanSpecServiceImpl"/>
+<bean id="drPlanSpecBuilder" class="com.cloud.dr.plan.spec.DrPlanSpecBuilder"/>
+<bean id="ftctlDrPlanSpecValidator" class="com.cloud.dr.plan.spec.FtctlDrPlanSpecValidator"/>
+<bean id="vmwareTargetPlanSpecValidator" class="com.cloud.dr.plan.spec.VmwareTargetPlanSpecValidator"/>
+<bean id="kvmTargetPlanSpecValidator" class="com.cloud.dr.plan.spec.KvmTargetPlanSpecValidator"/>
+```
+
+Service 흐름:
+
+1. `PreviewDrPlanSpecCmd`는 DB insert 없이 `DrPlanSpecService.preview()`를 호출한다.
+2. `CreateDrPlanCmd`는 typed parameter를 `DrPlanSpecRequest`로 만들고 `DrPlanSpecService.buildForCreate()`를 호출한다.
+3. `UpdateDrPlanCmd`는 runtime resource guard를 통과한 경우에만 `DrPlanSpecService.buildForUpdate()`를 호출한다.
+4. `DrPlanServiceImpl`은 반환된 `DrPlanSpec`의 engine/worker/canonical JSON을 `DrPlanVO`에 저장한다.
+5. `FtctlDrUnifiedActionAdapter`는 기존 profile field를 유지하되, profile source가 사용자 raw JSON이 아니라 backend-generated canonical JSON임을 전제로 한다.
+
+DB 영향:
+
+- 신규 column은 즉시 추가하지 않는다.
+- 기존 `mapping_json`, `schedule_json`, `policy_json`, `quiesce_policy_json`에 `schemaVersion`을 포함한 canonical JSON을 저장한다.
+- 검색/필터가 필요한 경우에만 후속 migration으로 `sync_interval_seconds`, `retention_count`, `consistency_mode`, `test_network_mode` 같은 column을 추가한다.
+
+## 2026-07-06 보강: Backend Dispatch와 Projection 일관성
+
+DR backend의 dispatch/projection 상태 전이 최신 기준은 [533-cross-hypervisor-dr-dispatch-projection-recovery-design-20260706.md](533-cross-hypervisor-dr-dispatch-projection-recovery-design-20260706.md)를 따른다.
+
+Backend 구현 원칙:
+
+- `prepareSyncRun()` 단계에서 plan을 `SYNCING`으로 먼저 바꾸지 않는다.
+- plan `SYNCING` 전환은 Agent/FTCTL acceptance 이후에만 수행한다.
+- `DrRun`은 `QUEUED`, `PREPARING`, `DISPATCHING`, `ACCEPTED`, `RUNNING`, terminal state를 분리한다.
+- failure path는 `DrRun`, `DrPlan`, `DrRunStep`을 함께 갱신한다.
+- projection adapter는 pre-accept 또는 startup grace 구간의 `not_found`를 terminal failure로 처리하지 않는다.
+- profile/request/context secret은 command logging에서 제외한다.
+
+## 20. 2026-07-06 추가 보강: plan active run 직렬화와 retryable lock 처리
+
+상세 기준은 [533-cross-hypervisor-dr-dispatch-projection-recovery-design-20260706.md](533-cross-hypervisor-dr-dispatch-projection-recovery-design-20260706.md)의 18장을 따른다.
+
+대상 class:
+
+- `com.cloud.dr.orchestrator.DrRunExecutorImpl`
+- `com.cloud.dr.adapter.ftctl.FtctlDrUnifiedActionAdapter`
+- `com.cloud.dr.adapter.ftctl.FtctlDrRuntimeProjectionAdapter`
+- `com.cloud.dr.dao.DrRunDaoImpl`
+- `com.cloud.dr.dao.DrRunStepDaoImpl`
+- `com.cloud.dr.DrPlanServiceImpl`
+
+### 20.1 plan 단위 실행 직렬화
+
+같은 plan에 대해 다음 상태의 run이 있으면 destructive action은 중복 실행하지 않는다.
+
+```java
+private static final Set<String> ACTIVE_RUN_STATES = Set.of(
+    DrConstants.RUN_STATE_QUEUED,
+    DrConstants.RUN_STATE_PREPARING,
+    DrConstants.RUN_STATE_DISPATCHING,
+    DrConstants.RUN_STATE_RETRYING,
+    DrConstants.RUN_STATE_ACCEPTED,
+    DrConstants.RUN_STATE_RUNNING,
+    DrConstants.RUN_STATE_CANCEL_REQUESTED
+);
+```
+
+`PAUSE_SYNC` 직후 `SYNC`처럼 순서 보존이 가능한 action은 queue 정책을 사용할 수 있다. failover/failback/release처럼 destructive action 간 순서가 위험한 경우는 `DR_PLAN_RUN_ACTIVE`로 거부한다.
+
+DAO 보강:
+
+```java
+DrRunVO findLatestActiveByPlanId(long planId);
+List<DrRunVO> listActiveByPlanId(long planId);
+```
+
+### 20.2 retryable lock 분류
+
+FTCTL 응답이 다음 조건이면 terminal failure가 아니라 retryable busy로 분류한다.
+
+```java
+boolean lockedRetryable = exitCode == 20
+        && StringUtils.equalsIgnoreCase(json.get("result").getAsString(), "locked")
+        && json.has("retryable")
+        && json.get("retryable").getAsBoolean();
+```
+
+Backend result:
+
+```java
+return DrAdapterResult.retryable(
+    DrConstants.ERROR_ENGINE_BUSY_RETRYABLE,
+    "FTCTL engine is busy with " + holderCommand,
+    detailsJson,
+    retryAfterSeconds);
+```
+
+`DrRunExecutorImpl`은 retryable result를 다음처럼 처리한다.
+
+- `run.state=RETRYING`
+- `run.retryable=true`
+- `run.retry_count=retry_count+1`
+- `run.retry_after_seconds`와 `run.next_retry_at` 저장
+- plan은 `SYNCING`으로 두지 않고 이전 stable state 또는 `READY`를 유지하되 `last_error_code=DR_ENGINE_BUSY_RETRYABLE` 기록
+- retry window가 끝나면 `DR_ENGINE_BUSY_TIMEOUT`으로 terminal failure 처리
+
+### 20.3 terminal failure step closure
+
+현재 장애처럼 같은 run에 `FAILED` step과 `RUNNING` step이 같이 남지 않도록 `failRun()`은 open step을 먼저 닫는다.
+
+```java
+private void closeOpenSteps(DrRunVO run, String terminalState, String errorCode, String message) {
+    for (DrRunStepVO step : drRunStepDao.listActiveByRunId(run.getId())) {
+        if (StringUtils.equalsAny(step.getState(), STEP_STATE_QUEUED, STEP_STATE_RUNNING, STEP_STATE_RETRYING)) {
+            step.setState(terminalState);
+            step.setCompleted(new Date());
+            step.setErrorCode(errorCode);
+            step.setErrorMessage(message);
+            drRunStepDao.update(step.getId(), step);
+        }
+    }
+}
+```
+
+`recordStep()`은 insert-only가 아니라 `(run_id, step_order)` upsert로 동작해야 한다.
+
+### 20.4 projection refresh isolation
+
+`FtctlDrRuntimeProjectionAdapter.refreshPlanProjection()`은 list/get API에서 직접 호출하지 않는다. Backend scheduler 또는 explicit projection command만 호출한다.
+
+`DR_STATUS_TIMEOUT`은 plan terminal failure가 아니라 projection stale 상태다.
+
+```java
+if (DrConstants.ERROR_STATUS_TIMEOUT.equals(status.getErrorCode())) {
+    markProjectionStale(plan, status);
+    return DrAdapterResult.retryable(DrConstants.ERROR_PROJECTION_STALE, status.getDetails(), status.getStatusJson(), 5);
+}
+```
+
+수용 기준:
+
+- `dr-sync-start`가 `dr-sync-pause` lock에 막히면 run은 `RETRYING` 또는 `FAILED_RETRYABLE`로 표시되고 plan은 `SYNCING`에 남지 않는다.
+- terminal run에는 `QUEUED`/`RUNNING` open step이 남지 않는다.
+- `getDrPlan` 호출이 Agent status refresh를 직접 수행하지 않는다.
+
+## 21. 2026-07-06 추가 보강: SYNC 완료 조건과 target materialization 검증
+
+상세 기준은 [534-cross-hypervisor-dr-sync-readiness-and-materialization-contract-design-20260706.md](534-cross-hypervisor-dr-sync-readiness-and-materialization-contract-design-20260706.md)를 따른다.
+
+`FtctlDrRuntimeProjectionAdapter`는 SYNC run의 성공 조건을 runtime state 문자열로만 판단하지 않는다. 특히 `SYNCING`, `READY`, `TARGET_READY`, `PAUSED` 중 하나라는 이유만으로 run을 `SUCCEEDED`로 승격하는 로직은 제거한다.
+
+개선 설계:
+
+```java
+private boolean isRunSatisfiedByRuntime(DrRunVO run, DrPlanVO plan, FtctlDrStatus status) {
+    if (StringUtils.equals(run.getRunType(), DrConstants.RUN_TYPE_SYNC)) {
+        return isSyncTargetReady(plan, status);
+    }
+    return isTerminalRuntimeState(status);
+}
+
+private boolean isSyncTargetReady(DrPlanVO plan, FtctlDrStatus status) {
+    if (status == null || !status.isTerminalSuccess()) {
+        return false;
+    }
+    if (StringUtils.isBlank(status.getLastTargetDurableAt())) {
+        return false;
+    }
+
+    DrReplicaVO replica = drReplicaDao.findActiveByPlanId(plan.getId());
+    if (replica == null || !replica.hasTargetReference()) {
+        return false;
+    }
+
+    DrTargetReadiness readiness = targetInventoryVerifier.verify(plan, replica);
+    return readiness.isReady() && drRestorePointDao.countActiveByPlanId(plan.getId()) > 0;
+}
+```
+
+새 backend service:
+
+```java
+public interface DrTargetInventoryVerifier {
+    DrTargetReadiness verify(DrPlanVO plan, DrReplicaVO replica);
+}
+```
+
+구현체:
+
+- `AbleStackDrTargetInventoryVerifier`
+  - `vm_instance`, `volumes`, `nics`, storage pool, target VM state 확인
+- `VmwareDrTargetInventoryVerifier`
+  - vCenter moRef, disk backing, snapshot/checkpoint metadata 확인
+
+수용 기준:
+
+- `dr_replica.target_vm_id` 또는 `target_external_ref`가 비어 있으면 SYNC run은 `SUCCEEDED`가 될 수 없다.
+- `dr_restore_point`가 없거나 `last_target_durable_at`가 비어 있으면 Plan은 `TARGET_MATERIALIZING` 또는 `DEGRADED`에 머문다.
+- retryable lock은 `DR_ENGINE_BUSY_RETRYABLE`로 보존하고 terminal success/failure로 오판하지 않는다.
+
+## 2026-07-07 Update: Backend Validator And Projection Reconciler
+
+Backend execution must not rely on FTCTL to discover predictable guided-spec
+errors. Add a shared disk readiness validator and call it from preview, create,
+update, orchestration, and projection recovery paths.
+
+Backend code-level rules:
+
+- `DrPlanGuidedSpecBuilder` preserves only positive disk sizes and does not
+  convert missing values into `"0"`.
+- `DrPlanTargetPlacementResolverImpl` resolves KVM target disk type/format from
+  storage type; RBD targets become `rbd/raw`.
+- `DrProtectionOrchestratorImpl` blocks Agent dispatch when disk readiness is
+  invalid and records plan/run failure consistently.
+- `FtctlDrRuntimeProjectionAdapter` reconciles active accepted runs by
+  `(planUuid, runUuid)` and maps terminal worker errors back to DB/API/UI.
+- `DrResponseGenerator` exposes effective state from runtime projection so the
+  UI does not show a stale accepted state as healthy.
+
+Detailed method-level design:
+`538-cross-hypervisor-dr-vmware-to-kvm-disk-size-and-projection-hardening-design-20260707.md`.
+
+## 2026-07-07 Update: Backend Disk-first Storage Resolution
+
+Backend storage resolution for guided DR Plan creation/edit follows
+[539-cross-hypervisor-dr-plan-storage-default-and-modal-layout-design-20260707.md](539-cross-hypervisor-dr-plan-storage-default-and-modal-layout-design-20260707.md).
+
+Required precedence:
+
+1. `mapping.disks[].targetStorageRef`
+2. `mapping.disks[].target.storageRef`
+3. `mapping.target.storageRef`
+4. guided `targetstorageref`
+
+Affected backend code:
+
+- `DrPlanGuidedSpecBuilder`
+- `DrPlanTargetPlacementResolverImpl`
+- `DrPlanReadinessValidator`
+- `FtctlDrUnifiedActionAdapter`
+
+Rules:
+
+- `DrPlanGuidedSpecBuilder` writes disk-level storage without overwriting it
+  with the default storage.
+- `DrPlanTargetPlacementResolverImpl` resolves runtime storage fields from the
+  effective disk storage.
+- `DrPlanReadinessValidator` uses the same disk-first effective storage rule.
+- `FtctlDrUnifiedActionAdapter` forwards backend-generated canonical
+  `mapping.target` and `mapping.disks[]`; it does not infer target disk storage
+  from the original API parameter.
+
+This change is structural contract hardening. It does not require a new
+orchestrator action or synchronous UI/API behavior.
+
+## 2026-07-07 Update: Backend Impact Of DR Plan SharedFS Dialog Standard
+
+The SharedFS-style DR Plan dialog standard is documented in
+[540-cross-hypervisor-dr-plan-sharedfs-dialog-standard-design-20260707.md](540-cross-hypervisor-dr-plan-sharedfs-dialog-standard-design-20260707.md).
+
+Backend rules:
+
+- Do not add backend persistence or runtime handling for UI collapse state.
+- Continue to expose inventory, preview, readiness, and canonical JSON through
+  the existing DR Plan APIs.
+- Keep backend reason codes stable so the UI can map a field or blocking
+  reason to a dialog section.
+- If new readiness reasons are introduced later, update
+  `ui/src/utils/dr/planDialogSections.js` together with the backend reason
+  definition.
+- Do not send layout metadata, display-only section titles, or review panel
+  summaries from the backend.
+
+The backend remains responsible for canonical plan data and execution
+readiness; the UI remains responsible for how those errors are grouped and
+displayed in the modal.
+
+## 2026-07-07 Update: Backend Impact Of Modal Alert And Gutter Refinement
+
+The modal alert/gutter refinement is a presentation-only correction documented
+in
+[540-cross-hypervisor-dr-plan-sharedfs-dialog-standard-design-20260707.md](540-cross-hypervisor-dr-plan-sharedfs-dialog-standard-design-20260707.md#13-2026-07-07-refinement-dark-alert-and-right-gutter).
+
+Backend design remains unchanged:
+
+- keep existing DR Plan preview/readiness/guided spec generation;
+- do not add alert severity or dialog layout metadata to response objects;
+- do not change blocking reason codes for this visual fix;
+- keep async action and run projection behavior unchanged.
+
+Any future backend validation reason may still be mapped by UI section logic,
+but the dark alert and gutter issue must not require backend changes.
+
+## 2026-07-07 Update: VMware Data-Plane Backend Wiring
+
+The VMware source VDDK libdir readiness design is defined in
+[543-cross-hypervisor-dr-vddk-libdir-resolution-and-preflight-design-20260707.md](543-cross-hypervisor-dr-vddk-libdir-resolution-and-preflight-design-20260707.md).
+
+Backend wiring additions:
+
+- Add `DrVmwareDataPlaneResolver` to resolve the effective worker-host VDDK
+  path and mover capability.
+- Inject the resolver into `DrPlanReadinessValidator` and
+  `FtctlDrUnifiedActionAdapter`.
+- Extend `DrPlanReadinessValidator.validateForExecution()` with a VMware
+  source gate before sync dispatch.
+- Enrich `credentials.source` in the FTCTL runtime profile with
+  `vddkLibdir`, `dataPlaneHostId`, and `dataPlaneHostUuid` when known.
+- Persist the latest data-plane probe summary in `dr_site.capabilities_json`
+  and copy runtime diagnostics into `dr_run.last_status_json` through the
+  existing projection path.
+- Keep vCenter credential validation in `DrVmwareDirectSiteProbe`; do not turn
+  site health check into a long data-copy operation.
+
+The backend must treat vCenter connection health and worker data-plane
+readiness as different checks. A site may be `CONNECTED` while a specific DR
+Plan is not execution-ready because its selected worker lacks a loadable VDDK
+library.
+
+## 2026-07-07 Update: Backend Projection For VMware Source Graph Failure
+
+The VMware mover NBD source graph design is defined in
+[544-cross-hypervisor-dr-vmware-mover-nbd-source-graph-design-20260707.md](544-cross-hypervisor-dr-vmware-mover-nbd-source-graph-design-20260707.md).
+
+Backend changes are projection and message mapping only; no new orchestrator
+action and no DB migration are required.
+
+Affected backend code:
+
+- `FtctlDrRuntimeProjectionAdapter`
+- `DrResponseGenerator`
+- `DrRunServiceImpl`
+- DR event writer used by runtime projection
+
+Rules:
+
+- Treat `DR_VMWARE_MOVER_SOURCE_GRAPH_INVALID` as terminal for the current run.
+- Persist the terminal runtime JSON into `dr_run.last_status_json`.
+- Set `dr_run.state=FAILED`, `projection_state=failed`, and
+  `dr_plan.state=ERROR`.
+- Upsert a failed `runtime-projection` step with the same error code.
+- Do not mark the plan ready when only target storage exists.
+- Do not retry automatically unless ftctl explicitly returns `retryable=true`.
+
+This keeps Cloud/API/UI consistent with ftctl without making UI/API calls
+synchronous.
+
+## 2026-07-10 Normative Background Projection And View Cache Wiring
+
+Introduce `DrProjectionScheduler`, `DrProjectionQueueService`,
+`DrProtectionViewAssembler`, `DrProtectionViewCacheService`, and
+`DrCompletedCheckpointProjector`. The scheduler reuses the existing managed
+context, scheduled executor, and global-lock pattern used by DR site health
+checks.
+
+One Agent status answer updates Plan/Run/Replica/completed-checkpoint domain
+rows and then rebuilds the redacted view snapshot. Read services perform DAO
+reads only. Successful unchanged polls do not write events, and cache assembly
+failure preserves the previous snapshot with a stale reason.
+
+Detailed Spring wiring, locking, cadence, and transaction rules:
+`550-cross-hypervisor-dr-protection-view-cache-and-completed-checkpoint-design-20260710.md`.
+
+## 2026-07-14 Normative Read Consistency Update
+
+No new Agent, FTCTL, or DB write path is introduced for live detail refresh.
+`DrProjectionScheduler` continues to project active plans every 10 seconds and
+`getDrProtectionView` continues to read the cache without `AgentManager.send`.
+The UI may read that cache every 10 seconds for enabled plans, independently of
+whether the latest operator run is terminal.
+
+Async create/update jobs return their typed resource response only after the
+resource transaction is committed. They must not wait for full seed or
+incremental copy completion. Explicit operator Update uses the implemented
+`refreshDrProtectionView` async command; successful unchanged cache reads do
+not create events.
+
+Detailed layer boundaries and preflight criteria:
+`552-cross-hypervisor-dr-async-read-consistency-and-live-cache-ui-design-20260714.md`.
+
+## 2026-07-14 Normative Continuous Sync Control Wiring
+
+`DrPlanServiceImpl` must not derive Test Failover eligibility from target
+materialization alone. A dedicated action-readiness service combines target
+readiness with the cached FTCTL control protocol, scheduler/cycle state,
+transition ownership, and projection freshness. It never calls Agent from a
+list/get/API request thread.
+
+`DrRunExecutorImpl` treats same-plan continuous Scheduler ownership as a
+quiesce workflow, not generic retryable engine busy. Test Failover/control Run
+failure is recorded on that Run and its steps/events while a healthy Plan and
+latest completed checkpoint remain READY. Background projection stores typed
+runtime control and action readiness in the existing protection-view cache.
+
+Detailed classes, steps, and failure-impact rules:
+`553-cross-hypervisor-dr-continuous-sync-control-and-quiesce-lock-design-20260714.md`.
+
+## 2026-07-14 Cutover Backend Addendum
+
+Backend에는 `DrCutoverPreparationService`를 추가한다. Test Failover는 FTCTL
+transient domain의 `TEST_RUNNING`을 기다리고, 실제 Failover는 FTCTL의
+`CUTOVER_READY` 이후 Cloud-managed target VM을 정상 VM manager 경로로
+기동한다. Boot validation 성공 전에 active side를 변경하지 않는다.
+
+Guest preparation 실패는 Run failure이며 정상 continuous replication Plan을
+자동으로 `ERROR`로 강등하지 않는다. 상세 클래스/상태/복구 계약:
+`554-cross-hypervisor-dr-vmware-to-kvm-cutover-and-virtio-bootstrap-design-20260714.md`.
+
+## 2026-07-16 Projection Failure Normalization Addendum
+
+`FtctlDrRuntimeProjectionAdapter` must map FTCTL typed failure fields into a
+bounded Plan/Run error and must not fall back to the complete `status.details`
+document. The complete status is stored only as the latest runtime projection.
+Projection of a locally durable checkpoint is idempotent so an interrupted
+Cloud update can resume without recopying source data.
+
+Copied-but-uncommitted data blocks target readiness and restore-point
+publication. The backend may request metadata-only recovery only when the
+FTCTL journal proves the copied data identity and target durability; otherwise
+it schedules a safe reseed.
+
+Detailed service and state transitions:
+`557-cross-hypervisor-dr-cycle-commit-and-api-json-recovery-design-20260716.md`.
+
+## 2026-07-17 Dual Cycle Projection Addendum
+
+Runtime projection independently upserts `currentCheckpointSequence` and
+`latestCompletedCheckpointSequence`. Thus sequence N can become terminal even
+when sequence N+1 has already started. Terminal metrics and generations are
+monotonic, duplicate polls are idempotent, and READY restore-point evidence can
+repair a missed non-terminal cycle without inventing incremental verification.
+Readiness consumes this typed authority. Detailed transaction rules are in
+`559-cross-hypervisor-dr-incremental-mode-decision-and-cycle-projection-design-20260717.md`.

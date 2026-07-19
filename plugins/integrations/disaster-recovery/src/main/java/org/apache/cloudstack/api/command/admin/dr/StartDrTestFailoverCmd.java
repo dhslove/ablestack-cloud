@@ -21,6 +21,7 @@ import javax.inject.Inject;
 import org.apache.cloudstack.acl.RoleType;
 import org.apache.cloudstack.api.APICommand;
 import org.apache.cloudstack.api.ApiErrorCode;
+import org.apache.cloudstack.api.Parameter;
 import org.apache.cloudstack.api.ResponseObject;
 import org.apache.cloudstack.api.ServerApiException;
 import org.apache.cloudstack.api.response.dr.DrRunResponse;
@@ -39,6 +40,15 @@ public class StartDrTestFailoverCmd extends AbstractDrPlanActionCmd {
     @Inject
     private DrRestorePointDao drRestorePointDao;
 
+    @Parameter(name = "networkmode", type = CommandType.STRING, description = "test network mode: ISOLATED or PRODUCTION")
+    private String networkMode;
+
+    @Parameter(name = "bootvalidationmode", type = CommandType.STRING, description = "test boot validation mode: POWER_STATE_ONLY or QGA_REQUIRED")
+    private String bootValidationMode;
+
+    @Parameter(name = "boottimeoutseconds", type = CommandType.INTEGER, description = "test boot validation timeout in seconds")
+    private Integer bootTimeoutSeconds;
+
     @Override
     protected String getRunType() {
         return "TEST_FAILOVER";
@@ -51,6 +61,9 @@ public class StartDrTestFailoverCmd extends AbstractDrPlanActionCmd {
 
     @Override
     protected void addRequestProperties(JsonObject request) {
+        addProperty(request, "networkMode", StringUtils.upperCase(networkMode));
+        addProperty(request, "testBootValidationMode", StringUtils.upperCase(bootValidationMode));
+        addProperty(request, "testBootTimeoutSeconds", bootTimeoutSeconds);
         DrRestorePointVO restorePoint = resolveRestorePoint();
         if (restorePoint == null) {
             return;
@@ -64,15 +77,13 @@ public class StartDrTestFailoverCmd extends AbstractDrPlanActionCmd {
     }
 
     private DrRestorePointVO resolveRestorePoint() {
+        DrRestorePointVO latest = drRestorePointDao.findLatestTargetReadyByPlanId(getPlanId());
         Long restorePointId = getRestorePointId();
-        if (restorePointId != null) {
-            DrRestorePointVO restorePoint = drRestorePointDao.findById(restorePointId);
-            if (restorePoint == null || restorePoint.getRemoved() != null || restorePoint.getPlanId() != getPlanId()) {
-                throw new ServerApiException(ApiErrorCode.PARAM_ERROR, "DR restore point is not valid for the selected plan");
-            }
-            return restorePoint;
+        if (restorePointId != null && (latest == null || latest.getId() != restorePointId.longValue())) {
+            throw new ServerApiException(ApiErrorCode.PARAM_ERROR,
+                    "DR test failover uses the latest synchronized target checkpoint; historical checkpoint selection is not supported");
         }
-        return drRestorePointDao.findLatestTargetReadyByPlanId(getPlanId());
+        return latest;
     }
 
     @Override

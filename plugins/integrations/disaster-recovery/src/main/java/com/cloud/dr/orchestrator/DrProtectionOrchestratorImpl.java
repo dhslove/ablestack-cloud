@@ -80,13 +80,10 @@ public class DrProtectionOrchestratorImpl extends ManagerBase implements DrProte
                 validateDiskMappings(latestPlan, diskMappings, replica);
                 materializeReplicaDisks(replica, diskMappings);
 
-                latestPlan.setState(DrConstants.PLAN_STATE_SYNCING);
-                latestPlan.setLastErrorCode(null);
-                latestPlan.setLastErrorMessage(null);
                 latestPlan.markUpdated();
                 drPlanDao.update(latestPlan.getId(), latestPlan);
                 recordEvent(latestPlan, run, DrConstants.EVENT_PROTECTION_PREPARED, DrConstants.EVENT_SEVERITY_INFO,
-                        "DR protection resources prepared and initial sync dispatch is ready", buildReadinessDetails(latestPlan, replica, diskMappings));
+                        "DR protection resources prepared; waiting for FTCTL_DR engine acceptance", buildReadinessDetails(latestPlan, replica, diskMappings));
                 return drPlanDao.findById(latestPlan.getId());
             }
         });
@@ -174,9 +171,23 @@ public class DrProtectionOrchestratorImpl extends ManagerBase implements DrProte
             }
         }
         if (!missing.isEmpty()) {
-            markReplicaError(plan, replica, "disk mapping is missing required refs: " + StringUtils.join(missing, ","));
+            markReplicaError(plan, replica, DrConstants.ERROR_TARGET_MAPPING_INVALID,
+                    "disk mapping is missing required refs: " + StringUtils.join(missing, ","));
             throw new InvalidParameterValueException(DrConstants.ERROR_TARGET_MAPPING_INVALID
                     + ": disk mapping is missing required refs: " + StringUtils.join(missing, ","));
+        }
+        if (StringUtils.equalsIgnoreCase(DrConstants.DIRECTION_VMWARE_TO_KVM, plan.getDirection())) {
+            List<String> unresolved = new ArrayList<String>();
+            for (DiskMapping mapping : diskMappings) {
+                if (mapping.sizeBytes == null || mapping.sizeBytes <= 0) {
+                    unresolved.add(mapping.label);
+                }
+            }
+            if (!unresolved.isEmpty()) {
+                String message = "source disk size is unresolved for target preparation: " + StringUtils.join(unresolved, ",");
+                markReplicaError(plan, replica, DrConstants.ERROR_TARGET_DISK_SIZE_UNRESOLVED, message);
+                throw new InvalidParameterValueException(DrConstants.ERROR_TARGET_DISK_SIZE_UNRESOLVED + ": " + message);
+            }
         }
     }
 
@@ -234,18 +245,22 @@ public class DrProtectionOrchestratorImpl extends ManagerBase implements DrProte
     }
 
     private void markReplicaError(DrPlanVO plan, DrReplicaVO replica, String message) {
+        markReplicaError(plan, replica, DrConstants.ERROR_TARGET_MAPPING_INVALID, message);
+    }
+
+    private void markReplicaError(DrPlanVO plan, DrReplicaVO replica, String errorCode, String message) {
         if (replica != null) {
             replica.setState(DrConstants.REPLICA_STATE_ERROR);
-            replica.setRuntimeStateJson(buildErrorRuntimeState(plan, message));
+            replica.setRuntimeStateJson(buildErrorRuntimeState(plan, errorCode, message));
             replica.markUpdated();
             drReplicaDao.update(replica.getId(), replica);
         }
         plan.setState(DrConstants.PLAN_STATE_ERROR);
-        plan.setLastErrorCode(DrConstants.ERROR_TARGET_MAPPING_INVALID);
+        plan.setLastErrorCode(errorCode);
         plan.setLastErrorMessage(message);
         plan.markUpdated();
         drPlanDao.update(plan.getId(), plan);
-        recordEvent(plan, null, DrConstants.EVENT_PROTECTION_PREPARED, DrConstants.EVENT_SEVERITY_ERROR, message, buildErrorRuntimeState(plan, message));
+        recordEvent(plan, null, DrConstants.EVENT_PROTECTION_PREPARED, DrConstants.EVENT_SEVERITY_ERROR, message, buildErrorRuntimeState(plan, errorCode, message));
     }
 
     private void recordEvent(DrPlanVO plan, DrRunVO run, String type, String severity, String message, String detailsJson) {
@@ -282,11 +297,15 @@ public class DrProtectionOrchestratorImpl extends ManagerBase implements DrProte
     }
 
     private String buildErrorRuntimeState(DrPlanVO plan, String message) {
+        return buildErrorRuntimeState(plan, DrConstants.ERROR_TARGET_MAPPING_INVALID, message);
+    }
+
+    private String buildErrorRuntimeState(DrPlanVO plan, String errorCode, String message) {
         JsonObject details = new JsonObject();
         details.addProperty("readiness", "ERROR");
         details.addProperty("planUuid", plan.getUuid());
         details.addProperty("direction", plan.getDirection());
-        details.addProperty("errorCode", DrConstants.ERROR_TARGET_MAPPING_INVALID);
+        details.addProperty("errorCode", errorCode);
         details.addProperty("message", message);
         return details.toString();
     }

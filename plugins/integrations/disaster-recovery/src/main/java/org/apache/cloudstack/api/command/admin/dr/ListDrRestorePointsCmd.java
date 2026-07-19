@@ -34,7 +34,9 @@ import com.cloud.dr.DrRestorePointVO;
 import com.cloud.dr.response.DrResponseGenerator;
 import com.cloud.user.Account;
 
-@APICommand(name = ListDrRestorePointsCmd.APINAME, description = "List DR restore points", responseObject = DrRestorePointResponse.class, authorized = {RoleType.Admin})
+@APICommand(name = ListDrRestorePointsCmd.APINAME,
+        description = "Compatibility alias for DR synchronization checkpoints; DR does not expose point-in-time restore selection",
+        responseObject = DrRestorePointResponse.class, authorized = {RoleType.Admin})
 public class ListDrRestorePointsCmd extends BaseListCmd {
     public static final String APINAME = "listDrRestorePoints";
 
@@ -53,7 +55,7 @@ public class ListDrRestorePointsCmd extends BaseListCmd {
             responses.add(drResponseGenerator.createRestorePointResponse(restorePoint));
         }
         ListResponse<DrRestorePointResponse> response = new ListResponse<DrRestorePointResponse>();
-        response.setResponses(responses);
+        response.setResponses(responses, responses.size());
         response.setResponseName(getCommandName());
         setResponseObject(response);
     }

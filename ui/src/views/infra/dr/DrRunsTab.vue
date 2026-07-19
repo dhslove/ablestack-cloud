@@ -43,7 +43,7 @@
           <span v-else>-</span>
         </template>
         <template v-else-if="column.key === 'id'">
-          <router-link :to="{ path: '/drplan/' + planId, query: { tab: 'runs', runid: record.id } }">{{ text }}</router-link>
+          <router-link :to="{ path: '/drplan/' + planId, query: { tab: 'history', history: 'operations', runid: record.id } }">{{ text }}</router-link>
         </template>
       </template>
     </a-table>

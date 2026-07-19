@@ -31,6 +31,7 @@ public class DrRestorePointDaoImpl extends GenericDaoBase<DrRestorePointVO, Long
     private final SearchBuilder<DrRestorePointVO> activeByPlanSearch;
     private final SearchBuilder<DrRestorePointVO> latestTargetReadySearch;
     private final SearchBuilder<DrRestorePointVO> sourceSnapshotRefSearch;
+    private final SearchBuilder<DrRestorePointVO> checkpointRefHashSearch;
 
     public DrRestorePointDaoImpl() {
         activeByPlanSearch = createSearchBuilder();
@@ -49,13 +50,33 @@ public class DrRestorePointDaoImpl extends GenericDaoBase<DrRestorePointVO, Long
         sourceSnapshotRefSearch.and("sourceSnapshotRef", sourceSnapshotRefSearch.entity().getSourceSnapshotRef(), SearchCriteria.Op.EQ);
         sourceSnapshotRefSearch.and("removed", sourceSnapshotRefSearch.entity().getRemoved(), SearchCriteria.Op.NULL);
         sourceSnapshotRefSearch.done();
+
+        checkpointRefHashSearch = createSearchBuilder();
+        checkpointRefHashSearch.and("planId", checkpointRefHashSearch.entity().getPlanId(), SearchCriteria.Op.EQ);
+        checkpointRefHashSearch.and("checkpointRefHash", checkpointRefHashSearch.entity().getCheckpointRefHash(), SearchCriteria.Op.EQ);
+        checkpointRefHashSearch.and("removed", checkpointRefHashSearch.entity().getRemoved(), SearchCriteria.Op.NULL);
+        checkpointRefHashSearch.done();
     }
 
     @Override
     public List<DrRestorePointVO> listActiveByPlanId(long planId) {
         SearchCriteria<DrRestorePointVO> sc = activeByPlanSearch.create();
         sc.setParameters("planId", planId);
-        return listBy(sc);
+        return listBy(sc, new Filter(DrRestorePointVO.class, "targetReadyAt", false, null, null));
+    }
+
+    @Override
+    public List<DrRestorePointVO> listActiveByPlanId(long planId, long startIndex, long pageSize) {
+        SearchCriteria<DrRestorePointVO> sc = activeByPlanSearch.create();
+        sc.setParameters("planId", planId);
+        return listBy(sc, new Filter(DrRestorePointVO.class, "targetReadyAt", false, startIndex, pageSize));
+    }
+
+    @Override
+    public long countActiveByPlanId(long planId) {
+        SearchCriteria<DrRestorePointVO> sc = activeByPlanSearch.create();
+        sc.setParameters("planId", planId);
+        return getCount(sc);
     }
 
     @Override
@@ -71,6 +92,14 @@ public class DrRestorePointDaoImpl extends GenericDaoBase<DrRestorePointVO, Long
         SearchCriteria<DrRestorePointVO> sc = sourceSnapshotRefSearch.create();
         sc.setParameters("planId", planId);
         sc.setParameters("sourceSnapshotRef", sourceSnapshotRef);
+        return findOneBy(sc);
+    }
+
+    @Override
+    public DrRestorePointVO findByPlanIdAndCheckpointRefHash(long planId, byte[] checkpointRefHash) {
+        SearchCriteria<DrRestorePointVO> sc = checkpointRefHashSearch.create();
+        sc.setParameters("planId", planId);
+        sc.setParameters("checkpointRefHash", checkpointRefHash);
         return findOneBy(sc);
     }
 }

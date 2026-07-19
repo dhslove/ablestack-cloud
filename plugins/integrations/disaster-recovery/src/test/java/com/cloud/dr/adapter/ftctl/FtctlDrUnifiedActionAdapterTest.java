@@ -28,11 +28,15 @@ import org.mockito.junit.MockitoJUnitRunner;
 import com.cloud.agent.AgentManager;
 import com.cloud.agent.api.FtctlDrActionAnswer;
 import com.cloud.agent.api.FtctlDrActionCommand;
+import com.cloud.agent.api.FtctlDrCapabilitiesAnswer;
+import com.cloud.agent.api.FtctlDrCapabilitiesCommand;
 import com.cloud.dr.DrConstants;
 import com.cloud.dr.DrPlanVO;
+import com.cloud.dr.DrRestorePointVO;
 import com.cloud.dr.DrRunVO;
 import com.cloud.dr.adapter.DrAdapterResult;
 import com.cloud.dr.adapter.DrExecutionContext;
+import com.cloud.dr.dao.DrRestorePointDao;
 import com.cloud.host.dao.HostDao;
 
 @RunWith(MockitoJUnitRunner.class)
@@ -42,6 +46,8 @@ public class FtctlDrUnifiedActionAdapterTest {
     private AgentManager agentManager;
     @Mock
     private HostDao hostDao;
+    @Mock
+    private DrRestorePointDao drRestorePointDao;
 
     @InjectMocks
     private FtctlDrUnifiedActionAdapter adapter;
@@ -52,6 +58,7 @@ public class FtctlDrUnifiedActionAdapterTest {
         DrRunVO run = run(DrConstants.RUN_TYPE_SYNC,
                 "{\"mode\":\"planned\",\"remoteMoldSecretKey\":\"top-secret\",\"dryRun\":false}");
         ArgumentCaptor<FtctlDrActionCommand> commandCaptor = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
+        mockCapabilities();
         Mockito.when(agentManager.send(Mockito.eq(103L), commandCaptor.capture())).thenAnswer(invocation -> {
             FtctlDrActionCommand command = invocation.getArgument(1);
             return new FtctlDrActionAnswer(command, true, "accepted", FtctlDrActionCommand.Action.SYNC,
@@ -90,6 +97,9 @@ public class FtctlDrUnifiedActionAdapterTest {
         DrRunVO run = run(DrConstants.RUN_TYPE_TEST_FAILOVER,
                 "{\"restorePointId\":9,\"restorePointRef\":\"ftctl:" + plan.getUuid() + ":2\"}");
         ArgumentCaptor<FtctlDrActionCommand> commandCaptor = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
+        DrRestorePointVO checkpoint = checkpoint(plan, "ftctl:" + plan.getUuid() + ":run-sync:2");
+        Mockito.when(drRestorePointDao.findLatestTargetReadyByPlanId(plan.getId())).thenReturn(checkpoint);
+        mockCapabilities();
         Mockito.when(agentManager.send(Mockito.eq(103L), commandCaptor.capture())).thenAnswer(invocation -> {
             FtctlDrActionCommand command = invocation.getArgument(1);
             return new FtctlDrActionAnswer(command, true, "accepted", FtctlDrActionCommand.Action.TEST_FAILOVER,
@@ -104,9 +114,11 @@ public class FtctlDrUnifiedActionAdapterTest {
         Assert.assertFalse(result.isTerminal());
         FtctlDrActionCommand command = commandCaptor.getValue();
         Assert.assertEquals(FtctlDrActionCommand.Action.TEST_FAILOVER, command.getAction());
-        Assert.assertEquals(Long.valueOf(9L), command.getRestorePointId());
-        Assert.assertTrue(command.getProfileJson().contains("\"restorePointRef\":\"ftctl:" + plan.getUuid() + ":2\""));
-        Assert.assertTrue(command.getRequestJson().contains("\"restorePointRef\":\"ftctl:" + plan.getUuid() + ":2\""));
+        Assert.assertNull(command.getRestorePointId());
+        Assert.assertEquals(checkpoint.getSourceSnapshotRef(), command.getCheckpointRef());
+        Assert.assertTrue(command.getProfileJson().contains("\"restorePointRef\":\"" + checkpoint.getSourceSnapshotRef() + "\""));
+        Assert.assertTrue(command.getRequestJson().contains("\"restorePointRef\":\"" + checkpoint.getSourceSnapshotRef() + "\""));
+        Assert.assertFalse(command.getRequestJson().contains("restorePointId"));
     }
 
     @Test
@@ -115,6 +127,9 @@ public class FtctlDrUnifiedActionAdapterTest {
         DrRunVO run = run(DrConstants.RUN_TYPE_FAILOVER,
                 "{\"mode\":\"planned\",\"restorePointId\":12,\"restorePointRef\":\"ftctl:" + plan.getUuid() + ":3\",\"finalSync\":true}");
         ArgumentCaptor<FtctlDrActionCommand> commandCaptor = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
+        DrRestorePointVO checkpoint = checkpoint(plan, "ftctl:" + plan.getUuid() + ":run-sync:3");
+        Mockito.when(drRestorePointDao.findLatestTargetReadyByPlanId(plan.getId())).thenReturn(checkpoint);
+        mockCapabilities();
         Mockito.when(agentManager.send(Mockito.eq(103L), commandCaptor.capture())).thenAnswer(invocation -> {
             FtctlDrActionCommand command = invocation.getArgument(1);
             return new FtctlDrActionAnswer(command, true, "accepted", FtctlDrActionCommand.Action.FAILOVER,
@@ -130,11 +145,12 @@ public class FtctlDrUnifiedActionAdapterTest {
         FtctlDrActionCommand command = commandCaptor.getValue();
         Assert.assertEquals(FtctlDrActionCommand.Action.FAILOVER, command.getAction());
         Assert.assertEquals("planned", command.getMode());
-        Assert.assertEquals(Long.valueOf(12L), command.getRestorePointId());
+        Assert.assertNull(command.getRestorePointId());
+        Assert.assertEquals(checkpoint.getSourceSnapshotRef(), command.getCheckpointRef());
         Assert.assertFalse(command.isWaitForCompletion());
-        Assert.assertTrue(command.getProfileJson().contains("\"restorePointRef\":\"ftctl:" + plan.getUuid() + ":3\""));
+        Assert.assertTrue(command.getProfileJson().contains("\"restorePointRef\":\"" + checkpoint.getSourceSnapshotRef() + "\""));
         Assert.assertTrue(command.getProfileJson().contains("\"finalSync\":true"));
-        Assert.assertTrue(command.getRequestJson().contains("\"restorePointRef\":\"ftctl:" + plan.getUuid() + ":3\""));
+        Assert.assertTrue(command.getRequestJson().contains("\"restorePointRef\":\"" + checkpoint.getSourceSnapshotRef() + "\""));
         Assert.assertTrue(command.getRequestJson().contains("\"finalSync\":true"));
     }
 
@@ -174,5 +190,21 @@ public class FtctlDrUnifiedActionAdapterTest {
         run.setState(DrConstants.RUN_STATE_QUEUED);
         run.setRequestJson(requestJson);
         return run;
+    }
+
+    private DrRestorePointVO checkpoint(DrPlanVO plan, String ref) {
+        DrRestorePointVO checkpoint = new DrRestorePointVO(plan.getId(), "FTCTL_DR_CHECKPOINT");
+        checkpoint.setSourceSnapshotRef(ref);
+        checkpoint.setState("READY");
+        return checkpoint;
+    }
+
+    private void mockCapabilities() throws Exception {
+        Mockito.when(agentManager.send(Mockito.eq(103L), Mockito.isA(FtctlDrCapabilitiesCommand.class))).thenAnswer(invocation -> {
+            FtctlDrCapabilitiesAnswer answer = new FtctlDrCapabilitiesAnswer(invocation.getArgument(1), true, "ok");
+            answer.setSupportedFeatures(java.util.Arrays.asList("control-protocol-v2", "guest-preparation-v1",
+                    "test-domain-lifecycle-v1", "cutover-ready-v1"));
+            return answer;
+        });
     }
 }

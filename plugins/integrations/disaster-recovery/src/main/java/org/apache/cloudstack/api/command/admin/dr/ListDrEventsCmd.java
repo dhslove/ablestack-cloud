@@ -23,8 +23,10 @@ import javax.inject.Inject;
 
 import org.apache.cloudstack.acl.RoleType;
 import org.apache.cloudstack.api.APICommand;
+import org.apache.cloudstack.api.ApiErrorCode;
 import org.apache.cloudstack.api.BaseListCmd;
 import org.apache.cloudstack.api.Parameter;
+import org.apache.cloudstack.api.ServerApiException;
 import org.apache.cloudstack.api.response.ListResponse;
 import org.apache.cloudstack.api.response.dr.DrEventResponse;
 import org.apache.cloudstack.api.response.dr.DrPlanResponse;
@@ -34,6 +36,7 @@ import com.cloud.dr.DrEventVO;
 import com.cloud.dr.DrProjectionService;
 import com.cloud.dr.response.DrResponseGenerator;
 import com.cloud.user.Account;
+import com.cloud.utils.Pair;
 
 @APICommand(name = ListDrEventsCmd.APINAME, description = "List DR events", responseObject = DrEventResponse.class, authorized = {RoleType.Admin})
 public class ListDrEventsCmd extends BaseListCmd {
@@ -52,13 +55,20 @@ public class ListDrEventsCmd extends BaseListCmd {
 
     @Override
     public void execute() {
-        List<DrEventVO> events = runId != null ? drProjectionService.listRunEvents(runId) : drProjectionService.listPlanEvents(planId);
+        if (planId == null && runId == null) {
+            throw new ServerApiException(ApiErrorCode.PARAM_ERROR, "planid or runid is required");
+        }
+        long startIndex = getStartIndex() != null ? getStartIndex() : 0L;
+        long pageSize = getPageSizeVal() != null ? Math.min(getPageSizeVal(), 100L) : 20L;
+        Pair<List<DrEventVO>, Integer> result = runId != null
+                ? drProjectionService.listRunEvents(runId, startIndex, pageSize)
+                : drProjectionService.listPlanEvents(planId, startIndex, pageSize);
         List<DrEventResponse> responses = new ArrayList<DrEventResponse>();
-        for (DrEventVO event : events) {
+        for (DrEventVO event : result.first()) {
             responses.add(drResponseGenerator.createEventResponse(event));
         }
         ListResponse<DrEventResponse> response = new ListResponse<DrEventResponse>();
-        response.setResponses(responses);
+        response.setResponses(responses, result.second());
         response.setResponseName(getCommandName());
         setResponseObject(response);
     }

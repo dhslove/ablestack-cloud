@@ -20,6 +20,13 @@
 3. Agent는 FTCTL 등 실제 engine에 명령을 전달하고, 백그라운드로 상태를 모니터링하며 Cloud에 보고한다.
 4. UI/API request thread는 FTCTL, qemu, host script, 장시간 block job, remote Mold 작업 완료를 기다리지 않는다.
 
+2026-07-14 보강: UI가 Cloud async job을 Promise polling으로 추적하는 것은
+서버 request thread의 동기 대기가 아니다. 생성/수정 화면은 job의 resource
+transaction 완료를 확인한 뒤 목록을 갱신해야 하며, full seed 또는 FTCTL 장기
+작업 완료는 기다리지 않는다. 보호 상세의 주기 조회는 DB cache 전용
+`getDrProtectionView`만 사용한다. 상세 설계는
+`552-cross-hypervisor-dr-async-read-consistency-and-live-cache-ui-design-20260714.md`를 따른다.
+
 ## 2. 필수 원칙
 
 | 원칙 | 설명 | 금지 사항 |
@@ -427,3 +434,49 @@ Plan 생성/수정 시 검증:
   - 명령: `NODE_OPTIONS=--openssl-legacy-provider npm run build`
   - 결과: `DONE Build complete. The dist directory is ready to be deployed.`
   - 경고: 기존 Browserslist outdated 및 asset/entrypoint size warning 표시
+
+## 15. 2026-07-06 추가 보강 계획: retryable lock과 non-blocking projection
+
+상세 설계는 [533-cross-hypervisor-dr-dispatch-projection-recovery-design-20260706.md](533-cross-hypervisor-dr-dispatch-projection-recovery-design-20260706.md)를 따른다.
+
+이번 보강은 2026-07-01 비동기 action 골격 위에 다음 구조를 추가한다.
+
+### 15.1 원칙
+
+- UI/API read path는 DB snapshot만 읽는다.
+- Agent/ftctl status refresh는 list/get API의 inline dependency가 아니다.
+- `dr-sync-start`가 `dr-sync-pause` lock에 막힌 경우는 retryable engine busy다.
+- retryable lock은 `DR_ENGINE_BUSY_RETRYABLE`과 retry metadata로 저장한다.
+- `dr-status` timeout은 runtime terminal failure가 아니라 projection stale로 저장한다.
+
+### 15.2 보강 작업
+
+| 레이어 | 작업 |
+| --- | --- |
+| UI | initial detail loading과 projection refresh loading 분리, retryable lock 사용자 메시지 추가 |
+| API | read/action/projection API 분리, action response에 run/job/retry metadata 제공 |
+| Backend | plan active run 직렬화, retryable lock retry/backoff, terminal step closure |
+| Agent | `FtctlDrStatusCommand` hard timeout, process tree kill, single-flight status |
+| ftctl | `dr-status` lock-free bounded read, lock conflict JSON metadata 유지 |
+| DB | retry metadata와 projection stale 저장, step upsert/중복 정리 기준 확정 |
+
+### 15.3 검증
+
+- `dr-sync-pause` lock 보유 중 `dr-sync-start` 실행 시 `RETRYING` 또는 `FAILED_RETRYABLE`로 표시되고 plan은 `SYNCING`에 남지 않는다.
+- `dr-status`가 timeout되어도 DR Plan 상세 화면은 기본 정보를 렌더링한다.
+- host에 orphan `ablestack_vm_ftctl dr-status` process가 남지 않는다.
+- terminal run에는 open step이 남지 않는다.
+
+## 16. 2026-07-14 보정: Continuous Scheduler self-lock 제거
+
+15장의 generic retry/backoff만으로는 continuous `dr-sync-start` self-lock을
+해결할 수 없다. Background worker가 global lock을 잡은 채 Scheduler loop를
+계속 실행하므로 정상 보호가 유지되는 동안 retry가 성공할 수 없기 때문이다.
+
+후속 구현은 retry 횟수를 늘리지 않고 Scheduler 수명주기 global lock을
+제거한다. 복제 cycle은 Plan cycle lock으로 직렬화하고, Test Failover와
+pause/release/cancel은 generation 기반 control channel로 안전 지점 전이를
+요청한다. UI/API는 이를 기다리지 않고 queued Run을 반환한다.
+
+이 보정의 상세 설계와 수용 기준:
+`553-cross-hypervisor-dr-continuous-sync-control-and-quiesce-lock-design-20260714.md`.

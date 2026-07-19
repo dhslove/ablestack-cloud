@@ -17,248 +17,841 @@
   under the License.
 -->
 <template>
-  <div class="cross-dr-page">
+  <div class="cross-dr-page cross-dr-standard-page">
+    <a-affix
+      :key="'affix-' + showSearchFilters"
+      :offsetTop="this.$store.getters.maintenanceInitiated || this.$store.getters.shutdownTriggered ? 103 : 78">
+      <a-card class="breadcrumb-card" style="z-index: 10">
+        <a-row>
+          <a-col
+            :span="device === 'mobile' ? 24 : 12"
+            style="padding-left: 12px; margin-top: 10px">
+            <breadcrumb :resource="breadcrumbResource">
+              <template #end>
+                <a-button
+                  :loading="loading || protectionRefreshing"
+                  style="margin-bottom: 5px"
+                  shape="round"
+                  size="small"
+                  @click="detailId ? requestProtectionRefresh() : fetchData()">
+                  <template #icon><ReloadOutlined /></template>
+                  {{ $t('label.refresh') }}
+                </a-button>
+                <a-tooltip placement="right">
+                  <template #title>
+                    {{ $t('label.filterby') }}
+                  </template>
+                  <a-select
+                    v-if="!detailId"
+                    :placeholder="$t('label.filterby')"
+                    :value="filterValue"
+                    style="min-width: 100px; margin-left: 10px; margin-bottom: 5px"
+                    size="small"
+                    showSearch
+                    optionFilterProp="label"
+                    :filterOption="(input, option) => {
+                      return option.label.toLowerCase().indexOf(input.toLowerCase()) >= 0
+                    }"
+                    @change="changeFilter">
+                    <template #suffixIcon><filter-outlined class="ant-select-suffix" /></template>
+                    <a-select-option key="all" :label="$t('label.all')">
+                      {{ $t('label.all') }}
+                    </a-select-option>
+                    <a-select-option
+                      v-for="state in planStates"
+                      :key="state"
+                      :label="state">
+                      {{ state }}
+                    </a-select-option>
+                  </a-select>
+                </a-tooltip>
+              </template>
+            </breadcrumb>
+          </a-col>
+          <a-col
+            :span="device === 'mobile' ? 24 : 12"
+            :style="device === 'mobile' ? { float: 'right', 'margin-top': '12px', 'margin-bottom': '-6px', display: 'table' } : { float: 'right', display: 'table', 'margin-top': '6px' }">
+            <dr-resource-action-menu
+              v-if="detailId && detailPlan.id"
+              :actions="planActions"
+              :resource="detailPlan"
+              :triggerStyle="{ float: device === 'mobile' ? 'left' : 'right' }"
+              @exec-action="runPlanAction" />
+            <action-button
+              v-else-if="'createDrPlan' in $store.getters.apis"
+              :style="{ 'margin-right': '10px', display: 'inline-flex' }"
+              :loading="loading"
+              :actions="createPlanActions"
+              :selectedRowKeys="selectedRowKeys"
+              :selectedItems="[]"
+              :dataView="false"
+              :resource="{}"
+              @exec-action="openCreateModal" />
+            <search-view
+              v-if="!detailId"
+              :searchFilters="searchFilters"
+              :searchParams="searchParams"
+              apiName="listDrPlans"
+              @search="onSearch" />
+          </a-col>
+        </a-row>
+        <a-row
+          v-if="showSearchFilters"
+          style="min-height: 36px; padding-top: 12px; padding-left: 12px;">
+          <search-filter
+            :filters="activeFiltersList"
+            apiName="listDrPlans"
+            @removeFilter="removeFilter" />
+        </a-row>
+      </a-card>
+    </a-affix>
+
     <a-alert
       v-if="!hasListApi"
       type="warning"
       show-icon
       :message="$t('message.dr.api.unavailable')" />
+    <a-alert
+      v-else-if="!detailId && listLoadWarning"
+      type="warning"
+      show-icon
+      class="cross-dr-detail-warning"
+      :message="$t('message.dr.plan.list.fallback')"
+      :description="listLoadWarning" />
 
     <template v-else-if="detailId">
-      <a-card class="cross-dr-panel" :loading="loading">
-        <template #title>
-          <div class="cross-dr-heading">
-            <router-link :to="{ path: '/drplan' }">{{ $t('label.dr.plans') }}</router-link>
-            <span>/</span>
-            <span>{{ detailPlan.name || detailPlan.id || '-' }}</span>
-          </div>
-        </template>
-        <template #extra>
-          <a-space wrap>
-            <dr-action-toolbar
-              v-if="detailPlan.id"
-              :plan="detailPlan"
-              :currentRun="currentRun"
-              :loadingAction="actionLoading"
-              @run-action="action => runPlanAction(action, detailPlan)" />
-            <a-button size="small" @click="fetchDetail">
-              <template #icon><ReloadOutlined /></template>
-              {{ $t('label.refresh') }}
-            </a-button>
-          </a-space>
+      <resource-layout>
+        <template #left>
+          <dr-resource-info-card
+            resourceType="plan"
+            :resource="detailPlan"
+            :title="detailPlan.name || detailPlan.id || '-'"
+            :tags="planInfoTags"
+            :summaryFields="planSummaryFields"
+            :loading="loading"
+            @contextmenu="openPlanContextMenu" />
         </template>
 
-        <a-tabs :activeKey="activeTab" :animated="false" @change="changeTab">
-          <a-tab-pane key="overview" :tab="$t('label.overview')">
-            <dr-plan-overview
-              v-if="detailPlan.id"
-              :plan="detailPlan"
-              :sourceSite="siteById[detailPlan.sourcesiteid] || {}"
-              :targetSite="siteById[detailPlan.targetsiteid] || {}"
-              :currentRun="currentRun" />
-          </a-tab-pane>
-          <a-tab-pane key="restorepoints" :tab="$t('label.dr.restore.points')">
-            <dr-restore-points-tab v-if="detailPlan.id" :planId="detailPlan.id" />
-          </a-tab-pane>
-          <a-tab-pane key="replica" :tab="$t('label.dr.replica')">
-            <dr-replica-tab v-if="detailPlan.id" :planId="detailPlan.id" />
-          </a-tab-pane>
-          <a-tab-pane key="runs" :tab="$t('label.dr.runs')">
-            <dr-runs-tab v-if="detailPlan.id" :planId="detailPlan.id" />
-          </a-tab-pane>
-          <a-tab-pane key="events" :tab="$t('label.events')">
-            <dr-events-tab v-if="detailPlan.id" :planId="detailPlan.id" :runId="$route.query.runid || ''" />
-          </a-tab-pane>
-        </a-tabs>
-      </a-card>
+        <template #right>
+          <a-card
+            class="spin-content"
+            :loading="loading"
+            :bordered="true"
+            style="width: 100%"
+            @contextmenu.stop.prevent="openPlanContextMenu($event, detailPlan)">
+            <a-alert
+              v-if="detailLoadWarning"
+              type="warning"
+              show-icon
+              class="cross-dr-detail-warning"
+              :message="$t('message.dr.plan.detail.fallback')"
+              :description="detailLoadWarning" />
+            <a-tabs
+              style="width: 100%; margin-top: -12px"
+              :activeKey="activeTab"
+              :animated="false"
+              @change="changeTab">
+              <a-tab-pane key="details" :tab="$t('label.details')">
+                <dr-plan-overview
+                  v-if="detailPlan.id"
+                  :plan="detailPlan"
+                  :sourceSite="siteById[detailPlan.sourcesiteid] || {}"
+                  :targetSite="siteById[detailPlan.targetsiteid] || {}"
+                  :currentRun="currentRun"
+                  :showProtectionSummary="false" />
+              </a-tab-pane>
+              <a-tab-pane key="protection" :tab="$t('label.dr.protection.info')">
+                <dr-protection-info-tab
+                  v-if="detailPlan.id"
+                  :plan="detailPlan"
+                  :sourceSite="siteById[detailPlan.sourcesiteid] || {}"
+                  :targetSite="siteById[detailPlan.targetsiteid] || {}"
+                  :currentRun="currentRun"
+                  :replicas="protectionSnapshot.replicas || []"
+                  :latestCompletedCheckpoint="protectionSnapshot.latestCompletedCheckpoint || {}"
+                  :generated="protectionView.generated || ''"
+                  :projectionState="protectionView.projectionstate || ''"
+                  :lastError="protectionView.lasterror || ''" />
+              </a-tab-pane>
+              <a-tab-pane key="history" :tab="$t('label.dr.history')">
+                <dr-plan-history-tab v-if="detailPlan.id" :planId="detailPlan.id" />
+              </a-tab-pane>
+              <a-tab-pane key="events" :tab="$t('label.events')">
+                <dr-events-tab v-if="detailPlan.id" :planId="detailPlan.id" :runId="$route.query.runid || ''" />
+              </a-tab-pane>
+            </a-tabs>
+          </a-card>
+        </template>
+      </resource-layout>
     </template>
 
     <template v-else>
-      <a-card class="cross-dr-panel">
-        <template #title>{{ $t('label.dr.plans') }}</template>
-        <template #extra>
-          <a-space wrap>
-            <a-select
-              v-model:value="filters.state"
-              allowClear
-              size="small"
-              :placeholder="$t('label.state')"
-              style="width: 150px">
-              <a-select-option v-for="state in planStates" :key="state" :value="state">{{ state }}</a-select-option>
-            </a-select>
-            <a-select
-              v-model:value="filters.direction"
-              allowClear
-              size="small"
-              :placeholder="$t('label.dr.direction')"
-              style="width: 180px">
-              <a-select-option v-for="direction in directions" :key="direction" :value="direction">{{ direction }}</a-select-option>
-            </a-select>
-            <a-button
-              v-if="'createDrPlan' in $store.getters.apis"
-              type="primary"
-              size="small"
-              @click="openCreateModal">
-              <template #icon><PlusOutlined /></template>
-              {{ $t('label.dr.plan.add') }}
-            </a-button>
-            <a-button size="small" :loading="loading" @click="fetchList">
-              <template #icon><ReloadOutlined /></template>
-              {{ $t('label.refresh') }}
-            </a-button>
-          </a-space>
-        </template>
+      <div class="row-element" @contextmenu="openListContextMenu">
         <a-table
-          size="small"
-          :columns="columns"
-          :dataSource="filteredPlans"
+          class="cross-dr-standard-table"
+          size="middle"
+          :columns="tableColumns"
+          :dataSource="pagedPlans"
           :rowKey="record => record.id"
           :loading="loading"
-          :pagination="{ pageSize: 10 }">
+          :pagination="false"
+          :rowSelection="listRowSelection">
+          <template #customFilterDropdown>
+            <div style="padding: 8px" class="filter-dropdown">
+              <a-menu>
+                <a-menu-item
+                  v-for="column in columnSelectorColumns"
+                  :key="column.key"
+                  @click="updateSelectedColumns(column.dataIndex)">
+                  <a-checkbox :checked="selectedColumns.includes(column.dataIndex)" />
+                  {{ column.title }}
+                </a-menu-item>
+              </a-menu>
+            </div>
+          </template>
           <template #bodyCell="{ column, record, text }">
             <template v-if="column.key === 'name'">
-              <router-link :to="{ path: '/drplan/' + record.id }">{{ text || record.id }}</router-link>
+              <span class="cross-dr-resource-name">
+                <BranchesOutlined />
+                <router-link :to="{ path: '/drplan/' + record.id }">{{ text || record.id }}</router-link>
+              </span>
             </template>
             <template v-else-if="column.key === 'state'">
-              <dr-status-pill :status="text" />
+              <status :text="effectivePlanState(record)" displayText />
             </template>
             <template v-else-if="column.key === 'sourcesiteid' || column.key === 'targetsiteid'">
               {{ siteName(text) }}
             </template>
-            <template v-else-if="column.key === 'targetreadyrposeconds'">
-              <dr-rpo-kpi
-                class="cross-dr-table-kpi"
-                :label="$t('label.dr.target.rpo')"
-                :seconds="record.targetreadyrposeconds"
-                :targetSeconds="record.rposeconds" />
+            <template v-else-if="column.key === 'direction'">
+              {{ $t(directionLabel(text)) }}
             </template>
-            <template v-else-if="column.key === 'actions'">
-              <dr-action-toolbar
-                compact
-                :plan="record"
-                :loadingAction="actionLoadingPlanId === record.id ? actionLoading : ''"
-                @run-action="action => runPlanAction(action, record)" />
+            <template v-else-if="column.key === 'enginetype'">
+              {{ $t(engineLabel(text)) }}
+            </template>
+            <template v-else-if="column.key === 'targetreadyrposeconds'">
+              {{ formatRpo(record) }}
             </template>
           </template>
         </a-table>
-      </a-card>
+        <a-pagination
+          class="row-element"
+          style="margin-top: 10px"
+          size="small"
+          :current="normalizedPage"
+          :pageSize="pageSize"
+          :total="listTotal"
+          :showTotal="paginationTotal"
+          :pageSizeOptions="pageSizeOptions"
+          @change="changePage"
+          @showSizeChange="changePageSize"
+          showSizeChanger
+          showQuickJumper>
+          <template #buildOptionText="props">
+            <span>{{ props.value }} / {{ $t('label.page') }}</span>
+          </template>
+        </a-pagination>
+      </div>
     </template>
 
-    <a-modal
+    <dr-form-modal
       :visible="showCreateModal"
-      :title="$t('label.dr.plan.add')"
-      :confirmLoading="createLoading"
-      :okText="$t('label.ok')"
-      :cancelText="$t('label.cancel')"
-      @ok="createPlan"
-      @cancel="closeCreateModal">
-      <a-form layout="vertical">
-        <a-form-item :label="$t('label.name')" required>
-          <a-input v-model:value="createForm.name" />
-        </a-form-item>
-        <a-form-item :label="$t('label.description')">
-          <a-input v-model:value="createForm.description" />
-        </a-form-item>
-        <a-form-item :label="$t('label.dr.source.site')" required>
-          <a-select v-model:value="createForm.sourcesiteid" showSearch optionFilterProp="label">
-            <a-select-option v-for="site in sites" :key="site.id" :value="site.id" :label="site.name">{{ site.name }}</a-select-option>
-          </a-select>
-        </a-form-item>
-        <a-form-item :label="$t('label.dr.target.site')" required>
-          <a-select v-model:value="createForm.targetsiteid" showSearch optionFilterProp="label">
-            <a-select-option v-for="site in sites" :key="site.id" :value="site.id" :label="site.name">{{ site.name }}</a-select-option>
-          </a-select>
-        </a-form-item>
-        <a-form-item :label="$t('label.dr.direction')" required>
-          <a-select v-model:value="createForm.direction">
-            <a-select-option v-for="direction in directions" :key="direction" :value="direction">{{ direction }}</a-select-option>
-          </a-select>
-        </a-form-item>
-        <a-form-item :label="$t('label.dr.source.vm')">
-          <a-input v-model:value="createForm.sourcevmid" />
-        </a-form-item>
-        <a-row :gutter="12">
-          <a-col :span="12">
-            <a-form-item :label="$t('label.dr.engine')">
-              <a-select v-model:value="createForm.enginetype" @change="onCreateEngineChange">
-                <a-select-option
-                  v-for="engine in engineOptions"
-                  :key="engine.value"
-                  :value="engine.value"
-                  :disabled="engine.disabled">
-                  {{ engine.label }}
-                </a-select-option>
-              </a-select>
-            </a-form-item>
-          </a-col>
-          <a-col :span="12">
-            <a-form-item :label="$t('label.dr.engine.binding.type')">
-              <a-input v-model:value="createForm.enginebindingtype" />
-            </a-form-item>
-          </a-col>
-        </a-row>
-        <a-row :gutter="12">
-          <a-col :span="12">
-            <a-form-item :label="$t('label.dr.engine.binding.id')">
-              <a-input-number v-model:value="createForm.enginebindingid" style="width: 100%" />
-            </a-form-item>
-          </a-col>
-          <a-col :span="12">
-            <a-form-item :label="$t('label.dr.rpo')">
-              <a-input-number v-model:value="createForm.rposeconds" style="width: 100%" />
-            </a-form-item>
-          </a-col>
-        </a-row>
-        <a-row :gutter="12">
-          <a-col :span="12">
-            <a-form-item :label="$t('label.dr.rto')">
-              <a-input-number v-model:value="createForm.rtoseconds" style="width: 100%" />
-            </a-form-item>
-          </a-col>
-          <a-col :span="12">
-            <a-form-item :label="$t('label.dr.coordinator.worker.host')">
-              <a-input v-model:value="createForm.coordinatorworkerhostid" />
-            </a-form-item>
-          </a-col>
-        </a-row>
-        <a-row :gutter="12">
-          <a-col :span="12">
-            <a-form-item :label="$t('label.dr.source.worker.host')">
-              <a-input v-model:value="createForm.sourceworkerhostid" />
-            </a-form-item>
-          </a-col>
-          <a-col :span="12">
-            <a-form-item :label="$t('label.dr.target.worker.host')">
-              <a-input v-model:value="createForm.targetworkerhostid" />
-            </a-form-item>
-          </a-col>
-        </a-row>
-        <a-form-item :label="$t('label.dr.start.sync.after.create')">
-          <a-switch v-model:checked="createForm.startsync" />
-        </a-form-item>
-        <a-form-item :label="$t('label.dr.mapping.json')">
-          <a-textarea v-model:value="createForm.mappingjson" :rows="4" />
-        </a-form-item>
-        <a-form-item :label="$t('label.dr.schedule.json')">
-          <a-textarea v-model:value="createForm.schedulejson" :rows="2" />
-        </a-form-item>
-        <a-form-item :label="$t('label.dr.policy.json')">
-          <a-textarea v-model:value="createForm.policyjson" :rows="2" />
-        </a-form-item>
-        <a-form-item :label="$t('label.dr.quiesce.policy.json')">
-          <a-textarea v-model:value="createForm.quiescepolicyjson" :rows="2" />
-        </a-form-item>
-      </a-form>
-    </a-modal>
+      :title="planModalTitle"
+      :width="planModalWidth"
+      :confirm-loading="createLoading"
+      @cancel="closeCreateModal"
+      @ok="submitPlan">
+      <div class="cross-dr-plan-create-dialog" v-ctrl-enter="submitPlan">
+        <a-alert
+          class="cross-dr-plan-section-alert"
+          type="info"
+          show-icon
+          :message="$t('message.dr.plan.create.dialog.summary')" />
+        <div class="cross-dr-plan-create-layout">
+          <aside class="cross-dr-plan-summary">
+            <section class="cross-dr-plan-summary-panel">
+              <div class="cross-dr-plan-summary-title">{{ $t('label.dr.review') }}</div>
+              <dl class="cross-dr-plan-review-list">
+                <template v-for="item in planSummaryItems" :key="item.key">
+                  <dt>{{ item.label }}</dt>
+                  <dd>{{ item.value || '-' }}</dd>
+                </template>
+              </dl>
+              <div v-if="diskMappingRows.length > 0" class="cross-dr-plan-summary-note">
+                {{ diskMappingSummaryText }}
+              </div>
+              <a-alert
+                v-if="inventoryBlockingReasons.length > 0"
+                type="warning"
+                showIcon
+                class="cross-dr-plan-summary-alert"
+                :message="inventoryBlockingReasons.join(', ')" />
+            </section>
+          </aside>
+          <main class="cross-dr-plan-config">
+        <a-form layout="vertical" class="cross-dr-plan-form">
+          <a-collapse
+            v-model:activeKey="planSectionActiveKeys"
+            class="cross-dr-plan-sections"
+            :bordered="true">
+          <a-collapse-panel key="basic" :header="$t('label.dr.basic.info')">
+            <a-row :gutter="16">
+              <a-col :xs="24" :md="12">
+          <a-form-item required>
+            <template #label>
+              <tooltip-label :title="$t('label.name')" :tooltip="$t('message.dr.plan.name.help')" />
+            </template>
+            <a-input
+              v-model:value="createForm.name"
+              :maxlength="255"
+              :placeholder="$t('message.dr.plan.name.placeholder')" />
+          </a-form-item>
+              </a-col>
+              <a-col :xs="24" :md="12">
+          <a-form-item>
+            <template #label>
+              <tooltip-label :title="$t('label.description')" :tooltip="$t('message.dr.plan.description.help')" />
+            </template>
+            <a-input
+              v-model:value="createForm.description"
+              :maxlength="1024"
+              :placeholder="$t('message.dr.plan.description.placeholder')" />
+          </a-form-item>
+              </a-col>
+            </a-row>
+          </a-collapse-panel>
+          <a-collapse-panel v-if="planFormMode === 'create'" key="sites" :header="$t('label.dr.site.mapping')">
+            <a-row :gutter="16">
+              <a-col :xs="24" :md="12">
+          <a-form-item v-if="planFormMode === 'create'" required>
+            <template #label>
+              <tooltip-label :title="$t('label.dr.source.site')" :tooltip="$t('message.dr.plan.source.site.help')" />
+            </template>
+            <a-select
+              v-model:value="createForm.sourcesiteid"
+              showSearch
+              optionFilterProp="label"
+              :placeholder="$t('message.dr.plan.source.site.placeholder')"
+              @change="changeSourceSite">
+              <a-select-option v-for="site in sites" :key="site.id" :value="site.id" :label="site.name">{{ site.name }}</a-select-option>
+            </a-select>
+          </a-form-item>
+              </a-col>
+              <a-col :xs="24" :md="12">
+          <a-form-item v-if="planFormMode === 'create'" required>
+            <template #label>
+              <tooltip-label :title="$t('label.dr.target.site')" :tooltip="$t('message.dr.plan.target.site.help')" />
+            </template>
+            <a-select
+              v-model:value="createForm.targetsiteid"
+              showSearch
+              optionFilterProp="label"
+              :placeholder="$t('message.dr.plan.target.site.placeholder')"
+              @change="changeTargetSite">
+              <a-select-option v-for="site in sites" :key="site.id" :value="site.id" :label="site.name">{{ site.name }}</a-select-option>
+            </a-select>
+          </a-form-item>
+              </a-col>
+              <a-col :xs="24">
+          <a-form-item v-if="planFormMode === 'create'" required>
+            <template #label>
+              <tooltip-label :title="$t('label.dr.direction')" :tooltip="$t('message.dr.plan.direction.help')" />
+            </template>
+            <a-select
+              v-model:value="createForm.direction"
+              :placeholder="$t('message.dr.plan.direction.placeholder')"
+              :disabled="true">
+              <a-select-option
+                v-for="direction in directionOptions"
+                :key="direction.value"
+                :value="direction.value">
+                {{ $t(direction.label) }}
+              </a-select-option>
+            </a-select>
+          </a-form-item>
+              </a-col>
+            </a-row>
+          </a-collapse-panel>
+          <a-collapse-panel key="workload" :header="$t('label.dr.protection.target')">
+          <a-form-item required>
+            <template #label>
+              <tooltip-label :title="$t('label.dr.source.vm')" :tooltip="$t('message.dr.plan.source.vm.help')" />
+            </template>
+            <a-select
+              v-model:value="createForm.sourceworkloadvalue"
+              showSearch
+              allowClear
+              :filterOption="false"
+              :loading="sourceWorkloadLoading"
+              :disabled="planFormMode === 'edit' || (planFormMode === 'create' && !canDiscoverSourceWorkloads)"
+              :placeholder="sourceWorkloadPlaceholder"
+              @focus="ensureSourceWorkloads"
+              @search="searchSourceWorkloads"
+              @change="changeSourceWorkload">
+              <a-select-option
+                v-for="workload in sourceWorkloadOptions"
+                :key="workload.optionKey"
+                :value="workload.optionKey"
+                :label="workload.name">
+                <span>{{ workload.name || workload.externalref || workload.id }}</span>
+                <span v-if="workload.state" class="cross-dr-select-meta">{{ workload.state }}</span>
+              </a-select-option>
+            </a-select>
+            <div v-if="sourceWorkloadHelpText" class="cross-dr-form-help">{{ sourceWorkloadHelpText }}</div>
+          </a-form-item>
+          </a-collapse-panel>
+          <a-collapse-panel key="objectives" :header="$t('label.dr.recovery.objective')">
+            <a-row :gutter="16">
+              <a-col :xs="24" :md="12">
+          <a-form-item>
+            <template #label>
+              <tooltip-label :title="$t('label.dr.rpo')" :tooltip="$t('message.dr.plan.rpo.help')" />
+            </template>
+            <a-input-number
+              v-model:value="createForm.rposeconds"
+              style="width: 100%"
+              :min="1"
+              :placeholder="$t('message.dr.plan.rpo.placeholder')" />
+          </a-form-item>
+              </a-col>
+              <a-col v-if="directionUsesKvmSource || sourceWorkerHostOptions.length > 0" :xs="24" :md="12">
+          <a-form-item v-if="directionUsesKvmSource || sourceWorkerHostOptions.length > 0">
+            <template #label>
+              <tooltip-label :title="$t('label.dr.rto')" :tooltip="$t('message.dr.plan.rto.help')" />
+            </template>
+            <a-input-number
+              v-model:value="createForm.rtoseconds"
+              style="width: 100%"
+              :min="1"
+              :placeholder="$t('message.dr.plan.rto.placeholder')" />
+          </a-form-item>
+              </a-col>
+              <a-col v-if="planFormMode === 'create'" :xs="24">
+          <a-form-item v-if="planFormMode === 'create'">
+            <template #label>
+              <tooltip-label :title="$t('label.dr.start.sync.after.create')" :tooltip="$t('message.dr.plan.start.sync.help')" />
+            </template>
+            <a-switch v-model:checked="createForm.startsync" />
+          </a-form-item>
+              </a-col>
+            </a-row>
+          </a-collapse-panel>
+          <a-collapse-panel key="target" :header="$t('label.dr.target.placement')">
+            <a-row :gutter="16">
+              <a-col v-if="directionUsesKvmTarget || targetWorkerHostOptions.length > 0" :xs="24" :md="12">
+          <a-form-item v-if="directionUsesKvmTarget || targetWorkerHostOptions.length > 0">
+            <template #label>
+              <tooltip-label :title="$t('label.dr.target.vm.name')" :tooltip="$t('message.dr.plan.target.vm.name.help')" />
+            </template>
+            <a-input
+              v-model:value="createForm.targetvmname"
+              :maxlength="255"
+              :placeholder="$t('message.dr.plan.target.vm.name.placeholder')" />
+          </a-form-item>
+              </a-col>
+              <a-col :xs="24">
+          <a-alert
+            v-if="inventoryBlockingReasons.length > 0"
+            type="warning"
+            showIcon
+            class="cross-dr-form-alert"
+            :message="inventoryBlockingReasons.join(', ')" />
+              </a-col>
+              <a-col :xs="24" :md="12">
+          <a-form-item>
+            <template #label>
+              <tooltip-label :title="$t('label.dr.default.target.storage')" :tooltip="$t('message.dr.plan.default.target.storage.help')" />
+            </template>
+            <a-select
+              v-if="targetStorageOptions.length > 0"
+              v-model:value="createForm.targetstorageref"
+              showSearch
+              allowClear
+              optionFilterProp="label"
+              :placeholder="$t('message.dr.plan.default.target.storage.placeholder')">
+              <a-select-option
+                v-for="storage in targetStorageOptions"
+                :key="storage.optionKey"
+                :value="storage.value"
+                :label="storage.name">
+                <span>{{ storage.name || storage.value }}</span>
+                <span v-if="storage.description" class="cross-dr-select-meta">{{ storage.description }}</span>
+              </a-select-option>
+            </a-select>
+            <a-alert
+              v-else
+              type="warning"
+              showIcon
+              :message="$t('message.dr.plan.target.storage.empty')" />
+            <div v-if="requiresDiskMapping && createForm.targetstorageref" class="cross-dr-inline-action-row">
+              <a-button size="small" @click="applyDefaultStorageToDiskRows">
+                {{ $t('label.dr.apply.to.all.disks') }}
+              </a-button>
+              <span>{{ $t('message.dr.plan.default.target.storage.apply.help') }}</span>
+            </div>
+          </a-form-item>
+              </a-col>
+              <a-col :xs="24" :md="12">
+          <a-form-item>
+            <template #label>
+              <tooltip-label :title="$t('label.dr.target.compute')" :tooltip="$t('message.dr.plan.target.compute.help')" />
+            </template>
+            <a-select
+              v-if="targetComputeOptions.length > 0"
+              v-model:value="createForm.targetcomputeref"
+              showSearch
+              allowClear
+              optionFilterProp="label"
+              :placeholder="$t('message.dr.plan.target.compute.placeholder')"
+              @change="changeTargetCompute">
+              <a-select-option
+                v-for="compute in targetComputeOptions"
+                :key="compute.optionKey"
+                :value="compute.value"
+                :label="compute.name">
+                <span>{{ compute.name || compute.value }}</span>
+                <span v-if="compute.description" class="cross-dr-select-meta">{{ compute.description }}</span>
+              </a-select-option>
+            </a-select>
+            <a-alert
+              v-else
+              type="warning"
+              showIcon
+              :message="$t('message.dr.plan.target.compute.empty')" />
+          </a-form-item>
+              </a-col>
+              <a-col :xs="24" :md="12">
+          <a-form-item>
+            <template #label>
+              <tooltip-label :title="$t('label.dr.target.network')" :tooltip="$t('message.dr.plan.target.network.help')" />
+            </template>
+            <a-select
+              v-if="targetNetworkOptions.length > 0"
+              v-model:value="createForm.targetnetworkref"
+              showSearch
+              allowClear
+              optionFilterProp="label"
+              :placeholder="$t('message.dr.plan.target.network.placeholder')">
+              <a-select-option
+                v-for="network in targetNetworkOptions"
+                :key="network.optionKey"
+                :value="network.value"
+                :label="network.name">
+                <span>{{ network.name || network.value }}</span>
+                <span v-if="network.description" class="cross-dr-select-meta">{{ network.description }}</span>
+              </a-select-option>
+            </a-select>
+            <a-alert
+              v-else
+              type="warning"
+              showIcon
+              :message="$t('message.dr.plan.target.network.empty')" />
+          </a-form-item>
+              </a-col>
+              <a-col v-if="directionUsesVmwareTarget" :xs="24" :md="12">
+          <a-form-item v-if="directionUsesVmwareTarget">
+            <template #label>
+              <tooltip-label :title="$t('label.dr.target.folder.path')" :tooltip="$t('message.dr.plan.target.folder.path.help')" />
+            </template>
+            <a-input
+              v-model:value="createForm.targetfolderpath"
+              :placeholder="$t('message.dr.plan.target.folder.path.placeholder')" />
+          </a-form-item>
+              </a-col>
+            </a-row>
+          </a-collapse-panel>
+          <a-collapse-panel v-if="requiresDiskMapping" key="disks" :header="$t('label.dr.disk.mapping')">
+          <div v-if="requiresDiskMapping && diskMappingRows.length > 0" class="cross-dr-disk-mapping-list">
+            <div
+              v-for="(disk, diskIndex) in diskMappingRows"
+              :key="disk.sourceDiskRef || disk.sourcePath || diskIndex"
+              class="cross-dr-disk-mapping-row">
+              <div class="cross-dr-disk-field cross-dr-disk-source">
+                <span class="cross-dr-disk-field__label">{{ $t('label.dr.source.disk') }}</span>
+                <strong>{{ disk.sourceLabel }}</strong>
+                <span v-if="disk.sourceDiskRef">{{ $t('label.dr.source.disk.id') }}: {{ disk.sourceDiskRef }}</span>
+                <span v-if="disk.sourcePath">{{ $t('label.dr.source.disk.path') }}: {{ disk.sourcePath }}</span>
+                <span v-if="normalizeDiskSizeBytes(disk.capacityBytes)" class="cross-dr-select-meta">
+                  {{ $t('label.dr.source.disk.size') }}: {{ formatBytes(disk.capacityBytes) }}
+                </span>
+                <span v-else class="cross-dr-disk-warning">
+                  {{ $t('message.dr.plan.validation.source.disk.size') }}
+                </span>
+              </div>
+              <div class="cross-dr-disk-field">
+                <span class="cross-dr-disk-field__label">{{ $t('label.dr.target.disk.name') }}</span>
+                <a-input
+                  v-model:value="disk.targetDiskName"
+                  :placeholder="$t('message.dr.plan.target.disk.name.placeholder')" />
+              </div>
+              <div class="cross-dr-disk-field">
+                <span class="cross-dr-disk-field__label">{{ $t('label.dr.target.disk.offering') }}</span>
+                <a-select
+                  v-model:value="disk.targetDiskOfferingId"
+                  showSearch
+                  allowClear
+                  optionFilterProp="label"
+                  :placeholder="$t('message.dr.plan.target.disk.offering.placeholder')">
+                  <a-select-option
+                    v-for="offering in targetDiskOfferingOptions"
+                    :key="offering.optionKey"
+                    :value="offering.value"
+                    :label="offering.name">
+                    <span>{{ offering.name || offering.value }}</span>
+                    <span v-if="offering.description" class="cross-dr-select-meta">{{ offering.description }}</span>
+                  </a-select-option>
+                </a-select>
+              </div>
+              <div class="cross-dr-disk-field">
+                <span class="cross-dr-disk-field__label">{{ $t('label.dr.target.storage') }}</span>
+                <a-select
+                  v-model:value="disk.targetStorageRef"
+                  showSearch
+                  allowClear
+                  optionFilterProp="label"
+                  :placeholder="$t('message.dr.plan.target.storage.placeholder')">
+                  <a-select-option
+                    v-for="storage in targetStorageOptions"
+                    :key="storage.optionKey"
+                    :value="storage.value"
+                    :label="storage.name">
+                    <span>{{ storage.name || storage.value }}</span>
+                    <span v-if="storage.description" class="cross-dr-select-meta">{{ storage.description }}</span>
+                  </a-select-option>
+                </a-select>
+              </div>
+            </div>
+          </div>
+          <a-alert
+            v-else-if="requiresDiskMapping"
+            type="warning"
+            showIcon
+            :message="$t('message.dr.plan.source.disk.empty')" />
+          </a-collapse-panel>
+          <a-collapse-panel key="workers" :header="$t('label.dr.worker.assignment')">
+            <a-row :gutter="16">
+              <a-col :xs="24" :md="12">
+          <a-form-item>
+            <template #label>
+              <tooltip-label :title="$t('label.dr.coordinator.worker.host')" :tooltip="$t('message.dr.plan.coordinator.worker.host.help')" />
+            </template>
+            <a-select
+              v-if="coordinatorWorkerHostOptions.length > 0"
+              v-model:value="createForm.coordinatorworkerhostid"
+              showSearch
+              allowClear
+              optionFilterProp="label"
+              :placeholder="$t('message.dr.plan.worker.host.placeholder')">
+              <a-select-option
+                v-for="host in coordinatorWorkerHostOptions"
+                :key="host.optionKey"
+                :value="host.value"
+                :label="host.name">
+                <span>{{ host.name || host.value }}</span>
+                <span v-if="host.description" class="cross-dr-select-meta">{{ host.description }}</span>
+              </a-select-option>
+            </a-select>
+            <a-alert
+              v-else
+              type="warning"
+              showIcon
+              :message="$t('message.dr.plan.worker.host.empty')" />
+          </a-form-item>
+              </a-col>
+              <a-col v-if="directionUsesKvmSource || sourceWorkerHostOptions.length > 0" :xs="24" :md="12">
+          <a-form-item v-if="directionUsesKvmSource || sourceWorkerHostOptions.length > 0">
+            <template #label>
+              <tooltip-label :title="$t('label.dr.source.worker.host')" :tooltip="$t('message.dr.plan.source.worker.host.help')" />
+            </template>
+            <a-select
+              v-if="sourceWorkerHostOptions.length > 0"
+              v-model:value="createForm.sourceworkerhostid"
+              showSearch
+              allowClear
+              optionFilterProp="label"
+              :placeholder="$t('message.dr.plan.worker.host.placeholder')">
+              <a-select-option
+                v-for="host in sourceWorkerHostOptions"
+                :key="host.optionKey"
+                :value="host.value"
+                :label="host.name">
+                <span>{{ host.name || host.value }}</span>
+                <span v-if="host.description" class="cross-dr-select-meta">{{ host.description }}</span>
+              </a-select-option>
+            </a-select>
+            <a-alert
+              v-else
+              type="warning"
+              showIcon
+              :message="$t('message.dr.plan.worker.host.empty')" />
+          </a-form-item>
+              </a-col>
+              <a-col v-if="directionUsesKvmTarget || targetWorkerHostOptions.length > 0" :xs="24" :md="12">
+          <a-form-item v-if="directionUsesKvmTarget || targetWorkerHostOptions.length > 0">
+            <template #label>
+              <tooltip-label :title="$t('label.dr.target.worker.host')" :tooltip="$t('message.dr.plan.target.worker.host.help')" />
+            </template>
+            <a-select
+              v-if="targetWorkerHostOptions.length > 0"
+              v-model:value="createForm.targetworkerhostid"
+              showSearch
+              allowClear
+              optionFilterProp="label"
+              :placeholder="$t('message.dr.plan.worker.host.placeholder')"
+              @change="changeTargetWorker">
+              <a-select-option
+                v-for="host in targetWorkerHostOptions"
+                :key="host.optionKey"
+                :value="host.value"
+                :label="host.name">
+                <span>{{ host.name || host.value }}</span>
+                <span v-if="host.description" class="cross-dr-select-meta">{{ host.description }}</span>
+              </a-select-option>
+            </a-select>
+            <a-alert
+              v-else
+              type="warning"
+              showIcon
+              :message="$t('message.dr.plan.worker.host.empty')" />
+          </a-form-item>
+              </a-col>
+            </a-row>
+          </a-collapse-panel>
+          <a-collapse-panel key="policy" :header="$t('label.dr.sync.policy')">
+            <a-row :gutter="16">
+              <a-col :xs="24" :md="12">
+          <a-form-item>
+            <template #label>
+              <tooltip-label :title="$t('label.dr.consistency.mode')" :tooltip="$t('message.dr.plan.consistency.mode.help')" />
+            </template>
+            <a-select v-model:value="createForm.consistencymode">
+              <a-select-option value="CRASH_CONSISTENT">{{ $t('label.dr.consistency.crash') }}</a-select-option>
+              <a-select-option value="APPLICATION_CONSISTENT">{{ $t('label.dr.consistency.application') }}</a-select-option>
+            </a-select>
+          </a-form-item>
+              </a-col>
+              <a-col :xs="24" :md="12">
+          <a-form-item>
+            <template #label>
+              <tooltip-label :title="$t('label.dr.sync.interval.seconds')" :tooltip="$t('message.dr.plan.sync.interval.help')" />
+            </template>
+            <a-input-number
+              v-model:value="createForm.syncintervalseconds"
+              style="width: 100%"
+              :min="1"
+              :placeholder="$t('message.dr.plan.sync.interval.placeholder')" />
+          </a-form-item>
+              </a-col>
+              <a-col :xs="24" :md="12">
+          <a-form-item>
+            <template #label>
+              <tooltip-label :title="$t('label.dr.retention.count')" :tooltip="$t('message.dr.plan.retention.count.help')" />
+            </template>
+            <a-input-number
+              v-model:value="createForm.retentioncount"
+              style="width: 100%"
+              :min="1"
+              :placeholder="$t('message.dr.plan.retention.count.placeholder')" />
+          </a-form-item>
+              </a-col>
+              <a-col :xs="24" :md="12">
+          <a-form-item>
+            <template #label>
+              <tooltip-label :title="$t('label.dr.test.network.mode')" :tooltip="$t('message.dr.plan.test.network.mode.help')" />
+            </template>
+            <a-select v-model:value="createForm.testnetworkmode">
+              <a-select-option value="ISOLATED">{{ $t('label.dr.test.network.isolated') }}</a-select-option>
+              <a-select-option value="PRODUCTION">{{ $t('label.dr.test.network.production') }}</a-select-option>
+            </a-select>
+          </a-form-item>
+              </a-col>
+              <a-col :xs="24" :md="12">
+          <a-form-item>
+            <template #label>
+              <tooltip-label :title="$t('label.dr.test.boot.validation.mode')" :tooltip="$t('message.dr.plan.test.boot.validation.mode.help')" />
+            </template>
+            <a-select v-model:value="createForm.testbootvalidationmode">
+              <a-select-option value="POWER_STATE_ONLY">{{ $t('label.dr.test.boot.validation.power.state') }}</a-select-option>
+              <a-select-option value="QGA_REQUIRED">{{ $t('label.dr.test.boot.validation.qga') }}</a-select-option>
+            </a-select>
+          </a-form-item>
+              </a-col>
+              <a-col :xs="24" :md="12">
+          <a-form-item>
+            <template #label>
+              <tooltip-label :title="$t('label.dr.test.boot.timeout.seconds')" :tooltip="$t('message.dr.plan.test.boot.timeout.help')" />
+            </template>
+            <a-input-number v-model:value="createForm.testboottimeoutseconds" style="width: 100%" :min="30" :max="1800" />
+          </a-form-item>
+              </a-col>
+              <a-col :xs="24" :md="12">
+          <a-form-item>
+            <template #label>
+              <tooltip-label :title="$t('label.dr.failover.power.on')" :tooltip="$t('message.dr.plan.failover.power.on.help')" />
+            </template>
+            <a-switch v-model:checked="createForm.failoverpoweron" />
+          </a-form-item>
+              </a-col>
+            </a-row>
+          </a-collapse-panel>
+          <a-collapse-panel key="advanced" :header="$t('label.dr.expert.engine.settings')">
+              <a-form-item>
+                <template #label>
+                  <tooltip-label :title="$t('label.dr.expert.json.mode')" :tooltip="$t('message.dr.plan.expert.json.mode.help')" />
+                </template>
+                <a-switch v-model:checked="createForm.expertjson" />
+              </a-form-item>
+              <a-form-item :label="$t('label.dr.engine')">
+                <a-select v-model:value="createForm.enginetype" @change="onCreateEngineChange">
+                  <a-select-option
+                    v-for="engine in engineOptions"
+                    :key="engine.value"
+                    :value="engine.value"
+                    :disabled="engine.disabled">
+                    {{ $t(engine.label) }}
+                  </a-select-option>
+                </a-select>
+              </a-form-item>
+              <a-form-item v-if="createForm.expertjson" :label="$t('label.dr.engine.binding.type')">
+                <a-input v-model:value="createForm.enginebindingtype" />
+              </a-form-item>
+              <a-form-item v-if="createForm.expertjson" :label="$t('label.dr.engine.binding.id')">
+                <a-input-number v-model:value="createForm.enginebindingid" style="width: 100%" />
+              </a-form-item>
+              <a-form-item v-if="createForm.expertjson" :label="$t('label.dr.mapping.json')">
+                <a-textarea v-model:value="createForm.mappingjson" :rows="4" :placeholder="$t('message.dr.plan.mapping.json.placeholder')" />
+              </a-form-item>
+              <a-form-item v-if="createForm.expertjson" :label="$t('label.dr.schedule.json')">
+                <a-textarea v-model:value="createForm.schedulejson" :rows="2" :placeholder="$t('message.dr.plan.schedule.json.placeholder')" />
+              </a-form-item>
+              <a-form-item v-if="createForm.expertjson" :label="$t('label.dr.policy.json')">
+                <a-textarea v-model:value="createForm.policyjson" :rows="2" :placeholder="$t('message.dr.plan.policy.json.placeholder')" />
+              </a-form-item>
+              <a-form-item v-if="createForm.expertjson" :label="$t('label.dr.quiesce.policy.json')">
+                <a-textarea v-model:value="createForm.quiescepolicyjson" :rows="2" :placeholder="$t('message.dr.plan.quiesce.json.placeholder')" />
+              </a-form-item>
+          </a-collapse-panel>
+          </a-collapse>
+        </a-form>
+          </main>
+        </div>
+      </div>
+    </dr-form-modal>
+    <dr-resource-context-menu
+      :visible="contextMenuVisible"
+      :actions="planActions"
+      :resource="contextMenuPlan"
+      :position="contextMenuPosition"
+      @close="closeContextMenu"
+      @exec-action="runPlanAction" />
 
-    <a-modal
+    <dr-form-modal
       :visible="showActionModal"
       :title="actionModalTitle"
-      :confirmLoading="actionSubmitting"
-      :okText="$t('label.ok')"
-      :cancelText="$t('label.cancel')"
-      @ok="submitActionModal"
-      @cancel="closeActionModal">
+      :confirm-loading="actionSubmitting"
+      :danger="selectedAction.danger"
+      @cancel="closeActionModal"
+      @ok="submitActionModal">
+      <div class="form-layout cross-dr-form-layout" v-ctrl-enter="submitActionModal">
       <a-form layout="vertical" class="cross-dr-action-modal">
         <a-alert
           v-if="selectedAction.command"
@@ -285,15 +878,28 @@
           :label="$t('label.dr.action.skip.source.fence')">
           <a-switch v-model:checked="actionForm.skipsourcefencerequest" />
         </a-form-item>
-        <a-form-item
+        <a-alert
           v-if="isTestFailoverAction || isFailoverAction"
-          :label="$t('label.dr.restore.points')">
-          <a-select v-model:value="actionForm.restorepointid" allowClear>
-            <a-select-option v-for="restorePoint in actionRestorePoints" :key="restorePoint.id" :value="restorePoint.id">
-              {{ restorePointLabel(restorePoint) }}
-            </a-select-option>
-          </a-select>
-        </a-form-item>
+          type="info"
+          show-icon
+          :message="$t('message.dr.latest.checkpoint.automatic')" />
+        <template v-if="isTestFailoverAction">
+          <a-form-item :label="$t('label.dr.test.network.mode')">
+            <a-select v-model:value="actionForm.networkmode">
+              <a-select-option value="ISOLATED">{{ $t('label.dr.test.network.isolated') }}</a-select-option>
+              <a-select-option value="PRODUCTION">{{ $t('label.dr.test.network.production') }}</a-select-option>
+            </a-select>
+          </a-form-item>
+          <a-form-item :label="$t('label.dr.test.boot.validation.mode')">
+            <a-select v-model:value="actionForm.bootvalidationmode">
+              <a-select-option value="POWER_STATE_ONLY">{{ $t('label.dr.test.boot.validation.power.state') }}</a-select-option>
+              <a-select-option value="QGA_REQUIRED">{{ $t('label.dr.test.boot.validation.qga') }}</a-select-option>
+            </a-select>
+          </a-form-item>
+          <a-form-item :label="$t('label.dr.test.boot.timeout.seconds')">
+            <a-input-number v-model:value="actionForm.boottimeoutseconds" style="width: 100%" :min="30" :max="1800" />
+          </a-form-item>
+        </template>
         <a-form-item
           v-if="isFailbackAction"
           :label="$t('label.dr.failback.target.mold.type')">
@@ -348,34 +954,57 @@
           <a-input v-model:value="actionForm.acknowledgement" />
         </a-form-item>
       </a-form>
-    </a-modal>
+      </div>
+    </dr-form-modal>
   </div>
 </template>
 
 <script>
 import { notification } from 'ant-design-vue'
-import DrActionToolbar from '@/components/dr/DrActionToolbar.vue'
+import ActionButton from '@/components/view/ActionButton'
+import Breadcrumb from '@/components/widgets/Breadcrumb'
 import DrEventsTab from '@/views/infra/dr/DrEventsTab.vue'
+import DrFormModal from '@/components/dr/DrFormModal.vue'
+import DrPlanHistoryTab from '@/views/infra/dr/DrPlanHistoryTab.vue'
 import DrPlanOverview from '@/views/infra/dr/DrPlanOverview.vue'
-import DrReplicaTab from '@/views/infra/dr/DrReplicaTab.vue'
-import DrRestorePointsTab from '@/views/infra/dr/DrRestorePointsTab.vue'
-import DrRpoKpi from '@/components/dr/DrRpoKpi.vue'
-import DrRunsTab from '@/views/infra/dr/DrRunsTab.vue'
-import DrStatusPill from '@/components/dr/DrStatusPill.vue'
-import { createDrPlan, getDrPlan, listDrPlans, listDrReplicas, listDrRestorePoints, listDrRuns, listDrSites, startDrAction } from '@/api/dr'
+import DrProtectionInfoTab from '@/views/infra/dr/DrProtectionInfoTab.vue'
+import DrResourceActionMenu from '@/components/dr/DrResourceActionMenu.vue'
+import DrResourceContextMenu from '@/components/dr/DrResourceContextMenu.vue'
+import DrResourceInfoCard from '@/components/dr/DrResourceInfoCard.vue'
+import ResourceLayout from '@/layouts/ResourceLayout'
+import SearchFilter from '@/components/view/SearchFilter'
+import SearchView from '@/components/view/SearchView'
+import Status from '@/components/widgets/Status'
+import TooltipLabel from '@/components/widgets/TooltipLabel'
+import { createDrPlan, deleteDrPlan, discoverDrPlanInventory, getDrPlan, getDrProtectionView, listDrPlans, listDrReplicas, listDrRuns, listDrSites, previewDrPlanSpec, refreshDrProtectionView, startDrAction, updateDrPlan } from '@/api/dr'
+import { DEFAULT_DR_PLAN_ACTIVE_SECTIONS, DR_PLAN_DIALOG_SECTIONS, drPlanSectionForValidation } from '@/utils/dr/planDialogSections'
+import { resolveDrPlanState } from '@/utils/dr/planState'
+import { buildDrPlanActions } from '@/utils/dr/resourceActions'
+import { mixinDevice } from '@/utils/mixin.js'
+import { BranchesOutlined, ClockCircleOutlined, DesktopOutlined, GlobalOutlined } from '@ant-design/icons-vue'
 
 export default {
   name: 'DrPlanList',
   components: {
-    DrActionToolbar,
+    ActionButton,
+    Breadcrumb,
     DrEventsTab,
+    DrFormModal,
+    DrPlanHistoryTab,
     DrPlanOverview,
-    DrReplicaTab,
-    DrRestorePointsTab,
-    DrRpoKpi,
-    DrRunsTab,
-    DrStatusPill
+    DrProtectionInfoTab,
+    DrResourceActionMenu,
+    DrResourceContextMenu,
+    DrResourceInfoCard,
+    BranchesOutlined,
+    GlobalOutlined,
+    ResourceLayout,
+    SearchFilter,
+    SearchView,
+    Status,
+    TooltipLabel
   },
+  mixins: [mixinDevice],
   data () {
     return {
       loading: false,
@@ -383,43 +1012,83 @@ export default {
       actionLoading: '',
       actionLoadingPlanId: '',
       plans: [],
+      listTotal: 0,
       sites: [],
       detailPlan: {},
+      listLoadWarning: '',
+      detailLoadWarning: '',
       detailRuns: [],
-      activeTab: this.$route.query.tab || 'overview',
+      protectionView: {},
+      protectionSnapshot: {},
+      protectionRefreshing: false,
+      activeTab: this.normalizeDetailTab(this.$route.query.tab),
       showCreateModal: false,
       showActionModal: false,
+      planFormMode: 'create',
+      editingPlan: {},
+      contextMenuVisible: false,
+      contextMenuPlan: {},
+      contextMenuPosition: { x: 0, y: 0 },
       actionSubmitting: false,
       selectedAction: {},
       selectedActionPlan: {},
       actionReplicas: [],
-      actionRestorePoints: [],
       actionForm: this.defaultActionForm(),
       runtimePollTimer: null,
       runtimePollInFlight: false,
-      runtimePollIntervalMs: 5000,
+      activeRuntimePollIntervalMs: 5000,
+      steadyProtectionPollIntervalMs: 10000,
+      searchQuery: '',
+      searchParams: {},
+      selectedRowKeys: [],
+      selectedColumns: ['name', 'state', 'direction', 'sourcesiteid', 'targetsiteid', 'targetreadyrposeconds', 'enginetype'],
+      page: 1,
+      pageSize: this.$store.getters.defaultListViewPageSize || 20,
       filters: {
         state: undefined,
         direction: undefined
       },
       createForm: this.defaultCreateForm(),
+      sourceWorkloadLoading: false,
+      sourceWorkloadOptions: [],
+      sourceWorkloadMessage: '',
+      sourceWorkloadSearchTimer: null,
+      sourceWorkloadKeyword: '',
+      sourceWorkloadLoadedKey: '',
+      sourceWorkerHostOptions: [],
+      targetWorkerHostOptions: [],
+      coordinatorWorkerHostOptions: [],
+      targetZoneOption: null,
+      targetServiceOfferingOptions: [],
+      targetDiskOfferingOptions: [],
+      targetStorageOptions: [],
+      targetComputeOptions: [],
+      targetNetworkOptions: [],
+      targetFolderOptions: [],
+      sourceDiskOptions: [],
+      sourceNicOptions: [],
+      sourceHardware: {},
+      resolvedTargetHardware: {},
+      diskMappingRows: [],
+      inventoryBlockingReasons: [],
+      inventoryWarnings: [],
+      planSectionActiveKeys: [...DEFAULT_DR_PLAN_ACTIVE_SECTIONS],
       directions: ['KVM_TO_KVM', 'KVM_TO_VMWARE', 'VMWARE_TO_VMWARE', 'VMWARE_TO_KVM'],
       engineOptions: [
-        { value: 'FTCTL_DR', label: 'FTCTL_DR' },
-        { value: 'FTCTL', label: 'FTCTL' },
-        { value: 'VMWARE_PHASE1', label: 'VMWARE_PHASE1' },
-        { value: 'V2K', label: 'V2K (migration-only)', disabled: true }
+        { value: 'FTCTL_DR', label: 'label.dr.engine.ftctl.dr' },
+        { value: 'FTCTL', label: 'label.dr.engine.ftctl' },
+        { value: 'VMWARE_PHASE1', label: 'label.dr.engine.vmware.phase1' },
+        { value: 'V2K', label: 'label.dr.engine.v2k.migration.only', disabled: true }
       ],
       planStates: ['CREATED', 'ENABLED', 'SYNCING', 'READY', 'TESTING', 'FAILED_OVER', 'FAILBACK_READY', 'REPROTECTING', 'PAUSED', 'ERROR'],
       columns: [
-        { key: 'name', title: this.$t('label.name'), dataIndex: 'name' },
-        { key: 'state', title: this.$t('label.state'), dataIndex: 'state' },
-        { key: 'direction', title: this.$t('label.dr.direction'), dataIndex: 'direction' },
-        { key: 'sourcesiteid', title: this.$t('label.dr.source.site'), dataIndex: 'sourcesiteid' },
-        { key: 'targetsiteid', title: this.$t('label.dr.target.site'), dataIndex: 'targetsiteid' },
-        { key: 'targetreadyrposeconds', title: this.$t('label.dr.target.rpo'), dataIndex: 'targetreadyrposeconds' },
-        { key: 'enginetype', title: this.$t('label.dr.engine'), dataIndex: 'enginetype' },
-        { key: 'actions', title: this.$t('label.actions'), width: 280 }
+        { key: 'name', title: this.$t('label.name'), dataIndex: 'name', sorter: this.sortBy('name') },
+        { key: 'state', title: this.$t('label.state'), dataIndex: 'state', sorter: this.sortBy('state') },
+        { key: 'direction', title: this.$t('label.dr.direction'), dataIndex: 'direction', sorter: this.sortBy('direction') },
+        { key: 'sourcesiteid', title: this.$t('label.dr.source.site'), dataIndex: 'sourcesiteid', sorter: this.sortBy('sourcesiteid') },
+        { key: 'targetsiteid', title: this.$t('label.dr.target.site'), dataIndex: 'targetsiteid', sorter: this.sortBy('targetsiteid') },
+        { key: 'targetreadyrposeconds', title: this.$t('label.dr.target.rpo'), dataIndex: 'targetreadyrposeconds', sorter: this.sortBy('targetreadyrposeconds') },
+        { key: 'enginetype', title: this.$t('label.dr.engine'), dataIndex: 'enginetype', sorter: this.sortBy('enginetype') }
       ]
     }
   },
@@ -430,25 +1099,314 @@ export default {
     detailId () {
       return this.$route.params.id || ''
     },
+    breadcrumbResource () {
+      return this.detailId ? this.detailPlan : {}
+    },
     siteById () {
       return this.sites.reduce((map, site) => {
         map[site.id] = site
         return map
       }, {})
     },
+    planInfoTags () {
+      const plan = this.detailPlan || {}
+      return [
+        {
+          key: 'direction',
+          label: plan.direction ? this.$t(this.directionLabel(plan.direction)) : '',
+          visible: !!plan.direction
+        },
+        {
+          key: 'engine',
+          label: plan.enginetype ? this.$t(this.engineLabel(plan.enginetype)) : '',
+          visible: !!plan.enginetype
+        }
+      ]
+    },
+    planSummaryFields () {
+      const plan = this.detailPlan || {}
+      const sourceVm = plan.sourcevmid || plan.sourceexternalref
+      return [
+        {
+          key: 'state',
+          label: this.$t('label.status'),
+          component: Status,
+          props: { text: this.effectivePlanState(plan), displayText: true },
+          visible: !!(plan.protectionstate || plan.effectivestate || plan.state)
+        },
+        {
+          key: 'readiness',
+          label: this.$t('label.dr.readiness'),
+          component: Status,
+          props: { text: this.effectivePlanState(plan), displayText: true },
+          visible: !!plan.readinessstate
+        },
+        {
+          key: 'targetMaterialized',
+          label: this.$t('label.dr.target.materialized'),
+          component: Status,
+          props: { text: plan.targetmaterialized ? 'READY' : 'PENDING', displayText: true },
+          visible: plan.targetmaterialized !== undefined
+        },
+        {
+          key: 'id',
+          label: this.$t('label.id'),
+          value: plan.id,
+          icon: 'barcode-outlined',
+          copy: true,
+          copyTooltip: this.$t('label.copyid'),
+          copyResource: String(plan.id || ''),
+          copyLabel: true,
+          visible: !!plan.id
+        },
+        {
+          key: 'sourceSite',
+          label: this.$t('label.dr.source.site'),
+          value: this.siteName(plan.sourcesiteid),
+          iconComponent: GlobalOutlined,
+          visible: !!plan.sourcesiteid
+        },
+        {
+          key: 'targetSite',
+          label: this.$t('label.dr.target.site'),
+          value: this.siteName(plan.targetsiteid),
+          iconComponent: GlobalOutlined,
+          visible: !!plan.targetsiteid
+        },
+        {
+          key: 'sourceVm',
+          label: this.$t('label.dr.source.vm'),
+          value: sourceVm,
+          route: plan.sourcevmid ? { path: '/vm/' + plan.sourcevmid } : null,
+          iconComponent: DesktopOutlined,
+          copyLabel: !plan.sourcevmid,
+          visible: !!sourceVm
+        },
+        {
+          key: 'rpo',
+          label: this.$t('label.dr.rpo'),
+          value: this.formatSeconds(plan.rposeconds),
+          iconComponent: ClockCircleOutlined
+        },
+        {
+          key: 'rto',
+          label: this.$t('label.dr.rto'),
+          value: this.formatSeconds(plan.rtoseconds),
+          iconComponent: ClockCircleOutlined
+        },
+        {
+          key: 'currentRun',
+          label: this.$t('label.dr.runs'),
+          component: Status,
+          props: { text: this.currentRun.state || '', displayText: true },
+          visible: !!this.currentRun.id
+        }
+      ]
+    },
+    searchFilters () {
+      return ['direction', 'enginetype']
+    },
+    directionOptions () {
+      return this.directions.map(direction => ({
+        value: direction,
+        label: this.directionLabel(direction)
+      }))
+    },
+    selectedSourceSite () {
+      return this.siteById[this.createForm.sourcesiteid] || {}
+    },
+    selectedTargetSite () {
+      return this.siteById[this.createForm.targetsiteid] || {}
+    },
+    canDiscoverSourceWorkloads () {
+      return !!(this.createForm.sourcesiteid && this.createForm.targetsiteid && this.createForm.direction)
+    },
+    directionUsesVmwareTarget () {
+      return String(this.createForm.direction || '').toUpperCase().endsWith('_VMWARE')
+    },
+    directionUsesKvmSource () {
+      return String(this.createForm.direction || '').toUpperCase().startsWith('KVM_')
+    },
+    directionUsesKvmTarget () {
+      return String(this.createForm.direction || '').toUpperCase().endsWith('_KVM')
+    },
+    requiresDiskMapping () {
+      return !this.createForm.expertjson && this.directionUsesKvmTarget && !!(this.createForm.sourcevmid || this.createForm.sourceexternalref)
+    },
+    sourceWorkloadPlaceholder () {
+      if (!this.createForm.sourcesiteid || !this.createForm.targetsiteid) {
+        return this.$t('message.dr.plan.source.vm.placeholder.wait.site')
+      }
+      if (this.sourceWorkloadLoading) {
+        return this.$t('message.dr.plan.source.vm.placeholder.loading')
+      }
+      return this.$t('message.dr.plan.source.vm.placeholder')
+    },
+    sourceWorkloadHelpText () {
+      if (this.sourceWorkloadMessage) {
+        return this.sourceWorkloadMessage
+      }
+      if (!this.canDiscoverSourceWorkloads) {
+        return this.$t('message.dr.plan.source.vm.help.wait.site')
+      }
+      if (!this.sourceWorkloadLoading && this.sourceWorkloadOptions.length === 0 && this.sourceWorkloadLoadedKey) {
+        return this.$t('message.dr.plan.source.vm.empty')
+      }
+      return ''
+    },
+    createPlanActions () {
+      return [{
+        api: 'createDrPlan',
+        icon: 'plus-outlined',
+        label: 'label.dr.plan.add',
+        listView: true
+      }]
+    },
+    planActions () {
+      return buildDrPlanActions(this.detailId ? this.currentRun : {})
+    },
+    planModalTitle () {
+      return this.planFormMode === 'edit' ? this.$t('label.dr.plan.edit') : this.$t('label.dr.plan.add')
+    },
+    planModalWidth () {
+      return this.device === 'mobile' ? 'calc(100vw - 24px)' : '1120px'
+    },
+    planSummaryItems () {
+      const sourceSite = this.selectedSourceSite
+      const targetSite = this.selectedTargetSite
+      return [
+        {
+          key: 'name',
+          label: this.$t('label.name'),
+          value: this.createForm.name
+        },
+        {
+          key: 'direction',
+          label: this.$t('label.dr.direction'),
+          value: this.createForm.direction ? this.$t(this.directionLabel(this.createForm.direction)) : ''
+        },
+        {
+          key: 'sourceSite',
+          label: this.$t('label.dr.source.site'),
+          value: sourceSite.name || sourceSite.displaytext || sourceSite.id
+        },
+        {
+          key: 'targetSite',
+          label: this.$t('label.dr.target.site'),
+          value: targetSite.name || targetSite.displaytext || targetSite.id
+        },
+        {
+          key: 'sourceWorkload',
+          label: this.$t('label.dr.source.vm'),
+          value: this.createForm.sourceworkloadname || this.createForm.sourceexternalref || this.createForm.sourcevmid
+        },
+        {
+          key: 'targetVmName',
+          label: this.$t('label.dr.target.vm.name'),
+          value: this.createForm.targetvmname
+        },
+        {
+          key: 'sourceBoot',
+          label: this.$t('label.dr.source.boot'),
+          value: this.hardwareBootLabel(this.sourceHardware, true)
+        },
+        {
+          key: 'targetBoot',
+          label: this.$t('label.dr.target.boot'),
+          value: this.hardwareBootLabel(this.effectiveTargetHardware, false)
+        },
+        {
+          key: 'targetIo',
+          label: this.$t('label.dr.target.io'),
+          value: this.effectiveTargetHardware.ioPolicy || this.effectiveTargetHardware.iopolicy || 'io_uring'
+        },
+        {
+          key: 'defaultStorage',
+          label: this.$t('label.dr.default.target.storage'),
+          value: this.optionDisplayName(this.targetStorageOptions, this.createForm.targetstorageref)
+        }
+      ]
+    },
+    effectiveTargetHardware () {
+      if (Object.keys(this.resolvedTargetHardware || {}).length > 0) {
+        return this.resolvedTargetHardware
+      }
+      const firmware = String(this.sourceHardware.firmware || '').toUpperCase()
+      const secure = String(this.sourceHardware.secureBoot || this.sourceHardware.secureboot || '').toLowerCase() === 'true'
+      if (!firmware) return {}
+      return {
+        bootType: firmware.includes('EFI') || secure ? 'UEFI' : 'BIOS',
+        bootMode: firmware.includes('EFI') && secure ? 'SECURE' : 'LEGACY',
+        ioPolicy: 'io_uring'
+      }
+    },
+    diskMappingSummaryText () {
+      const total = this.diskMappingRows.length
+      const completed = this.diskMappingRows.filter(row => row.targetDiskName && row.targetDiskOfferingId && row.targetStorageRef).length
+      return this.$t('message.dr.plan.disk.mapping.summary', { completed, total })
+    },
+    hasDiskLevelStorageAuthority () {
+      return this.requiresDiskMapping &&
+        this.diskMappingRows.length > 0 &&
+        !this.diskMappingRows.some(row => !row.targetStorageRef)
+    },
+    columnSelectorColumns () {
+      return this.columns.filter(column => !column.alwaysVisible)
+    },
+    tableColumns () {
+      return [
+        ...this.columns.filter(column => column.alwaysVisible || this.selectedColumns.includes(column.dataIndex)),
+        {
+          key: 'filtercolumn',
+          dataIndex: 'filtercolumn',
+          title: '',
+          customFilterDropdown: true,
+          width: 5
+        }
+      ]
+    },
+    listRowSelection () {
+      return {
+        selectedRowKeys: this.selectedRowKeys,
+        onChange: this.onRowSelectionChange,
+        columnWidth: 30
+      }
+    },
+    filterValue () {
+      return this.filters.state || 'all'
+    },
+    activeFiltersList () {
+      const activeFilters = []
+      if (this.filters.state) {
+        activeFilters.push({ key: 'state', value: this.filters.state, isTag: false })
+      }
+      if (this.filters.direction) {
+        activeFilters.push({ key: 'direction', value: this.filters.direction, isTag: false })
+      }
+      for (const key in this.searchParams) {
+        const value = this.searchParams[key]
+        if (value !== '' && value !== undefined && value !== null) {
+          activeFilters.push({ key, value, isTag: false })
+        }
+      }
+      return activeFilters
+    },
+    showSearchFilters () {
+      const excludedKeys = ['page', 'pagesize', 'q', 'keyword', 'tags', 'projectid']
+      return !this.detailId && this.activeFiltersList.some(f => !excludedKeys.includes(f.key))
+    },
     filteredPlans () {
-      return this.plans.filter(plan => {
-        if (this.filters.state && plan.state !== this.filters.state) {
-          return false
-        }
-        if (this.filters.direction && plan.direction !== this.filters.direction) {
-          return false
-        }
-        return true
-      })
+      return this.plans
+    },
+    normalizedPage () {
+      const maxPage = Math.max(1, Math.ceil(this.listTotal / this.pageSize))
+      return Math.min(this.page, maxPage)
+    },
+    pagedPlans () {
+      return this.filteredPlans
     },
     currentRun () {
-      return this.detailRuns.find(run => this.isActiveRun(run)) || this.detailRuns[0] || {}
+      return this.detailRuns.find(run => this.isActiveRun(run)) || this.detailRuns[0] || this.detailPlan.lastrun || {}
     },
     actionModalTitle () {
       return this.selectedAction.label ? this.$t(this.selectedAction.label) : this.$t('label.actions')
@@ -470,19 +1428,31 @@ export default {
     },
     isReleaseAction () {
       return this.selectedAction.command === 'releaseDrProtection'
+    },
+    pageSizeOptions () {
+      return this.device === 'desktop' ? ['20', '50', '100', '200'] : ['10', '20', '50', '100', '200']
     }
   },
   watch: {
-    '$route.fullPath': function () {
-      this.activeTab = this.$route.query.tab || 'overview'
+    '$route.path': function () {
       this.fetchData()
+    },
+    '$route.query.tab': function () {
+      this.activeTab = this.normalizeDetailTab(this.$route.query.tab)
     }
   },
   created () {
     this.fetchData()
   },
+  mounted () {
+    document.addEventListener('visibilitychange', this.onVisibilityChange)
+  },
   beforeUnmount () {
     this.stopRuntimePolling()
+    document.removeEventListener('visibilitychange', this.onVisibilityChange)
+    if (this.sourceWorkloadSearchTimer) {
+      clearTimeout(this.sourceWorkloadSearchTimer)
+    }
   },
   methods: {
     defaultCreateForm () {
@@ -493,6 +1463,9 @@ export default {
         targetsiteid: undefined,
         direction: 'KVM_TO_KVM',
         sourcevmid: '',
+        sourceexternalref: '',
+        sourceworkloadvalue: undefined,
+        sourceworkloadname: '',
         enginetype: 'FTCTL_DR',
         enginebindingtype: 'FTCTL_DR',
         enginebindingid: undefined,
@@ -505,6 +1478,34 @@ export default {
         schedulejson: '',
         policyjson: '',
         quiescepolicyjson: '',
+        diskmappingsjson: '',
+        allowdraft: true,
+        guidedplan: true,
+        expertjson: false,
+        targetvmname: '',
+        targetzoneid: '',
+        targetstorageref: '',
+        targetcomputeref: '',
+        targetcpunumber: undefined,
+        targetcpuspeed: undefined,
+        targetmemory: undefined,
+        targetboottype: '',
+        targetbootmode: '',
+        targetrootdiskcontroller: '',
+        targetdatadiskcontroller: '',
+        targetiothreadsenabled: true,
+        targetiopolicy: 'io_uring',
+        targetnetworkref: '',
+        targetfolderpath: '',
+        consistencymode: 'CRASH_CONSISTENT',
+        testnetworkmode: 'ISOLATED',
+        testbootvalidationmode: 'POWER_STATE_ONLY',
+        testboottimeoutseconds: 180,
+        failoverpoweron: true,
+        syncintervalseconds: 300,
+        retentioncount: 24,
+        bandwidthlimitmbps: undefined,
+        retrycount: 3,
         startsync: false
       }
     },
@@ -524,16 +1525,18 @@ export default {
         targetmoldapikey: '',
         targetmoldsecretkey: '',
         replicaid: undefined,
-        restorepointid: undefined,
-        cleanuptransport: true
+        cleanuptransport: true,
+        networkmode: 'ISOLATED',
+        bootvalidationmode: 'POWER_STATE_ONLY',
+        boottimeoutseconds: 180
       }
     },
     fetchData () {
       if (this.detailId) {
-        this.fetchDetail()
+        return this.fetchDetail()
       } else {
         this.stopRuntimePolling()
-        this.fetchList()
+        return this.fetchList()
       }
     },
     fetchSites () {
@@ -545,16 +1548,594 @@ export default {
         this.sites = result.items || []
       })
     },
-    fetchList () {
-      this.loading = true
-      Promise.all([
-        this.fetchSites(),
-        listDrPlans().then(result => {
-          this.plans = result.items || []
+    changeSourceSite () {
+      this.refreshDirectionFromSites()
+      this.resetSourceWorkloads(true)
+      this.ensureSourceWorkloads()
+    },
+    changeTargetSite () {
+      this.refreshDirectionFromSites()
+      this.resetSourceWorkloads(true)
+      this.ensureSourceWorkloads()
+    },
+    refreshDirectionFromSites () {
+      if (!this.createForm.sourcesiteid || !this.createForm.targetsiteid) {
+        return
+      }
+      this.createForm.direction = this.directionForSites(this.selectedSourceSite, this.selectedTargetSite)
+      this.onCreateEngineChange(this.createForm.enginetype)
+    },
+    directionForSites (sourceSite, targetSite) {
+      const sourceVmware = this.isVmwareSite(sourceSite)
+      const targetVmware = this.isVmwareSite(targetSite)
+      if (sourceVmware && targetVmware) return 'VMWARE_TO_VMWARE'
+      if (sourceVmware) return 'VMWARE_TO_KVM'
+      if (targetVmware) return 'KVM_TO_VMWARE'
+      return 'KVM_TO_KVM'
+    },
+    isVmwareSite (site) {
+      return String(site?.hypervisortype || '').toUpperCase() === 'VMWARE'
+    },
+    resetSourceWorkloads (clearSelection = false) {
+      this.sourceWorkloadOptions = []
+      this.sourceWorkloadMessage = ''
+      this.sourceWorkloadLoadedKey = ''
+      this.sourceWorkerHostOptions = []
+      this.targetWorkerHostOptions = []
+      this.coordinatorWorkerHostOptions = []
+      this.targetZoneOption = null
+      this.targetServiceOfferingOptions = []
+      this.targetDiskOfferingOptions = []
+      this.targetStorageOptions = []
+      this.targetComputeOptions = []
+      this.targetNetworkOptions = []
+      this.targetFolderOptions = []
+      this.sourceDiskOptions = []
+      this.sourceNicOptions = []
+      this.sourceHardware = {}
+      this.resolvedTargetHardware = {}
+      this.diskMappingRows = []
+      this.inventoryBlockingReasons = []
+      this.inventoryWarnings = []
+      if (clearSelection) {
+        this.createForm.sourceworkloadvalue = undefined
+        this.createForm.sourceworkloadname = ''
+        this.createForm.sourcevmid = ''
+        this.createForm.sourceexternalref = ''
+        this.createForm.targetvmname = ''
+        this.createForm.targetzoneid = ''
+        this.createForm.targetstorageref = ''
+        this.createForm.targetcomputeref = ''
+        this.createForm.targetcpunumber = undefined
+        this.createForm.targetcpuspeed = undefined
+        this.createForm.targetmemory = undefined
+        this.createForm.targetnetworkref = ''
+        this.createForm.targetfolderpath = ''
+        this.createForm.diskmappingsjson = ''
+      }
+    },
+    sourceWorkloadInventoryKey (keyword = this.sourceWorkloadKeyword) {
+      return [
+        this.createForm.sourcesiteid || '',
+        this.createForm.targetsiteid || '',
+        this.createForm.direction || '',
+        this.createForm.sourcevmid || this.createForm.sourceexternalref || '',
+        keyword || ''
+      ].join('|')
+    },
+    ensureSourceWorkloads () {
+      if (this.planFormMode !== 'create' || !this.canDiscoverSourceWorkloads) {
+        return
+      }
+      if (this.sourceWorkloadLoadedKey !== this.sourceWorkloadInventoryKey()) {
+        this.fetchSourceWorkloads()
+      }
+    },
+    searchSourceWorkloads (keyword) {
+      this.sourceWorkloadKeyword = keyword || ''
+      if (this.sourceWorkloadSearchTimer) {
+        clearTimeout(this.sourceWorkloadSearchTimer)
+      }
+      this.sourceWorkloadSearchTimer = setTimeout(() => {
+        this.fetchSourceWorkloads(true)
+      }, 350)
+    },
+    fetchSourceWorkloads (force = false) {
+      if (!('discoverDrPlanInventory' in this.$store.getters.apis) || !this.canDiscoverSourceWorkloads) {
+        return Promise.resolve()
+      }
+      const inventoryKey = this.sourceWorkloadInventoryKey()
+      if (!force && this.sourceWorkloadLoadedKey === inventoryKey) {
+        return Promise.resolve()
+      }
+      this.sourceWorkloadLoading = true
+      this.sourceWorkloadMessage = ''
+      return discoverDrPlanInventory({
+        sourcesiteid: this.createForm.sourcesiteid,
+        targetsiteid: this.createForm.targetsiteid,
+        sourcevmid: this.createForm.sourcevmid || undefined,
+        sourceexternalref: this.createForm.sourceexternalref || undefined,
+        keyword: this.sourceWorkloadKeyword || undefined,
+        includeplacement: true,
+        includedisks: !!(this.createForm.sourcevmid || this.createForm.sourceexternalref),
+        includenetworks: true
+      }).then(result => {
+        this.createForm.direction = result.direction || this.createForm.direction
+        this.sourceWorkloadOptions = this.normalizeSourceWorkloads(result.sourceworkloads || [])
+        this.sourceWorkerHostOptions = this.normalizeInventoryOptions(result.sourceworkerhosts || [])
+        this.targetWorkerHostOptions = this.normalizeInventoryOptions(result.targetworkerhosts || [])
+        this.coordinatorWorkerHostOptions = this.normalizeInventoryOptions(result.coordinatorworkerhosts || [])
+        this.targetZoneOption = result.targetzone || null
+        this.createForm.targetzoneid = this.targetZoneOption?.value || this.createForm.targetzoneid
+        this.targetStorageOptions = this.normalizeInventoryOptions(result.targetstorageoptions || [])
+        this.targetServiceOfferingOptions = this.normalizeInventoryOptions(result.targetserviceofferings || [])
+        this.targetDiskOfferingOptions = this.normalizeInventoryOptions(result.targetdiskofferings || [])
+        this.targetComputeOptions = this.targetServiceOfferingOptions.length > 0
+          ? this.targetServiceOfferingOptions
+          : this.normalizeInventoryOptions(result.targetcomputeoptions || [])
+        this.targetNetworkOptions = this.normalizeInventoryOptions(result.targetnetworkoptions || [])
+        this.targetFolderOptions = this.normalizeInventoryOptions(result.targetfolderoptions || [])
+        this.sourceDiskOptions = this.normalizeInventoryOptions(result.sourcedisks || [])
+        this.sourceNicOptions = this.normalizeInventoryOptions(result.sourcenics || [])
+        this.sourceHardware = this.parseOptionDetails(result.sourcehardware)
+        this.resolvedTargetHardware = {}
+        this.inventoryBlockingReasons = result.blockingreasons || []
+        this.inventoryWarnings = result.warnings || []
+        if (this.sourceDiskOptions.length > 0) {
+          this.rebuildDiskMappingRows()
+        }
+        this.applyDefaultGuidedSelections()
+        this.sourceWorkloadLoadedKey = inventoryKey
+        if (result.healthstate && result.healthstate !== 'CONNECTED') {
+          this.sourceWorkloadMessage = result.message || this.$t('message.dr.plan.source.vm.discovery.failed')
+        }
+      }).catch(error => {
+        this.sourceWorkloadOptions = []
+        this.sourceWorkerHostOptions = []
+        this.targetWorkerHostOptions = []
+        this.coordinatorWorkerHostOptions = []
+        this.targetZoneOption = null
+        this.targetServiceOfferingOptions = []
+        this.targetDiskOfferingOptions = []
+        this.targetStorageOptions = []
+        this.targetComputeOptions = []
+        this.targetNetworkOptions = []
+        this.targetFolderOptions = []
+        this.sourceDiskOptions = []
+        this.sourceNicOptions = []
+        this.inventoryBlockingReasons = []
+        this.inventoryWarnings = []
+        this.sourceWorkloadLoadedKey = ''
+        this.sourceWorkloadMessage = error?.response?.data?.errorresponse?.errortext || error?.message || this.$t('message.dr.plan.source.vm.discovery.failed')
+      }).finally(() => {
+        this.sourceWorkloadLoading = false
+      })
+    },
+    normalizeSourceWorkloads (workloads) {
+      return (Array.isArray(workloads) ? workloads : [workloads]).filter(Boolean).map((workload, index) => {
+        const optionKey = [
+          workload.referencetype || 'EXTERNAL_REF',
+          workload.value || workload.externalref || workload.externalid || workload.id || index
+        ].join(':')
+        return Object.assign({}, workload, { optionKey })
+      }).map(workload => {
+        return Object.assign({}, workload, {
+          detailsObject: this.parseOptionDetails(workload.details)
         })
-      ]).finally(() => {
+      })
+    },
+    normalizeInventoryOptions (options) {
+      return (Array.isArray(options) ? options : [options]).filter(Boolean).map((option, index) => {
+        const optionKey = [
+          option.referencetype || option.type || 'OPTION',
+          option.value || option.externalid || option.localid || option.id || index
+        ].join(':')
+        return Object.assign({}, option, {
+          optionKey,
+          detailsObject: this.parseOptionDetails(option.details)
+        })
+      })
+    },
+    normalizeDiskSizeBytes (value) {
+      const parsed = Number(value)
+      return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 0
+    },
+    sourceDiskSizeBytes (disk) {
+      const details = (disk && disk.detailsObject) || {}
+      return this.normalizeDiskSizeBytes(details.sizeBytes || details.capacityBytes || details.capacity || disk.sizeBytes || disk.capacityBytes || disk.capacity || '')
+    },
+    sourceDiskPath (disk) {
+      const details = (disk && disk.detailsObject) || {}
+      return details.path || details.vmdkFile || details.backingFile || disk.description || ''
+    },
+    sourceDiskRef (disk, index) {
+      const details = (disk && disk.detailsObject) || {}
+      return details.diskRef || disk.value || disk.externalid || disk.externalId || disk.id || String(index)
+    },
+    sourceDiskControllerBusNumber (disk) {
+      const details = (disk && disk.detailsObject) || {}
+      return details.controllerBusNumber || details.controllerBus || details.bus || ''
+    },
+    sourceDiskUnitNumber (disk) {
+      const details = (disk && disk.detailsObject) || {}
+      return details.unitNumber || details.unit || ''
+    },
+    sourceDiskCbtId (disk) {
+      const details = (disk && disk.detailsObject) || {}
+      if (details.cbtDiskId) {
+        return details.cbtDiskId
+      }
+      const bus = this.sourceDiskControllerBusNumber(disk)
+      const unit = this.sourceDiskUnitNumber(disk)
+      return bus !== '' && unit !== '' ? `scsi${bus}:${unit}` : ''
+    },
+    sourceDiskDeviceKey (disk) {
+      const details = (disk && disk.detailsObject) || {}
+      return details.deviceKey || details.key || details.diskRef || disk.externalid || disk.externalId || disk.id || ''
+    },
+    sourceDiskControllerType (disk) {
+      const details = (disk && disk.detailsObject) || {}
+      const controller = details.controller || {}
+      return details.sourceController || details.controllerType || controller.type || controller.name || (typeof details.controller === 'string' ? details.controller : '') || ''
+    },
+    formatBytes (value) {
+      const bytes = this.normalizeDiskSizeBytes(value)
+      if (!bytes) {
+        return '-'
+      }
+      const gib = bytes / 1024 / 1024 / 1024
+      return gib >= 1 ? `${gib.toFixed(gib >= 10 ? 0 : 1)} GiB` : `${bytes} B`
+    },
+    storageOptionForRef (storageRef) {
+      return this.findOptionByValue(this.targetStorageOptions, storageRef) || {}
+    },
+    targetDiskTypeForStorage (storageRef) {
+      const option = this.storageOptionForRef(storageRef)
+      const details = option.detailsObject || {}
+      const text = [
+        details.storagePoolType,
+        details.poolType,
+        details.type,
+        option.type,
+        option.description,
+        option.name,
+        option.value
+      ].filter(Boolean).join(' ').toLowerCase()
+      return text.includes('rbd') ? 'rbd' : 'file'
+    },
+    targetDiskFormatForStorage (storageRef) {
+      return this.targetDiskTypeForStorage(storageRef) === 'rbd' ? 'raw' : 'qcow2'
+    },
+    parseOptionDetails (details) {
+      if (!details) {
+        return {}
+      }
+      if (typeof details === 'object') {
+        return details
+      }
+      try {
+        return JSON.parse(details)
+      } catch (e) {
+        return {}
+      }
+    },
+    hardwareBootLabel (hardware, source) {
+      if (!hardware || Object.keys(hardware).length === 0) return ''
+      const type = hardware.firmware || hardware.bootType || hardware.boottype || ''
+      const secureValue = hardware.secureBoot ?? hardware.secureboot
+      const mode = hardware.bootMode || hardware.bootmode || (String(secureValue).toLowerCase() === 'true' ? 'SECURE' : 'LEGACY')
+      if (!type) return ''
+      return source ? `${type} / ${mode === 'SECURE' ? 'Secure Boot' : mode}` : `${type} / ${mode}`
+    },
+    changeSourceWorkload (optionKey) {
+      const workload = this.sourceWorkloadOptions.find(item => item.optionKey === optionKey)
+      this.createForm.sourceworkloadvalue = optionKey
+      this.createForm.sourceworkloadname = workload?.name || ''
+      this.createForm.sourcevmid = ''
+      this.createForm.sourceexternalref = ''
+      this.sourceDiskOptions = []
+      this.sourceNicOptions = []
+      this.diskMappingRows = []
+      this.createForm.diskmappingsjson = ''
+      if (!workload) {
+        return
+      }
+      if ((workload.referencetype || '').toUpperCase() === 'CLOUD_VM_ID') {
+        this.createForm.sourcevmid = workload.value || workload.externalid || workload.id
+      } else {
+        this.createForm.sourceexternalref = workload.externalref || workload.value || workload.externalid || workload.id
+      }
+      if (!this.createForm.targetvmname) {
+        this.createForm.targetvmname = this.defaultTargetVmName(workload)
+      }
+      this.applyDefaultTargetComputeSizing(workload)
+      this.createForm.diskmappingsjson = this.readDiskMappingsJson(workload.mappingjson || workload.mappingJson || '')
+      if (this.createForm.diskmappingsjson) {
+        this.diskMappingRows = this.diskRowsFromJson(this.createForm.diskmappingsjson)
+      }
+      this.fetchSourceWorkloads(true)
+    },
+    defaultTargetVmName (workload = {}) {
+      const sourceName = workload.name || workload.displayname || workload.value || workload.externalref || this.createForm.sourceexternalref || this.createForm.sourcevmid
+      return sourceName ? `${sourceName}-dr` : ''
+    },
+    applyDefaultGuidedSelections () {
+      this.autoSelectSingleOption('coordinatorworkerhostid', this.coordinatorWorkerHostOptions)
+      this.autoSelectSingleOption('sourceworkerhostid', this.sourceWorkerHostOptions)
+      this.autoSelectSingleOption('targetworkerhostid', this.targetWorkerHostOptions)
+      this.autoSelectSingleOption('targetstorageref', this.targetStorageOptions)
+      this.autoSelectSingleOption('targetcomputeref', this.targetComputeOptions)
+      this.autoSelectSingleOption('targetnetworkref', this.targetNetworkOptions)
+      this.applyDefaultTargetComputeSizing()
+      this.applyDefaultDiskMappingSelections()
+    },
+    autoSelectSingleOption (field, options) {
+      const selectable = (options || []).filter(option => option.selectable !== false)
+      if (!this.createForm[field] && selectable.length === 1) {
+        this.createForm[field] = selectable[0].value
+      }
+    },
+    findOptionByValue (options, value) {
+      return (options || []).find(option => option.value === value || option.id === value || option.externalid === value || option.localid === value) || null
+    },
+    optionDisplayName (options, value) {
+      const option = this.findOptionByValue(options, value)
+      return option ? (option.name || option.label || option.value) : value
+    },
+    changeTargetCompute () {
+      this.applyDefaultTargetComputeSizing()
+    },
+    changeTargetWorker () {
+      this.applyDefaultTargetComputeSizing()
+    },
+    selectedSourceWorkload () {
+      return this.sourceWorkloadOptions.find(item => item.optionKey === this.createForm.sourceworkloadvalue) || {}
+    },
+    applyDefaultTargetComputeSizing (workload = this.selectedSourceWorkload()) {
+      if (!this.directionUsesKvmTarget || !this.createForm.targetcomputeref) {
+        this.createForm.targetcpunumber = undefined
+        this.createForm.targetcpuspeed = undefined
+        this.createForm.targetmemory = undefined
+        return
+      }
+      const compute = this.findOptionByValue(this.targetComputeOptions, this.createForm.targetcomputeref) || {}
+      const details = compute.detailsObject || {}
+      const sourceDetails = (workload && workload.detailsObject) || {}
+      const targetHost = this.findOptionByValue(this.targetWorkerHostOptions, this.createForm.targetworkerhostid) || {}
+      const hostDetails = targetHost.detailsObject || {}
+      this.createForm.targetcpunumber = this.resolveTargetComputeInteger(
+        details.cpu,
+        details.requiresCpuNumber,
+        sourceDetails.cpuCount || sourceDetails.cpuNumber || sourceDetails.cpu,
+        details.mincpunumber,
+        details.maxcpunumber)
+      this.createForm.targetmemory = this.resolveTargetComputeInteger(
+        details.memoryMb,
+        details.requiresMemory,
+        sourceDetails.memoryMiB || sourceDetails.memoryMb || sourceDetails.memory,
+        details.minmemory,
+        details.maxmemory)
+      this.createForm.targetcpuspeed = this.resolveTargetComputeInteger(
+        details.speed,
+        details.requiresCpuSpeed,
+        hostDetails.speed,
+        undefined,
+        undefined)
+    },
+    resolveTargetComputeInteger (offeringValue, required, sourceValue, minValue, maxValue) {
+      const fixed = this.positiveInteger(offeringValue)
+      if (fixed) {
+        return fixed
+      }
+      if (!this.truthyValue(required)) {
+        return undefined
+      }
+      const min = this.positiveInteger(minValue)
+      const max = this.positiveInteger(maxValue)
+      const candidate = this.positiveInteger(sourceValue) || min
+      if (!candidate) {
+        return undefined
+      }
+      if (min && candidate < min) {
+        return min
+      }
+      if (max && candidate > max) {
+        return max
+      }
+      return candidate
+    },
+    positiveInteger (value) {
+      const parsed = Number(value)
+      return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : undefined
+    },
+    truthyValue (value) {
+      return value === true || String(value || '').toLowerCase() === 'true'
+    },
+    applyDefaultStorageToDiskRows () {
+      if (!this.createForm.targetstorageref || !this.diskMappingRows.length) {
+        return
+      }
+      this.diskMappingRows = this.diskMappingRows.map(row => Object.assign({}, row, {
+        targetStorageRef: this.createForm.targetstorageref
+      }))
+      this.createForm.diskmappingsjson = this.buildDiskMappingsJson()
+    },
+    rebuildDiskMappingRows () {
+      const existingBySource = this.diskMappingRows.reduce((map, row) => {
+        map[row.sourceDiskRef || row.sourcePath || row.sourceLabel] = row
+        return map
+      }, {})
+      this.diskMappingRows = this.sourceDiskOptions.map((disk, index) => {
+        const sourceDiskRef = this.sourceDiskRef(disk, index)
+        const sourcePath = this.sourceDiskPath(disk)
+        const existing = existingBySource[sourceDiskRef] || existingBySource[sourcePath] || {}
+        return Object.assign({
+          sourceDiskRef,
+          sourcePath,
+          sourceLabel: disk.name || `Disk ${index + 1}`,
+          cbtDiskId: this.sourceDiskCbtId(disk),
+          sourceDiskKey: this.sourceDiskDeviceKey(disk),
+          sourceController: this.sourceDiskControllerType(disk),
+          controllerBusNumber: this.sourceDiskControllerBusNumber(disk),
+          unitNumber: this.sourceDiskUnitNumber(disk),
+          capacityBytes: this.sourceDiskSizeBytes(disk),
+          targetDiskName: `${this.createForm.targetvmname || 'dr-target'}-disk-${index}`,
+          targetDiskOfferingId: '',
+          targetStorageRef: this.createForm.targetstorageref || ''
+        }, existing)
+      })
+      this.applyDefaultDiskMappingSelections()
+      this.createForm.diskmappingsjson = this.buildDiskMappingsJson()
+    },
+    applyDefaultDiskMappingSelections () {
+      if (!this.diskMappingRows.length) {
+        return
+      }
+      const diskOfferings = (this.targetDiskOfferingOptions || []).filter(option => option.selectable !== false)
+      const storages = (this.targetStorageOptions || []).filter(option => option.selectable !== false)
+      this.diskMappingRows.forEach(row => {
+        if (!row.targetDiskOfferingId && diskOfferings.length === 1) {
+          row.targetDiskOfferingId = diskOfferings[0].value
+        }
+        if (!row.targetStorageRef && storages.length === 1) {
+          row.targetStorageRef = storages[0].value
+        }
+      })
+    },
+    diskRowsFromJson (json) {
+      try {
+        const rows = JSON.parse(json)
+        return (Array.isArray(rows) ? rows : []).map((disk, index) => {
+          const source = disk.source || {}
+          const target = disk.target || {}
+          return {
+            sourceDiskRef: source.diskRef || disk.sourceRef || disk.sourceDiskRef || String(index),
+            sourcePath: source.vmdkPath || source.path || disk.sourcePath || '',
+            sourceLabel: source.label || disk.label || `Disk ${index + 1}`,
+            cbtDiskId: source.cbtDiskId || disk.cbtDiskId || disk.sourceCbtDiskId || '',
+            sourceDiskKey: source.deviceKey || disk.sourceDiskKey || disk.deviceKey || '',
+            sourceController: source.controllerType || source.sourceController || disk.sourceController || disk.controllerType || '',
+            controllerBusNumber: source.controllerBusNumber || disk.controllerBusNumber || disk.controllerBus || '',
+            unitNumber: source.unitNumber || disk.unitNumber || disk.unit || '',
+            capacityBytes: this.normalizeDiskSizeBytes(source.sizeBytes || source.capacityBytes || source.capacity || disk.sizeBytes || disk.capacityBytes || disk.capacity || ''),
+            targetDiskName: target.name || disk.targetRef || disk.targetDisk || `dr-disk-${index}`,
+            targetDiskOfferingId: target.diskOfferingId || disk.targetDiskOfferingId || disk.diskOfferingId || '',
+            targetStorageRef: target.storageRef || disk.targetStorageRef || disk.targetStorage || ''
+          }
+        })
+      } catch (e) {
+        return []
+      }
+    },
+    buildDiskMappingsJson () {
+      if (!this.diskMappingRows.length) {
+        return ''
+      }
+      return JSON.stringify(this.diskMappingRows.map((row, index) => {
+        const sizeBytes = this.normalizeDiskSizeBytes(row.capacityBytes)
+        const targetType = this.targetDiskTypeForStorage(row.targetStorageRef)
+        const targetFormat = this.targetDiskFormatForStorage(row.targetStorageRef)
+        const controllerBusNumber = row.controllerBusNumber || ''
+        const unitNumber = row.unitNumber || ''
+        const sourceController = row.sourceController || ''
+        const cbtDiskId = row.cbtDiskId || (controllerBusNumber !== '' && unitNumber !== '' ? `scsi${controllerBusNumber}:${unitNumber}` : '')
+        const device = cbtDiskId || row.sourceDiskRef
+        return {
+          label: row.sourceLabel,
+          device,
+          cbtDiskId,
+          sourceDiskKey: row.sourceDiskKey,
+          sourceController,
+          controllerBusNumber,
+          unitNumber,
+          sourceRef: row.sourceDiskRef,
+          sourcePath: row.sourcePath,
+          sizeBytes,
+          capacityBytes: sizeBytes,
+          targetRef: row.targetDiskName,
+          targetStorageRef: row.targetStorageRef,
+          targetDiskOfferingId: row.targetDiskOfferingId,
+          source: {
+            diskRef: row.sourceDiskRef,
+            device,
+            cbtDiskId,
+            deviceKey: row.sourceDiskKey,
+            controllerType: sourceController,
+            controllerBusNumber,
+            unitNumber,
+            label: row.sourceLabel,
+            vmdkPath: row.sourcePath,
+            capacityBytes: sizeBytes,
+            sizeBytes,
+            boot: index === 0
+          },
+          target: {
+            name: row.targetDiskName,
+            storageRef: row.targetStorageRef,
+            diskOfferingId: row.targetDiskOfferingId,
+            type: targetType,
+            targetType,
+            format: targetFormat,
+            capacityBytes: sizeBytes,
+            sizeBytes
+          }
+        }
+      }))
+    },
+    fetchList (options = {}) {
+      this.loading = true
+      return Promise.all([
+        this.fetchSites(),
+        listDrPlans(this.listQueryParams())
+      ]).then(([, result]) => {
+        this.plans = this.reconcilePlanList(result.items || [], options.retain || [])
+        this.listTotal = Math.max(Number(result.count) || 0, this.plans.length)
+        this.listLoadWarning = ''
+        return this.plans
+      }).catch(error => {
+        this.listLoadWarning = this.errorMessage(error)
+        return this.plans
+      }).finally(() => {
         this.loading = false
       })
+    },
+    listQueryParams () {
+      const params = {
+        page: this.page,
+        pagesize: this.pageSize
+      }
+      if (this.searchQuery) params.keyword = this.searchQuery
+      if (this.filters.state) params.state = this.filters.state
+      if (this.filters.direction) params.direction = this.filters.direction
+      if (this.searchParams.direction) params.direction = this.searchParams.direction
+      if (this.searchParams.enginetype) params.enginetype = this.searchParams.enginetype
+      if (this.searchParams.sourcesiteid) params.sourcesiteid = this.searchParams.sourcesiteid
+      if (this.searchParams.targetsiteid) params.targetsiteid = this.searchParams.targetsiteid
+      return params
+    },
+    reconcilePlanList (serverPlans, retainedPlans = []) {
+      const plans = [...serverPlans]
+      const identifiers = new Set(plans.map(plan => String(plan.id || plan.uuid || '')))
+      retainedPlans.forEach(plan => {
+        const identifier = String(plan?.id || plan?.uuid || '')
+        if (identifier && !identifiers.has(identifier)) {
+          plans.unshift(plan)
+          identifiers.add(identifier)
+        }
+      })
+      return plans
+    },
+    upsertPlan (plan) {
+      const identifier = String(plan?.id || plan?.uuid || '')
+      if (!identifier) {
+        return
+      }
+      const index = this.plans.findIndex(item => String(item.id || item.uuid || '') === identifier)
+      if (index >= 0) {
+        this.plans.splice(index, 1, Object.assign({}, this.plans[index], plan))
+      } else {
+        this.plans.unshift(plan)
+      }
     },
     fetchDetail (options = {}) {
       if (!this.detailId) {
@@ -564,13 +2145,14 @@ export default {
       if (!silent) {
         this.loading = true
       }
-      const tasks = [
-        getDrPlan(this.detailId).then(plan => {
-          this.detailPlan = plan || {}
-        }),
-        this.fetchRuns()
-      ]
-      if (options.skipSites !== true) {
+      this.detailLoadWarning = ''
+      const planTask = getDrPlan(this.detailId).then(plan => {
+        this.detailPlan = plan || {}
+      }).catch(error => {
+        this.detailLoadWarning = this.errorMessage(error)
+      })
+      const tasks = [planTask.then(() => this.fetchProtectionView())]
+      if (options.skipSites !== true && !('getDrProtectionView' in this.$store.getters.apis)) {
         tasks.unshift(this.fetchSites())
       }
       return Promise.all(tasks).finally(() => {
@@ -579,6 +2161,103 @@ export default {
         }
         this.scheduleRuntimePolling()
       })
+    },
+    fetchProtectionView (options = {}) {
+      if (!('getDrProtectionView' in this.$store.getters.apis)) {
+        this.protectionView = {}
+        this.protectionSnapshot = {}
+        return this.fetchRuns()
+      }
+      return getDrProtectionView(this.detailId).then(view => {
+        this.protectionView = view || {}
+        let snapshot = view?.snapshot || {}
+        if (typeof snapshot === 'string') {
+          try {
+            snapshot = JSON.parse(snapshot)
+          } catch (e) {
+            this.detailLoadWarning = this.$t('message.dr.protection.view.invalid')
+            return
+          }
+        }
+        const cachedPlan = this.normalizeCachedRecord(snapshot.plan)
+        this.applyCachedPlan(cachedPlan)
+        const sourceSite = this.normalizeCachedRecord(snapshot.sourceSite)
+        const targetSite = this.normalizeCachedRecord(snapshot.targetSite)
+        if (sourceSite.uuid) sourceSite.id = sourceSite.uuid
+        if (targetSite.uuid) targetSite.id = targetSite.uuid
+        const latestRun = this.normalizeCachedRecord(snapshot.latestRun)
+        this.protectionSnapshot = {
+          plan: cachedPlan,
+          sourceSite,
+          targetSite,
+          latestRun,
+          latestRunSteps: (snapshot.latestRunSteps || []).map(item => this.normalizeCachedRecord(item)),
+          replicas: (snapshot.replicas || []).map(item => this.normalizeCachedRecord(item)),
+          latestCompletedCheckpoint: this.normalizeCachedRecord(snapshot.latestCompletedCheckpoint),
+          events: (snapshot.events || []).map(item => this.normalizeCachedRecord(item))
+        }
+        this.sites = [sourceSite, targetSite].filter(site => site && site.id)
+        this.detailRuns = latestRun && (latestRun.uuid || latestRun.id)
+          ? [Object.assign({}, latestRun, {
+            id: latestRun.uuid || latestRun.id,
+            steps: this.protectionSnapshot.latestRunSteps
+          })]
+          : []
+      }).catch(error => {
+        this.detailLoadWarning = this.errorMessage(error)
+        return options.silent ? undefined : this.fetchRuns()
+      })
+    },
+    applyCachedPlan (cachedPlan) {
+      if (!cachedPlan || (!cachedPlan.uuid && !cachedPlan.id)) {
+        return
+      }
+      const databaseId = cachedPlan.id
+      const publicId = cachedPlan.uuid || this.detailPlan.id || this.detailId
+      const refreshableKeys = [
+        'name',
+        'description',
+        'state',
+        'adminstate',
+        'activeside',
+        'rposeconds',
+        'rtoseconds',
+        'lastsourcecheckpointat',
+        'lasttargetdurableat',
+        'targetreadyat',
+        'targetreadyrposeconds',
+        'lasterrorcode',
+        'lasterrormessage',
+        'failedcomponent',
+        'datacommitstate',
+        'datacopied',
+        'metadatacommitted',
+        'targetdurable',
+        'cycleretrymode',
+        'created',
+        'updated',
+        'removed'
+      ]
+      const refreshablePlan = refreshableKeys.reduce((result, key) => {
+        if (Object.prototype.hasOwnProperty.call(cachedPlan, key)) {
+          result[key] = cachedPlan[key]
+        }
+        return result
+      }, {})
+      this.detailPlan = Object.assign({}, this.detailPlan, refreshablePlan, {
+        databaseid: databaseId,
+        id: publicId,
+        uuid: cachedPlan.uuid || publicId
+      })
+    },
+    normalizeCachedRecord (record) {
+      if (!record || typeof record !== 'object') {
+        return {}
+      }
+      return Object.keys(record).reduce((result, key) => {
+        result[String(key).toLowerCase()] = record[key]
+        return result
+      }, {})
     },
     fetchRuns () {
       if (!('listDrRuns' in this.$store.getters.apis)) {
@@ -592,14 +2271,170 @@ export default {
     siteName (siteId) {
       return this.siteById[siteId]?.name || siteId || '-'
     },
+    directionLabel (direction) {
+      return {
+        KVM_TO_KVM: 'label.dr.direction.kvm.to.kvm',
+        KVM_TO_VMWARE: 'label.dr.direction.kvm.to.vmware',
+        VMWARE_TO_VMWARE: 'label.dr.direction.vmware.to.vmware',
+        VMWARE_TO_KVM: 'label.dr.direction.vmware.to.kvm'
+      }[direction] || direction || '-'
+    },
+    engineLabel (engineType) {
+      return {
+        FTCTL_DR: 'label.dr.engine.ftctl.dr',
+        FTCTL: 'label.dr.engine.ftctl',
+        VMWARE_PHASE1: 'label.dr.engine.vmware.phase1',
+        V2K: 'label.dr.engine.v2k.migration.only'
+      }[engineType] || engineType || '-'
+    },
+    normalizeDetailTab (tab) {
+      if (tab === 'overview') return 'details'
+      if (tab === 'restorepoints' || tab === 'runs') return 'history'
+      if (tab === 'topology' || tab === 'replica') return 'protection'
+      return tab || 'details'
+    },
+    resetPlanDialogSections (extraSections = []) {
+      const keys = new Set(DEFAULT_DR_PLAN_ACTIVE_SECTIONS)
+      extraSections.filter(Boolean).forEach(section => keys.add(section))
+      if (this.planFormMode === 'edit') {
+        keys.add(DR_PLAN_DIALOG_SECTIONS.OBJECTIVES)
+        keys.add(DR_PLAN_DIALOG_SECTIONS.POLICY)
+      }
+      this.planSectionActiveKeys = Array.from(keys)
+    },
+    openPlanDialogSection (sectionKey) {
+      if (!sectionKey || this.planSectionActiveKeys.includes(sectionKey)) {
+        return
+      }
+      this.planSectionActiveKeys = [...this.planSectionActiveKeys, sectionKey]
+    },
+    openSectionForValidation (fieldNameOrReason) {
+      this.openPlanDialogSection(drPlanSectionForValidation(fieldNameOrReason))
+    },
+    planValidationMessage (fieldNameOrReason, message) {
+      this.openSectionForValidation(fieldNameOrReason)
+      return message
+    },
     changeTab (tab) {
-      this.activeTab = tab
-      this.$router.replace({ path: this.$route.path, query: Object.assign({}, this.$route.query, { tab }) }).catch(() => {})
+      const normalizedTab = this.normalizeDetailTab(tab)
+      this.activeTab = normalizedTab
+      this.$router.replace({ path: this.$route.path, query: Object.assign({}, this.$route.query, { tab: normalizedTab }) }).catch(() => {})
+    },
+    requestProtectionRefresh () {
+      if (!this.detailId || !('refreshDrProtectionView' in this.$store.getters.apis)) {
+        this.fetchDetail()
+        return
+      }
+      this.protectionRefreshing = true
+      refreshDrProtectionView(this.detailId).then(result => {
+        if (!result?.jobid) {
+          return this.fetchProtectionView({ silent: true })
+        }
+        return new Promise((resolve, reject) => {
+          this.$pollJob({
+            jobId: result.jobid,
+            title: this.$t('label.refresh'),
+            description: this.detailPlan.name || this.detailId,
+            showSuccessMessage: false,
+            showLoading: false,
+            successMethod: resolve,
+            errorMethod: reject,
+            catchMethod: reject,
+            action: { isFetchData: false }
+          })
+        }).then(() => this.fetchProtectionView({ silent: true }))
+      }).catch(error => {
+        notification.error({
+          message: this.$t('label.refresh'),
+          description: this.errorMessage(error)
+        })
+      }).finally(() => {
+        this.protectionRefreshing = false
+        this.scheduleRuntimePolling()
+      })
     },
     openCreateModal () {
+      this.planFormMode = 'create'
+      this.editingPlan = {}
       this.createForm = this.defaultCreateForm()
+      this.resetPlanDialogSections()
       this.showCreateModal = true
       this.fetchSites()
+    },
+    openEditModal (plan) {
+      if (!plan?.id) {
+        return
+      }
+      this.planFormMode = 'edit'
+      this.editingPlan = plan
+      const sourceReference = plan.sourcevmid || plan.sourceexternalref || ''
+      const sourceReferenceType = plan.sourcevmid ? 'CLOUD_VM_ID' : 'EXTERNAL_REF'
+      const sourceOptionKey = sourceReference ? [sourceReferenceType, sourceReference].join(':') : undefined
+      this.createForm = Object.assign(this.defaultCreateForm(), {
+        name: plan.name || '',
+        description: plan.description || '',
+        sourcesiteid: plan.sourcesiteid,
+        targetsiteid: plan.targetsiteid,
+        direction: plan.direction || 'KVM_TO_KVM',
+        sourcevmid: plan.sourcevmid || '',
+        sourceexternalref: plan.sourceexternalref || '',
+        sourceworkloadvalue: sourceOptionKey,
+        sourceworkloadname: sourceReference,
+        enginetype: plan.enginetype || 'FTCTL_DR',
+        enginebindingtype: plan.enginebindingtype || plan.enginetype || 'FTCTL_DR',
+        enginebindingid: plan.enginebindingid,
+        rposeconds: plan.rposeconds,
+        rtoseconds: plan.rtoseconds,
+        sourceworkerhostid: plan.sourceworkerhostid || '',
+        targetworkerhostid: plan.targetworkerhostid || '',
+        coordinatorworkerhostid: plan.coordinatorworkerhostid || '',
+        mappingjson: plan.mappingjson || '',
+        schedulejson: plan.schedulejson || '',
+        policyjson: plan.policyjson || '',
+        quiescepolicyjson: plan.quiescepolicyjson || '',
+        diskmappingsjson: this.readDiskMappingsJson(plan.mappingjson),
+        guidedplan: true,
+        expertjson: false,
+        targetvmname: this.readJsonValue(plan.mappingjson, 'targetVmName') || '',
+        targetzoneid: this.readJsonValue(plan.mappingjson, 'target.zoneId') || this.readJsonValue(plan.mappingjson, 'targetZoneId') || '',
+        targetstorageref: this.readJsonValue(plan.mappingjson, 'target.storageRef') || this.readJsonValue(plan.mappingjson, 'targetStorageRef') || this.readJsonValue(plan.mappingjson, 'targetDatastoreRef') || '',
+        targetcomputeref: this.readJsonValue(plan.mappingjson, 'target.serviceOfferingId') || this.readJsonValue(plan.mappingjson, 'targetComputeRef') || this.readJsonValue(plan.mappingjson, 'targetResourcePoolRef') || '',
+        targetcpunumber: this.readJsonValue(plan.mappingjson, 'target.cpuNumber') || this.readJsonValue(plan.mappingjson, 'targetCpuNumber') || undefined,
+        targetcpuspeed: this.readJsonValue(plan.mappingjson, 'target.cpuSpeed') || this.readJsonValue(plan.mappingjson, 'targetCpuSpeed') || undefined,
+        targetmemory: this.readJsonValue(plan.mappingjson, 'target.memory') || this.readJsonValue(plan.mappingjson, 'targetMemory') || undefined,
+        targetboottype: this.readJsonValue(plan.mappingjson, 'target.hardware.bootType') || this.readJsonValue(plan.mappingjson, 'targetBootType') || '',
+        targetbootmode: this.readJsonValue(plan.mappingjson, 'target.hardware.bootMode') || this.readJsonValue(plan.mappingjson, 'targetBootMode') || '',
+        targetrootdiskcontroller: this.readJsonValue(plan.mappingjson, 'target.hardware.rootDiskController') || this.readJsonValue(plan.mappingjson, 'targetRootDiskController') || '',
+        targetdatadiskcontroller: this.readJsonValue(plan.mappingjson, 'target.hardware.dataDiskController') || this.readJsonValue(plan.mappingjson, 'targetDataDiskController') || '',
+        targetiothreadsenabled: this.readJsonValue(plan.mappingjson, 'target.hardware.ioThreadsEnabled') !== false,
+        targetiopolicy: this.readJsonValue(plan.mappingjson, 'target.hardware.ioPolicy') || this.readJsonValue(plan.mappingjson, 'targetIoPolicy') || 'io_uring',
+        targetnetworkref: this.readJsonValue(plan.mappingjson, 'target.networks.0.networkId') || this.readJsonValue(plan.mappingjson, 'targetNetworkRef') || this.readJsonValue(plan.mappingjson, 'networkRef') || '',
+        targetfolderpath: this.readJsonValue(plan.mappingjson, 'targetFolderPath') || this.readJsonValue(plan.mappingjson, 'folderPath') || '',
+        consistencymode: this.readJsonValue(plan.policyjson, 'consistencyMode') || 'CRASH_CONSISTENT',
+        testnetworkmode: this.readJsonValue(plan.policyjson, 'testNetworkMode') || 'ISOLATED',
+        testbootvalidationmode: this.readJsonValue(plan.policyjson, 'testBootValidationMode') || 'POWER_STATE_ONLY',
+        testboottimeoutseconds: this.readJsonValue(plan.policyjson, 'testBootTimeoutSeconds') || 180,
+        failoverpoweron: this.readJsonValue(plan.policyjson, 'failover.powerOn') !== false,
+        syncintervalseconds: this.readJsonValue(plan.schedulejson, 'intervalSeconds') || plan.rposeconds || 300,
+        retentioncount: this.readJsonValue(plan.schedulejson, 'retentionCount') || 24,
+        bandwidthlimitmbps: this.readJsonValue(plan.policyjson, 'bandwidthLimitMbps') || undefined,
+        retrycount: this.readJsonValue(plan.policyjson, 'retry.maxAttempts') || 3,
+        startsync: false
+      })
+      this.sourceWorkloadOptions = sourceReference ? [{
+        optionKey: sourceOptionKey,
+        referencetype: sourceReferenceType,
+        value: sourceReference,
+        externalref: plan.sourceexternalref || '',
+        name: sourceReference
+      }] : []
+      this.diskMappingRows = this.diskRowsFromJson(this.createForm.diskmappingsjson)
+      this.fetchSourceWorkloads(true)
+      this.resetPlanDialogSections([
+        DR_PLAN_DIALOG_SECTIONS.OBJECTIVES,
+        DR_PLAN_DIALOG_SECTIONS.POLICY
+      ])
+      this.showCreateModal = true
     },
     onCreateEngineChange (engineType) {
       this.createForm.enginebindingtype = engineType
@@ -609,17 +2444,29 @@ export default {
     },
     closeCreateModal () {
       this.showCreateModal = false
+      this.planFormMode = 'create'
+      this.editingPlan = {}
+      this.resetSourceWorkloads(true)
+    },
+    submitPlan () {
+      if (this.planFormMode === 'edit') {
+        this.updatePlan()
+        return
+      }
+      this.createPlan()
     },
     createPlan () {
-      if (!this.createForm.name || !this.createForm.sourcesiteid || !this.createForm.targetsiteid || !this.createForm.direction) {
+      const validationMessage = this.validatePlanForm()
+      if (validationMessage) {
         notification.warning({
           message: this.$t('label.dr.plan.add'),
-          description: this.$t('message.dr.required.fields')
+          description: validationMessage
         })
         return
       }
       this.createLoading = true
-      createDrPlan(this.compactPayload(this.createForm)).then(plan => {
+      this.ensureExecutionReadyForImmediateSync().then(() => createDrPlan(this.buildPlanPayload())).then(plan => {
+        this.upsertPlan(plan)
         notification.success({
           message: this.$t('label.dr.plan.add'),
           description: this.createForm.startsync
@@ -627,10 +2474,197 @@ export default {
             : (plan.name || plan.id || this.$t('label.success'))
         })
         this.closeCreateModal()
-        this.fetchList()
+        return this.fetchList({ retain: [plan] })
+      }).catch(error => {
+        notification.error({
+          message: this.$t('label.dr.plan.add'),
+          description: this.errorMessage(error)
+        })
       }).finally(() => {
         this.createLoading = false
       })
+    },
+    updatePlan () {
+      const validationMessage = this.validatePlanForm()
+      if (!this.editingPlan?.id || validationMessage) {
+        notification.warning({
+          message: this.$t('label.dr.plan.edit'),
+          description: validationMessage || this.$t('message.dr.required.fields')
+        })
+        return
+      }
+      this.createLoading = true
+      updateDrPlan(this.editingPlan.id, this.buildPlanPayload()).then(plan => {
+        this.upsertPlan(plan)
+        notification.success({
+          message: this.$t('label.dr.plan.edit'),
+          description: plan.name || plan.id || this.$t('label.success')
+        })
+        this.closeCreateModal()
+        return this.fetchData()
+      }).catch(error => {
+        notification.error({
+          message: this.$t('label.dr.plan.edit'),
+          description: this.errorMessage(error)
+        })
+      }).finally(() => {
+        this.createLoading = false
+      })
+    },
+    buildPlanPayload () {
+      if (!this.createForm.expertjson) {
+        this.createForm.diskmappingsjson = this.buildDiskMappingsJson()
+      }
+      const payload = Object.assign({}, this.createForm)
+      payload.guidedplan = !payload.expertjson
+      payload.allowdraft = this.planFormMode === 'edit' ? true : !payload.startsync
+      delete payload.sourceworkloadvalue
+      delete payload.sourceworkloadname
+      delete payload.expertjson
+      if (payload.guidedplan) {
+        delete payload.mappingjson
+        delete payload.schedulejson
+        delete payload.policyjson
+        delete payload.quiescepolicyjson
+        delete payload.enginebindingid
+      } else {
+        delete payload.targetvmname
+        delete payload.targetzoneid
+        delete payload.targetstorageref
+        delete payload.targetcomputeref
+        delete payload.targetcpunumber
+        delete payload.targetcpuspeed
+        delete payload.targetmemory
+        delete payload.targetboottype
+        delete payload.targetbootmode
+        delete payload.targetrootdiskcontroller
+        delete payload.targetdatadiskcontroller
+        delete payload.targetiothreadsenabled
+        delete payload.targetiopolicy
+        delete payload.targetnetworkref
+        delete payload.targetfolderpath
+        delete payload.diskmappingsjson
+        delete payload.consistencymode
+        delete payload.testnetworkmode
+        delete payload.testbootvalidationmode
+        delete payload.testboottimeoutseconds
+        delete payload.failoverpoweron
+        delete payload.syncintervalseconds
+        delete payload.retentioncount
+        delete payload.bandwidthlimitmbps
+        delete payload.retrycount
+      }
+      if (this.planFormMode === 'edit') {
+        delete payload.sourcesiteid
+        delete payload.targetsiteid
+        delete payload.direction
+        delete payload.startsync
+        delete payload.allowdraft
+        delete payload.sourcevmid
+        delete payload.sourceexternalref
+      }
+      return this.compactPayload(payload)
+    },
+    validatePlanForm () {
+      if (!this.createForm.name) {
+        return this.planValidationMessage('name', this.$t('message.dr.plan.validation.name'))
+      }
+      if (this.planFormMode === 'create' && (!this.createForm.sourcesiteid || !this.createForm.targetsiteid || !this.createForm.direction)) {
+        return this.planValidationMessage('sourcesiteid', this.$t('message.dr.plan.validation.site.mapping'))
+      }
+      if (this.planFormMode === 'create' && !this.createForm.sourcevmid && !this.createForm.sourceexternalref) {
+        return this.planValidationMessage('sourceworkloadvalue', this.$t('message.dr.plan.validation.source.vm'))
+      }
+      if (this.createForm.rposeconds !== undefined && this.createForm.rposeconds !== null && Number(this.createForm.rposeconds) <= 0) {
+        return this.planValidationMessage('rposeconds', this.$t('message.dr.plan.validation.rpo'))
+      }
+      if (this.createForm.rtoseconds !== undefined && this.createForm.rtoseconds !== null && Number(this.createForm.rtoseconds) <= 0) {
+        return this.planValidationMessage('rtoseconds', this.$t('message.dr.plan.validation.rto'))
+      }
+      if (this.createForm.expertjson) {
+        return this.validatePlanJsonFields()
+      }
+      if (this.createForm.syncintervalseconds !== undefined && this.createForm.syncintervalseconds !== null && Number(this.createForm.syncintervalseconds) <= 0) {
+        return this.planValidationMessage('syncintervalseconds', this.$t('message.dr.plan.validation.sync.interval'))
+      }
+      if (this.createForm.retentioncount !== undefined && this.createForm.retentioncount !== null && Number(this.createForm.retentioncount) <= 0) {
+        return this.planValidationMessage('retentioncount', this.$t('message.dr.plan.validation.retention'))
+      }
+      if (this.createForm.retrycount !== undefined && this.createForm.retrycount !== null && Number(this.createForm.retrycount) <= 0) {
+        return this.planValidationMessage('retrycount', this.$t('message.dr.plan.validation.retry'))
+      }
+      if (Number(this.createForm.testboottimeoutseconds) < 30 || Number(this.createForm.testboottimeoutseconds) > 1800) {
+        return this.planValidationMessage('testboottimeoutseconds', this.$t('message.dr.plan.validation.test.boot.timeout'))
+      }
+      if (this.directionUsesKvmTarget) {
+        if (this.inventoryBlockingReasons.length > 0) {
+          return this.planValidationMessage(this.inventoryBlockingReasons[0], this.inventoryBlockingReasons.join(', '))
+        }
+        if (!this.createForm.targetworkerhostid) {
+          return this.planValidationMessage('targetworkerhostid', this.$t('message.dr.plan.validation.target.worker'))
+        }
+        if (!this.hasDiskLevelStorageAuthority && !this.createForm.targetstorageref) {
+          return this.planValidationMessage('targetstorageref', this.$t('message.dr.plan.validation.target.storage'))
+        }
+        if (!this.createForm.targetcomputeref) {
+          return this.planValidationMessage('targetcomputeref', this.$t('message.dr.plan.validation.target.compute'))
+        }
+        const computeSizingMessage = this.validateTargetComputeSizing()
+        if (computeSizingMessage) {
+          return this.planValidationMessage('targetcomputeref', computeSizingMessage)
+        }
+        if (!this.createForm.targetnetworkref) {
+          return this.planValidationMessage('targetnetworkref', this.$t('message.dr.plan.validation.target.network'))
+        }
+        if (this.requiresDiskMapping && this.diskMappingRows.length === 0) {
+          return this.planValidationMessage('diskmappingsjson', this.$t('message.dr.plan.validation.disk.mapping'))
+        }
+        const incompleteDisk = this.diskMappingRows.find(row => !row.targetDiskName || !row.targetDiskOfferingId || !row.targetStorageRef)
+        if (incompleteDisk) {
+          return this.planValidationMessage('diskmappingsjson', this.$t('message.dr.plan.validation.disk.mapping'))
+        }
+        if (String(this.createForm.direction || '').toUpperCase() === 'VMWARE_TO_KVM') {
+          const unresolvedDisk = this.diskMappingRows.find(row => !this.normalizeDiskSizeBytes(row.capacityBytes || row.sizeBytes))
+          if (unresolvedDisk) {
+            return this.planValidationMessage('sourceDiskSize', this.$t('message.dr.plan.validation.source.disk.size'))
+          }
+        }
+      }
+      return ''
+    },
+    validateTargetComputeSizing () {
+      const compute = this.findOptionByValue(this.targetComputeOptions, this.createForm.targetcomputeref) || {}
+      const details = compute.detailsObject || {}
+      if (this.truthyValue(details.requiresCpuNumber) && !this.positiveInteger(this.createForm.targetcpunumber)) {
+        return this.$t('message.dr.plan.validation.target.compute.size')
+      }
+      if (this.truthyValue(details.requiresCpuSpeed) && !this.positiveInteger(this.createForm.targetcpuspeed)) {
+        return this.$t('message.dr.plan.validation.target.compute.size')
+      }
+      if (this.truthyValue(details.requiresMemory) && !this.positiveInteger(this.createForm.targetmemory)) {
+        return this.$t('message.dr.plan.validation.target.compute.size')
+      }
+      return ''
+    },
+    validatePlanJsonFields () {
+      const fields = [
+        { key: 'mappingjson', label: this.$t('label.dr.mapping.json') },
+        { key: 'schedulejson', label: this.$t('label.dr.schedule.json') },
+        { key: 'policyjson', label: this.$t('label.dr.policy.json') },
+        { key: 'quiescepolicyjson', label: this.$t('label.dr.quiesce.policy.json') }
+      ]
+      for (const field of fields) {
+        const value = this.createForm[field.key]
+        if (!value) {
+          continue
+        }
+        try {
+          JSON.parse(value)
+        } catch (e) {
+          return this.planValidationMessage(field.key, this.$t('message.dr.plan.validation.json', { field: field.label }))
+        }
+      }
+      return ''
     },
     compactPayload (payload) {
       return Object.keys(payload || {}).reduce((result, key) => {
@@ -641,12 +2675,79 @@ export default {
         return result
       }, {})
     },
+    readJsonValue (json, path) {
+      if (!json || !path) {
+        return undefined
+      }
+      try {
+        const object = JSON.parse(json)
+        return path.split('.').reduce((value, key) => value && value[key], object)
+      } catch (e) {
+        return undefined
+      }
+    },
+    readDiskMappingsJson (json) {
+      if (!json) {
+        return ''
+      }
+      try {
+        const object = typeof json === 'string' ? JSON.parse(json) : json
+        const disks = object?.disks || object?.diskMappings || object?.volumes || object?.volumeMappings
+        return Array.isArray(disks) && disks.length > 0 ? JSON.stringify(disks) : ''
+      } catch (e) {
+        return ''
+      }
+    },
+    ensureExecutionReadyForImmediateSync () {
+      if (!this.createForm.startsync || this.createForm.expertjson || !('previewDrPlanSpec' in this.$store.getters.apis)) {
+        return Promise.resolve()
+      }
+      return this.previewGuidedSpec().then(preview => {
+        if (preview.executionready === true) {
+          return
+        }
+        const reasons = preview.blockingreasons || []
+        if (reasons.length > 0) {
+          this.openSectionForValidation(reasons[0])
+        }
+        const suffix = reasons.length > 0 ? ` (${reasons.join(', ')})` : ''
+        return Promise.reject(new Error(this.$t('message.dr.plan.validation.execution.ready') + suffix))
+      })
+    },
+    previewGuidedSpec () {
+      if (!('previewDrPlanSpec' in this.$store.getters.apis)) {
+        return Promise.resolve({})
+      }
+      return previewDrPlanSpec(this.buildPlanPayload()).then(preview => {
+        const sourceHardware = this.parseOptionDetails(preview.sourcehardwarejson)
+        if (Object.keys(sourceHardware).length > 0) {
+          this.sourceHardware = sourceHardware
+        }
+        this.resolvedTargetHardware = this.parseOptionDetails(preview.resolvedtargethardwarejson)
+        return preview
+      })
+    },
+    errorMessage (error) {
+      return error?.response?.data?.errorresponse?.errortext || error?.message || this.$t('message.error')
+    },
     runPlanAction (action, plan) {
-      if (this.requiresActionModal(action)) {
-        this.openActionModal(action, plan)
+      const target = plan || action.resource || this.contextMenuPlan || this.detailPlan
+      if (!target?.id) {
         return
       }
-      this.executePlanAction(action, plan, {})
+      if (action.api === 'updateDrPlan') {
+        this.openEditModal(target)
+        return
+      }
+      if (action.api === 'deleteDrPlan') {
+        this.confirmDeletePlan(target)
+        return
+      }
+      if (this.requiresActionModal(action)) {
+        this.openActionModal(action, target)
+        return
+      }
+      this.executePlanAction(action, target, {})
     },
     requiresActionModal (action) {
       return ['startDrTestFailover', 'startDrFailover', 'confirmDrFenceClear', 'startDrFailback', 'adoptDrReplica', 'releaseDrProtection', 'cancelDrRun', 'stopDrTestFailover'].includes(action.command)
@@ -656,19 +2757,10 @@ export default {
       this.selectedActionPlan = plan
       this.actionForm = this.defaultActionForm()
       this.actionReplicas = []
-      this.actionRestorePoints = []
       this.showActionModal = true
       if (action.command === 'adoptDrReplica' && 'listDrReplicas' in this.$store.getters.apis) {
         listDrReplicas({ planid: plan.id }).then(result => {
           this.actionReplicas = result.items || []
-        })
-      }
-      if (['startDrTestFailover', 'startDrFailover'].includes(action.command) && 'listDrRestorePoints' in this.$store.getters.apis) {
-        listDrRestorePoints({ planid: plan.id }).then(result => {
-          this.actionRestorePoints = result.items || []
-          if (!this.actionForm.restorepointid && this.actionRestorePoints.length > 0) {
-            this.actionForm.restorepointid = this.actionRestorePoints[0].id
-          }
         })
       }
     },
@@ -677,7 +2769,6 @@ export default {
       this.selectedAction = {}
       this.selectedActionPlan = {}
       this.actionReplicas = []
-      this.actionRestorePoints = []
       this.actionForm = this.defaultActionForm()
     },
     submitActionModal () {
@@ -699,11 +2790,15 @@ export default {
         payload.force = this.actionForm.force
         payload.disaster = this.actionForm.disaster
         payload.finalsync = !this.actionForm.disaster && this.actionForm.finalsync
-        payload.restorepointid = this.actionForm.restorepointid || undefined
         payload.skipsourcefencerequest = this.actionForm.skipsourcefencerequest
       }
       if (this.isReleaseAction) {
         payload.force = this.actionForm.force
+      }
+      if (this.isTestFailoverAction) {
+        payload.networkmode = this.actionForm.networkmode
+        payload.bootvalidationmode = this.actionForm.bootvalidationmode
+        payload.boottimeoutseconds = this.actionForm.boottimeoutseconds
       }
       if (this.isFenceAction || this.isFailbackAction) {
         payload.remotemoldapiurl = this.actionForm.remotemoldapiurl || undefined
@@ -720,9 +2815,6 @@ export default {
       if (this.isAdoptAction) {
         payload.replicaid = this.actionForm.replicaid || undefined
         payload.cleanuptransport = this.actionForm.cleanuptransport
-      }
-      if (this.isTestFailoverAction) {
-        payload.restorepointid = this.actionForm.restorepointid || undefined
       }
       return payload
     },
@@ -744,6 +2836,79 @@ export default {
         this.actionLoadingPlanId = ''
       })
     },
+    confirmDeletePlan (plan) {
+      if (!plan?.id) {
+        return
+      }
+      this.$confirm({
+        title: this.$t('label.dr.plan.delete'),
+        content: this.$t('message.dr.confirm.delete.plan'),
+        okType: 'danger',
+        okText: this.$t('label.yes'),
+        cancelText: this.$t('label.no'),
+        onOk: () => {
+          return deleteDrPlan(plan.id).then(result => this.waitForDeleteJob(result?.jobid, {
+            title: this.$t('label.dr.plan.delete'),
+            description: plan.name || plan.id || ''
+          })).then(() => {
+            notification.success({
+              message: this.$t('label.dr.plan.delete'),
+              description: plan.name || plan.id || this.$t('label.success')
+            })
+            if (this.detailId) {
+              this.$router.push({ path: '/drplan' }).catch(() => {})
+            } else {
+              this.fetchList()
+            }
+          })
+        }
+      })
+    },
+    waitForDeleteJob (jobId, options = {}) {
+      if (!jobId) {
+        return Promise.resolve()
+      }
+      return new Promise((resolve, reject) => {
+        this.$pollJob({
+          jobId,
+          title: options.title || this.$t('label.dr.plan.delete'),
+          description: options.description || '',
+          showSuccessMessage: false,
+          showLoading: true,
+          loadingMessage: `${this.$t('label.loading')}...`,
+          errorMessage: options.title || this.$t('label.error'),
+          successMethod: resolve,
+          errorMethod: reject,
+          catchMethod: reject,
+          action: { isFetchData: false }
+        })
+      })
+    },
+    openPlanContextMenu (event, plan) {
+      if (!plan?.id) {
+        return
+      }
+      event.preventDefault()
+      this.contextMenuPlan = plan
+      this.contextMenuPosition = { x: event.clientX, y: event.clientY }
+      this.contextMenuVisible = true
+    },
+    openListContextMenu (event) {
+      const rowElement = event.target.closest('tr.ant-table-row')
+      if (!rowElement) {
+        this.closeContextMenu()
+        return
+      }
+      const rowKey = rowElement.getAttribute('data-row-key')
+      const plan = this.pagedPlans.find(item => String(item.id) === String(rowKey))
+      if (plan) {
+        this.openPlanContextMenu(event, plan)
+      }
+    },
+    closeContextMenu () {
+      this.contextMenuVisible = false
+      this.contextMenuPlan = {}
+    },
     applyAcceptedRun (run, plan) {
       if (!run || !run.id || !this.detailId || String(plan.id) !== String(this.detailId)) {
         return
@@ -755,27 +2920,36 @@ export default {
       this.scheduleRuntimePolling()
     },
     isActiveRun (run) {
-      return ['QUEUED', 'DISPATCHING', 'ACCEPTED', 'RUNNING', 'CANCEL_REQUESTED'].includes(String(run?.state || '').toUpperCase())
+      return ['QUEUED', 'PREPARING', 'DISPATCHING', 'ACCEPTED', 'RUNNING', 'RETRYING', 'CANCEL_REQUESTED'].includes(String(run?.state || '').toUpperCase())
     },
-    isRuntimePlanState (state) {
-      return ['SYNCING', 'TESTING'].includes(String(state || '').toUpperCase())
+    shouldPollActiveRun () {
+      return this.isActiveRun(this.currentRun)
+    },
+    shouldPollProtectionView () {
+      if (!this.detailId || !this.detailPlan.id || !('getDrProtectionView' in this.$store.getters.apis)) {
+        return false
+      }
+      const adminState = String(this.detailPlan.adminstate || '').toUpperCase()
+      return !this.detailPlan.removed && (this.shouldPollActiveRun() || adminState === 'ENABLED')
     },
     shouldPollRuntime () {
-      return !!this.detailId && !!this.detailPlan.id && (this.isActiveRun(this.currentRun) || this.isRuntimePlanState(this.detailPlan.state))
+      return !document.hidden && this.shouldPollProtectionView()
+    },
+    runtimePollDelay () {
+      return this.shouldPollActiveRun()
+        ? this.activeRuntimePollIntervalMs
+        : this.steadyProtectionPollIntervalMs
     },
     scheduleRuntimePolling () {
+      this.stopRuntimePolling()
       if (!this.shouldPollRuntime()) {
-        this.stopRuntimePolling()
         return
       }
-      if (this.runtimePollTimer) {
-        return
-      }
-      this.runtimePollTimer = window.setInterval(this.pollRuntime, this.runtimePollIntervalMs)
+      this.runtimePollTimer = window.setTimeout(this.pollRuntime, this.runtimePollDelay())
     },
     stopRuntimePolling () {
       if (this.runtimePollTimer) {
-        window.clearInterval(this.runtimePollTimer)
+        window.clearTimeout(this.runtimePollTimer)
         this.runtimePollTimer = null
       }
     },
@@ -784,51 +2958,129 @@ export default {
         return
       }
       this.runtimePollInFlight = true
-      this.fetchDetail({ silent: true, skipSites: true }).finally(() => {
+      this.fetchProtectionView({ silent: true }).finally(() => {
         this.runtimePollInFlight = false
+        this.scheduleRuntimePolling()
       })
     },
-    restorePointLabel (restorePoint) {
-      return [
-        restorePoint.targetreadyat || restorePoint.created || restorePoint.id,
-        restorePoint.sourcesnapshotref || restorePoint.restorepointtype
-      ].filter(Boolean).join(' / ')
+    onVisibilityChange () {
+      if (document.hidden) {
+        this.stopRuntimePolling()
+        return
+      }
+      if (this.shouldPollProtectionView()) {
+        this.pollRuntime()
+      }
+    },
+    onSearch (opts) {
+      if (opts && Object.prototype.hasOwnProperty.call(opts, 'searchQuery')) {
+        this.searchQuery = opts.searchQuery || ''
+        this.searchParams = {}
+      } else {
+        this.searchParams = opts || {}
+      }
+      this.resetPagination()
+      this.fetchList()
+    },
+    changeFilter (filter) {
+      this.filters.state = filter === 'all' ? undefined : filter
+      this.resetPagination()
+      this.fetchList()
+    },
+    resetPagination () {
+      this.page = 1
+    },
+    removeFilter (filter) {
+      if (filter.key === 'state') {
+        this.filters.state = undefined
+      } else if (filter.key === 'direction' && this.filters.direction) {
+        this.filters.direction = undefined
+      } else {
+        const searchParams = Object.assign({}, this.searchParams)
+        delete searchParams[filter.key]
+        this.searchParams = searchParams
+      }
+      this.resetPagination()
+      this.fetchList()
+    },
+    changePage (page, pageSize) {
+      this.page = page
+      this.pageSize = pageSize || this.pageSize
+      this.fetchList()
+    },
+    changePageSize (current, size) {
+      this.page = 1
+      this.pageSize = size
+      this.fetchList()
+    },
+    updateSelectedColumns (name) {
+      if (!name) {
+        return
+      }
+      if (this.selectedColumns.includes(name)) {
+        this.selectedColumns = this.selectedColumns.filter(column => column !== name)
+      } else {
+        this.selectedColumns.push(name)
+      }
+    },
+    onRowSelectionChange (selectedRowKeys) {
+      this.selectedRowKeys = selectedRowKeys
+    },
+    paginationTotal (total) {
+      const start = total === 0 ? 0 : Math.min(total, 1 + ((this.normalizedPage - 1) * this.pageSize))
+      const end = Math.min(this.normalizedPage * this.pageSize, total)
+      if (this.$localStorage.get('LOCALE') === 'ko_KR') {
+        return `${this.$t('label.total')} ${total} ${this.$t('label.items')} ${this.$t('label.of')} ${start}-${end} ${this.$t('label.showing')}`
+      }
+      return `${this.$t('label.showing')} ${start}-${end} ${this.$t('label.of')} ${total} ${this.$t('label.items')}`
+    },
+    normalizeText (value) {
+      return String(value || '').trim().toLowerCase()
+    },
+    matchesKeyword (record, keyword, fields) {
+      return fields.some(field => this.normalizeText(record[field]).includes(keyword))
+    },
+    matchesSearchParams (record, params, fields) {
+      return fields.every(field => {
+        const value = params[field]
+        if (value === '' || value === undefined || value === null) {
+          return true
+        }
+        return this.normalizeText(record[field]).includes(this.normalizeText(value))
+      })
+    },
+    sortBy (field) {
+      return (a, b) => this.normalizeText(a[field]).localeCompare(this.normalizeText(b[field]))
+    },
+    formatSeconds (seconds) {
+      const value = Number(seconds)
+      if (!Number.isFinite(value)) {
+        return '-'
+      }
+      if (value < 60) {
+        return `${Math.round(value)}s`
+      }
+      if (value < 3600) {
+        return `${Math.round(value / 60)}m`
+      }
+      if (value < 86400) {
+        return `${Math.round(value / 3600)}h`
+      }
+      return `${Math.round(value / 86400)}d`
+    },
+    formatRpo (plan) {
+      const current = this.formatSeconds(plan.targetreadyrposeconds)
+      const target = this.formatSeconds(plan.rposeconds)
+      return `${current} / ${target}`
+    },
+    effectivePlanState (plan) {
+      return resolveDrPlanState(plan)
     }
   }
 }
 </script>
 
 <style lang="less">
-.cross-dr-page {
-  display: grid;
-  gap: 14px;
-}
-
-.cross-dr-panel {
-  width: 100%;
-}
-
-.cross-dr-heading {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.cross-dr-table-kpi {
-  min-width: 110px;
-  padding: 6px 8px;
-}
-
-.cross-dr-table-kpi .cross-dr-kpi__label {
-  display: none;
-}
-
-.cross-dr-table-kpi .cross-dr-kpi__value {
-  font-size: 14px;
-  line-height: 20px;
-}
-
 .cross-dr-action-modal {
   display: grid;
   gap: 10px;
@@ -838,11 +3090,11 @@ export default {
   margin-bottom: 4px;
 }
 
-body.dark-mode .cross-dr-page {
-  --cross-dr-border: rgba(255, 255, 255, 0.12);
-  --cross-dr-surface: rgba(255, 255, 255, 0.04);
-  --cross-dr-surface-muted: rgba(255, 255, 255, 0.06);
-  --cross-dr-text: rgba(255, 255, 255, 0.86);
-  --cross-dr-text-secondary: rgba(255, 255, 255, 0.58);
+.cross-dr-select-meta {
+  float: right;
+  margin-left: 12px;
+  color: currentColor;
+  font-size: 12px;
+  opacity: 0.65;
 }
 </style>

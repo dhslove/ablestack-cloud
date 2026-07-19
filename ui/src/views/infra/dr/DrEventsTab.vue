@@ -89,10 +89,16 @@ export default {
         this.events = []
         return
       }
-      const params = this.runId ? { runid: this.runId } : { planid: this.planId }
+      const params = this.runId ? { runid: this.runId, page: 1, pagesize: 20 } : { planid: this.planId, page: 1, pagesize: 20 }
       this.loading = true
       listDrEvents(params).then(result => {
-        this.events = result.items || []
+        this.events = (result.items || []).slice(0, 20)
+      }).catch(error => {
+        this.events = []
+        this.$notification.error({
+          message: this.$t('label.events'),
+          description: error?.response?.data?.errorresponse?.errortext || error?.message || this.$t('label.error')
+        })
       }).finally(() => {
         this.loading = false
       })

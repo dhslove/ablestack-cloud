@@ -84,16 +84,20 @@ public class DrRunExecutorImplTest {
         Assert.assertNotNull(run.getCompleted());
 
         ArgumentCaptor<DrRunStepVO> stepCaptor = ArgumentCaptor.forClass(DrRunStepVO.class);
-        Mockito.verify(drRunStepDao, Mockito.times(4)).persist(stepCaptor.capture());
+        Mockito.verify(drRunStepDao, Mockito.times(6)).persist(stepCaptor.capture());
         List<DrRunStepVO> steps = stepCaptor.getAllValues();
         Assert.assertEquals(DrConstants.STEP_STATE_RUNNING, steps.get(0).getState());
-        Assert.assertEquals(Integer.valueOf(10), steps.get(0).getProgress());
-        Assert.assertEquals(DrConstants.STEP_STATE_RUNNING, steps.get(1).getState());
-        Assert.assertEquals(Integer.valueOf(25), steps.get(1).getProgress());
-        Assert.assertEquals(DrConstants.STEP_STATE_SUCCEEDED, steps.get(2).getState());
-        Assert.assertEquals(Integer.valueOf(100), steps.get(2).getProgress());
+        Assert.assertEquals(Integer.valueOf(5), steps.get(0).getProgress());
+        Assert.assertEquals(DrConstants.STEP_STATE_SUCCEEDED, steps.get(1).getState());
+        Assert.assertEquals(Integer.valueOf(20), steps.get(1).getProgress());
+        Assert.assertEquals(DrConstants.STEP_STATE_RUNNING, steps.get(2).getState());
+        Assert.assertEquals(Integer.valueOf(30), steps.get(2).getProgress());
         Assert.assertEquals(DrConstants.STEP_STATE_SUCCEEDED, steps.get(3).getState());
         Assert.assertEquals(Integer.valueOf(100), steps.get(3).getProgress());
+        Assert.assertEquals(DrConstants.STEP_STATE_SUCCEEDED, steps.get(4).getState());
+        Assert.assertEquals(Integer.valueOf(100), steps.get(4).getProgress());
+        Assert.assertEquals(DrConstants.STEP_STATE_SUCCEEDED, steps.get(5).getState());
+        Assert.assertEquals(Integer.valueOf(100), steps.get(5).getProgress());
 
         ArgumentCaptor<DrEventVO> eventCaptor = ArgumentCaptor.forClass(DrEventVO.class);
         Mockito.verify(drEventDao, Mockito.times(2)).persist(eventCaptor.capture());
@@ -125,12 +129,13 @@ public class DrRunExecutorImplTest {
         Assert.assertNull(run.getErrorCode());
 
         ArgumentCaptor<DrRunStepVO> stepCaptor = ArgumentCaptor.forClass(DrRunStepVO.class);
-        Mockito.verify(drRunStepDao, Mockito.times(4)).persist(stepCaptor.capture());
+        Mockito.verify(drRunStepDao, Mockito.times(5)).persist(stepCaptor.capture());
         List<DrRunStepVO> steps = stepCaptor.getAllValues();
         Assert.assertEquals(DrConstants.STEP_STATE_RUNNING, steps.get(0).getState());
-        Assert.assertEquals(DrConstants.STEP_STATE_RUNNING, steps.get(1).getState());
-        Assert.assertEquals(DrConstants.STEP_STATE_SUCCEEDED, steps.get(2).getState());
+        Assert.assertEquals(DrConstants.STEP_STATE_SUCCEEDED, steps.get(1).getState());
+        Assert.assertEquals(DrConstants.STEP_STATE_RUNNING, steps.get(2).getState());
         Assert.assertEquals(DrConstants.STEP_STATE_SUCCEEDED, steps.get(3).getState());
+        Assert.assertEquals(DrConstants.STEP_STATE_SUCCEEDED, steps.get(4).getState());
 
         ArgumentCaptor<DrEventVO> eventCaptor = ArgumentCaptor.forClass(DrEventVO.class);
         Mockito.verify(drEventDao, Mockito.times(2)).persist(eventCaptor.capture());
@@ -154,6 +159,27 @@ public class DrRunExecutorImplTest {
         Assert.assertEquals(DrConstants.RUN_STATE_FAILED, run.getState());
         Assert.assertEquals(DrConstants.ERROR_ENGINE_UNAVAILABLE, run.getErrorCode());
         Mockito.verify(drProjectionService, Mockito.never()).refreshPlanProjection(Mockito.anyLong(), Mockito.anyBoolean());
+    }
+
+    @Test
+    public void failedTestFailoverPreservesReadyPlanState() {
+        DrPlanVO plan = ftctlDrPlan();
+        plan.setState(DrConstants.PLAN_STATE_READY);
+        DrRunVO run = run(DrConstants.RUN_TYPE_TEST_FAILOVER);
+        Mockito.when(drRunDao.findById(run.getId())).thenReturn(run);
+        Mockito.when(drPlanDao.findById(plan.getId())).thenReturn(plan);
+        Mockito.when(drAdapterRegistry.getReplicationEngine(DrConstants.ENGINE_TYPE_FTCTL_DR, DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR))
+                .thenReturn(replicationEngine);
+        Mockito.when(replicationEngine.validatePlan(plan)).thenReturn(DrAdapterResult.success("valid", null));
+        Mockito.when(replicationEngine.execute(Mockito.any(DrExecutionContext.class)))
+                .thenReturn(DrAdapterResult.failure("DR_SYNC_QUIESCE_TIMEOUT", "scheduler did not acknowledge pause", null));
+
+        executor.queueRun(run);
+
+        Assert.assertEquals(DrConstants.RUN_STATE_FAILED, run.getState());
+        Assert.assertEquals(DrConstants.PLAN_STATE_READY, plan.getState());
+        Assert.assertEquals("DR_SYNC_QUIESCE_TIMEOUT", plan.getLastErrorCode());
+        Mockito.verify(drPlanDao).update(plan.getId(), plan);
     }
 
     private DrPlanVO ftctlPlan() {

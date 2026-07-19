@@ -18,12 +18,15 @@
 -->
 <template>
   <div class="cross-dr-overview">
-    <dr-topology :plan="plan" :sourceSite="sourceSite" :targetSite="targetSite" />
+    <dr-resource-details-tab
+      v-if="showDetails"
+      :resource="plan"
+      :fields="detailFields" />
 
-    <div class="cross-dr-overview__kpis">
+    <div v-if="showProtectionSummary" class="cross-dr-overview__kpis">
       <div class="cross-dr-kpi">
         <div class="cross-dr-kpi__label">{{ $t('label.state') }}</div>
-        <div class="cross-dr-kpi__status"><dr-status-pill :status="plan.state" /></div>
+        <div class="cross-dr-kpi__status"><dr-status-pill :status="effectiveState" /></div>
         <div class="cross-dr-kpi__meta">{{ plan.adminstate || '-' }}</div>
       </div>
       <dr-rpo-kpi
@@ -43,52 +46,35 @@
     </div>
 
     <a-alert
-      v-if="plan.lasterrorcode || plan.lasterrormessage"
+      v-if="showProtectionSummary && (visibleErrorCode || visibleErrorMessage)"
       type="warning"
       show-icon
       class="cross-dr-risk">
       <template #message>
-        <div>{{ plan.lasterrorcode || $t('label.error') }}</div>
-        <div class="cross-dr-risk__body">{{ plan.lasterrormessage || '-' }}</div>
+        <div>{{ visibleErrorCode || $t('label.error') }}</div>
+        <div class="cross-dr-risk__body">{{ visibleErrorMessage || '-' }}</div>
       </template>
     </a-alert>
 
-    <dr-run-progress v-if="currentRun && currentRun.id" :run="currentRun" />
-
-    <a-descriptions bordered size="small" :column="descriptionColumn">
-      <a-descriptions-item :label="$t('label.id')">{{ plan.id }}</a-descriptions-item>
-      <a-descriptions-item :label="$t('label.name')">{{ plan.name || '-' }}</a-descriptions-item>
-      <a-descriptions-item :label="$t('label.description')">{{ plan.description || '-' }}</a-descriptions-item>
-      <a-descriptions-item :label="$t('label.dr.direction')">{{ plan.direction || '-' }}</a-descriptions-item>
-      <a-descriptions-item :label="$t('label.dr.active.side')">{{ plan.activeside || '-' }}</a-descriptions-item>
-      <a-descriptions-item :label="$t('label.dr.source.vm')">
-        <router-link v-if="plan.sourcevmid" :to="{ path: '/vm/' + plan.sourcevmid }">{{ plan.sourcevmid }}</router-link>
-        <span v-else>{{ plan.sourceexternalref || '-' }}</span>
-      </a-descriptions-item>
-      <a-descriptions-item :label="$t('label.dr.source.worker.host')">{{ plan.sourceworkerhostid || '-' }}</a-descriptions-item>
-      <a-descriptions-item :label="$t('label.dr.target.worker.host')">{{ plan.targetworkerhostid || '-' }}</a-descriptions-item>
-      <a-descriptions-item :label="$t('label.dr.coordinator.worker.host')">{{ plan.coordinatorworkerhostid || '-' }}</a-descriptions-item>
-      <a-descriptions-item :label="$t('label.dr.last.source.checkpoint')">{{ plan.lastsourcecheckpointat || '-' }}</a-descriptions-item>
-      <a-descriptions-item :label="$t('label.dr.last.target.durable')">{{ plan.lasttargetdurableat || '-' }}</a-descriptions-item>
-      <a-descriptions-item :label="$t('label.created')">{{ plan.created || '-' }}</a-descriptions-item>
-    </a-descriptions>
+    <dr-run-progress v-if="showProtectionSummary && currentRun && currentRun.id" :run="currentRun" />
   </div>
 </template>
 
 <script>
+import DrResourceDetailsTab from '@/components/dr/DrResourceDetailsTab.vue'
 import DrRpoKpi from '@/components/dr/DrRpoKpi.vue'
 import DrRunProgress from '@/components/dr/DrRunProgress.vue'
 import DrStatusPill from '@/components/dr/DrStatusPill.vue'
-import DrTopology from '@/components/dr/DrTopology.vue'
+import { resolveDrPlanState } from '@/utils/dr/planState'
 import { mixinDevice } from '@/utils/mixin.js'
 
 export default {
   name: 'DrPlanOverview',
   components: {
+    DrResourceDetailsTab,
     DrRpoKpi,
     DrRunProgress,
-    DrStatusPill,
-    DrTopology
+    DrStatusPill
   },
   mixins: [mixinDevice],
   props: {
@@ -107,14 +93,91 @@ export default {
     currentRun: {
       type: Object,
       default: () => ({})
+    },
+    showDetails: {
+      type: Boolean,
+      default: true
+    },
+    showProtectionSummary: {
+      type: Boolean,
+      default: true
     }
   },
   computed: {
-    descriptionColumn () {
-      return this.device === 'mobile' ? 1 : 2
+    detailFields () {
+      const sourceVm = this.plan.sourcevmid || this.plan.sourceexternalref
+      return [
+        { key: 'id', label: this.$t('label.id'), value: this.plan.id },
+        { key: 'name', label: this.$t('label.name'), value: this.plan.name },
+        { key: 'description', label: this.$t('label.description'), value: this.plan.description },
+        {
+          key: 'direction',
+          label: this.$t('label.dr.direction'),
+          value: this.plan.direction ? this.$t(this.directionLabel(this.plan.direction)) : '-'
+        },
+        { key: 'activeSide', label: this.$t('label.dr.active.side'), value: this.plan.activeside },
+        {
+          key: 'sourceVm',
+          label: this.$t('label.dr.source.vm'),
+          value: sourceVm,
+          route: this.plan.sourcevmid ? { path: '/vm/' + this.plan.sourcevmid } : null
+        },
+        { key: 'sourceWorkerHost', label: this.$t('label.dr.source.worker.host'), value: this.plan.sourceworkerhostid },
+        { key: 'targetWorkerHost', label: this.$t('label.dr.target.worker.host'), value: this.plan.targetworkerhostid },
+        { key: 'coordinatorWorkerHost', label: this.$t('label.dr.coordinator.worker.host'), value: this.plan.coordinatorworkerhostid },
+        { key: 'targetMaterializationState', label: this.$t('label.dr.target.materialization.state'), value: this.plan.targetmaterializationstate },
+        { key: 'targetMaterializationMessage', label: this.$t('label.dr.target.materialization.message'), value: this.plan.targetmaterializationmessage },
+        { key: 'targetMaterialized', label: this.$t('label.dr.target.materialized'), value: this.booleanLabel(this.plan.targetmaterialized) },
+        { key: 'targetVmPresent', label: this.$t('label.dr.target.vm.present'), value: this.booleanLabel(this.plan.targetvmpresent) },
+        { key: 'restorePointPresent', label: this.$t('label.dr.restore.point.present'), value: this.booleanLabel(this.plan.restorepointpresent) },
+        { key: 'sourceDiskMapPath', label: this.$t('label.dr.source.disk.map'), value: this.plan.sourcediskmappath || this.currentRun.sourcediskmappath },
+        { key: 'targetDiskMapPath', label: this.$t('label.dr.target.disk.map'), value: this.plan.targetdiskmappath || this.currentRun.targetdiskmappath },
+        { key: 'targetDiskInvalidCount', label: this.$t('label.dr.target.disk.invalid.count'), value: this.firstDefined(this.plan.targetdiskinvalidcount, this.currentRun.targetdiskinvalidcount) },
+        { key: 'runtimeCbtEnabled', label: this.$t('label.dr.cbt.status'), value: this.booleanLabel(this.firstDefined(this.plan.runtimecbtenabled, this.currentRun.runtimecbtenabled)) },
+        { key: 'runtimeCbtDiskId', label: this.$t('label.dr.cbt.disk.id'), value: this.plan.runtimecbtdiskid || this.currentRun.runtimecbtdiskid },
+        { key: 'runtimeCbtMessage', label: this.$t('label.dr.cbt.message'), value: this.plan.runtimecbtmessage || this.currentRun.runtimecbtmessage },
+        { key: 'runtimeSourceOpenReady', label: this.$t('label.dr.source.open.status'), value: this.booleanLabel(this.firstDefined(this.plan.runtimesourceopenready, this.currentRun.runtimesourceopenready)) },
+        { key: 'runtimeSourceOpenError', label: this.$t('label.dr.source.open.error'), value: this.plan.runtimesourceopenmessage || this.currentRun.runtimesourceopenmessage || this.plan.runtimesourceopenerrorcode || this.currentRun.runtimesourceopenerrorcode },
+        { key: 'runtimeSourceSnapshotReady', label: this.$t('label.dr.source.snapshot.status'), value: this.booleanLabel(this.firstDefined(this.plan.runtimesourcesnapshotready, this.currentRun.runtimesourcesnapshotready)) },
+        { key: 'runtimeSourceSnapshotName', label: this.$t('label.dr.source.snapshot.name'), value: this.plan.runtimesourcesnapshotname || this.currentRun.runtimesourcesnapshotname },
+        { key: 'runtimeSourceSnapshotError', label: this.$t('label.dr.source.snapshot.error'), value: this.plan.runtimesourcesnapshotmessage || this.currentRun.runtimesourcesnapshotmessage || this.plan.runtimesourcesnapshoterrorcode || this.currentRun.runtimesourcesnapshoterrorcode },
+        { key: 'readinessReason', label: this.$t('label.dr.readiness.reason'), value: this.plan.readinessmessage || this.plan.readinessreasoncode },
+        { key: 'freshnessState', label: this.$t('label.dr.freshness.state'), value: this.plan.freshnessstate },
+        { key: 'currentCycle', label: this.$t('label.dr.current.cycle'), value: this.currentCycleLabel },
+        { key: 'baselineState', label: this.$t('label.dr.baseline.state'), value: this.plan.baselinestate },
+        { key: 'schedulerState', label: this.$t('label.dr.scheduler.state'), value: this.plan.schedulerstate },
+        { key: 'lastSourceCheckpoint', label: this.$t('label.dr.last.source.checkpoint'), value: this.plan.lastsourcecheckpointat },
+        { key: 'lastTargetDurable', label: this.$t('label.dr.last.target.durable'), value: this.plan.lasttargetdurableat },
+        { key: 'created', label: this.$t('label.created'), value: this.plan.created }
+      ]
+    },
+    effectiveState () {
+      return resolveDrPlanState(this.plan, this.currentRun)
+    },
+    currentCycleLabel () {
+      const values = [this.plan.currentcyclesequence, this.plan.currentcyclemode, this.plan.currentcyclestate]
+        .filter(value => value !== undefined && value !== null && String(value).length > 0)
+      return values.length ? values.join(' / ') : '-'
+    },
+    currentRunFailed () {
+      return String(this.currentRun.state || '').toUpperCase() === 'FAILED'
+    },
+    visibleErrorCode () {
+      return this.plan.runtimeerrorcode || this.currentRun.runtimeerrorcode || this.plan.lasterrorcode || (this.currentRunFailed ? this.currentRun.errorcode : null)
+    },
+    visibleErrorMessage () {
+      return this.plan.lasterrormessage || (this.currentRunFailed ? this.currentRun.errormessage : null) || this.translatedError(this.visibleErrorCode)
     }
   },
   methods: {
+    directionLabel (direction) {
+      return {
+        KVM_TO_KVM: 'label.dr.direction.kvm.to.kvm',
+        KVM_TO_VMWARE: 'label.dr.direction.kvm.to.vmware',
+        VMWARE_TO_VMWARE: 'label.dr.direction.vmware.to.vmware',
+        VMWARE_TO_KVM: 'label.dr.direction.vmware.to.kvm'
+      }[direction] || direction || '-'
+    },
     formatSeconds (seconds) {
       const value = Number(seconds)
       if (!Number.isFinite(value)) {
@@ -130,6 +193,25 @@ export default {
         return `${Math.round(value / 3600)}h`
       }
       return `${Math.round(value / 86400)}d`
+    },
+    booleanLabel (value) {
+      if (value === true || value === 'true') {
+        return this.$t('label.yes')
+      }
+      if (value === false || value === 'false') {
+        return this.$t('label.no')
+      }
+      return '-'
+    },
+    firstDefined (...values) {
+      return values.find(value => value !== undefined && value !== null && value !== '') ?? '-'
+    },
+    translatedError (code) {
+      if (!code) {
+        return ''
+      }
+      const key = `message.dr.error.${String(code).toLowerCase().replace(/_/g, '.')}`
+      return this.$te && this.$te(key) ? this.$t(key) : code
     }
   }
 }

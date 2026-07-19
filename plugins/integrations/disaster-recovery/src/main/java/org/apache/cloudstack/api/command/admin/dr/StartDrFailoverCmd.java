@@ -87,15 +87,13 @@ public class StartDrFailoverCmd extends AbstractDrPlanActionCmd {
     }
 
     private DrRestorePointVO resolveRestorePoint() {
+        DrRestorePointVO latest = drRestorePointDao.findLatestTargetReadyByPlanId(getPlanId());
         Long restorePointId = getRestorePointId();
-        if (restorePointId != null) {
-            DrRestorePointVO restorePoint = drRestorePointDao.findById(restorePointId);
-            if (restorePoint == null || restorePoint.getRemoved() != null || restorePoint.getPlanId() != getPlanId()) {
-                throw new ServerApiException(ApiErrorCode.PARAM_ERROR, "DR restore point is not valid for the selected plan");
-            }
-            return restorePoint;
+        if (restorePointId != null && (latest == null || latest.getId() != restorePointId.longValue())) {
+            throw new ServerApiException(ApiErrorCode.PARAM_ERROR,
+                    "DR failover uses the latest synchronized target checkpoint; historical checkpoint selection is not supported");
         }
-        return drRestorePointDao.findLatestTargetReadyByPlanId(getPlanId());
+        return latest;
     }
 
     @Override

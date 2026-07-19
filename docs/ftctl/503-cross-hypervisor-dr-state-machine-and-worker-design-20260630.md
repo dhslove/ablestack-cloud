@@ -212,7 +212,7 @@ Non-retryable:
 
 - invalid datastore mapping
 - unsupported guest/controller conversion
-- missing credential reference
+- missing or invalid backend-managed site credential
 - ownership conflict on target VM/path
 
 Manual gate:
@@ -276,3 +276,182 @@ VMware adapter 추가 projection:
 | 수동 조치 | 기능별 화면/로그에서 확인 | `WAITING_MANUAL_CONFIRM` 상태와 event/action gate로 표준화 |
 | progress 표시 | FTCTL 또는 VMware task별 별도 표시 | plan/run/step projection으로 UI가 동일 방식 표시 |
 | 충돌 방지 | 엔진별 lock에 의존 | plan lock과 adapter lock을 함께 사용해 중복 작업 방지 |
+
+## 2026-07-07 Update: Accepted Run Is Not A Terminal State
+
+For DR sync actions, `ACCEPTED` means the command was accepted for asynchronous
+worker execution only. It must not be promoted to a successful plan state unless
+the runtime projection shows target materialization, durable checkpoint, and
+restore point evidence.
+
+Additional state-machine constraints:
+
+- `START_REQUESTED` or `ACCEPTED` with unresolved disk readiness remains
+  pre-execution and must be blocked before Agent dispatch.
+- Runtime terminal errors such as `DR_TARGET_DISK_SIZE_UNRESOLVED` move
+  `dr_run.state` to `FAILED` and `dr_plan.state` to `ERROR`.
+- `dr_replica.state=SKELETON_READY` is valid only after a positive-size disk map
+  was materialized or explicitly reserved with target references.
+- Background projection reconciliation must revisit active runs until a terminal
+  run state or a target-ready state is recorded.
+
+The full layer-by-layer design is maintained in
+`538-cross-hypervisor-dr-vmware-to-kvm-disk-size-and-projection-hardening-design-20260707.md`.
+
+## 2026-07-08 Update: Active Initial Seed Pending State
+
+An accepted sync run can remain healthy while the target VM is absent. For
+VMware to ABLESTACK, initial full-seed first creates or opens target storage,
+then copies source data, then creates a durable restore point. Only after that
+does target VM materialization become required.
+
+State-machine addition:
+
+```mermaid
+stateDiagram-v2
+  [*] --> ACCEPTED
+  ACCEPTED --> INITIAL_SEEDING: FTCTL state=SYNCING step=full-seed-transfer
+  INITIAL_SEEDING --> TARGET_MATERIALIZING: last_target_durable_at present
+  TARGET_MATERIALIZING --> TARGET_READY: target VM/reference and restore point present
+  INITIAL_SEEDING --> FAILED: runtime ERROR/FAILED or worker FAILED
+  TARGET_MATERIALIZING --> FAILED: target VM missing after readiness grace
+```
+
+Projection rule:
+
+- `target_vm_present=false` is not a failure while `state=SYNCING`,
+  `step=full-seed-transfer`, `worker_state=RUNNING`, and runtime `error_code`
+  is empty.
+- `DR_TARGET_VM_NOT_FOUND` is terminal only when the runtime has reached
+  `READY`/`TARGET_READY`, or when a durable restore point exists and target VM
+  materialization has exceeded the backend grace window.
+- See
+  `546-cross-hypervisor-dr-initial-sync-pending-projection-contract-design-20260708.md`.
+
+## 2026-07-09 Update: Target Materialization Failure Is Terminal
+
+Validation for plan `b2a649b7-8313-4bd4-be49-5dda67993e06` proved a separate
+state boundary after durable restore point creation:
+
+- FTCTL can finish source snapshot, VDDK open, CBT check, RBD full seed, and
+  restore point creation successfully.
+- Cloud can import/adopt the target volume successfully.
+- Target VM deployment can still fail because the selected target compute
+  offering is custom and the plan does not carry `cpuNumber`, `cpuSpeed`, and
+  `memory`.
+
+State-machine addition:
+
+```mermaid
+stateDiagram-v2
+  TARGET_MATERIALIZING --> TARGET_VOLUME_IMPORTED: root/data volumes imported or adopted
+  TARGET_VOLUME_IMPORTED --> TARGET_VM_DEPLOYING: custom compute params resolved
+  TARGET_VM_DEPLOYING --> TARGET_REF_SYNC: stopped target VM created
+  TARGET_REF_SYNC --> TARGET_READY: Cloud refs synced to FTCTL
+  TARGET_VM_DEPLOYING --> FAILED: DR_TARGET_VM_MATERIALIZE_FAILED
+```
+
+Projection rule:
+
+- If the latest run has terminal `target-materialization` failure, later
+  runtime polling must not demote the plan back to `SYNCING`.
+- If the terminal failure is notification-only and Cloud DB target references
+  plus FTCTL runtime target references later converge, projection may recover
+  the run through a `target-materialization-recovered` step and
+  `TARGET_MATERIALIZATION_RECOVERED` event.
+- `SYNCING` remains healthy only before terminal materialization failure.
+- Custom compute offering validation is part of executable preflight, not a
+  best-effort target VM deploy detail.
+- The full code-level contract is maintained in
+  `547-cross-hypervisor-dr-target-vm-materialization-contract-design-20260709.md`.
+- Agent action compatibility, capability preflight, state convergence, and UI
+  primary-state consistency are maintained in
+  `548-cross-hypervisor-dr-agent-action-compatibility-and-state-convergence-design-20260709.md`.
+
+## 2026-07-10 Corrective Update: Correlated And Monotonic State Authority
+
+The failed plan `0de0b865-8642-4cac-a5d7-fc864633d062` showed that a terminal
+`target-materialization` failure can coexist with stale RUNNING projection
+steps and an FTCTL runtime that still says `SYNCING`. The state contract is
+therefore tightened:
+
+- runtime status is applicable only when both `plan_uuid` and `run_uuid` match
+  the Plan's current run;
+- an active current run is shown as queued/preparing/syncing without flashing a
+  previous Plan error;
+- a terminal failed current run wins over any correlated runtime `SYNCING`;
+- terminal runs are immutable; recovery creates a new reconcile/retry run;
+- terminalizing a run closes every remaining RUNNING step;
+- list and detail primary status both use backend `effectivestate`.
+
+The authoritative transition policy, DAO changes, and AS-IS/TO-BE matrix are in
+section 16 of
+`548-cross-hypervisor-dr-agent-action-compatibility-and-state-convergence-design-20260709.md`.
+
+## 2026-07-10 Normative Projection And Checkpoint State Axes
+
+Background protection state, foreground operation state, cache freshness, and
+checkpoint activity are independent axes:
+
+```text
+protectionState: READY | DEGRADED | FAILED_OVER | ERROR
+operationState:  QUEUED | RUNNING | SUCCEEDED | FAILED | CANCELED
+projectionState: CURRENT | STALE | FAILED
+checkpointState: IDLE | TRANSFERRING | COMPLETED | FAILED
+```
+
+A READY Plan may have checkpoint activity `TRANSFERRING`. During that window
+current sequence N is not a completed synchronization checkpoint; the latest
+completed sequence remains N-1. Cached/stale reads do not cause state-machine
+transitions.
+
+Detailed transitions and hard gates:
+`550-cross-hypervisor-dr-protection-view-cache-and-completed-checkpoint-design-20260710.md`.
+
+## 2026-07-14 Normative Scheduler Quiesce State Update
+
+Background Scheduler control is an independent state axis:
+
+```text
+schedulerState: RUNNING | QUIESCE_REQUESTED | QUIESCING | PAUSED | STOPPING | STOPPED | ERROR
+cycleState:     IDLE | RUNNING | COMMITTING | FAILED
+transitionState: IDLE | PREPARING | TESTING | FAILING_OVER | FAILING_BACK | REPROTECTING | RELEASING
+```
+
+`RUNNING` with a completed durable checkpoint is eligible for Test Failover
+when control protocol v2 is available. The foreground Run first requests
+quiesce, waits for the current cycle to commit, and leases the latest completed
+checkpoint. A test/control Run failure does not demote healthy protection to
+`ERROR`; only a terminal data-plane failure may do so.
+
+Detailed transitions and lock ordering:
+`553-cross-hypervisor-dr-continuous-sync-control-and-quiesce-lock-design-20260714.md`.
+
+## 2026-07-16 Replication Commit State Update
+
+The cycle state machine is refined to:
+
+```text
+PREPARING -> SNAPSHOT_CREATED -> CBT_QUERIED -> TRANSFERRING
+          -> DATA_COPIED -> METADATA_PREPARED -> LOCAL_DURABLE
+          -> CLOUD_PROJECTED -> COMPLETED
+```
+
+`DATA_COPIED_METADATA_FAILED`, `LOCAL_COMMIT_FAILED`,
+`CLOUD_PROJECTION_PENDING`, and `RESEED_REQUIRED` are explicit recovery states.
+Only `LOCAL_DURABLE` may advance the committed CBT baseline, and only
+`CLOUD_PROJECTED` may publish the user-visible completed checkpoint. Worker
+retry selection is derived from journal evidence rather than the previous
+percentage or generic process exit code.
+
+Detailed transitions and recovery gates:
+`557-cross-hypervisor-dr-cycle-commit-and-api-json-recovery-design-20260716.md`.
+
+### 2026-07-17 Incremental Decision State Addendum
+
+Before `CBT_QUERIED`, the worker records immutable requested mode and a typed
+effective-mode decision. One automatic reseed may repair a validly diagnosed
+baseline defect; a repeated identical decision enters
+`RESEED_LOOP_DETECTED` and stops before data copy. A new current sequence does
+not erase the latest completed sequence. Detailed transitions are normative in
+`559-cross-hypervisor-dr-incremental-mode-decision-and-cycle-projection-design-20260717.md`.

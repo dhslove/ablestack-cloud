@@ -17,9 +17,11 @@
 package com.cloud.dr.orchestrator;
 
 import java.util.Date;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
 
 import javax.inject.Inject;
 
@@ -48,8 +50,17 @@ import com.cloud.utils.concurrency.NamedThreadFactory;
 
 public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
     private static final Logger LOGGER = LogManager.getLogger(DrRunExecutorImpl.class);
-    private static final String STEP_EXECUTE = "execute";
+    private static final String STEP_PREPARE = "prepare";
     private static final String STEP_DISPATCH = "dispatch-agent";
+    private static final String STEP_AGENT_ACCEPT = "agent-accept";
+    private static final String STEP_FINAL = "final";
+    private static final int STEP_ORDER_PREPARE = 0;
+    private static final int STEP_ORDER_DISPATCH = 10;
+    private static final int STEP_ORDER_AGENT_ACCEPT = 20;
+    private static final int STEP_ORDER_RUNTIME_PROJECTION = 30;
+    private static final int STEP_ORDER_FINAL = 90;
+    private static final int DEFAULT_RETRY_AFTER_SECONDS = 5;
+    private static final int MAX_RETRY_COUNT = 12;
 
     @Inject
     private DrPlanDao drPlanDao;
@@ -118,8 +129,8 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
             cancelRun(latestRun, "DR run was canceled before dispatch");
             return;
         }
-        if (!StringUtils.equalsAny(latestRun.getState(), DrConstants.RUN_STATE_QUEUED, DrConstants.RUN_STATE_DISPATCHING,
-                DrConstants.RUN_STATE_ACCEPTED)) {
+        if (!StringUtils.equalsAny(latestRun.getState(), DrConstants.RUN_STATE_QUEUED, DrConstants.RUN_STATE_PREPARING,
+                DrConstants.RUN_STATE_DISPATCHING, DrConstants.RUN_STATE_ACCEPTED, DrConstants.RUN_STATE_RETRYING)) {
             return;
         }
 
@@ -128,18 +139,25 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
             failRun(latestRun, DrConstants.ERROR_PLAN_NOT_FOUND, "DR plan was not found for run " + latestRun.getId(), null);
             return;
         }
+        DrRunVO conflictingRun = findConflictingActiveRun(latestRun);
+        if (conflictingRun != null) {
+            String message = "Another DR run is active for this plan: " + conflictingRun.getUuid();
+            retryRun(latestRun, DrConstants.ERROR_ACTIVE_RUN_EXISTS, message, null, DEFAULT_RETRY_AFTER_SECONDS);
+            return;
+        }
 
         LOGGER.debug("Executing DR run {} of type {} for plan {}", latestRun.getId(), latestRun.getRunType(), latestRun.getPlanId());
-        markRunDispatching(latestRun);
-        recordStep(latestRun.getId(), STEP_DISPATCH, 5, DrConstants.STEP_STATE_RUNNING, 10, latestRun.getRequestJson(), null, null);
-        markRunRunning(latestRun);
+        markRunPreparing(latestRun);
         recordEvent(plan.getId(), latestRun.getId(), DrConstants.EVENT_RUN_STARTED, DrConstants.EVENT_SEVERITY_INFO,
                 "DR run started", latestRun.getRequestJson());
-        recordStep(latestRun.getId(), STEP_EXECUTE, 10, DrConstants.STEP_STATE_RUNNING, 25, latestRun.getRequestJson(), null, null);
+        recordStep(latestRun.getId(), STEP_PREPARE, STEP_ORDER_PREPARE, DrConstants.STEP_STATE_RUNNING, 5, latestRun.getRequestJson(), null, null);
 
         DrAdapterResult result;
         try {
             plan = prepareProtectionResources(plan, latestRun);
+            recordStep(latestRun.getId(), STEP_PREPARE, STEP_ORDER_PREPARE, DrConstants.STEP_STATE_SUCCEEDED, 20, latestRun.getRequestJson(), null, null);
+            markRunDispatching(latestRun);
+            recordStep(latestRun.getId(), STEP_DISPATCH, STEP_ORDER_DISPATCH, DrConstants.STEP_STATE_RUNNING, 30, latestRun.getRequestJson(), null, null);
             result = executeAdapter(plan, latestRun);
         } catch (RuntimeException e) {
             LOGGER.warn("DR run {} failed before agent dispatch: {}", latestRun.getId(), e.getMessage(), e);
@@ -157,7 +175,29 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
         String errorCode = result != null ? result.getErrorCode() : DrConstants.ERROR_ENGINE_ACTION_FAILED;
         String message = result != null ? result.getMessage() : "DR action adapter returned no result";
         String detailsJson = result != null ? result.getDetailsJson() : null;
+        if (result != null && result.isRetryable()) {
+            retryRun(latestRun, errorCode, message, detailsJson, result.getRetryAfterSeconds());
+            return;
+        }
         failRun(latestRun, errorCode, message, detailsJson);
+    }
+
+    private DrRunVO findConflictingActiveRun(DrRunVO run) {
+        List<DrRunVO> runs = drRunDao.listByPlanId(run.getPlanId());
+        if (runs == null) {
+            return null;
+        }
+        for (DrRunVO candidate : runs) {
+            if (candidate == null || candidate.getId() == run.getId() || candidate.getRemoved() != null || candidate.getCompleted() != null) {
+                continue;
+            }
+            if (StringUtils.equalsAny(candidate.getState(), DrConstants.RUN_STATE_QUEUED, DrConstants.RUN_STATE_PREPARING,
+                    DrConstants.RUN_STATE_DISPATCHING, DrConstants.RUN_STATE_ACCEPTED, DrConstants.RUN_STATE_RUNNING,
+                    DrConstants.RUN_STATE_RETRYING, DrConstants.RUN_STATE_CANCEL_REQUESTED)) {
+                return candidate;
+            }
+        }
+        return null;
     }
 
     private DrAdapterResult executeAdapter(DrPlanVO plan, DrRunVO run) {
@@ -210,19 +250,22 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
         return DrConstants.ERROR_ENGINE_ACTION_FAILED;
     }
 
-    private void markRunDispatching(DrRunVO run) {
-        run.setState(DrConstants.RUN_STATE_DISPATCHING);
-        run.setCurrentStepName(STEP_DISPATCH);
+    private void markRunPreparing(DrRunVO run) {
+        run.setState(DrConstants.RUN_STATE_PREPARING);
+        if (run.getStarted() == null) {
+            run.setStarted(new Date());
+        }
+        run.setCurrentStepName(STEP_PREPARE);
         run.markUpdated();
         drRunDao.update(run.getId(), run);
     }
 
-    private void markRunRunning(DrRunVO run) {
-        run.setState(DrConstants.RUN_STATE_RUNNING);
-        if (run.getStarted() == null) {
-            run.setStarted(new Date());
+    private void markRunDispatching(DrRunVO run) {
+        run.setState(DrConstants.RUN_STATE_DISPATCHING);
+        if (run.getDispatchStarted() == null) {
+            run.setDispatchStarted(new Date());
         }
-        run.setCurrentStepName(STEP_EXECUTE);
+        run.setCurrentStepName(STEP_DISPATCH);
         run.markUpdated();
         drRunDao.update(run.getId(), run);
     }
@@ -233,13 +276,24 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
             cancelRun(latestRun, "DR run completed after cancel request");
             return;
         }
-        recordStep(run.getId(), STEP_DISPATCH, 15, DrConstants.STEP_STATE_SUCCEEDED, 100, result.getDetailsJson(), null, null);
-        recordStep(run.getId(), STEP_EXECUTE, 20, DrConstants.STEP_STATE_SUCCEEDED, 100, result.getDetailsJson(), null, null);
+        recordStep(run.getId(), STEP_DISPATCH, STEP_ORDER_DISPATCH, DrConstants.STEP_STATE_SUCCEEDED, 100, result.getDetailsJson(), null, null);
+        recordStep(run.getId(), STEP_AGENT_ACCEPT, STEP_ORDER_AGENT_ACCEPT, DrConstants.STEP_STATE_SUCCEEDED, 100, result.getDetailsJson(), null, null);
+        recordStep(run.getId(), STEP_FINAL, STEP_ORDER_FINAL, DrConstants.STEP_STATE_SUCCEEDED, 100, result.getDetailsJson(), null, null);
         run.setState(DrConstants.RUN_STATE_SUCCEEDED);
         run.setCompleted(new Date());
+        run.setDispatchCompleted(new Date());
+        run.setEngineAccepted(true);
+        if (run.getAcceptedAt() == null) {
+            run.setAcceptedAt(new Date());
+        }
         run.setCurrentStepName("completed");
         run.setErrorCode(null);
         run.setErrorMessage(null);
+        run.setProjectionState("terminal");
+        run.setRetryable(false);
+        run.setRetryAfterSeconds(null);
+        run.setNextRetryAt(null);
+        run.setLastStatusJson(result.getDetailsJson());
         run.markUpdated();
         drRunDao.update(run.getId(), run);
         recordEvent(plan.getId(), run.getId(), DrConstants.EVENT_RUN_SUCCEEDED, DrConstants.EVENT_SEVERITY_INFO,
@@ -248,38 +302,142 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
     }
 
     private void acceptRun(DrPlanVO plan, DrRunVO run, DrAdapterResult result) {
-        recordStep(run.getId(), STEP_DISPATCH, 15, DrConstants.STEP_STATE_SUCCEEDED, 100, result.getDetailsJson(), null, null);
-        recordStep(run.getId(), STEP_EXECUTE, 20, DrConstants.STEP_STATE_SUCCEEDED, 100, result.getDetailsJson(), null, null);
+        recordStep(run.getId(), STEP_DISPATCH, STEP_ORDER_DISPATCH, DrConstants.STEP_STATE_SUCCEEDED, 60, result.getDetailsJson(), null, null);
+        recordStep(run.getId(), STEP_AGENT_ACCEPT, STEP_ORDER_AGENT_ACCEPT, DrConstants.STEP_STATE_SUCCEEDED, 70, result.getDetailsJson(), null, null);
         run.setState(DrConstants.RUN_STATE_ACCEPTED);
         run.setCurrentStepName("agent-accepted");
         run.setExternalJobRef(result.getExternalJobRef());
+        run.setDispatchCompleted(new Date());
+        run.setEngineAccepted(true);
+        if (run.getAcceptedAt() == null) {
+            run.setAcceptedAt(new Date());
+        }
+        run.setProjectionState("accepted");
+        run.setProjectionChecked(null);
+        run.setRetryable(false);
+        run.setRetryAfterSeconds(null);
+        run.setNextRetryAt(null);
+        run.setLastStatusJson(result.getDetailsJson());
         run.setErrorCode(null);
         run.setErrorMessage(null);
         run.markUpdated();
         drRunDao.update(run.getId(), run);
+        markPlanAccepted(plan, run);
         recordEvent(plan.getId(), run.getId(), DrConstants.EVENT_RUN_ACCEPTED, DrConstants.EVENT_SEVERITY_INFO,
                 StringUtils.defaultIfBlank(result.getMessage(), "DR run accepted by Agent"), result.getDetailsJson());
         refreshProjection(plan.getId());
     }
 
+    private void retryRun(DrRunVO run, String errorCode, String message, String detailsJson, Integer retryAfterSeconds) {
+        int retryCount = run.getRetryCount() != null ? run.getRetryCount() : 0;
+        if (retryCount >= MAX_RETRY_COUNT) {
+            failRun(run, DrConstants.ERROR_ENGINE_BUSY_TIMEOUT,
+                    StringUtils.defaultIfBlank(message, "DR engine remained busy until retry budget was exhausted"), detailsJson);
+            return;
+        }
+        int delay = normalizeRetryAfterSeconds(retryAfterSeconds);
+        Date now = new Date();
+        Date nextRetryAt = new Date(now.getTime() + TimeUnit.SECONDS.toMillis(delay));
+        closeOpenSteps(run, DrConstants.STEP_STATE_RETRYING, errorCode, message);
+        recordStep(run.getId(), "retry-wait", STEP_ORDER_FINAL, DrConstants.STEP_STATE_RETRYING, 95, detailsJson, errorCode, message);
+        run.setState(DrConstants.RUN_STATE_RETRYING);
+        run.setCurrentStepName("retry-wait");
+        run.setErrorCode(errorCode);
+        run.setErrorMessage(message);
+        run.setProjectionState("retrying");
+        run.setProjectionChecked(now);
+        run.setRetryable(true);
+        run.setRetryCount(retryCount + 1);
+        run.setRetryAfterSeconds(delay);
+        run.setNextRetryAt(nextRetryAt);
+        run.setLastStatusJson(detailsJson);
+        if (run.getDispatchStarted() != null && run.getDispatchCompleted() == null) {
+            run.setDispatchCompleted(now);
+        }
+        run.markUpdated();
+        drRunDao.update(run.getId(), run);
+        markPlanRetryable(run.getPlanId(), errorCode, message, run.isEngineAccepted());
+        recordEvent(run.getPlanId(), run.getId(), DrConstants.EVENT_RUN_QUEUED, DrConstants.EVENT_SEVERITY_WARN,
+                StringUtils.defaultIfBlank(message, "DR run is waiting for a retryable engine condition"), detailsJson);
+        scheduleRetry(run.getId(), delay);
+    }
+
+    private int normalizeRetryAfterSeconds(Integer retryAfterSeconds) {
+        if (retryAfterSeconds == null || retryAfterSeconds <= 0) {
+            return DEFAULT_RETRY_AFTER_SECONDS;
+        }
+        return Math.min(Math.max(retryAfterSeconds, 1), 60);
+    }
+
+    private void scheduleRetry(final long runId, final int retryAfterSeconds) {
+        ExecutorService executor = dispatchExecutor;
+        if (executor == null) {
+            return;
+        }
+        executor.submit(new ManagedContextRunnable() {
+            @Override
+            protected void runInContext() {
+                try {
+                    Thread.sleep(TimeUnit.SECONDS.toMillis(retryAfterSeconds));
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+                DrRunVO retryRun = drRunDao.findById(runId);
+                if (retryRun == null || retryRun.getCompleted() != null || retryRun.getRemoved() != null
+                        || !StringUtils.equals(retryRun.getState(), DrConstants.RUN_STATE_RETRYING)) {
+                    return;
+                }
+                retryRun.setState(DrConstants.RUN_STATE_QUEUED);
+                retryRun.setCurrentStepName("retry-queued");
+                retryRun.setRetryable(false);
+                retryRun.markUpdated();
+                drRunDao.update(retryRun.getId(), retryRun);
+                executeRunInternal(runId);
+            }
+        });
+    }
+
     private void failRun(DrRunVO run, String errorCode, String message, String detailsJson) {
-        recordStep(run.getId(), STEP_EXECUTE, 20, DrConstants.STEP_STATE_FAILED, 100, detailsJson, errorCode, message);
+        closeOpenSteps(run, DrConstants.STEP_STATE_FAILED, errorCode, message);
+        recordStep(run.getId(), STEP_FINAL, STEP_ORDER_FINAL, DrConstants.STEP_STATE_FAILED, 100, detailsJson, errorCode, message);
         run.setState(DrConstants.RUN_STATE_FAILED);
         run.setCompleted(new Date());
+        if (run.getDispatchStarted() != null && run.getDispatchCompleted() == null) {
+            run.setDispatchCompleted(new Date());
+        }
         run.setCurrentStepName("failed");
         run.setErrorCode(errorCode);
         run.setErrorMessage(message);
+        run.setProjectionState("failed");
+        run.setProjectionChecked(new Date());
+        run.setRetryable(false);
+        run.setRetryAfterSeconds(null);
+        run.setNextRetryAt(null);
+        run.setLastStatusJson(detailsJson);
         run.markUpdated();
         drRunDao.update(run.getId(), run);
+        if (isPlanTerminalFailure(run)) {
+            markPlanFailed(run.getPlanId(), errorCode, message);
+        } else {
+            markPlanActionFailed(run.getPlanId(), errorCode, message);
+        }
         recordEvent(run.getPlanId(), run.getId(), DrConstants.EVENT_RUN_FAILED, DrConstants.EVENT_SEVERITY_ERROR,
                 message, detailsJson);
     }
 
     private void cancelRun(DrRunVO run, String message) {
-        recordStep(run.getId(), STEP_EXECUTE, 20, DrConstants.STEP_STATE_CANCELED, 100, null, null, message);
+        closeOpenSteps(run, DrConstants.STEP_STATE_CANCELED, null, message);
+        recordStep(run.getId(), STEP_FINAL, STEP_ORDER_FINAL, DrConstants.STEP_STATE_CANCELED, 100, null, null, message);
         run.setState(DrConstants.RUN_STATE_CANCELED);
         run.setCompleted(new Date());
+        if (run.getDispatchStarted() != null && run.getDispatchCompleted() == null) {
+            run.setDispatchCompleted(new Date());
+        }
         run.setCurrentStepName("canceled");
+        run.setRetryable(false);
+        run.setRetryAfterSeconds(null);
+        run.setNextRetryAt(null);
         run.markUpdated();
         drRunDao.update(run.getId(), run);
         recordEvent(run.getPlanId(), run.getId(), DrConstants.EVENT_RUN_CANCELED, DrConstants.EVENT_SEVERITY_WARN,
@@ -288,19 +446,107 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
 
     private void recordStep(long runId, String stepName, int stepOrder, String state, Integer progress, String detailsJson,
             String errorCode, String errorMessage) {
-        DrRunStepVO step = new DrRunStepVO(runId, stepName, stepOrder);
+        DrRunStepVO step = drRunStepDao.findActiveByRunIdAndStepOrder(runId, stepOrder);
+        if (step == null) {
+            step = new DrRunStepVO(runId, stepName, stepOrder);
+        }
         step.setState(state);
         step.setProgress(progress);
         step.setDetailsJson(detailsJson);
         step.setErrorCode(errorCode);
         step.setErrorMessage(errorMessage);
-        if (StringUtils.equals(DrConstants.STEP_STATE_RUNNING, state)) {
+        if (StringUtils.equals(DrConstants.STEP_STATE_RUNNING, state) && step.getStarted() == null) {
             step.setStarted(new Date());
         }
-        if (StringUtils.equalsAny(state, DrConstants.STEP_STATE_SUCCEEDED, DrConstants.STEP_STATE_FAILED, DrConstants.STEP_STATE_CANCELED)) {
+        if (StringUtils.equalsAny(state, DrConstants.STEP_STATE_SUCCEEDED, DrConstants.STEP_STATE_FAILED,
+                DrConstants.STEP_STATE_CANCELED, DrConstants.STEP_STATE_SKIPPED)) {
             step.setCompleted(new Date());
         }
-        drRunStepDao.persist(step);
+        step.markUpdated();
+        if (step.getId() > 0) {
+            drRunStepDao.update(step.getId(), step);
+        } else {
+            drRunStepDao.persist(step);
+        }
+    }
+
+    private void closeOpenSteps(DrRunVO run, String terminalState, String errorCode, String message) {
+        if (drRunStepDao == null || run == null) {
+            return;
+        }
+        for (DrRunStepVO step : drRunStepDao.listActiveByRunId(run.getId())) {
+            if (step.getCompleted() != null) {
+                continue;
+            }
+            step.setState(terminalState);
+            step.setProgress(100);
+            step.setErrorCode(errorCode);
+            step.setErrorMessage(message);
+            step.setCompleted(new Date());
+            step.markUpdated();
+            drRunStepDao.update(step.getId(), step);
+        }
+    }
+
+    private void markPlanAccepted(DrPlanVO plan, DrRunVO run) {
+        if (plan == null || run == null || !StringUtils.equals(run.getRunType(), DrConstants.RUN_TYPE_SYNC)) {
+            return;
+        }
+        DrPlanVO latestPlan = drPlanDao.findById(plan.getId());
+        if (latestPlan == null || latestPlan.getRemoved() != null) {
+            return;
+        }
+        latestPlan.setState(DrConstants.PLAN_STATE_SYNCING);
+        latestPlan.setLastErrorCode(null);
+        latestPlan.setLastErrorMessage(null);
+        latestPlan.markUpdated();
+        drPlanDao.update(latestPlan.getId(), latestPlan);
+    }
+
+    private void markPlanFailed(long planId, String errorCode, String message) {
+        DrPlanVO plan = drPlanDao.findById(planId);
+        if (plan == null || plan.getRemoved() != null) {
+            return;
+        }
+        plan.setState(DrConstants.PLAN_STATE_ERROR);
+        plan.setLastErrorCode(errorCode);
+        plan.setLastErrorMessage(message);
+        plan.markUpdated();
+        drPlanDao.update(plan.getId(), plan);
+    }
+
+    private boolean isPlanTerminalFailure(DrRunVO run) {
+        return run != null && !StringUtils.equalsAny(run.getRunType(),
+                DrConstants.RUN_TYPE_PAUSE_SYNC,
+                DrConstants.RUN_TYPE_RESUME_SYNC,
+                DrConstants.RUN_TYPE_TEST_FAILOVER,
+                DrConstants.RUN_TYPE_TEST_CLEANUP,
+                DrConstants.RUN_TYPE_RELEASE);
+    }
+
+    private void markPlanActionFailed(long planId, String errorCode, String message) {
+        DrPlanVO plan = drPlanDao.findById(planId);
+        if (plan == null || plan.getRemoved() != null) {
+            return;
+        }
+        plan.setLastErrorCode(errorCode);
+        plan.setLastErrorMessage(message);
+        plan.markUpdated();
+        drPlanDao.update(plan.getId(), plan);
+    }
+
+    private void markPlanRetryable(long planId, String errorCode, String message, boolean engineAccepted) {
+        DrPlanVO plan = drPlanDao.findById(planId);
+        if (plan == null || plan.getRemoved() != null) {
+            return;
+        }
+        if (!engineAccepted && StringUtils.equals(plan.getState(), DrConstants.PLAN_STATE_SYNCING)) {
+            plan.setState(plan.getTargetReadyAt() != null ? DrConstants.PLAN_STATE_READY : DrConstants.PLAN_STATE_ENABLED);
+        }
+        plan.setLastErrorCode(errorCode);
+        plan.setLastErrorMessage(message);
+        plan.markUpdated();
+        drPlanDao.update(plan.getId(), plan);
     }
 
     private void recordEvent(Long planId, Long runId, String eventType, String severity, String message, String detailsJson) {

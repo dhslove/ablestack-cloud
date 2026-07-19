@@ -36,12 +36,88 @@ public final class LibvirtFtctlWrapperHelper {
         if (StringUtils.isBlank(output)) {
             return null;
         }
+        JsonObject parsed = parseJsonObjectStrict(output.trim());
+        if (parsed != null) {
+            return parsed;
+        }
+        return parseLastJsonObject(output);
+    }
+
+    public static JsonObject parseSingleJsonObject(String output) {
+        if (StringUtils.isBlank(output)) {
+            return null;
+        }
+        String value = output.trim();
+        if (!value.startsWith("{") || !value.endsWith("}")) {
+            return null;
+        }
+        return parseJsonObjectStrict(value);
+    }
+
+    public static boolean isBooleanOrNull(JsonObject object, String key) {
+        if (object == null || !object.has(key) || object.get(key).isJsonNull()) {
+            return true;
+        }
+        return object.get(key).isJsonPrimitive() && object.getAsJsonPrimitive(key).isBoolean();
+    }
+
+    public static boolean isNumberOrNull(JsonObject object, String key) {
+        if (object == null || !object.has(key) || object.get(key).isJsonNull()) {
+            return true;
+        }
+        return object.get(key).isJsonPrimitive() && object.getAsJsonPrimitive(key).isNumber();
+    }
+
+    private static JsonObject parseJsonObjectStrict(String value) {
         try {
-            JsonElement element = JsonParser.parseString(output.trim());
+            JsonElement element = JsonParser.parseString(value);
             return element != null && element.isJsonObject() ? element.getAsJsonObject() : null;
         } catch (JsonSyntaxException e) {
             return null;
         }
+    }
+
+    private static JsonObject parseLastJsonObject(String output) {
+        JsonObject lastObject = null;
+        int depth = 0;
+        int start = -1;
+        boolean inString = false;
+        boolean escaped = false;
+        for (int i = 0; i < output.length(); i++) {
+            char ch = output.charAt(i);
+            if (inString) {
+                if (escaped) {
+                    escaped = false;
+                } else if (ch == '\\') {
+                    escaped = true;
+                } else if (ch == '"') {
+                    inString = false;
+                }
+                continue;
+            }
+            if (ch == '"') {
+                inString = true;
+                continue;
+            }
+            if (ch == '{') {
+                if (depth == 0) {
+                    start = i;
+                }
+                depth++;
+                continue;
+            }
+            if (ch == '}' && depth > 0) {
+                depth--;
+                if (depth == 0 && start >= 0) {
+                    JsonObject candidate = parseJsonObjectStrict(output.substring(start, i + 1));
+                    if (candidate != null) {
+                        lastObject = candidate;
+                    }
+                    start = -1;
+                }
+            }
+        }
+        return lastObject;
     }
 
     public static String getString(JsonObject object, String key) {

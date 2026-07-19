@@ -17,7 +17,12 @@
   under the License.
 -->
 <template>
-  <a-space class="cross-dr-action-toolbar" wrap>
+  <a-space
+    :class="['cross-dr-action-toolbar', {
+      'cross-dr-action-toolbar--compact': compact,
+      'cross-dr-action-toolbar--dataview': dataView
+    }]"
+    wrap>
     <template v-for="action in visibleActions" :key="action.key">
       <a-tooltip :title="disabledReason(action)">
         <a-popconfirm
@@ -29,22 +34,28 @@
           @confirm="run(action)">
           <a-button
             size="small"
+            :type="dataView ? 'text' : 'default'"
+            :shape="dataView ? null : 'circle'"
+            :class="{ 'action-button-item': dataView, 'action-button-item--dataview': dataView }"
             :danger="action.danger"
             :disabled="isDisabled(action)"
             :loading="loadingAction === action.command">
             <template #icon><component :is="action.icon" /></template>
-            {{ $t(action.label) }}
+            <span v-if="!compact || dataView">{{ $t(action.label) }}</span>
           </a-button>
         </a-popconfirm>
         <a-button
           v-else
           size="small"
+          :type="dataView ? 'text' : 'default'"
+          :shape="dataView ? null : 'circle'"
+          :class="{ 'action-button-item': dataView, 'action-button-item--dataview': dataView }"
           :danger="action.danger"
           :disabled="isDisabled(action)"
           :loading="loadingAction === action.command"
           @click="run(action)">
           <template #icon><component :is="action.icon" /></template>
-          {{ $t(action.label) }}
+          <span v-if="!compact || dataView">{{ $t(action.label) }}</span>
         </a-button>
       </a-tooltip>
     </template>
@@ -66,6 +77,10 @@ export default {
       default: ''
     },
     compact: {
+      type: Boolean,
+      default: false
+    },
+    dataView: {
       type: Boolean,
       default: false
     },
@@ -205,6 +220,10 @@ export default {
       if (!this.hasApi(action.command)) {
         return this.$t('message.dr.action.api.unavailable')
       }
+      if (['pausesync', 'resumesync', 'testfailover', 'stoptestfailover', 'failover', 'releaseprotection'].includes(action.key) &&
+          this.plan.runtimecontrolready === false) {
+        return this.$t('message.dr.action.control.not.ready')
+      }
       if (!this.isEligible(action)) {
         return this.$t('message.dr.action.not.eligible')
       }
@@ -217,7 +236,7 @@ export default {
       this.$emit('run-action', Object.assign({}, action, { currentRun: this.currentRun || {} }))
     },
     isActiveRun (run) {
-      return ['QUEUED', 'DISPATCHING', 'ACCEPTED', 'RUNNING', 'CANCEL_REQUESTED'].includes(String(run?.state || '').toUpperCase())
+      return ['QUEUED', 'PREPARING', 'DISPATCHING', 'ACCEPTED', 'RUNNING', 'RETRYING', 'CANCEL_REQUESTED'].includes(String(run?.state || '').toUpperCase())
     }
   }
 }
@@ -228,7 +247,29 @@ export default {
   max-width: 100%;
 }
 
-.cross-dr-action-toolbar .ant-btn {
+.cross-dr-action-toolbar--dataview {
+  display: flex;
+  flex-direction: column;
+  width: max-content;
+  min-width: 220px;
+  max-width: 300px;
+}
+
+.cross-dr-action-toolbar--dataview .ant-space-item {
+  width: 100%;
+}
+
+.cross-dr-action-toolbar--dataview .ant-btn {
+  justify-content: flex-start;
+  width: 100%;
+  margin-left: 0 !important;
+}
+
+.cross-dr-action-toolbar--dataview .ant-btn span + span {
+  margin-left: 8px;
+}
+
+.cross-dr-action-toolbar .ant-btn:not(.ant-btn-circle) {
   max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;

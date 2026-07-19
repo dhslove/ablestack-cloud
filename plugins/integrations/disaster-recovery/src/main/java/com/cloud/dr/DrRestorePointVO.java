@@ -45,6 +45,18 @@ public class DrRestorePointVO implements InternalIdentity {
     @Column(name = "plan_id")
     private long planId;
 
+    @Column(name = "run_id")
+    private Long runId;
+
+    @Column(name = "checkpoint_sequence")
+    private Long checkpointSequence;
+
+    @Column(name = "checkpoint_cycle_type")
+    private String checkpointCycleType;
+
+    @Column(name = "checkpoint_ref_hash")
+    private byte[] checkpointRefHash;
+
     @Column(name = "source_snapshot_ref")
     private String sourceSnapshotRef;
 
@@ -70,6 +82,60 @@ public class DrRestorePointVO implements InternalIdentity {
 
     @Column(name = "state")
     private String state;
+
+    @Column(name = "effective_mode")
+    private String effectiveMode;
+
+    @Column(name = "requested_mode")
+    private String requestedMode;
+
+    @Column(name = "automatic_reseed")
+    private Boolean automaticReseed;
+
+    @Column(name = "mode_decision_code")
+    private String modeDecisionCode;
+
+    @Column(name = "reseed_reason")
+    private String reseedReason;
+
+    @Column(name = "invalid_baseline_disk_count")
+    private Integer invalidBaselineDiskCount;
+
+    @Column(name = "incremental_verified")
+    private Boolean incrementalVerified;
+
+    @Column(name = "metrics_estimated")
+    private Boolean metricsEstimated;
+
+    @Column(name = "virtual_bytes")
+    private Long virtualBytes;
+
+    @Column(name = "changed_bytes")
+    private Long changedBytes;
+
+    @Column(name = "source_read_bytes")
+    private Long sourceReadBytes;
+
+    @Column(name = "target_written_bytes")
+    private Long targetWrittenBytes;
+
+    @Column(name = "transfer_payload_bytes")
+    private Long transferPayloadBytes;
+
+    @Column(name = "changed_extent_count")
+    private Long changedExtentCount;
+
+    @Column(name = "duration_ms")
+    private Long durationMs;
+
+    @Column(name = "throughput_bps")
+    private Long throughputBps;
+
+    @Column(name = "baseline_generation")
+    private Long baselineGeneration;
+
+    @Column(name = "cycle_token")
+    private String cycleToken;
 
     @Column(name = "created")
     @Temporal(value = TemporalType.TIMESTAMP)
@@ -104,6 +170,22 @@ public class DrRestorePointVO implements InternalIdentity {
         return planId;
     }
 
+    public Long getRunId() {
+        return runId;
+    }
+
+    public Long getCheckpointSequence() {
+        return checkpointSequence;
+    }
+
+    public String getCheckpointCycleType() {
+        return checkpointCycleType;
+    }
+
+    public byte[] getCheckpointRefHash() {
+        return checkpointRefHash;
+    }
+
     public String getSourceSnapshotRef() {
         return sourceSnapshotRef;
     }
@@ -136,6 +218,25 @@ public class DrRestorePointVO implements InternalIdentity {
         return state;
     }
 
+    public String getEffectiveMode() { return effectiveMode; }
+    public String getRequestedMode() { return requestedMode; }
+    public Boolean getAutomaticReseed() { return automaticReseed; }
+    public String getModeDecisionCode() { return modeDecisionCode; }
+    public String getReseedReason() { return reseedReason; }
+    public Integer getInvalidBaselineDiskCount() { return invalidBaselineDiskCount; }
+    public Boolean getIncrementalVerified() { return incrementalVerified; }
+    public Boolean getMetricsEstimated() { return metricsEstimated; }
+    public Long getVirtualBytes() { return virtualBytes; }
+    public Long getChangedBytes() { return changedBytes; }
+    public Long getSourceReadBytes() { return sourceReadBytes; }
+    public Long getTargetWrittenBytes() { return targetWrittenBytes; }
+    public Long getTransferPayloadBytes() { return transferPayloadBytes; }
+    public Long getChangedExtentCount() { return changedExtentCount; }
+    public Long getDurationMs() { return durationMs; }
+    public Long getThroughputBps() { return throughputBps; }
+    public Long getBaselineGeneration() { return baselineGeneration; }
+    public String getCycleToken() { return cycleToken; }
+
     public Date getCreated() {
         return created;
     }
@@ -150,6 +251,22 @@ public class DrRestorePointVO implements InternalIdentity {
 
     public void setSourceSnapshotRef(String sourceSnapshotRef) {
         this.sourceSnapshotRef = sourceSnapshotRef;
+    }
+
+    public void setRunId(Long runId) {
+        this.runId = runId;
+    }
+
+    public void setCheckpointSequence(Long checkpointSequence) {
+        this.checkpointSequence = checkpointSequence;
+    }
+
+    public void setCheckpointCycleType(String checkpointCycleType) {
+        this.checkpointCycleType = checkpointCycleType;
+    }
+
+    public void setCheckpointRefHash(byte[] checkpointRefHash) {
+        this.checkpointRefHash = checkpointRefHash;
     }
 
     public void setSourceCreated(Date sourceCreated) {
@@ -176,11 +293,31 @@ public class DrRestorePointVO implements InternalIdentity {
         this.state = state;
     }
 
+    public void setEffectiveMode(String effectiveMode) { this.effectiveMode = effectiveMode; }
+    public void setRequestedMode(String requestedMode) { this.requestedMode = requestedMode; }
+    public void setAutomaticReseed(Boolean automaticReseed) { this.automaticReseed = automaticReseed; }
+    public void setModeDecisionCode(String modeDecisionCode) { this.modeDecisionCode = modeDecisionCode; }
+    public void setReseedReason(String reseedReason) { this.reseedReason = reseedReason; }
+    public void setInvalidBaselineDiskCount(Integer invalidBaselineDiskCount) { this.invalidBaselineDiskCount = invalidBaselineDiskCount; }
+    public void setIncrementalVerified(Boolean incrementalVerified) { this.incrementalVerified = incrementalVerified; }
+    public void setMetricsEstimated(Boolean metricsEstimated) { this.metricsEstimated = metricsEstimated; }
+    public void setVirtualBytes(Long virtualBytes) { this.virtualBytes = virtualBytes; }
+    public void setChangedBytes(Long changedBytes) { this.changedBytes = changedBytes; }
+    public void setSourceReadBytes(Long sourceReadBytes) { this.sourceReadBytes = sourceReadBytes; }
+    public void setTargetWrittenBytes(Long targetWrittenBytes) { this.targetWrittenBytes = targetWrittenBytes; }
+    public void setTransferPayloadBytes(Long transferPayloadBytes) { this.transferPayloadBytes = transferPayloadBytes; }
+    public void setChangedExtentCount(Long changedExtentCount) { this.changedExtentCount = changedExtentCount; }
+    public void setDurationMs(Long durationMs) { this.durationMs = durationMs; }
+    public void setThroughputBps(Long throughputBps) { this.throughputBps = throughputBps; }
+    public void setBaselineGeneration(Long baselineGeneration) { this.baselineGeneration = baselineGeneration; }
+    public void setCycleToken(String cycleToken) { this.cycleToken = cycleToken; }
+
     public void markUpdated() {
         updated = new Date();
     }
 
     public void markRemoved() {
+        checkpointRefHash = null;
         removed = new Date();
         markUpdated();
     }

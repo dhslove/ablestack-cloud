@@ -16,6 +16,14 @@
 - [508-cross-hypervisor-dr-cloud-backend-wiring-design-20260630.md](508-cross-hypervisor-dr-cloud-backend-wiring-design-20260630.md)
 - [509-cross-hypervisor-dr-db-upgrade-and-entity-design-20260630.md](509-cross-hypervisor-dr-db-upgrade-and-entity-design-20260630.md)
 - [510-cross-hypervisor-dr-ftctl-runtime-contract-design-20260630.md](510-cross-hypervisor-dr-ftctl-runtime-contract-design-20260630.md)
+- [527-cross-hypervisor-dr-site-credential-management-design-20260702.md](527-cross-hypervisor-dr-site-credential-management-design-20260702.md)
+- [528-cross-hypervisor-dr-site-health-check-and-delete-consistency-design-20260702.md](528-cross-hypervisor-dr-site-health-check-and-delete-consistency-design-20260702.md)
+- [530-cross-hypervisor-dr-site-inventory-and-detail-ux-design-20260703.md](530-cross-hypervisor-dr-site-inventory-and-detail-ux-design-20260703.md)
+- [542-cross-hypervisor-dr-vmware-mover-and-projection-convergence-design-20260707.md](542-cross-hypervisor-dr-vmware-mover-and-projection-convergence-design-20260707.md)
+- [543-cross-hypervisor-dr-vddk-libdir-resolution-and-preflight-design-20260707.md](543-cross-hypervisor-dr-vddk-libdir-resolution-and-preflight-design-20260707.md)
+- [546-cross-hypervisor-dr-initial-sync-pending-projection-contract-design-20260708.md](546-cross-hypervisor-dr-initial-sync-pending-projection-contract-design-20260708.md)
+- [547-cross-hypervisor-dr-target-vm-materialization-contract-design-20260709.md](547-cross-hypervisor-dr-target-vm-materialization-contract-design-20260709.md)
+- [548-cross-hypervisor-dr-agent-action-compatibility-and-state-convergence-design-20260709.md](548-cross-hypervisor-dr-agent-action-compatibility-and-state-convergence-design-20260709.md)
 
 ## 1. 목적
 
@@ -110,7 +118,12 @@ flowchart LR
 
 - Mold 또는 VMware endpoint를 나타낸다.
 - 유형: `MOLD_KVM`, `MOLD_VMWARE`, `VMWARE_DIRECT`.
-- endpoint, credential reference, zone/cluster/datastore/network capability를 가진다.
+- endpoint, backend-managed credential, zone/cluster/datastore/network capability를 가진다.
+- UI는 credential reference를 입력받지 않는다. 사용자는 Mold/vCenter 인증정보를 입력하고, Cloud backend가 암호화 저장 후 내부 `credential_id`로 관리한다.
+- UI는 endpoint, hypervisor type, Zone, VMware datacenter 같은 내부/고급 필드를 site type별 필수 접속 정보와 섞어 기본 입력으로 노출하지 않는다. VMware Direct는 vCenter URL/username/password/TLS를 기본 입력으로 받고 endpoint와 hypervisor type은 자동 결정한다.
+- UI는 DR Plan의 mapping/schedule/policy/quiesce JSON을 사용자가 직접 작성하게 하지 않는다. 사용자는 target resource, RPO/RTO, consistency, failover/test policy를 선택하고 Cloud backend가 canonical engine spec을 생성한다.
+- 화면에는 `VMWARE_DIRECT`, `KVM_TO_VMWARE`, `FTCTL_DR` 같은 enum 원문 대신 i18n label을 표시하고, API payload에만 enum value를 사용한다.
+- site 상태 점검은 Cloud backend가 수행한다. `checkDrSite`는 Mold/vCenter endpoint와 저장 credential을 실제로 검증하고, Agent/ftctl은 DR plan runtime action 단계에서만 사용한다.
 
 `DrPlan`
 
@@ -445,7 +458,8 @@ RTO는 target readiness에 의존한다.
 | snapshot consistency | 다중 디스크 VM의 application consistency | QGA, VMware tools, quiesce policy 도입 |
 | target-ready RPO 지연 | 변환/업로드 시간이 source RPO보다 길어질 수 있음 | source RPO와 target-ready RPO를 분리 표시 |
 | KVM to VMware driver 문제 | VirtIO 기반 VM이 VMware에서 바로 부팅되지 않을 수 있음 | guest driver injection 또는 compatibility check |
-| VMware credential 관리 | vCenter credential/secret 저장 위험 | credential reference와 암호화 저장소 사용 |
+| VMware credential 관리 | vCenter credential/secret 저장 위험 | UI/API는 write-only 인증정보를 받고 Cloud backend가 `dr_site_credential`에 암호화 저장 |
+| DR Site/Plan 입력 UX | 내부 endpoint, hypervisor, mapping id, raw JSON과 인증정보가 한 form에 섞일 위험 | 사이트/계획 유형별 필수 정보만 기본 노출하고 engine spec은 backend-generated guided 설정으로 처리 |
 | network identity | MAC/IP 보존과 충돌 위험 | failover policy로 preserve/remap 선택 |
 | fencing | source VM 미정지 상태에서 dual-active 위험 | source type별 fencing adapter와 manual-confirm 단계 |
 | large VM conversion | full conversion은 RTO/RPO 목표를 깨뜨릴 수 있음 | full seed 후 incremental materialization 구현 |
@@ -469,6 +483,190 @@ RTO는 target readiness에 의존한다.
 | --- | --- | --- |
 | DR 모델 | 기존 `DisasterRecoveryCluster`와 FTCTL 기능이 기능별로 분리 | `DrSite`, `DrPlan`, `DrRun`, `DrReplica`, `DrRestorePoint` 중심의 공통 DR 플랫폼 |
 | 지원 방향 | KVM-to-KVM FTCTL과 기존 VMware DR 기능 중심 | KVM/VMware source와 target 조합을 adapter로 확장 |
+| Site 인증정보 | UI에서 내부 credential reference 성격의 문자열 입력 | UI는 Mold/vCenter 인증정보를 입력하고 backend가 암호화 저장, 응답은 credential 상태만 표시 |
+| Site/Plan 대화상자 | 긴 form 전체가 화면 밖으로 밀리거나 enum 원문이 노출될 수 있음 | 공통 DR form modal에서 header/footer 고정, 본문만 스크롤, i18n label 표시 |
 | 사용자 경험 | 기능별 화면과 API가 서로 다른 추상도를 가짐 | 동일한 DR plan/action/progress UX로 통합 |
 | 런타임 통합 | FTCTL, VMware, V2K 흐름이 개별 경로로 노출 | Cloud orchestrator가 공통 상태를 관리하고 engine adapter가 실제 작업 수행 |
 | 구현 순서 | 기능별 보강 중심 | 공통 domain/API/worker를 먼저 만들고 FTCTL, VMware target, V2K 순서로 연결 |
+
+## 2026-07-07 Update: VMware To KVM Readiness And Projection Contract
+
+The architecture now treats `VMWARE_TO_KVM` sync readiness as a hard pre-dispatch
+contract, not as a best-effort runtime correction. A plan can be accepted by the
+agent transport while still failing in the FTCTL worker; therefore `ACCEPTED`
+is never considered a healthy sync result by itself.
+
+Architecture rules:
+
+- UI guides resource selection and shows readiness, but backend validation is
+  authoritative.
+- VMware source disk inventory is not complete until Cloud backend enriches
+  vCenter disk list entries with per-disk detail endpoint data. A vCenter disk
+  key such as `2000` is an identifier, not a size.
+- API preview/create/update must reject executable sync when any selected VMware
+  source disk has missing or zero `sizeBytes`.
+- Backend orchestration must not create `SKELETON_READY` replicas for invalid
+  disk maps.
+- Agent status probes must keep returning terminal worker state by `planUuid`
+  and `runUuid`.
+- FTCTL must keep the final guard and emit terminal JSON when target disk
+  materialization cannot be performed.
+- DB/API/UI projection must converge accepted runs to terminal `ERROR` or
+  `READY` based on FTCTL runtime evidence.
+
+Detailed code-level design:
+`538-cross-hypervisor-dr-vmware-to-kvm-disk-size-and-projection-hardening-design-20260707.md`.
+
+Related UI storage/default layout design:
+`539-cross-hypervisor-dr-plan-storage-default-and-modal-layout-design-20260707.md`.
+
+## 2026-07-08 Update: Initial Sync Pending Is Not Failure
+
+VMware to ABLESTACK validation for plan
+`9bb2739b-597c-4c9a-a603-f3edf5abfd60` proved that Cloud projection must
+distinguish initial full-seed progress from terminal target materialization
+failure.
+
+During `SYNCING/full-seed-transfer`, FTCTL can validly report:
+
+- `target_storage_present=true`
+- `target_vm_present=false`
+- `restore_point_present=false`
+- empty `error_code`
+
+This means target disk transfer is in progress and the target VM is not
+expected yet. Cloud must not persist `DR_TARGET_VM_NOT_FOUND` into
+`dr_run.error_code` for this state. The full code-level contract is defined in
+`546-cross-hypervisor-dr-initial-sync-pending-projection-contract-design-20260708.md`.
+
+## 2026-07-09 Update: Custom Compute Sizing Before Target VM Materialization
+
+Plan `b2a649b7-8313-4bd4-be49-5dda67993e06` advanced beyond the initial seed
+boundary: FTCTL created a durable restore point and Cloud imported the target
+volume, but stopped target VM creation failed with
+`Invalid CPU cores value, specify a value between 1 and 64`.
+
+The selected target service offering was custom/dynamic
+(`1C1GB-TO-64C96GB-FR`), so CloudStack requires explicit VM detail parameters:
+
+- `cpuNumber`
+- `cpuSpeed`
+- `memory`
+
+Architectural rule:
+
+- UI/API must collect or derive target compute sizing whenever a custom target
+  offering is selected.
+- Backend preflight must block immediate sync if those values cannot be
+  resolved.
+- Backend materialization must pass those values via
+  `VmDetailConstants.CPU_NUMBER`, `VmDetailConstants.CPU_SPEED`, and
+  `VmDetailConstants.MEMORY` during `deployVirtualMachineForVolume`.
+- Terminal `DR_TARGET_VM_MATERIALIZE_FAILED` must not be overwritten by later
+  healthy FTCTL `SYNCING` status polling.
+
+The detailed code-level design and AS-IS/TO-BE summary are maintained in
+`547-cross-hypervisor-dr-target-vm-materialization-contract-design-20260709.md`.
+
+2026-07-09 follow-up: after target VM creation succeeded, a new failure was
+observed at the Cloud-to-Agent `TARGET_MATERIALIZED` notification boundary:
+`Missing FTCTL_DR action`. The architecture now requires Agent/FTCTL
+capability preflight, action string fallback, notification retry/recovery, and a
+single UI primary state resolver. The detailed code-level design and
+AS-IS/TO-BE summary are maintained in
+`548-cross-hypervisor-dr-agent-action-compatibility-and-state-convergence-design-20260709.md`.
+
+## 2026-07-10 Normative Protection View And Read-Projection Separation
+
+DR Plan detail reads must no longer invoke Agent or FTCTL projection. Runtime
+projection is owned by a background scheduler or an explicit asynchronous
+refresh job, and UI/API reads consume a versioned DB JSON snapshot. Details,
+topology, and replica readiness are rendered from one cache revision in the
+`Protection Information` tab.
+
+The runtime contract also separates the current transfer checkpoint from the
+latest completed checkpoint. Only the latest completed reference is eligible
+for Cloud checkpoint projection and failover locking.
+
+The normative architecture, layer boundaries, live evidence, and acceptance
+criteria are defined in
+`550-cross-hypervisor-dr-protection-view-cache-and-completed-checkpoint-design-20260710.md`.
+
+## 2026-07-14 Normative Async Read Consistency Update
+
+Resource creation completion and DR data-copy completion are separate
+boundaries. UI create/update flows follow the Cloud async job until the typed
+resource response is committed, then reconcile the list. They do not wait for
+full seed, incremental copy, Agent, or FTCTL completion.
+
+For an enabled plan, the UI reads `getDrProtectionView` every 10 seconds even
+after the latest operator run is terminal. This is a DB-cache read and does not
+increase Agent/FTCTL polling. Explicit operator Update remains the asynchronous
+`refreshDrProtectionView` path.
+
+Detailed design:
+`552-cross-hypervisor-dr-async-read-consistency-and-live-cache-ui-design-20260714.md`.
+
+## 2026-07-14 Normative Continuous Sync Control-Plane Update
+
+Continuous replication and foreground DR transitions use separate ownership
+boundaries. A long-lived `dr-sync-start` scheduler must not own the legacy
+global FTCTL lock for its lifetime. DR uses plan-scoped cycle, transition, and
+checkpoint-lease locks. Pause, stop, test failover, and planned failover are
+delivered through an atomic control request/acknowledgment protocol.
+
+The UI/API remains asynchronous: it creates and observes a `DrRun`; Agent and
+FTCTL coordinate scheduler quiesce in the background. The normative lock,
+state, API, cache, and acceptance contract is defined in
+`553-cross-hypervisor-dr-continuous-sync-control-and-quiesce-lock-design-20260714.md`.
+
+## 2026-07-14 Normative VMware To KVM Cutover Update
+
+VMware to ABLESTACK 보호는 durable checkpoint와 powered-off target VM을
+만드는 것만으로 완료되지 않는다. Test Failover는 checkpoint-derived writable
+layer에서 VirtIO guest preparation을 수행하고 격리된 test domain을 실제로
+기동한 뒤 boot validation을 통과해야 한다.
+
+실제 Failover에서는 FTCTL이 최종 복제 디스크를 `CUTOVER_READY` 상태로
+준비하고, Cloud backend가 기존 target VM을 정상 Cloud VM lifecycle로
+기동한다. `activeSide=TARGET`은 boot validation 이후에만 commit한다.
+
+V2K는 DR 복제 엔진으로 호출하지 않는다. 검증된 Linux initramfs, Windows
+WinPE/VirtIO, Secure Boot 처리 primitive만 공통 라이브러리로 분리하여
+재사용한다. 상세 규범은 다음 문서에 정의한다.
+
+- `554-cross-hypervisor-dr-vmware-to-kvm-cutover-and-virtio-bootstrap-design-20260714.md`
+
+### 2026-07-14 VMware CBT Replication Addendum
+
+For VMware-source continuous replication, a sequence name is not proof of
+incremental execution. Per-disk committed changeIds, extent-only transfer,
+cycle commit acknowledgement, and transfer metrics follow the normative design
+in `555-cross-hypervisor-dr-vmware-cbt-incremental-and-transfer-metrics-design-20260714.md`.
+
+### 2026-07-16 Cycle Commit And Read Contract Addendum
+
+Data transfer, local checkpoint commit, and Cloud projection are separate
+monotonic phases. Copied-but-uncommitted target data is not a recovery point,
+but it remains visible as an explicit degraded state. Complete runtime JSON is
+diagnostic data and cannot cross the UI/API boundary as an error-message
+string. The normative flow is defined in
+`557-cross-hypervisor-dr-cycle-commit-and-api-json-recovery-design-20260716.md`.
+
+### 2026-07-17 Normative Incremental Decision And Projection Update
+
+Continuous VMware protection separates Scheduler intent from data-plane
+execution. A Scheduler-requested incremental cycle remains
+`requestedMode=CBT_INCREMENTAL`; FTCTL records any effective reseed as a
+separate typed decision and prevents an identical automatic reseed from
+repeating indefinitely.
+
+The committed per-disk changeId, baseline state, generation, and disk identity
+cross every internal planning boundary. Cloud independently projects the
+current cycle and latest completed cycle, even when they have different
+sequences. Normal Test Failover and planned Failover require at least one
+verified incremental or valid no-change checkpoint. Emergency Failover remains
+an explicit degraded operation against the last durable checkpoint.
+
+Normative design:
+`559-cross-hypervisor-dr-incremental-mode-decision-and-cycle-projection-design-20260717.md`.

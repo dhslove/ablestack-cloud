@@ -23,26 +23,35 @@ public class DrAdapterResult {
     private final String detailsJson;
     private final boolean terminal;
     private final String externalJobRef;
+    private final boolean retryable;
+    private final Integer retryAfterSeconds;
 
-    private DrAdapterResult(boolean success, String errorCode, String message, String detailsJson, boolean terminal, String externalJobRef) {
+    private DrAdapterResult(boolean success, String errorCode, String message, String detailsJson, boolean terminal,
+            String externalJobRef, boolean retryable, Integer retryAfterSeconds) {
         this.success = success;
         this.errorCode = errorCode;
         this.message = message;
         this.detailsJson = detailsJson;
         this.terminal = terminal;
         this.externalJobRef = externalJobRef;
+        this.retryable = retryable;
+        this.retryAfterSeconds = retryAfterSeconds;
     }
 
     public static DrAdapterResult success(String message, String detailsJson) {
-        return new DrAdapterResult(true, null, message, detailsJson, true, null);
+        return new DrAdapterResult(true, null, message, detailsJson, true, null, false, null);
     }
 
     public static DrAdapterResult accepted(String message, String detailsJson, String externalJobRef) {
-        return new DrAdapterResult(true, null, message, detailsJson, false, externalJobRef);
+        return new DrAdapterResult(true, null, message, detailsJson, false, externalJobRef, false, null);
     }
 
     public static DrAdapterResult failure(String errorCode, String message, String detailsJson) {
-        return new DrAdapterResult(false, errorCode, message, detailsJson, true, null);
+        return new DrAdapterResult(false, errorCode, message, detailsJson, true, null, false, null);
+    }
+
+    public static DrAdapterResult retryable(String errorCode, String message, String detailsJson, Integer retryAfterSeconds) {
+        return new DrAdapterResult(false, errorCode, message, detailsJson, false, null, true, retryAfterSeconds);
     }
 
     public boolean isSuccess() {
@@ -67,5 +76,13 @@ public class DrAdapterResult {
 
     public String getExternalJobRef() {
         return externalJobRef;
+    }
+
+    public boolean isRetryable() {
+        return retryable;
+    }
+
+    public Integer getRetryAfterSeconds() {
+        return retryAfterSeconds;
     }
 }

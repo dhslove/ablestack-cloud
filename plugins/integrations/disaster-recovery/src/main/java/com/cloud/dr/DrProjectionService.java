@@ -18,6 +18,8 @@ package com.cloud.dr;
 
 import java.util.List;
 
+import com.cloud.utils.Pair;
+
 public interface DrProjectionService {
     DrPlanVO refreshPlanProjection(long planId, boolean bestEffort);
 
@@ -25,7 +27,15 @@ public interface DrProjectionService {
 
     List<DrRestorePointVO> listRestorePoints(long planId);
 
+    List<DrRestorePointVO> listRestorePoints(long planId, long startIndex, long pageSize);
+
+    long countRestorePoints(long planId);
+
     List<DrEventVO> listPlanEvents(long planId);
 
     List<DrEventVO> listRunEvents(long runId);
+
+    Pair<List<DrEventVO>, Integer> listPlanEvents(long planId, long startIndex, long pageSize);
+
+    Pair<List<DrEventVO>, Integer> listRunEvents(long runId, long startIndex, long pageSize);
 }

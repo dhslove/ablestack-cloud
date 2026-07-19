@@ -58,6 +58,7 @@ export default {
           case 'enabled':
           case 'active':
           case 'ok':
+          case 'connected':
             state = this.$t('state.ok')
             break
           case 'disabled':
@@ -177,6 +178,12 @@ export default {
           case 'unavailable':
             state = this.$t('state.unavailable')
             break
+          case 'degraded':
+            state = this.$t('state.degraded')
+            break
+          case 'unknown':
+            state = this.$t('state.unknown')
+            break
           case 'critical':
             state = this.$t('state.critical')
             break
@@ -269,6 +276,7 @@ export default {
           }
           break
         case 'created':
+        case 'degraded':
         case 'maintenance':
         case 'pending':
         case 'unsecure':
