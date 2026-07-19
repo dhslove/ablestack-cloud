@@ -34,6 +34,10 @@ public class DrTestSessionVO implements InternalIdentity {
     @Column(name = "target_vm_uuid") private String targetVmUuid;
     @Column(name = "target_vm_name") private String targetVmName;
     @Column(name = "checkpoint_sequence") private Long checkpointSequence;
+    @Column(name = "restore_point_ref", length = 1024) private String restorePointRef;
+    @Column(name = "validation_mode") private String validationMode;
+    @Column(name = "boot_timeout_seconds") private Integer bootTimeoutSeconds;
+    @Column(name = "artifact_contract_version") private String artifactContractVersion;
     @Column(name = "artifact_manifest", length = 16777215) private String artifactManifest;
     @Column(name = "boot_validation_state") private String bootValidationState;
     @Column(name = "cleanup_required") private boolean cleanupRequired;
@@ -64,6 +68,10 @@ public class DrTestSessionVO implements InternalIdentity {
     public String getTargetVmUuid() { return targetVmUuid; }
     public String getTargetVmName() { return targetVmName; }
     public Long getCheckpointSequence() { return checkpointSequence; }
+    public String getRestorePointRef() { return restorePointRef; }
+    public String getValidationMode() { return validationMode; }
+    public Integer getBootTimeoutSeconds() { return bootTimeoutSeconds; }
+    public String getArtifactContractVersion() { return artifactContractVersion; }
     public String getArtifactManifest() { return artifactManifest; }
     public String getBootValidationState() { return bootValidationState; }
     public boolean isCleanupRequired() { return cleanupRequired; }
@@ -81,6 +89,10 @@ public class DrTestSessionVO implements InternalIdentity {
     public void setTargetVmUuid(String value) { targetVmUuid = value; }
     public void setTargetVmName(String value) { targetVmName = value; }
     public void setCheckpointSequence(Long value) { checkpointSequence = value; }
+    public void setRestorePointRef(String value) { restorePointRef = value; }
+    public void setValidationMode(String value) { validationMode = value; }
+    public void setBootTimeoutSeconds(Integer value) { bootTimeoutSeconds = value; }
+    public void setArtifactContractVersion(String value) { artifactContractVersion = value; }
     public void setArtifactManifest(String value) { artifactManifest = value; }
     public void setBootValidationState(String value) { bootValidationState = value; }
     public void setCleanupRequired(boolean value) { cleanupRequired = value; }

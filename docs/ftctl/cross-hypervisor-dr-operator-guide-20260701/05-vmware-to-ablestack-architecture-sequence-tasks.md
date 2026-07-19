@@ -116,5 +116,12 @@ VirtIO 준비만 담당하며 고객 테스트 VM을 직접 `virsh`로 관리하
 
 테스트 네트워크는 Cloud 네트워크를 명시적으로 선택한다. 네트워크가
 없는 테스트는 `NO_NIC`로 구분하며 격리 네트워크로 표시하지 않는다.
-상세 설계는
-`../561-cross-hypervisor-dr-cloud-managed-test-failover-lifecycle-design-20260719.md`를 따른다.
+스토리지 식별자는 Cloud가 볼륨과 스토리지 풀에서 구조화하여 만들고,
+Agent가 대상 호스트에서 검증한 뒤 FTCTL에 전달한다. FTCTL은 디스크 표시
+이름으로 RBD/파일 경로를 추론하지 않는다. 테스트 작업 실패는 작업 이력과
+테스트 세션에 표시하되 정상 동작 중인 지속 복제 상태를 오류로 바꾸지 않는다.
+
+기본 수명주기 설계는
+`../561-cross-hypervisor-dr-cloud-managed-test-failover-lifecycle-design-20260719.md`,
+canonical artifact와 상태 투영 보정은
+`../562-cross-hypervisor-dr-test-artifact-contract-and-projection-isolation-design-20260719.md`를 따른다.

@@ -63,6 +63,9 @@ public class FtctlDrActionCommand extends Command {
     private String profileJson;
     @LogLevel(LogLevel.Log4jLevel.Off)
     private String requestJson;
+    private String artifactContractVersion;
+    @LogLevel(LogLevel.Log4jLevel.Off)
+    private String artifactSpecJson;
     private String mode;
     private String checkpointRef;
     @Deprecated
@@ -190,6 +193,22 @@ public class FtctlDrActionCommand extends Command {
 
     public void setRequestJson(String requestJson) {
         this.requestJson = requestJson;
+    }
+
+    public String getArtifactContractVersion() {
+        return artifactContractVersion;
+    }
+
+    public void setArtifactContractVersion(String artifactContractVersion) {
+        this.artifactContractVersion = artifactContractVersion;
+    }
+
+    public String getArtifactSpecJson() {
+        return artifactSpecJson;
+    }
+
+    public void setArtifactSpecJson(String artifactSpecJson) {
+        this.artifactSpecJson = artifactSpecJson;
     }
 
     public String getMode() {

@@ -1,5 +1,11 @@
 # FTCTL_DR Engine And Driver Implementation Design
 
+> Normative Test Failover update (2026-07-19):
+> [562-cross-hypervisor-dr-test-artifact-contract-and-projection-isolation-design-20260719.md](562-cross-hypervisor-dr-test-artifact-contract-and-projection-isolation-design-20260719.md)
+> and its FTCTL companion document define strict provider locators and
+> operation/protection status separation. Bare `targetDiskRef` inference and
+> FTCTL-owned customer test VM lifecycle are superseded.
+
 작성일: 2026-07-01
 
 상위 계획: [520-cross-hypervisor-dr-full-implementation-work-plan-20260701.md](520-cross-hypervisor-dr-full-implementation-work-plan-20260701.md)

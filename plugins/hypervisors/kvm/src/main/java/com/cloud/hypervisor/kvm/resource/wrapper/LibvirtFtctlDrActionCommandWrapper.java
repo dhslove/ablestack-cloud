@@ -34,6 +34,8 @@ import com.cloud.resource.ResourceWrapper;
 import com.cloud.utils.script.OutputInterpreter;
 import com.cloud.utils.script.Script;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 
 @ResourceWrapper(handles = FtctlDrActionCommand.class)
 public class LibvirtFtctlDrActionCommandWrapper extends CommandWrapper<FtctlDrActionCommand, Answer, LibvirtComputingResource> {
@@ -59,13 +61,52 @@ public class LibvirtFtctlDrActionCommandWrapper extends CommandWrapper<FtctlDrAc
         }
 
         File profileFile = null;
+        File artifactSpecFile = null;
         try {
             profileFile = LibvirtFtctlDrCommandHelper.writeProfileJson(command.getPlanUuid(), enrichProfileJson(command.getProfileJson(), serverResource));
-            return executeFtctl(command, action, profileFile);
+            validateArtifactSpec(command);
+            artifactSpecFile = LibvirtFtctlDrCommandHelper.writeArtifactSpecJson(command.getRunUuid(), command.getArtifactSpecJson());
+            return executeFtctl(command, action, profileFile, artifactSpecFile);
         } catch (IOException e) {
-            return new FtctlDrActionAnswer(command, false, "Unable to write temporary FTCTL_DR profile: " + e.getMessage());
+            return new FtctlDrActionAnswer(command, false, "Unable to prepare FTCTL_DR command contract: " + e.getMessage());
         } finally {
             LibvirtFtctlDrCommandHelper.deleteQuietly(profileFile);
+            LibvirtFtctlDrCommandHelper.deleteQuietly(artifactSpecFile);
+        }
+    }
+
+    private void validateArtifactSpec(FtctlDrActionCommand command) throws IOException {
+        if (command.getAction() != FtctlDrActionCommand.Action.TEST_PREPARE) {
+            return;
+        }
+        JsonObject spec = LibvirtFtctlWrapperHelper.parseJsonObject(command.getArtifactSpecJson());
+        if (spec == null || !StringUtils.equals("3", LibvirtFtctlDrCommandHelper.getString(spec, "contractVersion"))) {
+            throw new IOException("DR_TEST_ARTIFACT_SPEC_INVALID: contractVersion 3 is required");
+        }
+        if (!spec.has("disks") || !spec.get("disks").isJsonArray() || spec.getAsJsonArray("disks").size() == 0) {
+            throw new IOException("DR_TEST_ARTIFACT_SPEC_INVALID: at least one disk locator is required");
+        }
+        JsonArray disks = spec.getAsJsonArray("disks");
+        for (int index = 0; index < disks.size(); index++) {
+            JsonElement element = disks.get(index);
+            if (element == null || !element.isJsonObject()) {
+                throw new IOException("DR_TEST_ARTIFACT_SPEC_INVALID: disk " + index + " is not an object");
+            }
+            JsonObject disk = element.getAsJsonObject();
+            String provider = LibvirtFtctlDrCommandHelper.getString(disk, "provider");
+            String locator = LibvirtFtctlDrCommandHelper.getString(disk, "canonicalLocator");
+            if (StringUtils.equalsIgnoreCase(provider, "RBD")) {
+                String rbdSpec = StringUtils.removeStart(locator, "rbd:");
+                if (!StringUtils.startsWith(locator, "rbd:") || !StringUtils.contains(rbdSpec, "/")) {
+                    throw new IOException("DR_TEST_ARTIFACT_LOCATOR_INVALID: disk " + index + " requires rbd:pool/image");
+                }
+            } else if (StringUtils.equalsIgnoreCase(provider, "FILE")) {
+                if (!StringUtils.startsWith(locator, "file:/")) {
+                    throw new IOException("DR_TEST_ARTIFACT_LOCATOR_INVALID: disk " + index + " requires file:/absolute/path");
+                }
+            } else {
+                throw new IOException("DR_TEST_ARTIFACT_PROVIDER_UNSUPPORTED: disk " + index + " provider=" + provider);
+            }
         }
     }
 
@@ -214,12 +255,13 @@ public class LibvirtFtctlDrActionCommandWrapper extends CommandWrapper<FtctlDrAc
         return new ActionDescriptor(cliCommand);
     }
 
-    private FtctlDrActionAnswer executeFtctl(FtctlDrActionCommand command, ActionDescriptor action, File profileFile) {
+    private FtctlDrActionAnswer executeFtctl(FtctlDrActionCommand command, ActionDescriptor action, File profileFile, File artifactSpecFile) {
         final long timeout = (long) (command.getWait() > 0 ? command.getWait() : DEFAULT_TIMEOUT_SECONDS) * 1000;
         Script script = new Script("ablestack_vm_ftctl", timeout, logger);
         script.add(action.getCliCommand());
         LibvirtFtctlDrCommandHelper.addPlanRunArgs(script, command.getPlanUuid(), command.getRunUuid());
         LibvirtFtctlDrCommandHelper.addProfileJsonArg(script, profileFile);
+        LibvirtFtctlDrCommandHelper.addArtifactSpecJsonArg(script, artifactSpecFile);
         if (StringUtils.isNotBlank(command.getRole())) {
             script.add("--role");
             script.add(command.getRole());

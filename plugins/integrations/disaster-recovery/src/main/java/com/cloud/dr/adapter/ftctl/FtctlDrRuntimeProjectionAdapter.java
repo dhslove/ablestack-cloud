@@ -46,6 +46,7 @@ import com.cloud.dr.DrRestorePointVO;
 import com.cloud.dr.DrRunStepVO;
 import com.cloud.dr.DrRunVO;
 import com.cloud.dr.DrSyncCycleVO;
+import com.cloud.dr.DrTestSessionVO;
 import com.cloud.dr.DrTargetMaterializationService;
 import com.cloud.dr.adapter.DrAdapterResult;
 import com.cloud.dr.adapter.DrProjectionAdapter;
@@ -60,6 +61,7 @@ import com.cloud.dr.dao.DrRestorePointDao;
 import com.cloud.dr.dao.DrRunDao;
 import com.cloud.dr.dao.DrRunStepDao;
 import com.cloud.dr.dao.DrSyncCycleDao;
+import com.cloud.dr.dao.DrTestSessionDao;
 import com.cloud.utils.DateUtil;
 import com.cloud.utils.component.ManagerBase;
 import com.google.gson.Gson;
@@ -101,6 +103,8 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
     private DrPlanRuntimeDao drPlanRuntimeDao;
     @Inject
     private DrSyncCycleDao drSyncCycleDao;
+    @Inject
+    private DrTestSessionDao drTestSessionDao;
 
     @Override
     public String getEngineType() {
@@ -148,6 +152,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                     GSON.toJson(details), STATUS_REFRESH_WAIT_SECONDS);
         }
         JsonObject runtimeStatus = parseObject(status.getStatusJson());
+        reconcileCloudManagedTestTarget(plan, projectionRun, status, runtimeStatus);
         projectProtectionAuthority(plan, projectionRun, status, runtimeStatus);
         if (!status.getResult() && isStatusBoundaryFailure(status)) {
             markProjectionStale(plan, status);
@@ -192,6 +197,9 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
 
     private void projectProtectionAuthority(DrPlanVO plan, DrRunVO projectionRun, FtctlDrStatusAnswer status,
             JsonObject runtime) {
+        if (isFiniteOperationRun(projectionRun)) {
+            return;
+        }
         Long generation = status.getRuntimeGeneration() != null ? status.getRuntimeGeneration()
                 : longValue(runtime, "runtime_generation");
         Long sequence = status.getCurrentCheckpointSequence() != null ? status.getCurrentCheckpointSequence()
@@ -475,7 +483,10 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         boolean changed = false;
         JsonObject runtime = parseObject(status.getStatusJson());
         upsertCutoverSession(plan, projectionRun, status, runtime);
-        reconcileCloudManagedTestTarget(plan, projectionRun, status, runtime);
+        if (isFiniteOperationRun(projectionRun)) {
+            reconcileAcceptedRunFromStatus(plan, status, runtime);
+            return;
+        }
         if (isReleasedRuntime(status, runtime)) {
             cleanupReleasedProjection(plan, status, runtime);
             reconcileAcceptedRunFromStatus(plan, status, runtime);
@@ -623,9 +634,41 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             return;
         }
         String runtimeState = StringUtils.upperCase(StringUtils.defaultIfBlank(status.getState(), stringValue(runtime, "state")), Locale.ROOT);
+        DrTestSessionVO session = drTestSessionDao != null ? drTestSessionDao.findActiveByRunId(run.getId()) : null;
+        if (session != null) {
+            if (StringUtils.equalsAny(runtimeState, "ERROR", "FAILED")) {
+                session.setState("FAILED");
+                session.setErrorCode(StringUtils.defaultIfBlank(status.getErrorCode(), stringValue(runtime, "error_code")));
+                session.setErrorMessage(StringUtils.defaultIfBlank(status.getErrorMessage(), stringValue(runtime, "error_message")));
+                session.setCleanupRequired(true);
+            } else if (StringUtils.equalsAny(runtimeState, "TEST_ARTIFACTS_READY", "ARTIFACTS_READY")) {
+                session.setState("ARTIFACTS_READY");
+                session.setCleanupRequired(true);
+            } else if (StringUtils.equalsAny(runtimeState, "TESTING", "QUEUED", "RUNNING")) {
+                session.setState("PREPARING");
+            }
+            Long checkpointSequence = status.getCurrentCheckpointSequence();
+            if (checkpointSequence == null) {
+                checkpointSequence = longValue(runtime, "test_restore_point_sequence");
+            }
+            if (checkpointSequence == null) {
+                checkpointSequence = longValue(runtime, "current_checkpoint_sequence");
+            }
+            session.setCheckpointSequence(checkpointSequence);
+            session.setRestorePointRef(StringUtils.defaultIfBlank(stringValue(runtime, "test_restore_point_ref"),
+                    status.getLatestCompletedCheckpointRef()));
+            session.setDetailsJson(compactRuntimeStatusJson(status.getStatusJson()));
+            session.markUpdated();
+            drTestSessionDao.update(session.getId(), session);
+        }
         if (StringUtils.equalsAny(runtimeState, "TEST_ARTIFACTS_READY", "ARTIFACTS_READY")) {
             drTargetMaterializationService.enqueueTestMaterialization(plan.getId(), run.getId(), status.getStatusJson());
         }
+    }
+
+    private boolean isFiniteOperationRun(DrRunVO run) {
+        return run != null && StringUtils.equalsAnyIgnoreCase(run.getRunType(),
+                DrConstants.RUN_TYPE_TEST_FAILOVER, DrConstants.RUN_TYPE_TEST_CLEANUP);
     }
 
     private void upsertCutoverDisks(DrCutoverSessionVO session, JsonObject runtime) {

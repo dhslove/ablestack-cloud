@@ -714,6 +714,14 @@ Failover의 테스트 디스크와 VirtIO 준비는 FTCTL이 담당하지만, �
 고객 테스트 VM을 직접 `virsh`로 정의하거나 실행하는 기존 설명은 폐기한다.
 
 테스트 네트워크는 실제 Cloud 네트워크를 선택하며, NIC 없는 테스트는
-`NO_NIC`로 명시한다. 상세 설계는 상위 `docs/ftctl`의
-`561-cross-hypervisor-dr-cloud-managed-test-failover-lifecycle-design-20260719.md`를 따른다.
+`NO_NIC`로 명시한다. Cloud는 볼륨과 스토리지 풀에서 구조화한 canonical
+locator를 Agent에 전달하고, Agent가 대상 호스트에서 검증한 뒤 FTCTL이
+RBD clone 또는 안전한 파일 artifact를 만든다. FTCTL은 디스크 표시 이름으로
+스토리지 종류나 경로를 추론하지 않는다. 테스트 작업 실패는 작업/세션
+상태로 남고 정상적인 지속 복제 보호 상태를 덮어쓰지 않는다.
+
+기본 수명주기 설계는 상위 `docs/ftctl`의
+`561-cross-hypervisor-dr-cloud-managed-test-failover-lifecycle-design-20260719.md`,
+canonical artifact와 상태 투영 보정은
+`562-cross-hypervisor-dr-test-artifact-contract-and-projection-isolation-design-20260719.md`를 따른다.
 

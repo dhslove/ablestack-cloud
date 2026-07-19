@@ -1,5 +1,11 @@
 # Cross Hypervisor DR Full Stack Implementation Design
 
+> Normative Test Failover update (2026-07-19):
+> [562-cross-hypervisor-dr-test-artifact-contract-and-projection-isolation-design-20260719.md](562-cross-hypervisor-dr-test-artifact-contract-and-projection-isolation-design-20260719.md)
+> governs Cloud/Agent/FTCTL ownership, typed storage locators, failure cleanup,
+> and projection isolation. Any earlier text that lets FTCTL own the customer
+> test VM or infer backing storage from a display reference is superseded.
+
 작성일: 2026-07-01
 
 상위 계획: [520-cross-hypervisor-dr-full-implementation-work-plan-20260701.md](520-cross-hypervisor-dr-full-implementation-work-plan-20260701.md)

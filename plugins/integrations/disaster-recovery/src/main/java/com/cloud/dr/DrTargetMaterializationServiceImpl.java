@@ -327,11 +327,7 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
             return;
         }
         if (session == null) {
-            DrTestSessionVO other = drTestSessionDao.findActiveByPlanId(planId);
-            if (other != null && !StringUtils.equalsAny(other.getState(), "CLEANED", "CLEANUP_FAILED")) {
-                throw new CloudRuntimeException("DR_TEST_SESSION_ACTIVE: another Cloud-managed test session is active");
-            }
-            session = drTestSessionDao.persist(new DrTestSessionVO(planId, runId, "ARTIFACTS_READY"));
+            throw new CloudRuntimeException("DR_TEST_SESSION_NOT_REQUESTED: test session must be persisted before Agent dispatch");
         }
         JsonObject runtime = parseObject(runtimeStatusJson);
         JsonObject request = parseObject(run.getRequestJson());
@@ -340,6 +336,8 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
         session.setNetworkMode(networkMode);
         session.setNetworkId(networkId);
         session.setCheckpointSequence(firstLong(runtime, "test_restore_point_sequence", "current_checkpoint_sequence"));
+        session.setRestorePointRef(firstString(runtime, "test_restore_point_ref", "latest_completed_checkpoint_ref"));
+        session.setArtifactContractVersion("3");
         session.setDetailsJson(runtimeStatusJson);
         session.setCleanupRequired(true);
         session.setState("CLOUD_VOLUMES_IMPORTING");

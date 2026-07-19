@@ -67,6 +67,7 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
     private static final Gson GSON = new Gson();
     private static final int AGENT_ACCEPT_TIMEOUT_SECONDS = 30;
     private static final int VCENTER_THUMBPRINT_TIMEOUT_MS = 10000;
+    private static final String TEST_ARTIFACT_CONTRACT_VERSION = "3";
 
     @Inject
     private AgentManager agentManager;
@@ -205,7 +206,13 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         if (checkpointValidation != null) {
             return checkpointValidation;
         }
-        FtctlDrActionCommand command = buildActionCommand(context, action);
+        FtctlDrActionCommand command;
+        try {
+            command = buildActionCommand(context, action);
+        } catch (IllegalArgumentException e) {
+            return DrAdapterResult.failure("DR_TEST_ARTIFACT_SPEC_INVALID", e.getMessage(),
+                    GSON.toJson(buildExecutionDetails(context, action, coordinatorHostId)));
+        }
         try {
             Answer answer = agentManager.send(coordinatorHostId, command);
             return toAdapterResult(context, action, coordinatorHostId, answer);
@@ -246,6 +253,10 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         command.setCoordinatorWorkerUuid(resolveHostUuid(resolveCoordinatorHostId(plan)));
         command.setProfileJson(buildProfileJson(plan, run, redactedRequest));
         command.setRequestJson(GSON.toJson(redactedRequest));
+        if (action == FtctlDrActionCommand.Action.TEST_PREPARE) {
+            command.setArtifactContractVersion(TEST_ARTIFACT_CONTRACT_VERSION);
+            command.setArtifactSpecJson(buildTestArtifactSpec(plan, run, latestCheckpoint));
+        }
         command.setMode(requestString(request, "mode"));
         command.setCheckpointRef(latestCheckpoint != null ? latestCheckpoint.getSourceSnapshotRef() : null);
         command.setForce(requestBoolean(request, "force", false));
@@ -254,6 +265,108 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         command.setWait(AGENT_ACCEPT_TIMEOUT_SECONDS);
         command.setContext(toStringMap(redactedRequest));
         return command;
+    }
+
+    private String buildTestArtifactSpec(DrPlanVO plan, DrRunVO run, DrRestorePointVO checkpoint) {
+        JsonObject mapping = parseObject(plan.getMappingJson());
+        JsonObject mappingTarget = objectAt(mapping, "target");
+        JsonArray mappedDisks = firstArray(mapping, "disks", "diskMappings", "volumes", "volumeMappings");
+        JsonArray artifactDisks = new JsonArray();
+        for (int index = 0; index < mappedDisks.size(); index++) {
+            JsonElement element = mappedDisks.get(index);
+            if (element == null || !element.isJsonObject()) {
+                throw new IllegalArgumentException("DR_TEST_ARTIFACT_SPEC_INVALID: disk mapping " + index + " is not an object");
+            }
+            JsonObject disk = element.getAsJsonObject();
+            JsonObject target = objectAt(disk, "target");
+            String storageType = firstNonBlank(firstString(target, "storagePoolType", "type", "targetType"),
+                    firstString(mappingTarget, "storagePoolType", "type", "targetType"));
+            String storagePath = firstNonBlank(firstString(target, "storagePath", "krbdPath"),
+                    firstString(mappingTarget, "storagePath", "krbdPath"));
+            String volumeRef = firstNonBlank(firstString(target, "path", "diskRef", "volumePath", "volumeUuid"),
+                    firstString(disk, "targetRef", "targetDiskRef", "targetPath"));
+            String provider = isRbdStorage(storageType, storagePath, volumeRef) ? "RBD" : "FILE";
+            String canonicalLocator = canonicalArtifactLocator(provider, storagePath, volumeRef);
+            JsonObject artifactDisk = new JsonObject();
+            artifactDisk.addProperty("diskIndex", index);
+            artifactDisk.addProperty("device", firstNonBlank(firstString(disk, "device", "label"), "disk" + index));
+            artifactDisk.addProperty("provider", provider);
+            artifactDisk.addProperty("canonicalLocator", canonicalLocator);
+            artifactDisk.addProperty("format", StringUtils.defaultIfBlank(firstString(target, "format"),
+                    StringUtils.equals(provider, "RBD") ? "raw" : "qcow2"));
+            addLongIfPresent(artifactDisk, "targetVolumeId", firstLong(target, "volumeId", "targetVolumeId"));
+            String sizeBytes = firstNonBlank(firstString(target, "capacityBytes", "sizeBytes"),
+                    firstString(disk, "capacityBytes", "sizeBytes"));
+            if (StringUtils.isNotBlank(sizeBytes)) {
+                artifactDisk.addProperty("sizeBytes", sizeBytes);
+            }
+            artifactDisks.add(artifactDisk);
+        }
+        if (artifactDisks.size() == 0) {
+            throw new IllegalArgumentException("DR_TEST_ARTIFACT_SPEC_INVALID: no mapped target disks");
+        }
+        JsonObject spec = new JsonObject();
+        spec.addProperty("contractVersion", TEST_ARTIFACT_CONTRACT_VERSION);
+        spec.addProperty("planUuid", plan.getUuid());
+        spec.addProperty("runUuid", run.getUuid());
+        if (checkpoint != null) {
+            spec.addProperty("checkpointRef", checkpoint.getSourceSnapshotRef());
+            spec.addProperty("checkpointSequence", checkpoint.getCheckpointSequence());
+        }
+        spec.add("disks", artifactDisks);
+        return GSON.toJson(spec);
+    }
+
+    private boolean isRbdStorage(String storageType, String storagePath, String volumeRef) {
+        return StringUtils.containsIgnoreCase(storageType, "RBD")
+                || StringUtils.startsWithIgnoreCase(storagePath, "rbd")
+                || StringUtils.startsWithIgnoreCase(volumeRef, "rbd:")
+                || StringUtils.startsWithIgnoreCase(volumeRef, "/dev/rbd/");
+    }
+
+    private String canonicalArtifactLocator(String provider, String storagePath, String volumeRef) {
+        String ref = StringUtils.trimToNull(volumeRef);
+        if (StringUtils.equals(provider, "RBD")) {
+            if (ref != null && StringUtils.startsWithIgnoreCase(ref, "rbd:")) {
+                return "rbd:" + StringUtils.removeStartIgnoreCase(ref, "rbd:");
+            }
+            if (ref != null && StringUtils.startsWith(ref, "/dev/rbd/")) {
+                return "rbd:" + StringUtils.removeStart(ref, "/dev/rbd/");
+            }
+            String pool = StringUtils.trimToNull(storagePath);
+            if (pool != null && StringUtils.startsWithIgnoreCase(pool, "rbd:")) {
+                pool = StringUtils.removeStartIgnoreCase(pool, "rbd:");
+            }
+            if (pool != null && StringUtils.startsWith(pool, "/dev/rbd/")) {
+                pool = StringUtils.removeStart(pool, "/dev/rbd/");
+            }
+            if (ref == null || StringUtils.isBlank(pool)) {
+                throw new IllegalArgumentException("DR_TEST_ARTIFACT_LOCATOR_INVALID: RBD pool and image are required");
+            }
+            return StringUtils.contains(ref, "/") ? "rbd:" + ref : "rbd:" + StringUtils.removeEnd(pool, "/") + "/" + ref;
+        }
+        if (StringUtils.isBlank(ref) || !StringUtils.startsWith(ref, "/")) {
+            throw new IllegalArgumentException("DR_TEST_ARTIFACT_LOCATOR_INVALID: file-backed disk requires an absolute path");
+        }
+        return "file:" + ref;
+    }
+
+    private void addLongIfPresent(JsonObject object, String key, Long value) {
+        if (value != null) {
+            object.addProperty(key, value);
+        }
+    }
+
+    private Long firstLong(JsonObject object, String... keys) {
+        String value = firstString(object, keys);
+        if (StringUtils.isBlank(value)) {
+            return null;
+        }
+        try {
+            return Long.valueOf(value);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     private DrAdapterResult validateLatestCheckpoint(DrExecutionContext context, FtctlDrActionCommand.Action action) {

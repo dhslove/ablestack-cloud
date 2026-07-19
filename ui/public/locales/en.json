@@ -5425,6 +5425,7 @@
   "label.not.configured": "Not configured",
   "label.dr.current.step": "Current step",
   "label.dr.runtime.state": "Runtime state",
+  "label.dr.test.session.state": "Test session state",
   "label.dr.worker.state": "Worker state",
   "label.dr.freshness.state": "Replication freshness",
   "label.dr.current.cycle": "Current replication cycle",

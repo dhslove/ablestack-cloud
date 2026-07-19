@@ -32,15 +32,26 @@ public final class LibvirtFtctlDrCommandHelper {
     }
 
     public static File writeProfileJson(String planUuid, String profileJson) throws IOException {
-        if (StringUtils.isBlank(profileJson)) {
+        return writeOwnerOnlyJson("ftctl-dr-" + safeToken(planUuid, "plan") + "-", profileJson);
+    }
+
+    public static File writeArtifactSpecJson(String runUuid, String artifactSpecJson) throws IOException {
+        return writeOwnerOnlyJson("ftctl-dr-artifact-" + safeToken(runUuid, "run") + "-", artifactSpecJson);
+    }
+
+    private static File writeOwnerOnlyJson(String prefix, String json) throws IOException {
+        if (StringUtils.isBlank(json)) {
             return null;
         }
-        String safePlanUuid = StringUtils.defaultIfBlank(planUuid, "plan").replaceAll("[^A-Za-z0-9_.-]", "_");
-        File file = File.createTempFile("ftctl-dr-" + safePlanUuid + "-", ".json");
+        File file = File.createTempFile(prefix, ".json");
         restrictOwnerOnly(file);
-        Files.write(file.toPath(), profileJson.getBytes(StandardCharsets.UTF_8));
+        Files.write(file.toPath(), json.getBytes(StandardCharsets.UTF_8));
         restrictOwnerOnly(file);
         return file;
+    }
+
+    private static String safeToken(String value, String fallback) {
+        return StringUtils.defaultIfBlank(value, fallback).replaceAll("[^A-Za-z0-9_.-]", "_");
     }
 
     private static void restrictOwnerOnly(File file) {
@@ -75,6 +86,13 @@ public final class LibvirtFtctlDrCommandHelper {
         if (profileFile != null) {
             script.add("--profile-json");
             script.add(profileFile.getAbsolutePath());
+        }
+    }
+
+    public static void addArtifactSpecJsonArg(Script script, File artifactSpecFile) {
+        if (artifactSpecFile != null) {
+            script.add("--artifact-spec-json");
+            script.add(artifactSpecFile.getAbsolutePath());
         }
     }
 

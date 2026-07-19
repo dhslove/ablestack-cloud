@@ -1,9 +1,15 @@
 # Cross Hypervisor DR VMware To KVM Cutover And VirtIO Bootstrap Design
 
 - Date: 2026-07-14
-- Status: partially superseded; Cloud-managed Test Failover v2 is not implemented
+- Status: baseline implemented; storage locator correction pending
 - Scope: VMware source to ABLESTACK/KVM target
-- Related: 510, 521, 522, 553, 561
+- Related: 510, 521, 522, 553, 561, 562
+
+> Normative correction (2026-07-19):
+> [562-cross-hypervisor-dr-test-artifact-contract-and-projection-isolation-design-20260719.md](562-cross-hypervisor-dr-test-artifact-contract-and-projection-isolation-design-20260719.md)
+> defines the canonical RBD/file source locator, Cloud Test Session timing,
+> failure cleanup, and protection/operation projection isolation. FTCTL must
+> not infer provider or path from a bare target disk display reference.
 
 ## 1. Purpose
 
@@ -199,8 +205,11 @@ ftctl-drtest-<plan-short>-<run-short>-disk-<index>
 ftctl-drtest-<plan-short>-<run-short>-checkpoint
 ```
 
-Cleanup order is domain stop, domain undefine, writable layer remove,
-snapshot unprotect/remove, checkpoint lease release, scheduler resume.
+Cleanup order for the customer test workload is Cloud test VM stop/expunge and
+Cloud test-volume removal first. Cloud then requests FTCTL artifact cleanup:
+writable layer remove, snapshot unprotect/remove, checkpoint lease release,
+and scheduler resume. Only an engine-internal offline conversion helper domain
+may be stopped/undefined by FTCTL.
 
 ### 7.2 Real Failover
 

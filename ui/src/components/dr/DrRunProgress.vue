@@ -95,6 +95,7 @@ export default {
       return [
         { label: this.$t('label.dr.current.step'), value: this.run.runtimestep || this.run.currentstep },
         { label: this.$t('label.dr.runtime.state'), value: this.run.runtimestate },
+        { label: this.$t('label.dr.test.session.state'), value: this.run.testsessionstate },
         { label: this.$t('label.dr.worker.state'), value: this.run.workerstate },
         { label: this.$t('label.dr.external.job'), value: this.run.externaljobref },
         { label: this.$t('label.dr.retry'), value: this.retryMeta },

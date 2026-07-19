@@ -763,12 +763,18 @@ CREATE TABLE IF NOT EXISTS `cloud`.`dr_test_session` (
   `plan_id` bigint unsigned NOT NULL, `run_id` bigint unsigned NOT NULL, `cleanup_run_id` bigint unsigned DEFAULT NULL,
   `state` varchar(64) NOT NULL, `network_mode` varchar(32) DEFAULT NULL, `network_id` bigint unsigned DEFAULT NULL,
   `target_vm_id` bigint unsigned DEFAULT NULL, `target_vm_uuid` varchar(40) DEFAULT NULL, `target_vm_name` varchar(255) DEFAULT NULL,
-  `checkpoint_sequence` bigint unsigned DEFAULT NULL, `artifact_manifest` mediumtext, `boot_validation_state` varchar(64) DEFAULT NULL,
+  `checkpoint_sequence` bigint unsigned DEFAULT NULL, `restore_point_ref` varchar(1024) DEFAULT NULL,
+  `validation_mode` varchar(32) DEFAULT NULL, `boot_timeout_seconds` int unsigned DEFAULT NULL,
+  `artifact_contract_version` varchar(16) DEFAULT NULL, `artifact_manifest` mediumtext, `boot_validation_state` varchar(64) DEFAULT NULL,
   `cleanup_required` tinyint(1) NOT NULL DEFAULT 0, `error_code` varchar(128) DEFAULT NULL, `error_message` varchar(1024) DEFAULT NULL,
   `details_json` mediumtext, `created` datetime NOT NULL, `updated` datetime NOT NULL, `removed` datetime DEFAULT NULL,
   PRIMARY KEY (`id`), UNIQUE KEY `uk_dr_test_session_uuid` (`uuid`), KEY `idx_dr_test_session_plan_active` (`plan_id`,`removed`),
   KEY `idx_dr_test_session_run` (`run_id`), KEY `idx_dr_test_session_vm` (`target_vm_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_test_session', 'restore_point_ref', 'varchar(1024) NULL AFTER `checkpoint_sequence`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_test_session', 'validation_mode', 'varchar(32) NULL AFTER `restore_point_ref`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_test_session', 'boot_timeout_seconds', 'int unsigned NULL AFTER `validation_mode`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_test_session', 'artifact_contract_version', 'varchar(16) NULL AFTER `boot_timeout_seconds`');
 
 CREATE TABLE IF NOT EXISTS `cloud`.`dr_test_disk` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT, `session_id` bigint unsigned NOT NULL, `disk_index` int NOT NULL,

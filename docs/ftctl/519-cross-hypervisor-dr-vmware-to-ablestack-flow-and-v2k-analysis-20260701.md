@@ -1,5 +1,11 @@
 # VMware Operation To ABLESTACK DR Flow And V2K Analysis
 
+> Normative Test Failover update (2026-07-19):
+> [562-cross-hypervisor-dr-test-artifact-contract-and-projection-isolation-design-20260719.md](562-cross-hypervisor-dr-test-artifact-contract-and-projection-isolation-design-20260719.md)
+> governs Cloud-owned temporary VM resources, Agent-validated canonical
+> storage locators, FTCTL artifact-only execution, and projection isolation.
+> V2K remains a migration workflow and is not the Test Failover controller.
+
 작성일: 2026-07-01
 
 대상 방향: VMware 운영 -> ABLESTACK DR

@@ -5425,6 +5425,7 @@
   "label.not.configured": "설정 안 됨",
   "label.dr.current.step": "현재 단계",
   "label.dr.runtime.state": "런타임 상태",
+  "label.dr.test.session.state": "테스트 세션 상태",
   "label.dr.worker.state": "워커 상태",
   "label.dr.freshness.state": "복제 최신성",
   "label.dr.current.cycle": "현재 복제 주기",

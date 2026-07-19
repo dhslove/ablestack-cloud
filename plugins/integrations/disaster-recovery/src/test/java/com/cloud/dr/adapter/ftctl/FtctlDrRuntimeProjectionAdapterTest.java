@@ -52,6 +52,7 @@ import com.cloud.dr.dao.DrRestorePointDao;
 import com.cloud.dr.dao.DrRunDao;
 import com.cloud.dr.dao.DrRunStepDao;
 import com.cloud.dr.dao.DrSyncCycleDao;
+import com.cloud.dr.dao.DrTestSessionDao;
 
 @RunWith(MockitoJUnitRunner.class)
 public class FtctlDrRuntimeProjectionAdapterTest {
@@ -82,6 +83,8 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     private DrPlanRuntimeDao drPlanRuntimeDao;
     @Mock
     private DrSyncCycleDao drSyncCycleDao;
+    @Mock
+    private DrTestSessionDao drTestSessionDao;
 
     @InjectMocks
     private FtctlDrRuntimeProjectionAdapter adapter;

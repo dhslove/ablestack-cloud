@@ -1,5 +1,10 @@
 # Cross Hypervisor DR FTCTL Runtime Contract Design
 
+> Normative Test Failover runtime update (2026-07-19):
+> [562-cross-hypervisor-dr-test-artifact-contract-and-projection-isolation-design-20260719.md](562-cross-hypervisor-dr-test-artifact-contract-and-projection-isolation-design-20260719.md)
+> defines the v3 typed artifact input, all-path rollback, and separation of
+> finite operation status from continuous-sync protection authority.
+
 작성일: 2026-06-30
 
 대상 브랜치: `feature/ftctl-cloud-integration`

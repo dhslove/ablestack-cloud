@@ -1,10 +1,17 @@
 # Cross Hypervisor DR Cloud-Managed Test Failover Lifecycle Design
 
 - Date: 2026-07-19
-- Status: implementation design, not implemented
+- Status: baseline implemented; canonical artifact and projection correction pending
 - Scope: VMware to ABLESTACK Test Failover lifecycle ownership
 - Normative for: UI, API, Cloud backend, Mold Agent, FTCTL, DB
-- Related: 500, 501, 502, 503, 506, 507, 508, 509, 510, 521, 522, 554
+- Related: 500, 501, 502, 503, 506, 507, 508, 509, 510, 521, 522, 554, 562
+
+> Normative correction (2026-07-19):
+> [562-cross-hypervisor-dr-test-artifact-contract-and-projection-isolation-design-20260719.md](562-cross-hypervisor-dr-test-artifact-contract-and-projection-isolation-design-20260719.md)
+> supersedes this document wherever disk identity is inferred from
+> `targetDiskRef`, an early engine failure has no Cloud Test Session row, or a
+> finite Test Failover operation is allowed to replace continuous-sync
+> protection authority.
 
 ## 1. Decision
 
@@ -691,3 +698,8 @@ in section 1 and no normative text describes the customer Test Failover VM as
 engine-owned. Implementation is not complete until the v2 capability, DB
 entities, Cloud reconciler, FTCTL artifact-only path, and Linux/Windows
 end-to-end tests pass.
+
+The baseline Cloud-managed lifecycle has been implemented. The implementation
+is not accepted for Test Failover until document 562's typed storage locator,
+transactional REQUESTED session, all-path cleanup, error normalization,
+projection isolation, and restore-point producer attribution gates pass.
