@@ -605,6 +605,46 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     }
 
     @Test
+    public void refreshPlanProjectionCompletesSyncRunAfterContinuousCycleBecomesDurable() {
+        DrPlanVO plan = new DrPlanVO("ftctl-dr-plan", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
+        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
+        plan.setState(DrConstants.PLAN_STATE_SYNCING);
+        plan.setCoordinatorWorkerHostId(103L);
+        DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_SYNC);
+        run.setState(DrConstants.RUN_STATE_ACCEPTED);
+        DrReplicaVO replica = new DrReplicaVO(plan.getId(), plan.getTargetSiteId());
+        replica.setTargetVmId(9L);
+        DrRestorePointVO restorePoint = new DrRestorePointVO(plan.getId(), "FTCTL_DR_CHECKPOINT");
+        restorePoint.setState("READY");
+
+        String statusJson = "{\"state\":\"SYNCING\",\"step\":\"target-checkpoint-ready\",\"progress\":100,"
+                + "\"cycle_state\":\"IDLE\",\"current_checkpoint_state\":\"COMPLETED\","
+                + "\"scheduler_pid_alive\":true,\"target_materialized\":true,"
+                + "\"target_vm_present\":true,\"target_storage_present\":true,"
+                + "\"target_network_present\":true,\"restore_point_present\":true,"
+                + "\"last_target_durable_at\":\"2026-07-19T09:20:00Z\"}";
+        Mockito.when(agentManager.easySend(Mockito.eq(103L), Mockito.any(FtctlDrStatusCommand.class))).thenAnswer(invocation -> {
+            FtctlDrStatusCommand command = invocation.getArgument(1);
+            return new FtctlDrStatusAnswer(command, true, "ok", plan.getUuid(), run.getUuid(),
+                    "ok", "SYNCING", "target-checkpoint-ready", 100,
+                    "2026-07-19T09:19:58Z", "2026-07-19T09:20:00Z", 2,
+                    9L, null, 0, "", statusJson);
+        });
+        Mockito.when(drRunDao.findActiveByPlanId(plan.getId())).thenReturn(run);
+        Mockito.when(drReplicaDao.listActiveByPlanId(plan.getId())).thenReturn(Collections.singletonList(replica));
+        Mockito.when(drRestorePointDao.findLatestTargetReadyByPlanId(plan.getId())).thenReturn(restorePoint);
+
+        DrAdapterResult result = adapter.refreshPlanProjection(plan);
+
+        Assert.assertTrue(result.isSuccess());
+        Assert.assertEquals(DrConstants.RUN_STATE_SUCCEEDED, run.getState());
+        Assert.assertEquals("succeeded", run.getProjectionState());
+        Assert.assertNotNull(run.getCompleted());
+        Assert.assertEquals(DrConstants.PLAN_STATE_SYNCING, plan.getState());
+    }
+
+    @Test
     public void refreshPlanProjectionPreservesVmwareMoverSourceGraphFailure() {
         DrPlanVO plan = new DrPlanVO("ftctl-dr-plan", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
         plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);

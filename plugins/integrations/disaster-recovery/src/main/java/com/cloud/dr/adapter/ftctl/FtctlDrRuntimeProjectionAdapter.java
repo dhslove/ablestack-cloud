@@ -1573,7 +1573,12 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
     }
 
     private boolean isSyncTargetReady(DrPlanVO plan, FtctlDrStatusAnswer status, JsonObject runtime, String runtimeState) {
-        if (!StringUtils.equalsAny(runtimeState, "READY", "TARGET_READY")) {
+        String cycleState = StringUtils.upperCase(stringValue(runtime, "cycle_state"), Locale.ROOT);
+        String checkpointState = StringUtils.upperCase(stringValue(runtime, "current_checkpoint_state"), Locale.ROOT);
+        boolean completedContinuousCycle = StringUtils.equals(runtimeState, "SYNCING")
+                && StringUtils.equalsAny(cycleState, "IDLE", "COMPLETED")
+                && StringUtils.equalsAny(checkpointState, "COMPLETED", "READY", "TARGET_READY");
+        if (!StringUtils.equalsAny(runtimeState, "READY", "TARGET_READY") && !completedContinuousCycle) {
             return false;
         }
         if (!hasDurableCheckpoint(status, runtime)) {

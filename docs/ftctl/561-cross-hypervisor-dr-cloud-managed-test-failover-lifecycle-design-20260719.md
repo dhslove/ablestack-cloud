@@ -667,7 +667,18 @@ For Linux and Windows:
 | Cleanup | FTCTL undefines domain and removes clone | Cloud removes VM/volumes first, FTCTL removes artifacts/lease second |
 | Authority | Cloud and FTCTL both own VM state | Cloud exclusively owns VM lifecycle; FTCTL owns data-plane artifacts |
 
-## 17. Completion gate
+## 17. Continuous sync projection completion
+
+Continuous FTCTL synchronization intentionally keeps the scheduler process alive after a cycle. Therefore the Cloud run projection must not wait only for a top-level `READY` state. A sync run is complete when either the runtime is `READY`/`TARGET_READY`, or all of the following are true:
+
+- runtime state is `SYNCING`;
+- `cycle_state` is `IDLE` or `COMPLETED`;
+- `current_checkpoint_state` is `COMPLETED`, `READY`, or `TARGET_READY`;
+- a durable target checkpoint and the Cloud-managed target references exist.
+
+This rule completes the finite Cloud async run while retaining the long-lived FTCTL scheduler. It also refreshes `dr_plan_runtime` with the live scheduler PID so action eligibility is derived from the current authority generation instead of a stale completed run.
+
+## 18. Completion gate
 
 This design is complete when all referenced documents use the ownership matrix
 in section 1 and no normative text describes the customer Test Failover VM as
