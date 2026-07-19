@@ -427,8 +427,7 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
             session.setErrorMessage(null);
             session.markUpdated();
             drTestSessionDao.update(session.getId(), session);
-        } catch (RuntimeException | ConcurrentOperationException | InsufficientCapacityException |
-                ResourceAllocationException | ResourceUnavailableException e) {
+        } catch (Exception e) {
             session.setState("FAILED");
             session.setErrorCode("DR_TEST_CLOUD_MATERIALIZATION_FAILED");
             session.setErrorMessage(e.getMessage());
