@@ -51,10 +51,12 @@ import com.cloud.dr.DrSiteHealthCheckVO;
 import com.cloud.dr.DrSiteCredentialService;
 import com.cloud.dr.DrSiteCredentialVO;
 import com.cloud.dr.DrSiteVO;
+import com.cloud.dr.DrTestSessionVO;
 import com.cloud.dr.dao.DrPlanDao;
 import com.cloud.dr.dao.DrRunDao;
 import com.cloud.dr.dao.DrRunStepDao;
 import com.cloud.dr.dao.DrSiteDao;
+import com.cloud.dr.dao.DrTestSessionDao;
 import com.cloud.dr.inventory.DrInventoryOption;
 import com.cloud.dr.inventory.DrPlanInventoryResult;
 import com.cloud.dr.inventory.DrSiteInventoryResult;
@@ -79,6 +81,8 @@ public class DrResponseGenerator extends ManagerBase {
     private DrRunDao drRunDao;
     @Inject
     private DrRunStepDao drRunStepDao;
+    @Inject
+    private DrTestSessionDao drTestSessionDao;
     @Inject
     private DrSiteCredentialService drSiteCredentialService;
     @Inject
@@ -309,6 +313,15 @@ public class DrResponseGenerator extends ManagerBase {
         response.setCreated(run.getCreated());
         response.setSteps(createRunStepResponses(steps));
         response.setProgressPercent(resolveProgress(steps));
+        DrTestSessionVO testSession = drTestSessionDao.findActiveByRunId(run.getId());
+        if (testSession != null) {
+            response.setTestSessionId(testSession.getUuid());
+            response.setTestSessionState(testSession.getState());
+            response.setTestVmId(testSession.getTargetVmUuid());
+            response.setTestVmName(testSession.getTargetVmName());
+            response.setTestNetworkMode(testSession.getNetworkMode());
+            response.setTestBootValidationState(testSession.getBootValidationState());
+        }
         return response;
     }
 

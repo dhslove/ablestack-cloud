@@ -185,6 +185,8 @@ public class LibvirtFtctlDrCapabilitiesCommandWrapper extends CommandWrapper<Ftc
         actions.put("RESUME_SYNC", "dr-sync-resume");
         actions.put("TEST_FAILOVER", "dr-test-failover");
         actions.put("TEST_CLEANUP", "dr-test-cleanup");
+        actions.put("TEST_PREPARE", "dr-test-prepare");
+        actions.put("TEST_ARTIFACT_CLEANUP", "dr-test-artifact-cleanup");
         actions.put("FAILOVER", "dr-failover");
         actions.put("FAILBACK", "dr-failback");
         actions.put("REPROTECT", "dr-reprotect");

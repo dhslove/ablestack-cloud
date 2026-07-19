@@ -1228,3 +1228,15 @@ reason map explains blocking conditions. Normal cutover requires verified
 incremental proof; forced emergency failover is separate and audited. The
 normative response and error contract is in
 `559-cross-hypervisor-dr-incremental-mode-decision-and-cycle-projection-design-20260717.md`.
+
+### 2026-07-19 Test Failover API Addendum
+
+`startDrTestFailover` remains asynchronous and creates a `DrRun` and
+`DrTestSession` transactionally. It accepts typed `networkmode`, `networkid`,
+`bootvalidationmode`, and `boottimeoutseconds`. It never waits for Agent,
+artifact preparation, Cloud volume import, or VM boot. Plan/protection responses
+return a compact typed test-session summary and never return credentials or raw
+FTCTL profiles.
+
+Normative request/response contract:
+`561-cross-hypervisor-dr-cloud-managed-test-failover-lifecycle-design-20260719.md`.

@@ -872,3 +872,12 @@ breaker, Agent fields, dual cycle projection, DB decision fields, API reason
 codes, and UI evidence display defined in:
 
 - [559-cross-hypervisor-dr-incremental-mode-decision-and-cycle-projection-design-20260717.md](559-cross-hypervisor-dr-incremental-mode-decision-and-cycle-projection-design-20260717.md)
+
+## 2026-07-19 Test Failover Ownership Design Status
+
+The Cloud-managed Test Failover lifecycle is designed but not implemented.
+Current FTCTL still creates an unmanaged `ftctl-dr-test-*` domain. The next
+implementation unit must replace that path with FTCTL artifact preparation and
+Cloud-managed temporary volume/VM/network lifecycle as defined in:
+
+- [561-cross-hypervisor-dr-cloud-managed-test-failover-lifecycle-design-20260719.md](561-cross-hypervisor-dr-cloud-managed-test-failover-lifecycle-design-20260719.md)

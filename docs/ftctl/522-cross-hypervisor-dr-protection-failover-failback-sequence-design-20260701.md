@@ -164,22 +164,24 @@ sequenceDiagram
   participant API as Cloud API
   participant B as Backend
   participant F as FTCTL_DR
-  participant T as Target Driver
+  participant C as Cloud VM Manager
+  participant T as Target Storage Driver
 
   UI->>API: startDrTestFailover(planId, restorePointId)
   API->>B: DrRun TEST_FAILOVER 생성
-  B->>F: dr-test-failover
+  B->>F: dr-test-prepare
   F->>T: create snapshot/clone/overlay
-  F->>T: attach isolated network
-  F->>T: boot test VM
-  F->>T: guest/network validation
-  F-->>B: test result + resource refs
+  F-->>B: TEST_ARTIFACTS_READY + manifest
+  B->>C: import test volumes
+  B->>C: create/start Cloud test VM on selected network
+  B->>C: power/QGA validation
   B-->>UI: polling result
   UI->>API: stopDrTestFailover
   API->>B: DrRun TEST_CLEANUP 생성
-  B->>F: dr-test-cleanup
-  F->>T: stop/delete test VM and overlay
-  F-->>B: cleanup result
+  B->>C: stop/expunge test VM and delete test volumes
+  B->>F: dr-test-artifact-cleanup
+  F->>T: remove overlay/clone and release lease
+  F-->>B: TEST_ARTIFACTS_CLEANED
 ```
 
 방향별 target test 방식:
@@ -412,3 +414,15 @@ Test Failover and Failover may lease only the latest Cloud-committed durable
 cycle. A VMware incremental cycle is eligible only when its aggregate and all
 disk rows have `incremental_verified=true`; see
 `555-cross-hypervisor-dr-vmware-cbt-incremental-and-transfer-metrics-design-20260714.md`.
+
+### 2026-07-19 Test Failover Sequence Ownership Addendum
+
+The Test Failover sequence in section 4 is superseded for ABLESTACK targets.
+FTCTL creates and prepares checkpoint-derived test disk artifacts only. Cloud
+imports those artifacts as temporary volumes, creates and starts the temporary
+test VM on a selected Cloud network, and performs VM-state validation through
+Cloud/Agent. Stop Test Failover expunges the Cloud VM/volumes before FTCTL
+removes artifacts and releases the checkpoint lease.
+
+Normative sequence and failure compensation:
+`561-cross-hypervisor-dr-cloud-managed-test-failover-lifecycle-design-20260719.md`.

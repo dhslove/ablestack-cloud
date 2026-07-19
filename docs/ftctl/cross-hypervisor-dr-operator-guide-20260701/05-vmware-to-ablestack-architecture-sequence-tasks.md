@@ -105,3 +105,16 @@ sequenceDiagram
 | ABLESTACK target 준비 | target disk 준비 로직은 있으나 VMware mover가 target write까지 완결해야 한다. |
 | 실제 VM lifecycle | ABLESTACK target VM materialize/power-on hook 필요 |
 | 흐름 단절 위험 | mover/hook 미배치 시 Run은 accepted 후 status projection에서 오류 또는 delegated 상태로 남을 수 있다. |
+
+## 2026-07-19 Test Failover 운영 모델 보정
+
+영구 DR 대상 VM은 실제 Failover용으로 `Stopped` 상태를 유지한다. Test
+Failover에서는 최신 정상 체크포인트로부터 별도의 테스트 디스크를
+준비하고, Cloud가 해당 디스크를 임시 볼륨으로 등록한 뒤 임시 테스트
+VM을 생성·기동·정리한다. FTCTL은 체크포인트 lease, 테스트 디스크,
+VirtIO 준비만 담당하며 고객 테스트 VM을 직접 `virsh`로 관리하지 않는다.
+
+테스트 네트워크는 Cloud 네트워크를 명시적으로 선택한다. 네트워크가
+없는 테스트는 `NO_NIC`로 구분하며 격리 네트워크로 표시하지 않는다.
+상세 설계는
+`../561-cross-hypervisor-dr-cloud-managed-test-failover-lifecycle-design-20260719.md`를 따른다.

@@ -455,3 +455,15 @@ baseline defect; a repeated identical decision enters
 `RESEED_LOOP_DETECTED` and stops before data copy. A new current sequence does
 not erase the latest completed sequence. Detailed transitions are normative in
 `559-cross-hypervisor-dr-incremental-mode-decision-and-cycle-projection-design-20260717.md`.
+
+### 2026-07-19 Cloud-Managed Test Session State Addendum
+
+`TEST_FAILOVER` is split into engine artifact preparation and Cloud resource
+materialization. The authoritative sequence is `ENGINE_PREPARING ->
+ARTIFACTS_READY -> VOLUMES_IMPORTING -> VM_CREATING -> VM_STARTING ->
+VM_VALIDATING -> ACTIVE`. Cleanup is `VM_STOPPING -> VM_EXPUNGING ->
+VOLUME_DELETING -> ENGINE_ARTIFACT_CLEANUP -> CLEANED`. A Running raw libvirt
+domain without a session-owned Cloud VM id is `DR_TEST_OWNERSHIP_INCONSISTENT`.
+
+Detailed restart, retry, and compensation rules:
+`561-cross-hypervisor-dr-cloud-managed-test-failover-lifecycle-design-20260719.md`.

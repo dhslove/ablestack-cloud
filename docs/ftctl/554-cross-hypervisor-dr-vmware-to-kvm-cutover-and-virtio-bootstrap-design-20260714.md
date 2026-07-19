@@ -1,9 +1,9 @@
 # Cross Hypervisor DR VMware To KVM Cutover And VirtIO Bootstrap Design
 
 - Date: 2026-07-14
-- Status: implementation design
+- Status: partially superseded; Cloud-managed Test Failover v2 is not implemented
 - Scope: VMware source to ABLESTACK/KVM target
-- Related: 510, 521, 522, 553
+- Related: 510, 521, 522, 553, 561
 
 ## 1. Purpose
 
@@ -17,8 +17,9 @@ The design preserves the following ownership boundary.
 - Cloud API accepts the request asynchronously and creates a DR Run.
 - Cloud backend resolves policy, target placement, and Cloud VM lifecycle.
 - Mold Agent transports typed commands and reports typed status.
-- FTCTL owns checkpoint lease, writable test layers, guest preparation, and
-  engine-owned transient test domains.
+- FTCTL owns checkpoint lease, writable test layers, and guest preparation.
+- Cloud owns temporary Test Failover VM, volume, network, host placement, and
+  the complete customer workload lifecycle.
 - The existing `ablestack_v2k` migration workflow is not used as the DR
   replication engine. Only its proven guest preparation primitives are shared.
 
@@ -34,7 +35,7 @@ overlays and records metadata. It does not perform any of the following.
 2. Enable VirtIO drivers in the guest.
 3. Rebuild Linux initramfs.
 4. Run Windows WinPE VirtIO bootstrap.
-5. Define or start an isolated test domain.
+5. Return a validated artifact manifest for Cloud-managed test VM creation.
 6. Validate guest boot completion.
 
 The target VM hardware metadata can be correct while the guest is still unable
@@ -70,12 +71,13 @@ replace an end-to-end guest boot test.
 2. Apply guest conversion only to a checkpoint-derived writable layer.
 3. For real Failover, stop replication and seal the final checkpoint before
    modifying the recovery disk.
-4. Do not mark Test Failover successful until the test domain is running and
-   the configured boot validation has passed.
+4. Do not mark Test Failover successful until the Cloud-managed temporary test
+   VM is running and the configured boot validation has passed.
 5. Do not mark real Failover successful until the Cloud-managed target VM has
    started and boot validation has passed.
-6. Test domains use isolated networking by default and must never inherit a
-   production bridge implicitly.
+6. Test VMs use a selected Cloud isolated network by default and must never
+   inherit a production network implicitly. `NO_NIC` is a separate explicit
+   diagnostic mode.
 7. V2K CLI behavior and Phase1/Phase2 migration semantics remain unchanged.
 8. Every artifact is keyed by Plan UUID, Run UUID, checkpoint generation, and
    disk index so retry and cleanup are idempotent.
@@ -94,7 +96,8 @@ flowchart LR
   FTCTL --> GUEST["Shared Guest Preparation Library"]
   GUEST --> LINUX["Linux VirtIO and Initramfs"]
   GUEST --> WIN["Windows WinPE and VirtIO ISO"]
-  FTCTL --> TESTVM["Isolated Transient Test Domain"]
+  FTCTL --> ARTIFACTS["Prepared Test Disk Artifacts"]
+  RUN --> TESTVM["Cloud-managed Temporary Test VM"]
   RUN --> CLOUDVM["Cloud-managed Recovery VM Start"]
   FTCTL --> STATUS["Typed Runtime Status"]
   STATUS --> AGENT --> RUN --> API --> UI
@@ -223,19 +226,24 @@ ACCEPTED
   -> WRITABLE_LAYER_CREATING
   -> GUEST_INSPECTING
   -> GUEST_PREPARING
-  -> TEST_DOMAIN_DEFINING
-  -> TEST_DOMAIN_STARTING
-  -> BOOT_VALIDATING
-  -> TEST_RUNNING
+  -> ARTIFACTS_READY
+  -> CLOUD_VOLUMES_IMPORTING
+  -> CLOUD_VM_CREATING
+  -> CLOUD_VM_STARTING
+  -> CLOUD_VM_VALIDATING
+  -> ACTIVE
   -> CLEANUP_REQUESTED
-  -> ARTIFACTS_REMOVED
+  -> CLOUD_VM_EXPUNGED
+  -> CLOUD_VOLUMES_REMOVED
+  -> ENGINE_ARTIFACTS_REMOVED
   -> CHECKPOINT_RELEASED
   -> REPLICATION_RESUMED
   -> COMPLETED
 ```
 
-`TEST_RUNNING` is the successful terminal state of the start action. The test
-session remains active until Stop Test Failover completes cleanup.
+`ACTIVE` is the successful terminal state of the start action and is owned by
+the Cloud test session. The session remains active until Stop Test Failover
+removes both Cloud resources and FTCTL artifacts.
 
 ## 9. Real Failover state machine
 
@@ -376,11 +384,11 @@ com.cloud.dr.cutover.dao.DrCutoverDiskDao
 
 ```java
 acceptAsyncRun();
-dispatchFtctlTestFailover();
-while (!status.isTestRunning() && !status.isTerminalFailure()) {
-    projectStatusWithoutBlockingApiThread();
-}
-finishRunOnlyWhen(status.isTestRunning());
+dispatchFtctlTestPrepare();
+projectStatusWithoutBlockingApiThread();
+reconcileArtifactsIntoCloudVolumes();
+createAndStartCloudManagedTestVm();
+finishRunOnlyWhen(testVmValidationPassed());
 ```
 
 The executor worker may poll with a bounded timeout. The API thread must not.
@@ -441,7 +449,7 @@ boot-validation-qga-v1
 <plan>/cutover/<run>/boot-validation.json
 ```
 
-### 14.2 `dr-test-failover`
+### 14.2 `dr-test-prepare`
 
 Replace metadata-only success with this workflow:
 
@@ -452,19 +460,20 @@ checkpoint_lease_acquire
 cutover_writable_layers_create
 guestprep_inspect
 guestprep_apply
-test_domain_render_isolated
-test_domain_define_and_start
-boot_validation_wait
-state_set TEST_RUNNING
+artifact_manifest_validate_and_publish
+state_set TEST_ARTIFACTS_READY
 ```
 
-Every step writes status before and after execution. Retry resumes from the last
-verified idempotent step.
+Cloud then imports the artifacts, creates and starts the temporary VM, and
+performs boot validation. Every step writes status before and after execution.
+Retry resumes from the last verified idempotent step.
 
-### 14.3 `dr-test-cleanup`
+### 14.3 `dr-test-artifact-cleanup`
 
-Cleanup is accepted from `TEST_RUNNING`, `ERROR`, and partially prepared states.
-It performs best-effort cleanup but reports each residual artifact explicitly.
+Cloud first stops and expunges the temporary test VM and deletes its registered
+test volumes. FTCTL cleanup is then accepted from artifact-ready, error, and
+partially prepared states. It removes engine artifacts and the checkpoint lease
+and reports every residual explicitly.
 
 ### 14.4 `dr-failover`
 
@@ -590,12 +599,12 @@ disk visibility, NIC isolation or mapping, QGA policy, and residual artifacts.
 | Test artifact | qcow2 metadata overlay only | qcow2 or RBD writable layer tracked per disk |
 | Guest preparation | absent in FTCTL | shared Linux/Windows VirtIO preparation |
 | V2K relationship | assets referenced indirectly | proven guest preparation primitives shared without using V2K as DR engine |
-| Test VM | not defined or started | isolated engine-owned transient domain |
+| Test VM | not defined or started | isolated Cloud-managed temporary VM built from FTCTL artifacts |
 | Test success | overlay creation can appear successful | boot validation must pass |
 | Real Failover | target promotion/power state delegated without guest conversion gate | FTCTL `CUTOVER_READY`, Cloud VM start, boot validation, then active-side commit |
 | Secure Boot | hardware value copied only | WinPE temporary disable and verified restore |
 | Storage | file overlay only | provider-specific qcow2 and RBD drivers |
-| Cleanup | artifact directory removal | domain, disk layer, snapshot, lease, and scheduler cleanup with residual audit |
+| Cleanup | artifact directory removal | Cloud VM/volume cleanup followed by FTCTL artifact, snapshot, lease, and scheduler cleanup |
 | UI | no guest/cutover readiness | typed preparation, boot, and cleanup progress |
 | DB | Run JSON only | authoritative session and disk artifact tables plus cache projection |
 
@@ -659,19 +668,19 @@ No transient Test Failover/cutover domain or RBD test clone remains on the
 three compute hosts. A stale Run whose parent Plan was already removed was
 closed as `CANCELED` with reason `DR_PLAN_REMOVED`.
 
-The implementation/build/deployment/cleanup gate is **PASS**. Runtime feature
-acceptance is deliberately **not yet PASS**: a new VMware-to-ABLESTACK Plan
-must still execute Test Failover, boot validation, Stop Test Failover cleanup,
-and planned Failover end to end. The acceptance test must verify that the
-target guest boots with VirtIO, keeps the source EFI/Secure Boot contract, and
-does not promote the active side before the Cloud-owned target VM is running.
+The legacy engine-owned preparation path passed its implementation/build/
+deployment/cleanup gate. The Cloud-managed Test Failover v2 ownership gate is
+**NOT IMPLEMENTED**. Runtime acceptance therefore remains **not PASS** until a
+new VMware-to-ABLESTACK Plan executes Test Failover with a Cloud-registered
+temporary VM/volumes/network, validates boot, completes ordered cleanup, and
+then completes planned Failover without premature active-side promotion.
 
 ### 21.5 Final AS-IS / TO-BE implementation summary
 
-| Area | AS-IS | Deployed TO-BE |
+| Area | Current implementation | Required TO-BE |
 |---|---|---|
 | VMware guest conversion | writable disk alone could be reported as test-ready | V2K-compatible Linux/Windows guest preparation is a required gate |
-| Test Failover | no complete transient VM lifecycle | provider writable layer, isolated domain, validation, and cleanup lifecycle |
+| Test Failover | split or incomplete VM lifecycle | FTCTL artifact preparation plus Cloud-managed VM, validation, and cleanup lifecycle |
 | Real Failover | target could be promoted before a verified boot path | FTCTL stops at `CUTOVER_READY`; Cloud starts its VM and then projects promotion |
 | Firmware contract | EFI/Secure Boot could be lost in hand-off | source firmware and Secure Boot metadata are carried in the manifest |
 | Runtime state | mainly Run JSON/progress text | typed Agent answer plus cutover session/disk DB records |
@@ -700,3 +709,13 @@ when the physical RBD data is readable.
 Normalization, migration, Agent validation, and Test Failover gating are
 defined in
 `558-cross-hypervisor-dr-strict-status-storage-format-and-query-boundary-design-20260716.md`.
+
+## 24. 2026-07-19 Cloud-managed Test Failover Ownership
+
+The legacy FTCTL-owned transient libvirt domain path described by the original
+implementation result is superseded for new implementation work. Cloud owns
+temporary test VM, volume, network, placement, and workload lifecycle; FTCTL
+owns checkpoint leases, writable artifacts, guest preparation, and artifact
+cleanup. The normative contract, state model, database schema, rollout gates,
+and source change map are defined in
+[`561-cross-hypervisor-dr-cloud-managed-test-failover-lifecycle-design-20260719.md`](561-cross-hypervisor-dr-cloud-managed-test-failover-lifecycle-design-20260719.md).

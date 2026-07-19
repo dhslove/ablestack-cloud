@@ -817,3 +817,23 @@ CREATE TABLE IF NOT EXISTS `cloud`.`dr_cutover_disk` (
   PRIMARY KEY (`id`), UNIQUE KEY `uk_dr_cutover_disk_session_index` (`session_id`,`disk_index`),
   KEY `idx_dr_cutover_disk_session_active` (`session_id`,`removed`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS `cloud`.`dr_test_session` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT, `uuid` varchar(40) NOT NULL,
+  `plan_id` bigint unsigned NOT NULL, `run_id` bigint unsigned NOT NULL, `cleanup_run_id` bigint unsigned DEFAULT NULL,
+  `state` varchar(64) NOT NULL, `network_mode` varchar(32) DEFAULT NULL, `network_id` bigint unsigned DEFAULT NULL,
+  `target_vm_id` bigint unsigned DEFAULT NULL, `target_vm_uuid` varchar(40) DEFAULT NULL, `target_vm_name` varchar(255) DEFAULT NULL,
+  `checkpoint_sequence` bigint unsigned DEFAULT NULL, `artifact_manifest` mediumtext, `boot_validation_state` varchar(64) DEFAULT NULL,
+  `cleanup_required` tinyint(1) NOT NULL DEFAULT 0, `error_code` varchar(128) DEFAULT NULL, `error_message` varchar(1024) DEFAULT NULL,
+  `details_json` mediumtext, `created` datetime NOT NULL, `updated` datetime NOT NULL, `removed` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`), UNIQUE KEY `uk_dr_test_session_uuid` (`uuid`), KEY `idx_dr_test_session_plan_active` (`plan_id`,`removed`),
+  KEY `idx_dr_test_session_run` (`run_id`), KEY `idx_dr_test_session_vm` (`target_vm_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `cloud`.`dr_test_disk` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT, `session_id` bigint unsigned NOT NULL, `disk_index` int NOT NULL,
+  `provider` varchar(32) DEFAULT NULL, `artifact_ref` varchar(1024) DEFAULT NULL, `target_volume_id` bigint unsigned DEFAULT NULL,
+  `target_volume_uuid` varchar(40) DEFAULT NULL, `state` varchar(64) NOT NULL, `details_json` mediumtext,
+  `created` datetime NOT NULL, `updated` datetime NOT NULL, `removed` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`), UNIQUE KEY `uk_dr_test_disk_session_index` (`session_id`,`disk_index`), KEY `idx_dr_test_disk_volume` (`target_volume_id`),
+  CONSTRAINT `fk_dr_test_disk_session` FOREIGN KEY (`session_id`) REFERENCES `dr_test_session` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

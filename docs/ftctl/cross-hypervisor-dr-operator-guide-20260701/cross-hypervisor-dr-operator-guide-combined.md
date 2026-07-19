@@ -706,3 +706,14 @@ flowchart LR
 | P1 | FTCTL_DR용 fence confirm adapter | 현재 `confirmDrFenceClear`는 FTCTL_DR에서 adapter 단절 후보가 있다. |
 | P2 | UI에서 delegated lifecycle 상태 표시 | `POWER_ON_DELEGATED`일 때 운영자가 다음 조치를 명확히 알 수 있어야 한다. |
 
+## 2026-07-19 VMware → ABLESTACK Test Failover 운영 모델 보정
+
+영구 DR 대상 VM은 실제 Failover용으로 `Stopped` 상태를 유지한다. Test
+Failover의 테스트 디스크와 VirtIO 준비는 FTCTL이 담당하지만, 임시 볼륨
+등록과 임시 테스트 VM의 생성·기동·검증·삭제는 Cloud가 담당한다. FTCTL이
+고객 테스트 VM을 직접 `virsh`로 정의하거나 실행하는 기존 설명은 폐기한다.
+
+테스트 네트워크는 실제 Cloud 네트워크를 선택하며, NIC 없는 테스트는
+`NO_NIC`로 명시한다. 상세 설계는 상위 `docs/ftctl`의
+`561-cross-hypervisor-dr-cloud-managed-test-failover-lifecycle-design-20260719.md`를 따른다.
+

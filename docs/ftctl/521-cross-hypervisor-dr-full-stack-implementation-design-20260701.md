@@ -800,3 +800,14 @@ Emergency forced Failover remains a separate audited path.
 
 Detailed code-level design:
 `559-cross-hypervisor-dr-incremental-mode-decision-and-cycle-projection-design-20260717.md`.
+
+## 2026-07-19 Cloud/FTCTL Test Failover Responsibility Update
+
+The full-stack implementation must preserve a single VM authority: Cloud owns
+both permanent and temporary customer VMs and their registered volumes and
+networks. FTCTL owns only replication checkpoints and test artifacts. Agent
+transports artifact commands and validates the Cloud-managed VM. Mixed v1/v2
+stacks fail eligibility and never fall back to an unmanaged domain.
+
+Implementation classes, schema, rollout order, and acceptance tests are defined
+in `561-cross-hypervisor-dr-cloud-managed-test-failover-lifecycle-design-20260719.md`.

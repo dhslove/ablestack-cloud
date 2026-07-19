@@ -36,6 +36,7 @@ import com.cloud.dr.DrPlanVO;
 import com.cloud.dr.DrProjectionService;
 import com.cloud.dr.DrRunStepVO;
 import com.cloud.dr.DrRunVO;
+import com.cloud.dr.DrTargetMaterializationService;
 import com.cloud.dr.adapter.DrAdapterRegistry;
 import com.cloud.dr.adapter.DrAdapterResult;
 import com.cloud.dr.adapter.DrExecutionContext;
@@ -76,6 +77,8 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
     private DrProjectionService drProjectionService;
     @Inject
     private DrProtectionOrchestrator drProtectionOrchestrator;
+    @Inject
+    private DrTargetMaterializationService drTargetMaterializationService;
 
     private ExecutorService dispatchExecutor;
 
@@ -155,6 +158,7 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
         DrAdapterResult result;
         try {
             plan = prepareProtectionResources(plan, latestRun);
+            cleanupCloudTestResourcesBeforeEngine(plan, latestRun);
             recordStep(latestRun.getId(), STEP_PREPARE, STEP_ORDER_PREPARE, DrConstants.STEP_STATE_SUCCEEDED, 20, latestRun.getRequestJson(), null, null);
             markRunDispatching(latestRun);
             recordStep(latestRun.getId(), STEP_DISPATCH, STEP_ORDER_DISPATCH, DrConstants.STEP_STATE_RUNNING, 30, latestRun.getRequestJson(), null, null);
@@ -230,6 +234,16 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
         }
         DrPlanVO prepared = drProtectionOrchestrator.prepareSyncRun(plan, run);
         return prepared != null ? prepared : plan;
+    }
+
+    private void cleanupCloudTestResourcesBeforeEngine(DrPlanVO plan, DrRunVO run) {
+        if (plan == null || run == null || drTargetMaterializationService == null
+                || !StringUtils.equals(run.getRunType(), DrConstants.RUN_TYPE_TEST_CLEANUP)) {
+            return;
+        }
+        if (!drTargetMaterializationService.cleanupTestTarget(plan.getId(), run.getId())) {
+            throw new IllegalStateException("Cloud-managed DR test resources were not removed before FTCTL artifact cleanup");
+        }
     }
 
     private boolean isFtctlDrSyncRun(DrPlanVO plan, DrRunVO run) {

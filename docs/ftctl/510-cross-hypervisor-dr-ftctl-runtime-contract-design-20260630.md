@@ -818,7 +818,11 @@ while a worker waits for a control acknowledgment.
 Detailed shell helper contracts, lock ordering, status fields, and self-tests:
 `553-cross-hypervisor-dr-continuous-sync-control-and-quiesce-lock-design-20260714.md`.
 
-## 2026-07-14 Normative Guest Preparation And Cutover Contract
+## 2026-07-14 Guest Preparation And Cutover Contract (Test Domain Portion Superseded)
+
+The direct Test Failover domain lifecycle in this legacy section is superseded
+by the Cloud-managed artifact-only contract in the 2026-07-19 section below.
+The real Failover `CUTOVER_READY` boundary remains valid.
 
 `dr-test-failover`의 성공 조건은 test overlay 생성이 아니다. FTCTL은 아래
 단계를 모두 완료한 경우에만 `TEST_RUNNING`을 반환한다.
@@ -864,3 +868,17 @@ second automatic reseed stops before source open, and malformed helper JSON is
 a typed error without raw traceback. The journal/status field set and live
 acceptance contract are defined in
 `559-cross-hypervisor-dr-incremental-mode-decision-and-cycle-projection-design-20260717.md`.
+
+## 2026-07-19 Artifact-Only Test Failover Runtime Contract
+
+FTCTL Test Failover authority ends at a validated, checkpoint-derived artifact
+manifest. FTCTL may create RBD clones, immutable file copies/overlays, retain
+checkpoint leases, and perform offline VirtIO preparation. It must not define,
+start, stop, or undefine the customer Test Failover VM. `TEST_RUNNING` is a
+Cloud session projection; FTCTL reports `TEST_ARTIFACTS_READY` and
+`TEST_ARTIFACTS_CLEANED`. File-backed drivers must prove immutable backing or
+reject the operation.
+
+This section supersedes the earlier isolated test-domain runtime contract. The
+normative v2 contract is
+`561-cross-hypervisor-dr-cloud-managed-test-failover-lifecycle-design-20260719.md`.

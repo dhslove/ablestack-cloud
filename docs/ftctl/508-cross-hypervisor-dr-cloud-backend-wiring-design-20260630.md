@@ -1220,10 +1220,11 @@ Detailed classes, steps, and failure-impact rules:
 
 ## 2026-07-14 Cutover Backend Addendum
 
-Backend에는 `DrCutoverPreparationService`를 추가한다. Test Failover는 FTCTL
-transient domain의 `TEST_RUNNING`을 기다리고, 실제 Failover는 FTCTL의
-`CUTOVER_READY` 이후 Cloud-managed target VM을 정상 VM manager 경로로
-기동한다. Boot validation 성공 전에 active side를 변경하지 않는다.
+Backend에는 `DrCutoverPreparationService`와 Cloud-managed Test Failover
+workflow를 둔다. Test Failover는 FTCTL의 `TEST_ARTIFACTS_READY` 이후 test
+volume을 Cloud에 등록하고 임시 test VM을 정상 VM manager 경로로 생성·기동한다.
+실제 Failover는 FTCTL의 `CUTOVER_READY` 이후 기존 target VM을 기동한다.
+Boot validation 성공 전에 active side를 변경하지 않는다.
 
 Guest preparation 실패는 Run failure이며 정상 continuous replication Plan을
 자동으로 `ERROR`로 강등하지 않는다. 상세 클래스/상태/복구 계약:
@@ -1254,3 +1255,15 @@ monotonic, duplicate polls are idempotent, and READY restore-point evidence can
 repair a missed non-terminal cycle without inventing incremental verification.
 Readiness consumes this typed authority. Detailed transaction rules are in
 `559-cross-hypervisor-dr-incremental-mode-decision-and-cycle-projection-design-20260717.md`.
+
+### 2026-07-19 Test Failover Backend Addendum
+
+Add `DrTestFailoverService`, `DrTestVmLifecycleService`, and an idempotent
+`DrTestFailoverReconciler`. FTCTL prepares artifacts; the backend imports them
+as temporary Cloud volumes, creates a stopped temporary VM with the permanent
+target hardware contract, attaches the selected Cloud network, starts it
+through `UserVmManager`, and validates it through normal Cloud/Agent paths.
+Cleanup removes Cloud resources before requesting FTCTL artifact/lease cleanup.
+
+Detailed class boundaries and compensation logic:
+`561-cross-hypervisor-dr-cloud-managed-test-failover-lifecycle-design-20260719.md`.

@@ -1,0 +1,37 @@
+// Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements.
+package com.cloud.dr.dao;
+
+import com.cloud.dr.DrTestSessionVO;
+import com.cloud.utils.db.DB;
+import com.cloud.utils.db.GenericDaoBase;
+import com.cloud.utils.db.SearchBuilder;
+import com.cloud.utils.db.SearchCriteria;
+
+@DB
+public class DrTestSessionDaoImpl extends GenericDaoBase<DrTestSessionVO, Long> implements DrTestSessionDao {
+    private final SearchBuilder<DrTestSessionVO> activeByRun;
+    private final SearchBuilder<DrTestSessionVO> activeByPlan;
+
+    public DrTestSessionDaoImpl() {
+        activeByRun = createSearchBuilder();
+        activeByRun.and("runId", activeByRun.entity().getRunId(), SearchCriteria.Op.EQ);
+        activeByRun.and("removed", activeByRun.entity().getRemoved(), SearchCriteria.Op.NULL);
+        activeByRun.done();
+        activeByPlan = createSearchBuilder();
+        activeByPlan.and("planId", activeByPlan.entity().getPlanId(), SearchCriteria.Op.EQ);
+        activeByPlan.and("removed", activeByPlan.entity().getRemoved(), SearchCriteria.Op.NULL);
+        activeByPlan.done();
+    }
+
+    @Override public DrTestSessionVO findActiveByRunId(long runId) {
+        SearchCriteria<DrTestSessionVO> sc = activeByRun.create();
+        sc.setParameters("runId", runId);
+        return findOneBy(sc);
+    }
+
+    @Override public DrTestSessionVO findActiveByPlanId(long planId) {
+        SearchCriteria<DrTestSessionVO> sc = activeByPlan.create();
+        sc.setParameters("planId", planId);
+        return findOneBy(sc);
+    }
+}

@@ -21,7 +21,7 @@ import java.util.Map;
 
 public class FtctlDrActionCommand extends Command {
 
-    public static final String ACTION_CONTRACT_VERSION = "2026-07-14";
+    public static final String ACTION_CONTRACT_VERSION = "2026-07-19";
 
     public enum Action {
         SYNC("dr-sync-start"),
@@ -29,6 +29,8 @@ public class FtctlDrActionCommand extends Command {
         RESUME_SYNC("dr-sync-resume"),
         TEST_FAILOVER("dr-test-failover"),
         TEST_CLEANUP("dr-test-cleanup"),
+        TEST_PREPARE("dr-test-prepare"),
+        TEST_ARTIFACT_CLEANUP("dr-test-artifact-cleanup"),
         FAILOVER("dr-failover"),
         FAILBACK("dr-failback"),
         REPROTECT("dr-reprotect"),

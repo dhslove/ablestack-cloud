@@ -853,11 +853,6 @@
       @ok="submitActionModal">
       <div class="form-layout cross-dr-form-layout" v-ctrl-enter="submitActionModal">
       <a-form layout="vertical" class="cross-dr-action-modal">
-        <a-alert
-          v-if="selectedAction.command"
-          type="warning"
-          show-icon
-          :message="$t('message.dr.async.accepted')" />
         <a-form-item
           v-if="isFailoverAction || isReleaseAction"
           :label="$t('label.dr.action.force')">
@@ -886,8 +881,29 @@
         <template v-if="isTestFailoverAction">
           <a-form-item :label="$t('label.dr.test.network.mode')">
             <a-select v-model:value="actionForm.networkmode">
-              <a-select-option value="ISOLATED">{{ $t('label.dr.test.network.isolated') }}</a-select-option>
-              <a-select-option value="PRODUCTION">{{ $t('label.dr.test.network.production') }}</a-select-option>
+              <a-select-option value="ISOLATED_NETWORK">{{ $t('label.dr.test.network.isolated') }}</a-select-option>
+              <a-select-option value="PRODUCTION_NETWORK">{{ $t('label.dr.test.network.production') }}</a-select-option>
+              <a-select-option value="NO_NIC">{{ $t('label.dr.test.network.none') }}</a-select-option>
+            </a-select>
+          </a-form-item>
+          <a-form-item
+            v-if="actionForm.networkmode !== 'NO_NIC'"
+            :label="$t('label.dr.test.network')"
+            required>
+            <a-select
+              v-model:value="actionForm.networkid"
+              showSearch
+              optionFilterProp="label"
+              :loading="actionNetworkLoading"
+              :placeholder="$t('message.dr.test.network.placeholder')">
+              <a-select-option
+                v-for="network in actionNetworkOptions"
+                :key="network.optionKey"
+                :value="network.value"
+                :label="network.name">
+                <span>{{ network.name || network.value }}</span>
+                <span v-if="network.description" class="cross-dr-select-meta">{{ network.description }}</span>
+              </a-select-option>
             </a-select>
           </a-form-item>
           <a-form-item :label="$t('label.dr.test.boot.validation.mode')">
@@ -1064,6 +1080,8 @@ export default {
       targetStorageOptions: [],
       targetComputeOptions: [],
       targetNetworkOptions: [],
+      actionNetworkOptions: [],
+      actionNetworkLoading: false,
       targetFolderOptions: [],
       sourceDiskOptions: [],
       sourceNicOptions: [],
@@ -1526,7 +1544,8 @@ export default {
         targetmoldsecretkey: '',
         replicaid: undefined,
         cleanuptransport: true,
-        networkmode: 'ISOLATED',
+        networkmode: 'ISOLATED_NETWORK',
+        networkid: undefined,
         bootvalidationmode: 'POWER_STATE_ONLY',
         boottimeoutseconds: 180
       }
@@ -2757,7 +2776,11 @@ export default {
       this.selectedActionPlan = plan
       this.actionForm = this.defaultActionForm()
       this.actionReplicas = []
+      this.actionNetworkOptions = []
       this.showActionModal = true
+      if (action.command === 'startDrTestFailover') {
+        this.loadActionNetworks(plan)
+      }
       if (action.command === 'adoptDrReplica' && 'listDrReplicas' in this.$store.getters.apis) {
         listDrReplicas({ planid: plan.id }).then(result => {
           this.actionReplicas = result.items || []
@@ -2769,9 +2792,17 @@ export default {
       this.selectedAction = {}
       this.selectedActionPlan = {}
       this.actionReplicas = []
+      this.actionNetworkOptions = []
       this.actionForm = this.defaultActionForm()
     },
     submitActionModal () {
+      if (this.isTestFailoverAction && this.actionForm.networkmode !== 'NO_NIC' && !this.actionForm.networkid) {
+        notification.error({
+          message: this.$t('label.dr.test.network'),
+          description: this.$t('message.dr.test.network.required')
+        })
+        return
+      }
       this.actionSubmitting = true
       this.executePlanAction(this.selectedAction, this.selectedActionPlan, this.buildActionPayload())
         .then(() => {
@@ -2797,6 +2828,7 @@ export default {
       }
       if (this.isTestFailoverAction) {
         payload.networkmode = this.actionForm.networkmode
+        payload.networkid = this.actionForm.networkmode === 'NO_NIC' ? undefined : this.actionForm.networkid
         payload.bootvalidationmode = this.actionForm.bootvalidationmode
         payload.boottimeoutseconds = this.actionForm.boottimeoutseconds
       }
@@ -2817,6 +2849,34 @@ export default {
         payload.cleanuptransport = this.actionForm.cleanuptransport
       }
       return payload
+    },
+    loadActionNetworks (plan) {
+      const configuredNetworkId = this.readJsonValue(plan.mappingjson, 'target.networks.0.networkId') ||
+        this.readJsonValue(plan.mappingjson, 'targetNetworkRef') ||
+        this.readJsonValue(plan.mappingjson, 'networkRef') || ''
+      this.actionForm.networkid = configuredNetworkId || undefined
+      if (!('discoverDrPlanInventory' in this.$store.getters.apis)) {
+        return
+      }
+      this.actionNetworkLoading = true
+      discoverDrPlanInventory({
+        sourcesiteid: plan.sourcesiteid,
+        targetsiteid: plan.targetsiteid,
+        sourcevmid: plan.sourcevmid || undefined,
+        sourceexternalref: plan.sourceexternalref || undefined,
+        includeplacement: true,
+        includedisks: false,
+        includenetworks: true
+      }).then(result => {
+        this.actionNetworkOptions = this.normalizeInventoryOptions(result.targetnetworkoptions || [])
+        if (!this.actionForm.networkid && this.actionNetworkOptions.length === 1) {
+          this.actionForm.networkid = this.actionNetworkOptions[0].value
+        }
+      }).catch(() => {
+        this.actionNetworkOptions = []
+      }).finally(() => {
+        this.actionNetworkLoading = false
+      })
     },
     executePlanAction (action, plan, payload) {
       this.actionLoading = action.command

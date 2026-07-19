@@ -586,3 +586,15 @@ automatic-reseed count used by readiness. Per-disk decision detail remains in
 the FTCTL journal rather than an opaque Cloud JSON column. Forward-only schema,
 backfill, and ownership rules are defined in
 `559-cross-hypervisor-dr-incremental-mode-decision-and-cycle-projection-design-20260717.md`.
+
+## 2026-07-19 Test Session Domain Addendum
+
+Test Failover uses authoritative `dr_test_session` and `dr_test_disk` entities.
+A Run records the start/cleanup action; the session records the active temporary
+Cloud VM, selected network, checkpoint, engine session, validation state, and
+cleanup residuals. Test entities must not be folded into
+`dr_cutover_session`, because Test Failover is reversible and temporary while
+real Failover changes active-side authority.
+
+Column-level design and ownership rules are normative in
+`561-cross-hypervisor-dr-cloud-managed-test-failover-lifecycle-design-20260719.md`.

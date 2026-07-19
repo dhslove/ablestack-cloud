@@ -270,7 +270,7 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
     }
 
     private boolean requiresLatestCheckpoint(FtctlDrActionCommand.Action action) {
-        return action == FtctlDrActionCommand.Action.TEST_FAILOVER || action == FtctlDrActionCommand.Action.FAILOVER;
+        return action == FtctlDrActionCommand.Action.TEST_PREPARE || action == FtctlDrActionCommand.Action.FAILOVER;
     }
 
     private DrAdapterResult validateCapabilities(DrExecutionContext context, FtctlDrActionCommand.Action action, long hostId) {
@@ -302,8 +302,8 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
             }
             if (requiresVmwareGuestPreparation(context, action)) {
                 String missingFeature = firstMissingFeature(capabilities.getSupportedFeatures(),
-                        "guest-preparation-v1",
-                        action == FtctlDrActionCommand.Action.TEST_FAILOVER ? "test-domain-lifecycle-v1" : "cutover-ready-v1");
+                        "guest-preparation-v2",
+                        action == FtctlDrActionCommand.Action.TEST_PREPARE ? "test-artifact-lifecycle-v2" : "cutover-ready-v1");
                 if (missingFeature != null) {
                     details.addProperty("missingFeature", missingFeature);
                     return DrAdapterResult.failure(DrConstants.ERROR_AGENT_CAPABILITY_MISMATCH,
@@ -343,7 +343,7 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
     private boolean requiresVmwareGuestPreparation(DrExecutionContext context, FtctlDrActionCommand.Action action) {
         return context != null && context.getPlan() != null
                 && StringUtils.equalsIgnoreCase(context.getPlan().getDirection(), "VMWARE_TO_KVM")
-                && (action == FtctlDrActionCommand.Action.TEST_FAILOVER || action == FtctlDrActionCommand.Action.FAILOVER);
+                && (action == FtctlDrActionCommand.Action.TEST_PREPARE || action == FtctlDrActionCommand.Action.FAILOVER);
     }
 
     private String firstMissingFeature(List<String> features, String... requiredFeatures) {
@@ -432,7 +432,8 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         return status.getResult()
                 && (booleanValue(runtime, "accepted")
                 || StringUtils.equalsAny(result, "accepted", "ok", "success", "delegated", "warn")
-                || StringUtils.equalsAny(state, "SYNCING", "RUNNING", "READY", "TARGET_READY", "PAUSED", "TESTING"));
+                || StringUtils.equalsAny(state, "SYNCING", "RUNNING", "READY", "TARGET_READY", "PAUSED", "TESTING",
+                        "TEST_ARTIFACTS_READY", "ARTIFACTS_READY"));
     }
 
     private FtctlDrActionCommand.Action resolveAction(DrRunVO run) {
@@ -447,10 +448,10 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
             return FtctlDrActionCommand.Action.RESUME_SYNC;
         }
         if (StringUtils.equals(runType, DrConstants.RUN_TYPE_TEST_FAILOVER)) {
-            return FtctlDrActionCommand.Action.TEST_FAILOVER;
+            return FtctlDrActionCommand.Action.TEST_PREPARE;
         }
         if (StringUtils.equals(runType, DrConstants.RUN_TYPE_TEST_CLEANUP)) {
-            return FtctlDrActionCommand.Action.TEST_CLEANUP;
+            return FtctlDrActionCommand.Action.TEST_ARTIFACT_CLEANUP;
         }
         if (StringUtils.equals(runType, DrConstants.RUN_TYPE_FAILOVER)) {
             return FtctlDrActionCommand.Action.FAILOVER;

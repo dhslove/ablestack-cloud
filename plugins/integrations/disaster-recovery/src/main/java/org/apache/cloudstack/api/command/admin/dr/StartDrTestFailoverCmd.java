@@ -24,6 +24,7 @@ import org.apache.cloudstack.api.ApiErrorCode;
 import org.apache.cloudstack.api.Parameter;
 import org.apache.cloudstack.api.ResponseObject;
 import org.apache.cloudstack.api.ServerApiException;
+import org.apache.cloudstack.api.response.NetworkResponse;
 import org.apache.cloudstack.api.response.dr.DrRunResponse;
 import org.apache.commons.lang3.StringUtils;
 
@@ -40,8 +41,13 @@ public class StartDrTestFailoverCmd extends AbstractDrPlanActionCmd {
     @Inject
     private DrRestorePointDao drRestorePointDao;
 
-    @Parameter(name = "networkmode", type = CommandType.STRING, description = "test network mode: ISOLATED or PRODUCTION")
+    @Parameter(name = "networkmode", type = CommandType.STRING,
+            description = "test network mode: ISOLATED_NETWORK, PRODUCTION_NETWORK, or NO_NIC")
     private String networkMode;
+
+    @Parameter(name = "networkid", type = CommandType.UUID, entityType = NetworkResponse.class,
+            description = "the Cloud-managed network used by the temporary test VM; required unless networkmode is NO_NIC")
+    private Long networkId;
 
     @Parameter(name = "bootvalidationmode", type = CommandType.STRING, description = "test boot validation mode: POWER_STATE_ONLY or QGA_REQUIRED")
     private String bootValidationMode;
@@ -61,7 +67,13 @@ public class StartDrTestFailoverCmd extends AbstractDrPlanActionCmd {
 
     @Override
     protected void addRequestProperties(JsonObject request) {
-        addProperty(request, "networkMode", StringUtils.upperCase(networkMode));
+        String normalizedNetworkMode = StringUtils.defaultIfBlank(StringUtils.upperCase(networkMode), "ISOLATED_NETWORK");
+        if (!StringUtils.equals(normalizedNetworkMode, "NO_NIC") && networkId == null) {
+            throw new ServerApiException(ApiErrorCode.PARAM_ERROR,
+                    "networkid is required for Cloud-managed DR test failover unless networkmode is NO_NIC");
+        }
+        addProperty(request, "networkMode", normalizedNetworkMode);
+        addProperty(request, "networkId", networkId);
         addProperty(request, "testBootValidationMode", StringUtils.upperCase(bootValidationMode));
         addProperty(request, "testBootTimeoutSeconds", bootTimeoutSeconds);
         DrRestorePointVO restorePoint = resolveRestorePoint();

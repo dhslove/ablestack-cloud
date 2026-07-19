@@ -670,3 +670,14 @@ an explicit degraded operation against the last durable checkpoint.
 
 Normative design:
 `559-cross-hypervisor-dr-incremental-mode-decision-and-cycle-projection-design-20260717.md`.
+
+## 2026-07-19 Normative Cloud-Managed Test Failover Ownership Update
+
+Cloud is the only lifecycle authority for the permanent recovery VM and the
+temporary Test Failover VM. FTCTL owns checkpoint leases, test disk artifacts,
+and guest preparation, but must not define, start, stop, or undefine the
+customer test VM. Agent remains a transport/probe boundary. `ISOLATED` must
+resolve to a Cloud network, while `NO_NIC` is an explicit separate mode.
+
+The previous engine-owned transient-domain description is superseded by
+`561-cross-hypervisor-dr-cloud-managed-test-failover-lifecycle-design-20260719.md`.

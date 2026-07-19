@@ -374,3 +374,16 @@ reseed reason, invalid disk count, and consecutive reseed count independently.
 The wrapper validates enums and non-negative types but does not choose a data
 mode or cutover policy. Detailed fields and compatibility tests are in
 `559-cross-hypervisor-dr-incremental-mode-decision-and-cycle-projection-design-20260717.md`.
+
+### 2026-07-19 Test Failover Adapter Contract Addendum
+
+The FTCTL adapter now has artifact semantics, not customer-domain semantics.
+`TEST_PREPARE` returns a credential-free, typed artifact manifest;
+`TEST_ARTIFACT_CLEANUP` removes engine artifacts and the checkpoint lease.
+Agent validates the Cloud-managed VM separately for power/QGA state. Required
+capabilities are `test-artifact-lifecycle-v2`, `guest-preparation-v2`,
+`checkpoint-lease-v1`, and `cloud-managed-test-vm-v1`. The old
+`test-domain-lifecycle-v1` path cannot be an automatic fallback.
+
+Normative contract:
+`561-cross-hypervisor-dr-cloud-managed-test-failover-lifecycle-design-20260719.md`.

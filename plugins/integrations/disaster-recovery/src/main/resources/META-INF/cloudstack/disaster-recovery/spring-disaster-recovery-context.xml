@@ -48,6 +48,8 @@
     <bean id="drEventDaoImpl" class="com.cloud.dr.dao.DrEventDaoImpl"/>
     <bean id="drCutoverSessionDaoImpl" class="com.cloud.dr.dao.DrCutoverSessionDaoImpl"/>
     <bean id="drCutoverDiskDaoImpl" class="com.cloud.dr.dao.DrCutoverDiskDaoImpl"/>
+    <bean id="drTestSessionDaoImpl" class="com.cloud.dr.dao.DrTestSessionDaoImpl"/>
+    <bean id="drTestDiskDaoImpl" class="com.cloud.dr.dao.DrTestDiskDaoImpl"/>
     <bean id="drSiteServiceImpl" class="com.cloud.dr.DrSiteServiceImpl"/>
     <bean id="drSiteCredentialServiceImpl" class="com.cloud.dr.DrSiteCredentialServiceImpl"/>
     <bean id="drSiteHealthCheckServiceImpl" class="com.cloud.dr.health.DrSiteHealthCheckServiceImpl"/>

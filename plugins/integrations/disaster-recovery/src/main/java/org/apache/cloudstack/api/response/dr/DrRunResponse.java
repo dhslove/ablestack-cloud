@@ -268,8 +268,56 @@ public class DrRunResponse extends BaseResponse {
     @Param(description = "the run steps")
     private List<DrRunStepResponse> steps;
 
+    @SerializedName("testsessionid")
+    @Param(description = "the Cloud-managed DR test session ID")
+    private String testSessionId;
+
+    @SerializedName("testsessionstate")
+    @Param(description = "the Cloud-managed DR test session state")
+    private String testSessionState;
+
+    @SerializedName("testvmid")
+    @Param(description = "the temporary Cloud-managed test VM ID")
+    private String testVmId;
+
+    @SerializedName("testvmname")
+    @Param(description = "the temporary Cloud-managed test VM name")
+    private String testVmName;
+
+    @SerializedName("testnetworkmode")
+    @Param(description = "the test VM network mode")
+    private String testNetworkMode;
+
+    @SerializedName("testbootvalidationstate")
+    @Param(description = "the test VM boot validation state")
+    private String testBootValidationState;
+
     public void setId(String id) {
         this.id = id;
+    }
+
+    public void setTestSessionId(String testSessionId) {
+        this.testSessionId = testSessionId;
+    }
+
+    public void setTestSessionState(String testSessionState) {
+        this.testSessionState = testSessionState;
+    }
+
+    public void setTestVmId(String testVmId) {
+        this.testVmId = testVmId;
+    }
+
+    public void setTestVmName(String testVmName) {
+        this.testVmName = testVmName;
+    }
+
+    public void setTestNetworkMode(String testNetworkMode) {
+        this.testNetworkMode = testNetworkMode;
+    }
+
+    public void setTestBootValidationState(String testBootValidationState) {
+        this.testBootValidationState = testBootValidationState;
     }
 
     public void setPlanId(String planId) {

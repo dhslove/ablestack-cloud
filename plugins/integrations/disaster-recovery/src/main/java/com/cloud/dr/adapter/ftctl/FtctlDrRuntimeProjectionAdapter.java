@@ -471,6 +471,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         boolean changed = false;
         JsonObject runtime = parseObject(status.getStatusJson());
         upsertCutoverSession(plan, projectionRun, status, runtime);
+        reconcileCloudManagedTestTarget(plan, projectionRun, status, runtime);
         if (isReleasedRuntime(status, runtime)) {
             cleanupReleasedProjection(plan, status, runtime);
             reconcileAcceptedRunFromStatus(plan, status, runtime);
@@ -587,8 +588,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
     }
 
     private void upsertCutoverSession(DrPlanVO plan, DrRunVO run, FtctlDrStatusAnswer status, JsonObject runtime) {
-        if (run == null || !StringUtils.equalsAnyIgnoreCase(run.getRunType(),
-                DrConstants.RUN_TYPE_TEST_FAILOVER, DrConstants.RUN_TYPE_TEST_CLEANUP, DrConstants.RUN_TYPE_FAILOVER)) {
+        if (run == null || !StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_FAILOVER)) {
             return;
         }
         DrCutoverSessionVO session = drCutoverSessionDao.findActiveByRunId(run.getId());
@@ -612,6 +612,16 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         session.markUpdated();
         drCutoverSessionDao.update(session.getId(), session);
         upsertCutoverDisks(session, runtime);
+    }
+
+    private void reconcileCloudManagedTestTarget(DrPlanVO plan, DrRunVO run, FtctlDrStatusAnswer status, JsonObject runtime) {
+        if (run == null || !StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_TEST_FAILOVER)) {
+            return;
+        }
+        String runtimeState = StringUtils.upperCase(StringUtils.defaultIfBlank(status.getState(), stringValue(runtime, "state")), Locale.ROOT);
+        if (StringUtils.equalsAny(runtimeState, "TEST_ARTIFACTS_READY", "ARTIFACTS_READY")) {
+            drTargetMaterializationService.enqueueTestMaterialization(plan.getId(), run.getId(), status.getStatusJson());
+        }
     }
 
     private void upsertCutoverDisks(DrCutoverSessionVO session, JsonObject runtime) {
@@ -921,6 +931,9 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             return;
         }
         if (isRunSatisfiedByRuntime(plan, run, status, runtime)) {
+            if (StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_TEST_CLEANUP)) {
+                drTargetMaterializationService.completeTestCleanup(plan.getId());
+            }
             completeRunFromProjection(plan, run, status);
             return;
         }
@@ -999,7 +1012,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             return isSyncTargetReady(plan, status, runtime, runtimeState);
         }
         if (StringUtils.equals(runType, DrConstants.RUN_TYPE_TEST_FAILOVER)) {
-            return StringUtils.equals(runtimeState, "TESTING") || StringUtils.isNotBlank(stringValue(runtime, "test_session_id"));
+            return drTargetMaterializationService.isTestTargetActive(run.getId());
         }
         if (StringUtils.equals(runType, DrConstants.RUN_TYPE_FAILOVER)) {
             return StringUtils.equals(plan.getState(), DrConstants.PLAN_STATE_FAILED_OVER)
@@ -1016,7 +1029,11 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                     && StringUtils.equals(activeSide, "TARGET")
                     && StringUtils.isNotBlank(stringValue(runtime, "reprotect_session_id"));
         }
-        return StringUtils.equalsAny(runType, DrConstants.RUN_TYPE_TEST_CLEANUP, DrConstants.RUN_TYPE_PAUSE_SYNC,
+        if (StringUtils.equals(runType, DrConstants.RUN_TYPE_TEST_CLEANUP)) {
+            return drTargetMaterializationService.isTestTargetCleaned(plan.getId())
+                    && StringUtils.equalsAny(runtimeState, "READY", "PAUSED");
+        }
+        return StringUtils.equalsAny(runType, DrConstants.RUN_TYPE_PAUSE_SYNC,
                 DrConstants.RUN_TYPE_RESUME_SYNC, DrConstants.RUN_TYPE_RELEASE)
                 && StringUtils.equalsAny(runtimeState, "READY", "PAUSED", "RELEASED");
     }

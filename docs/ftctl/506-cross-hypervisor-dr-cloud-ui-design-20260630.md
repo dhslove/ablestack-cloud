@@ -3035,3 +3035,14 @@ user-facing reason until verified incremental or valid CBT no-change evidence
 exists. UI refresh remains asynchronous and display cache never grants action
 eligibility. Detailed behavior is in
 `559-cross-hypervisor-dr-incremental-mode-decision-and-cycle-projection-design-20260717.md`.
+
+### 2026-07-19 Test Failover UI Ownership Addendum
+
+The Test Failover dialog selects an actual target Cloud network. Modes are
+`ISOLATED_NETWORK`, explicit `NO_NIC`, and admin-confirmed
+`PRODUCTION_NETWORK`. The detail view shows the Cloud test VM link, session
+state, checkpoint, network, validation, and residual cleanup count. FTCTL domain
+names are diagnostic engine fields and are never presented as the test VM.
+
+Normative UI fields and action gating:
+`561-cross-hypervisor-dr-cloud-managed-test-failover-lifecycle-design-20260719.md`.

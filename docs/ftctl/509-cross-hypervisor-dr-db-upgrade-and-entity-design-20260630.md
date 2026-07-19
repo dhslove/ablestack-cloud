@@ -1206,3 +1206,13 @@ A forward-only idempotent migration adds typed mode-decision aggregates to
 only non-null facts; it never fabricates requested mode or incremental proof.
 The exact columns and reconciliation order are defined in
 `559-cross-hypervisor-dr-incremental-mode-decision-and-cycle-projection-design-20260717.md`.
+
+## 2026-07-19 Test Failover Resource Schema Addendum
+
+Forward-only migrations add `dr_test_session` and `dr_test_disk`. These rows
+join the Cloud test VM/volumes to the FTCTL engine session/artifacts and persist
+cleanup-required state across management restart. Existing Run JSON is not the
+authority for active test resources, and `dr_cutover_session` is not reused.
+
+Exact DDL and index design:
+`561-cross-hypervisor-dr-cloud-managed-test-failover-lifecycle-design-20260719.md`.

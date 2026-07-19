@@ -52,6 +52,8 @@ import com.cloud.dr.dao.DrReplicaDao;
 import com.cloud.dr.dao.DrReplicaDiskDao;
 import com.cloud.dr.dao.DrRunDao;
 import com.cloud.dr.dao.DrRunStepDao;
+import com.cloud.dr.dao.DrTestDiskDao;
+import com.cloud.dr.dao.DrTestSessionDao;
 import com.cloud.exception.ConcurrentOperationException;
 import com.cloud.exception.InsufficientCapacityException;
 import com.cloud.exception.ResourceAllocationException;
@@ -64,6 +66,7 @@ import com.cloud.service.dao.ServiceOfferingDao;
 import com.cloud.storage.DiskOfferingVO;
 import com.cloud.storage.Storage;
 import com.cloud.storage.Volume;
+import com.cloud.storage.VolumeApiService;
 import com.cloud.storage.VolumeVO;
 import com.cloud.storage.dao.DiskOfferingDao;
 import com.cloud.storage.dao.VolumeDao;
@@ -109,6 +112,10 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
     @Inject
     private DrRunStepDao drRunStepDao;
     @Inject
+    private DrTestSessionDao drTestSessionDao;
+    @Inject
+    private DrTestDiskDao drTestDiskDao;
+    @Inject
     private DrEventDao drEventDao;
     @Inject
     private DrPlanTargetPlacementResolver targetPlacementResolver;
@@ -124,6 +131,8 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
     private VolumeDao volumeDao;
     @Inject
     private VolumeOrchestrationService volumeManager;
+    @Inject
+    private VolumeApiService volumeApiService;
     @Inject
     private UserVmService userVmService;
     @Inject
@@ -176,6 +185,7 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
     }
 
     private final Set<Long> inFlightPlans = ConcurrentHashMap.newKeySet();
+    private final Set<Long> inFlightTestRuns = ConcurrentHashMap.newKeySet();
     private ExecutorService executor;
 
     @Override
@@ -191,7 +201,353 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
             executor = null;
         }
         inFlightPlans.clear();
+        inFlightTestRuns.clear();
         return true;
+    }
+
+    @Override
+    public boolean enqueueTestMaterialization(final long planId, final long runId, final String runtimeStatusJson) {
+        if (!inFlightTestRuns.add(runId)) {
+            return false;
+        }
+        ExecutorService currentExecutor = executor;
+        Runnable task = new ManagedContextRunnable() {
+            @Override
+            protected void runInContext() {
+                try {
+                    materializeTestTarget(planId, runId, runtimeStatusJson);
+                } finally {
+                    inFlightTestRuns.remove(runId);
+                }
+            }
+        };
+        if (currentExecutor == null) {
+            task.run();
+            return true;
+        }
+        try {
+            currentExecutor.submit(task);
+            return true;
+        } catch (RejectedExecutionException e) {
+            inFlightTestRuns.remove(runId);
+            throw new CloudRuntimeException("DR test target materializer is not accepting new work", e);
+        }
+    }
+
+    @Override
+    public boolean isTestTargetActive(long runId) {
+        DrTestSessionVO session = drTestSessionDao.findActiveByRunId(runId);
+        if (session == null || !StringUtils.equals(session.getState(), "ACTIVE") || session.getTargetVmId() == null) {
+            return false;
+        }
+        UserVmVO vm = userVmDao.findById(session.getTargetVmId());
+        return vm != null && vm.getRemoved() == null && vm.getState() == VirtualMachine.State.Running;
+    }
+
+    @Override
+    public boolean isTestTargetCleaned(long planId) {
+        DrTestSessionVO session = drTestSessionDao.findActiveByPlanId(planId);
+        return session == null || StringUtils.equalsAny(session.getState(), "CLOUD_RESOURCES_REMOVED", "CLEANED");
+    }
+
+    @Override
+    public void completeTestCleanup(long planId) {
+        DrTestSessionVO session = drTestSessionDao.findActiveByPlanId(planId);
+        if (session == null) {
+            return;
+        }
+        Date removed = new Date();
+        session.setState("CLEANED");
+        session.setCleanupRequired(false);
+        session.setRemoved(removed);
+        session.markUpdated();
+        drTestSessionDao.update(session.getId(), session);
+        for (DrTestDiskVO disk : drTestDiskDao.listActiveBySessionId(session.getId())) {
+            disk.setState("CLEANED");
+            disk.setRemoved(removed);
+            disk.markUpdated();
+            drTestDiskDao.update(disk.getId(), disk);
+        }
+    }
+
+    @Override
+    public boolean cleanupTestTarget(long planId, long cleanupRunId) {
+        DrTestSessionVO session = drTestSessionDao.findActiveByPlanId(planId);
+        if (session == null || StringUtils.equals(session.getState(), "CLEANED")) {
+            return true;
+        }
+        session.setCleanupRunId(cleanupRunId);
+        session.setState("CLOUD_CLEANUP_RUNNING");
+        session.markUpdated();
+        drTestSessionDao.update(session.getId(), session);
+        try {
+            if (session.getTargetVmId() != null) {
+                UserVmVO testVm = userVmDao.findById(session.getTargetVmId());
+                if (testVm != null && testVm.getRemoved() == null) {
+                    userVmService.destroyVm(testVm.getId(), true);
+                }
+            }
+            AccountVO owner = resolveOwner(drPlanDao.findById(planId));
+            for (DrTestDiskVO disk : drTestDiskDao.listActiveBySessionId(session.getId())) {
+                if (disk.getTargetVolumeId() != null) {
+                    VolumeVO volume = volumeDao.findById(disk.getTargetVolumeId());
+                    if (volume != null && volume.getRemoved() == null) {
+                        volumeApiService.destroyVolume(volume.getId(), owner, true, true);
+                    }
+                }
+                disk.setState("CLOUD_VOLUME_REMOVED");
+                disk.markUpdated();
+                drTestDiskDao.update(disk.getId(), disk);
+            }
+            session.setState("CLOUD_RESOURCES_REMOVED");
+            session.setCleanupRequired(true);
+            session.setErrorCode(null);
+            session.setErrorMessage(null);
+            session.markUpdated();
+            drTestSessionDao.update(session.getId(), session);
+            return true;
+        } catch (ConcurrentOperationException | ResourceUnavailableException e) {
+            session.setState("CLEANUP_FAILED");
+            session.setErrorCode("DR_TEST_CLOUD_CLEANUP_FAILED");
+            session.setErrorMessage(e.getMessage());
+            session.markUpdated();
+            drTestSessionDao.update(session.getId(), session);
+            throw new CloudRuntimeException("Failed to remove Cloud-managed DR test resources: " + e.getMessage(), e);
+        }
+    }
+
+    private void materializeTestTarget(long planId, long runId, String runtimeStatusJson) {
+        DrPlanVO plan = drPlanDao.findById(planId);
+        DrRunVO run = drRunDao.findById(runId);
+        if (plan == null || plan.getRemoved() != null || run == null || run.getRemoved() != null || run.getCompleted() != null) {
+            return;
+        }
+        DrTestSessionVO session = drTestSessionDao.findActiveByRunId(runId);
+        if (session != null && StringUtils.equals(session.getState(), "ACTIVE")) {
+            return;
+        }
+        if (session == null) {
+            DrTestSessionVO other = drTestSessionDao.findActiveByPlanId(planId);
+            if (other != null && !StringUtils.equalsAny(other.getState(), "CLEANED", "CLEANUP_FAILED")) {
+                throw new CloudRuntimeException("DR_TEST_SESSION_ACTIVE: another Cloud-managed test session is active");
+            }
+            session = drTestSessionDao.persist(new DrTestSessionVO(planId, runId, "ARTIFACTS_READY"));
+        }
+        JsonObject runtime = parseObject(runtimeStatusJson);
+        JsonObject request = parseObject(run.getRequestJson());
+        String networkMode = normalizeTestNetworkMode(firstString(request, "networkMode"));
+        Long networkId = parseLong(firstString(request, "networkId"));
+        session.setNetworkMode(networkMode);
+        session.setNetworkId(networkId);
+        session.setCheckpointSequence(firstLong(runtime, "test_restore_point_sequence", "current_checkpoint_sequence"));
+        session.setDetailsJson(runtimeStatusJson);
+        session.setCleanupRequired(true);
+        session.setState("CLOUD_VOLUMES_IMPORTING");
+        session.markUpdated();
+        drTestSessionDao.update(session.getId(), session);
+
+        try {
+            DrResolvedTargetPlacement placement = resolvePlacement(plan, runtime);
+            if (placement == null || !placement.getBlockingReasons().isEmpty()) {
+                throw new CloudRuntimeException("DR test target placement is not ready");
+            }
+            applyTestNetwork(placement, networkMode, networkId);
+            JsonArray records = testArtifactRecords(runtime);
+            if (records.size() == 0 || records.size() != placement.getDisks().size()) {
+                throw new CloudRuntimeException("DR_TEST_ARTIFACT_MANIFEST_INVALID: artifact and mapped disk counts differ");
+            }
+            String testVmName = testVmName(placement, run);
+            placement.setTargetVmName(testVmName);
+            AccountVO owner = resolveOwner(plan);
+            List<VolumeVO> volumes = new ArrayList<VolumeVO>();
+            VolumeVO rootVolume = null;
+            int rootIndex = 0;
+            for (int index = 0; index < placement.getDisks().size(); index++) {
+                DrResolvedDiskMapping disk = placement.getDisks().get(index);
+                if (Boolean.TRUE.equals(disk.getBoot())) {
+                    rootIndex = index;
+                    break;
+                }
+            }
+            for (int index = 0; index < placement.getDisks().size(); index++) {
+                DrResolvedDiskMapping disk = placement.getDisks().get(index);
+                JsonObject artifact = records.get(index).getAsJsonObject();
+                String artifactRef = firstNonBlank(firstString(artifact, "path", "clone"), firstString(artifact, "backing"));
+                if (StringUtils.isBlank(artifactRef)) {
+                    throw new CloudRuntimeException("DR_TEST_ARTIFACT_MANIFEST_INVALID: missing disk artifact path at index " + index);
+                }
+                disk.setTargetRef(stripArtifactScheme(artifactRef));
+                disk.setTargetName(testVmName + "-disk-" + index);
+                if (StringUtils.startsWithIgnoreCase(artifactRef, "rbd:")) {
+                    disk.setTargetType("rbd");
+                    disk.setTargetFormat("raw");
+                }
+                boolean root = index == rootIndex;
+                VolumeVO volume = ensureImportedVolume(owner, placement, disk, root, root ? 0L : (long) index);
+                volumes.add(volume);
+                if (root) {
+                    rootVolume = volume;
+                }
+                upsertTestDisk(session, index, artifact, artifactRef, volume);
+            }
+            if (rootVolume == null) {
+                throw new CloudRuntimeException("DR test root volume could not be resolved");
+            }
+            session.setState("CLOUD_VM_CREATING");
+            session.markUpdated();
+            drTestSessionDao.update(session.getId(), session);
+            UserVmVO testVm = ensureTestVm(plan, placement, owner, rootVolume, runtime, networkMode);
+            int device = 1;
+            for (int index = 0; index < volumes.size(); index++) {
+                if (index == rootIndex) {
+                    continue;
+                }
+                attachDataVolumeIfNeeded(testVm, volumes.get(index), (long) device++);
+            }
+            vmInstanceDetailsDao.addDetail(testVm.getId(), "dr.test.vm", "true", false);
+            vmInstanceDetailsDao.addDetail(testVm.getId(), "dr.test.session.uuid", session.getUuid(), false);
+            session.setTargetVmId(testVm.getId());
+            session.setTargetVmUuid(testVm.getUuid());
+            session.setTargetVmName(testVm.getDisplayName());
+            session.setState("CLOUD_VM_STARTING");
+            session.markUpdated();
+            drTestSessionDao.update(session.getId(), session);
+            if (testVm.getState() != VirtualMachine.State.Running) {
+                userVmManager.startVirtualMachine(testVm.getId(), placement.getWorkerHostId(),
+                        new HashMap<VirtualMachineProfile.Param, Object>(), null);
+            }
+            UserVmVO running = userVmDao.findById(testVm.getId());
+            if (running == null || running.getState() != VirtualMachine.State.Running) {
+                throw new CloudRuntimeException("DR_TEST_VM_BOOT_FAILED: Cloud test VM did not reach Running");
+            }
+            session.setState("ACTIVE");
+            session.setBootValidationState("POWER_STATE_VALIDATED");
+            session.setArtifactManifest(GSON.toJson(records));
+            session.setErrorCode(null);
+            session.setErrorMessage(null);
+            session.markUpdated();
+            drTestSessionDao.update(session.getId(), session);
+        } catch (RuntimeException | ConcurrentOperationException | InsufficientCapacityException |
+                ResourceAllocationException | ResourceUnavailableException e) {
+            session.setState("FAILED");
+            session.setErrorCode("DR_TEST_CLOUD_MATERIALIZATION_FAILED");
+            session.setErrorMessage(e.getMessage());
+            session.markUpdated();
+            drTestSessionDao.update(session.getId(), session);
+            LOGGER.warn("Failed to materialize Cloud-managed test VM for plan {} run {}: {}", plan.getUuid(), run.getUuid(), e.getMessage(), e);
+        }
+    }
+
+    private UserVmVO ensureTestVm(DrPlanVO plan, DrResolvedTargetPlacement placement, AccountVO owner,
+            VolumeVO rootVolume, JsonObject runtime, String networkMode) {
+        String vmName = placement.getTargetVmName();
+        VMInstanceVO existing = vmInstanceDao.findVMByHostNameInZone(vmName, placement.getZoneId());
+        if (existing != null && existing.getRemoved() == null) {
+            return userVmDao.findById(existing.getId());
+        }
+        ServiceOfferingVO offering = serviceOfferingDao.findById(parseLong(placement.getServiceOfferingLocalId()));
+        HostVO targetHost = hostDao.findById(placement.getWorkerHostId());
+        if (offering == null || targetHost == null) {
+            throw new CloudRuntimeException("DR test VM offering or target host is unresolved");
+        }
+        DrResolvedTargetHardware hardware = placement.getTargetHardware();
+        if (hardware == null) {
+            hardware = new DrTargetHardwareResolver().resolve(plan, guidedSpecFromMapping(plan), placement, runtime);
+        }
+        Map<String, String> details = buildTargetVmDetails(plan, placement, offering, rootVolume, hardware);
+        details.put("dr.replica.vm", "false");
+        details.put("dr.test.vm", "true");
+        List<Long> networks = StringUtils.equals(networkMode, "NO_NIC") ? new ArrayList<Long>() : networkIds(placement);
+        DrReplicaDeployVMVolumeCmd cmd = new DrReplicaDeployVMVolumeCmd(owner.getId(), owner.getAccountName(), owner.getDomainId(),
+                placement.getZoneId(), offering.getId(), vmName, vmName, networks, targetHost.getId(), HypervisorType.KVM,
+                rootVolume.getId(), details, hardware);
+        try {
+            CallContext.registerSystemCallContextOnceOnly();
+            UserVm created = userVmService.createVirtualMachineVolume(cmd);
+            UserVmVO result = created != null ? userVmDao.findById(created.getId()) : null;
+            if (result == null) {
+                throw new CloudRuntimeException("CloudStack returned no VM for DR test materialization");
+            }
+            return result;
+        } catch (InsufficientCapacityException | ResourceUnavailableException | ConcurrentOperationException |
+                ResourceAllocationException e) {
+            throw new CloudRuntimeException("Failed to create Cloud-managed DR test VM: " + e.getMessage(), e);
+        } finally {
+            CallContext.unregister();
+        }
+    }
+
+    private void applyTestNetwork(DrResolvedTargetPlacement placement, String networkMode, Long networkId) {
+        placement.getNetworks().clear();
+        if (StringUtils.equals(networkMode, "NO_NIC")) {
+            return;
+        }
+        if (networkId == null) {
+            throw new CloudRuntimeException("DR_TEST_NETWORK_REQUIRED: networkid is required for Cloud-managed Test Failover");
+        }
+        DrResolvedNetworkMapping network = new DrResolvedNetworkMapping();
+        network.setNetworkLocalId(String.valueOf(networkId));
+        network.setNetworkId(String.valueOf(networkId));
+        placement.addNetwork(network);
+    }
+
+    private JsonArray testArtifactRecords(JsonObject runtime) {
+        JsonObject session = objectAt(runtime, "test_session");
+        if (session.entrySet().isEmpty()) {
+            session = objectAt(runtime, "testSession");
+        }
+        JsonObject artifacts = objectAt(session, "testArtifacts");
+        if (artifacts.entrySet().isEmpty()) {
+            artifacts = objectAt(runtime, "testArtifacts");
+        }
+        JsonElement records = artifacts.get("records");
+        return records != null && records.isJsonArray() ? records.getAsJsonArray() : new JsonArray();
+    }
+
+    private void upsertTestDisk(DrTestSessionVO session, int index, JsonObject artifact, String artifactRef, VolumeVO volume) {
+        DrTestDiskVO row = null;
+        for (DrTestDiskVO candidate : drTestDiskDao.listActiveBySessionId(session.getId())) {
+            if (candidate.getDiskIndex() == index) {
+                row = candidate;
+                break;
+            }
+        }
+        boolean create = row == null;
+        if (create) {
+            row = new DrTestDiskVO(session.getId(), index);
+        }
+        row.setProvider(StringUtils.startsWithIgnoreCase(artifactRef, "rbd:") ? "RBD" : "QCOW2");
+        row.setArtifactRef(artifactRef);
+        row.setTargetVolumeId(volume.getId());
+        row.setTargetVolumeUuid(volume.getUuid());
+        row.setState("CLOUD_VOLUME_READY");
+        row.setDetailsJson(GSON.toJson(artifact));
+        row.markUpdated();
+        if (create) {
+            drTestDiskDao.persist(row);
+        } else {
+            drTestDiskDao.update(row.getId(), row);
+        }
+    }
+
+    private String normalizeTestNetworkMode(String value) {
+        String normalized = StringUtils.upperCase(StringUtils.defaultIfBlank(value, "ISOLATED_NETWORK"));
+        if (StringUtils.equals(normalized, "ISOLATED")) return "ISOLATED_NETWORK";
+        if (StringUtils.equals(normalized, "PRODUCTION")) return "PRODUCTION_NETWORK";
+        if (!StringUtils.equalsAny(normalized, "ISOLATED_NETWORK", "PRODUCTION_NETWORK", "NO_NIC")) {
+            throw new CloudRuntimeException("Unsupported DR test network mode: " + value);
+        }
+        return normalized;
+    }
+
+    private String stripArtifactScheme(String value) {
+        return StringUtils.startsWithIgnoreCase(value, "rbd:") ? value.substring(4) : value;
+    }
+
+    private String testVmName(DrResolvedTargetPlacement placement, DrRunVO run) {
+        String base = StringUtils.defaultIfBlank(placement.getTargetVmName(), "dr-test");
+        String suffix = StringUtils.substring(StringUtils.defaultString(run.getUuid()).replace("-", ""), 0, 8);
+        return StringUtils.substring(base + "-test-" + suffix, 0, 63);
     }
 
     @Override
@@ -1120,6 +1476,16 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
                 if (value != null) {
                     return value;
                 }
+            }
+        }
+        return null;
+    }
+
+    private Long firstLong(JsonObject object, String... keys) {
+        for (String key : keys) {
+            Long value = parseLong(firstString(object, key));
+            if (value != null) {
+                return value;
             }
         }
         return null;
