@@ -645,6 +645,39 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     }
 
     @Test
+    public void refreshPlanProjectionResetsRuntimeGenerationForNewCorrelatedRun() {
+        DrPlanVO plan = new DrPlanVO("ftctl-dr-plan", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
+        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
+        plan.setState(DrConstants.PLAN_STATE_SYNCING);
+        plan.setCoordinatorWorkerHostId(103L);
+        DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_SYNC);
+        run.setState(DrConstants.RUN_STATE_ACCEPTED);
+        DrPlanRuntimeVO authority = new DrPlanRuntimeVO(plan.getId());
+        authority.setEngineRunUuid("previous-run");
+        authority.setRuntimeGeneration(24L);
+
+        String statusJson = "{\"state\":\"SYNCING\",\"runtime_generation\":6,"
+                + "\"scheduler_state\":\"RUNNING\",\"scheduler_pid_alive\":true,"
+                + "\"cycle_state\":\"RUNNING\"}";
+        Mockito.when(agentManager.easySend(Mockito.eq(103L), Mockito.any(FtctlDrStatusCommand.class))).thenAnswer(invocation -> {
+            FtctlDrStatusCommand command = invocation.getArgument(1);
+            return new FtctlDrStatusAnswer(command, true, "ok", plan.getUuid(), run.getUuid(),
+                    "ok", "SYNCING", "incremental-transfer", 40,
+                    null, null, null, null, null, 0, "", statusJson);
+        });
+        Mockito.when(drRunDao.findActiveByPlanId(plan.getId())).thenReturn(run);
+        Mockito.when(drPlanRuntimeDao.findByPlanId(plan.getId())).thenReturn(authority);
+
+        DrAdapterResult result = adapter.refreshPlanProjection(plan);
+
+        Assert.assertTrue(result.isSuccess());
+        Assert.assertEquals(run.getUuid(), authority.getEngineRunUuid());
+        Assert.assertEquals(6L, authority.getRuntimeGeneration());
+        Assert.assertTrue(authority.isSchedulerPidAlive());
+    }
+
+    @Test
     public void refreshPlanProjectionPreservesVmwareMoverSourceGraphFailure() {
         DrPlanVO plan = new DrPlanVO("ftctl-dr-plan", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
         plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);

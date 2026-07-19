@@ -678,6 +678,12 @@ Continuous FTCTL synchronization intentionally keeps the scheduler process alive
 
 This rule completes the finite Cloud async run while retaining the long-lived FTCTL scheduler. It also refreshes `dr_plan_runtime` with the live scheduler PID so action eligibility is derived from the current authority generation instead of a stale completed run.
 
+`runtime_generation` is monotonic only inside one `engine_run_uuid`. A correlated
+new run starts a new authority epoch and may restart generation at `1`; a lower
+generation is rejected only for the same run or for a status payload without a
+correlated run UUID. This prevents an older completed run with a larger
+generation from blocking live scheduler and RPO projection for its successor.
+
 ## 18. Completion gate
 
 This design is complete when all referenced documents use the ownership matrix

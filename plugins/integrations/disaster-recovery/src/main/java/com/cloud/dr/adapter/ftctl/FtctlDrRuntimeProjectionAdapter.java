@@ -201,7 +201,11 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         }
 
         DrPlanRuntimeVO authority = drPlanRuntimeDao.findByPlanId(plan.getId());
-        if (authority != null && generation < authority.getRuntimeGeneration()) {
+        boolean sameEngineRun = authority != null
+                && StringUtils.equals(authority.getEngineRunUuid(), status.getRunUuid());
+        boolean statusRunUnknown = StringUtils.isBlank(status.getRunUuid());
+        if (authority != null && generation < authority.getRuntimeGeneration()
+                && (sameEngineRun || statusRunUnknown)) {
             return;
         }
         if (authority == null) {
