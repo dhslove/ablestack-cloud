@@ -875,3 +875,75 @@ rollback 전에는 Plan을 pause/release하거나 Scheduler unit을 정상 contr
 - TARGET/FAILED_OVER/PAUSED 계획은 자동 forward recovery되지 않는다.
 - UI/API/DB/cache action eligibility가 일치한다.
 - 기존 RBD/QCOW2 FT/HA, blockcopy, xcolo 경로에는 회귀가 없다.
+
+## 20. 구현, 빌드 및 배포 결과 (2026-07-22)
+
+### 20.1 레이어별 반영 결과
+
+| 레이어 | 반영 내용 |
+|---|---|
+| UI | 복구 상태 표시, `동기화 복구` 작업, recovery 중 일반 sync 차단, TARGET 억제 사유 표시 |
+| API | 비동기 `recoverDrSync` 명령과 Resource Admin 권한 추가 |
+| Backend | desired/unit/recovery 투영, 복구 eligibility, 중복 방지 claim, RECOVER_SYNC 실행 흐름 |
+| Agent | RECOVER_SYNC 전달, systemd unit/cgroup/recovery 상태 응답 |
+| FTCTL | systemd 소유 Scheduler, local reconcile, baseline 보존 복구 및 authority fence |
+| DB | `dr_plan_runtime`에 desired/unit/cgroup/recovery typed column 12개와 권한 migration |
+
+Cloud 자동 recovery controller는 초기 rollout 안전을 위해 기본값을 `false`로 배포했다.
+호스트 local reconcile이 1차 복구를 담당하며, 운영자가 명시적으로 사용하는
+`recoverDrSync` 비동기 API는 활성화했다. Cloud controller 활성화는 rolling restart 및
+host reboot 시험을 마친 뒤 별도 구성 변경으로 수행한다.
+
+### 20.2 빌드 검증
+
+- Cloud 커밋: `4b5c3d8a05`
+- `core` Maven install 성공
+- KVM wrapper test 13건 성공
+- DR plugin 핵심 test 42건 성공
+- UI state unit test 3건 성공
+- schema package 및 UI production build 성공
+- 총 명시적 테스트 58건 성공
+
+Cloud Maven 빌드는 WSL ext4 clone
+`/home/ablecloud/work/builds/cloud-dr-recovery-20260722-2015`에서 변경 모듈만 수행했다.
+
+### 20.3 배포 결과
+
+- 관리 JAR에는 변경 class 49개와 Spring 설정만 반영했다.
+- Agent core/KVM wrapper class는 `10.10.32.1/2/3`에 반영하고 `mold-agent`를 재시작했다.
+- UI는 `/usr/share/cloudstack-management/webapp`에 정적 파일만 overlay했으며
+  `WEB-INF`를 보존했다.
+- DB migration과 기존 Plan의 desired/recovery 상태 backfill을 적용했다.
+- `mold`, 세 호스트의 `mold-agent`, FTCTL timer는 모두 active이다.
+- `/client/`는 HTTP 200이고 active bundle에서 `recoverDrSync`,
+  `blockingLoadingState`, `fetchSyncProgress`, `extractJobId`를 확인했다.
+- 최근 관리 로그에 ClassNotFound, NoSuchMethod, Unknown column, Spring bean 기동 오류가 없다.
+
+### 20.4 API/DB/런타임 정합성
+
+`listApis`는 `recoverDrSync`를 `isasync=true`로 반환한다. `listDrPlans`와
+`dr_plan_runtime`, FTCTL `dr-status`, systemd 상태의 결과는 다음과 같이 일치한다.
+
+| Plan | Cloud 상태 | Scheduler desired/unit | Recovery | 판정 |
+|---|---|---|---|---|
+| Rocky `c952cae5-...` | READY / READY | RUNNING / active | SUCCEEDED | PASS |
+| Windows `2514a846-...` | FAILED_OVER / DEGRADED | STOPPED / 없음 | SUPPRESSED | PASS |
+| Ubuntu `daf0ab48-...` | READY / READY | RUNNING / active | SUCCEEDED | PASS |
+
+Windows Plan의 DEGRADED는 장애가 아니라 TARGET authority에서 forward replication이 멈춘
+페일오버 상태 표현이다. 자동 복구 대상이 아니며 failback/reprotect 흐름으로만 전환한다.
+
+### 20.5 실제 환경 preflight 교정 사항
+
+초기 FTCTL unit의 `%I` 사용은 UUID 하이픈을 slash로 unescape하여 Plan UUID를 훼손했다.
+실제 호스트 preflight에서 재시작 루프를 확인한 뒤 `%i`로 교정했고, 교정 커밋
+`a8a2029ee0`의 GitHub Actions run `29916365845`로 RPM을 다시 빌드해 세 호스트에
+동일 SHA256으로 배포했다. Rocky/Ubuntu는 전용 systemd cgroup에서 자동 복구되고 새
+incremental durable cycle까지 완료했으며, Windows TARGET Plan은 unit을 만들지 않았다.
+
+### 20.6 재테스트 준비 판정
+
+DR 관련 failed systemd unit, stale recovery transition, 중복 Scheduler는 없다. 기존
+baseline과 복구 대상 VM은 보존했으며 SOURCE Plan은 RPO 동기화를 계속 수행한다. 따라서
+Agent 재시작 또는 Scheduler 강제 종료 후 local reconcile 복구, 수동 `recoverDrSync`,
+TARGET 억제의 세 시나리오를 재테스트할 준비가 완료되었다.
