@@ -536,6 +536,18 @@ CREATE TABLE IF NOT EXISTS `cloud`.`dr_plan_runtime` (
     `engine_run_uuid` varchar(40) DEFAULT NULL,
     `runtime_generation` bigint unsigned NOT NULL DEFAULT 0,
     `scheduler_state` varchar(32) DEFAULT NULL,
+    `scheduler_desired_state` varchar(32) NOT NULL DEFAULT 'STOPPED',
+    `scheduler_service_unit` varchar(255) DEFAULT NULL,
+    `scheduler_unit_active_state` varchar(32) DEFAULT NULL,
+    `scheduler_unit_sub_state` varchar(32) DEFAULT NULL,
+    `scheduler_unit_main_pid` bigint unsigned DEFAULT NULL,
+    `scheduler_cgroup` varchar(512) DEFAULT NULL,
+    `scheduler_recovery_state` varchar(32) NOT NULL DEFAULT 'NONE',
+    `scheduler_recovery_trigger` varchar(64) DEFAULT NULL,
+    `scheduler_recovery_attempts` int unsigned NOT NULL DEFAULT 0,
+    `scheduler_recovery_error_code` varchar(128) DEFAULT NULL,
+    `scheduler_recovery_error_message` varchar(4096) DEFAULT NULL,
+    `scheduler_recovered_at` datetime DEFAULT NULL,
     `scheduler_pid_alive` tinyint(1) NOT NULL DEFAULT 0,
     `worker_state` varchar(32) DEFAULT NULL,
     `current_cycle_sequence` bigint unsigned DEFAULT NULL,
@@ -621,6 +633,33 @@ CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_sync_cycle', 'cycle_token', 'varc
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'projection_integrity_state', 'varchar(32) NULL AFTER `latest_completed_incremental_verified`');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'projection_integrity_code', 'varchar(128) NULL AFTER `projection_integrity_state`');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'projection_integrity_sequence', 'bigint unsigned NULL AFTER `projection_integrity_code`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'scheduler_session_uuid', 'varchar(40) NULL AFTER `scheduler_pid_alive`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'scheduler_lease_epoch', 'bigint unsigned NOT NULL DEFAULT 0 AFTER `scheduler_session_uuid`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'authority_sequence', 'bigint unsigned NOT NULL DEFAULT 0 AFTER `scheduler_lease_epoch`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'plan_cycle_sequence', 'bigint unsigned NULL AFTER `authority_sequence`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'scheduler_health_state', 'varchar(32) NULL AFTER `plan_cycle_sequence`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'replication_activity_state', 'varchar(32) NULL AFTER `scheduler_health_state`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'active_worker_run_uuid', 'varchar(40) NULL AFTER `replication_activity_state`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'active_worker_pid', 'bigint unsigned NULL AFTER `active_worker_run_uuid`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'active_worker_start_ticks', 'bigint unsigned NULL AFTER `active_worker_pid`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'worker_heartbeat_at', 'datetime NULL AFTER `active_worker_start_ticks`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'control_request_run_uuid', 'varchar(40) NULL AFTER `worker_heartbeat_at`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'owner_matched', 'tinyint(1) NOT NULL DEFAULT 0 AFTER `control_request_run_uuid`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'scheduler_desired_state', 'varchar(32) NOT NULL DEFAULT ''STOPPED'' AFTER `scheduler_state`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'scheduler_service_unit', 'varchar(255) NULL AFTER `scheduler_desired_state`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'scheduler_unit_active_state', 'varchar(32) NULL AFTER `scheduler_service_unit`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'scheduler_unit_sub_state', 'varchar(32) NULL AFTER `scheduler_unit_active_state`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'scheduler_unit_main_pid', 'bigint unsigned NULL AFTER `scheduler_unit_sub_state`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'scheduler_cgroup', 'varchar(512) NULL AFTER `scheduler_unit_main_pid`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'scheduler_recovery_state', 'varchar(32) NOT NULL DEFAULT ''NONE'' AFTER `scheduler_cgroup`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'scheduler_recovery_trigger', 'varchar(64) NULL AFTER `scheduler_recovery_state`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'scheduler_recovery_attempts', 'int unsigned NOT NULL DEFAULT 0 AFTER `scheduler_recovery_trigger`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'scheduler_recovery_error_code', 'varchar(128) NULL AFTER `scheduler_recovery_attempts`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'scheduler_recovery_error_message', 'varchar(4096) NULL AFTER `scheduler_recovery_error_code`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'scheduler_recovered_at', 'datetime NULL AFTER `scheduler_recovery_error_message`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_sync_cycle', 'scheduler_session_uuid', 'varchar(40) NULL AFTER `engine_run_uuid`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_sync_cycle', 'scheduler_lease_epoch', 'bigint unsigned NULL AFTER `scheduler_session_uuid`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_sync_cycle', 'authority_sequence', 'bigint unsigned NULL AFTER `scheduler_lease_epoch`');
 
 
 ALTER TABLE `cloud`.`dr_plan_view_cache`
@@ -688,6 +727,7 @@ JOIN (
     SELECT 'promoteDisasterRecoveryClusterVm' UNION ALL
     SELECT 'releaseDrProtection' UNION ALL
     SELECT 'refreshDrProtectionView' UNION ALL
+    SELECT 'recoverDrSync' UNION ALL
     SELECT 'resumeDrSync' UNION ALL
     SELECT 'resyncDisasterRecoveryCluster' UNION ALL
     SELECT 'startDisasterRecoveryClusterVm' UNION ALL
@@ -802,12 +842,34 @@ CREATE TABLE IF NOT EXISTS `cloud`.`dr_cutover_session` (
   `guest_os_family` varchar(32) DEFAULT NULL, `guest_preparation_state` varchar(64) DEFAULT NULL,
   `virtio_state` varchar(32) DEFAULT NULL, `secure_boot_state` varchar(32) DEFAULT NULL,
   `domain_name` varchar(255) DEFAULT NULL, `boot_validation_state` varchar(64) DEFAULT NULL,
+  `source_fence_state` varchar(32) DEFAULT NULL, `source_power_state` varchar(32) DEFAULT NULL,
+  `manifest_schema_version` varchar(64) DEFAULT NULL, `manifest_sha256` varchar(64) DEFAULT NULL,
+  `target_disk_count` int unsigned DEFAULT NULL, `scheduler_recovery_state` varchar(32) DEFAULT NULL,
+  `cloud_promotion_state` varchar(32) DEFAULT NULL, `target_power_state` varchar(32) DEFAULT NULL,
+  `target_power_on_at` datetime DEFAULT NULL, `boot_validated_at` datetime DEFAULT NULL,
+  `engine_ack_state` varchar(32) DEFAULT NULL, `engine_ack_at` datetime DEFAULT NULL,
+  `cloud_authority_generation` bigint unsigned DEFAULT NULL, `completed_at` datetime DEFAULT NULL,
   `cleanup_required` tinyint(1) NOT NULL DEFAULT 0, `details_json` mediumtext,
   `error_code` varchar(128) DEFAULT NULL, `error_message` varchar(1024) DEFAULT NULL,
   `created` datetime NOT NULL, `updated` datetime NOT NULL, `removed` datetime DEFAULT NULL,
   PRIMARY KEY (`id`), UNIQUE KEY `uk_dr_cutover_session_uuid` (`uuid`),
   KEY `idx_dr_cutover_session_plan_active` (`plan_id`,`removed`), KEY `idx_dr_cutover_session_run` (`run_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+ALTER TABLE `cloud`.`dr_cutover_session`
+  ADD COLUMN IF NOT EXISTS `source_fence_state` varchar(32) DEFAULT NULL AFTER `boot_validation_state`,
+  ADD COLUMN IF NOT EXISTS `source_power_state` varchar(32) DEFAULT NULL AFTER `source_fence_state`,
+  ADD COLUMN IF NOT EXISTS `manifest_schema_version` varchar(64) DEFAULT NULL AFTER `source_power_state`,
+  ADD COLUMN IF NOT EXISTS `manifest_sha256` varchar(64) DEFAULT NULL AFTER `manifest_schema_version`,
+  ADD COLUMN IF NOT EXISTS `target_disk_count` int unsigned DEFAULT NULL AFTER `manifest_sha256`,
+  ADD COLUMN IF NOT EXISTS `scheduler_recovery_state` varchar(32) DEFAULT NULL AFTER `target_disk_count`,
+  ADD COLUMN IF NOT EXISTS `cloud_promotion_state` varchar(32) DEFAULT NULL AFTER `scheduler_recovery_state`,
+  ADD COLUMN IF NOT EXISTS `target_power_state` varchar(32) DEFAULT NULL AFTER `cloud_promotion_state`,
+  ADD COLUMN IF NOT EXISTS `target_power_on_at` datetime DEFAULT NULL AFTER `target_power_state`,
+  ADD COLUMN IF NOT EXISTS `boot_validated_at` datetime DEFAULT NULL AFTER `target_power_on_at`,
+  ADD COLUMN IF NOT EXISTS `engine_ack_state` varchar(32) DEFAULT NULL AFTER `boot_validated_at`,
+  ADD COLUMN IF NOT EXISTS `engine_ack_at` datetime DEFAULT NULL AFTER `engine_ack_state`,
+  ADD COLUMN IF NOT EXISTS `cloud_authority_generation` bigint unsigned DEFAULT NULL AFTER `engine_ack_at`,
+  ADD COLUMN IF NOT EXISTS `completed_at` datetime DEFAULT NULL AFTER `cloud_authority_generation`;
 CREATE TABLE IF NOT EXISTS `cloud`.`dr_cutover_disk` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT, `session_id` bigint unsigned NOT NULL,
   `disk_index` int unsigned NOT NULL, `provider` varchar(32) NOT NULL,

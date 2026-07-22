@@ -5,6 +5,18 @@
 > governs Cloud/Agent/FTCTL ownership, typed storage locators, failure cleanup,
 > and projection isolation. Any earlier text that lets FTCTL own the customer
 > test VM or infer backing storage from a display reference is superseded.
+>
+> Normative Test Failover terminal update (2026-07-20):
+> [563-cross-hypervisor-dr-test-failover-terminal-convergence-design-20260720.md](563-cross-hypervisor-dr-test-failover-terminal-convergence-design-20260720.md)
+> governs monotonic Cloud Test Session transitions, finite Run completion,
+> validation-policy persistence, and the independent `TEST_ACTIVE` UI overlay.
+>
+> Normative Real Failover update (2026-07-22):
+> [567-cross-hypervisor-dr-real-failover-cutover-manifest-and-rollback-design-20260722.md](567-cross-hypervisor-dr-real-failover-cutover-manifest-and-rollback-design-20260722.md)
+> governs the typed cutover manifest, checkpoint and target-disk authority,
+> source isolation, Cloud-owned target start, promotion, and rollback. Earlier
+> real Failover text that infers guest/storage fields or promotes the target
+> before Cloud boot validation is superseded.
 
 작성일: 2026-07-01
 
@@ -817,3 +829,59 @@ stacks fail eligibility and never fall back to an unmanaged domain.
 
 Implementation classes, schema, rollout order, and acceptance tests are defined
 in `561-cross-hypervisor-dr-cloud-managed-test-failover-lifecycle-design-20260719.md`.
+
+## 2026-07-20 Plan Scheduler Authority Boundary
+
+`DrRun` is an asynchronous operation record and must not be the identity of the
+long-lived replication scheduler. Each Plan owns one scheduler session and at
+most one live FTCTL worker. Pause, resume, test cleanup, and reconciliation
+operate on that session without creating competing run-owned workers.
+
+Cloud persists and compares scheduler lease epoch and authority sequence,
+while FTCTL owns the Plan singleton lease and Plan-wide cycle sequence. READY,
+replication activity, and scheduler health are independent state axes. The
+normative full-stack contract, schema, API, UI, and acceptance gates are in
+`564-cross-hypervisor-dr-plan-scheduler-singleton-authority-design-20260720.md`.
+
+## 2026-07-21 Post-Test Cleanup Projection Convergence Boundary
+
+Test Cleanup has four independently verified outcomes: resource cleanup,
+scheduler RUNNING acknowledgment, a newer durable checkpoint, and Cloud
+DB/API/UI projection. A successful cleanup Run proves only the first outcome.
+Cloud must resolve the finite operation Run and the long-lived protection
+producer Run independently; the latest terminal Run is never the producer
+fallback.
+
+The full-stack code contract, typed API/DB fields, UI resume-confirmation
+overlay, Agent status envelope, FTCTL producer attribution, and acceptance
+sequence are normative in
+`565-cross-hypervisor-dr-post-test-cleanup-protection-projection-convergence-design-20260721.md`.
+Its section 19 supersedes the minimum producer-only compatibility result: Plan
+authority and finite operation status require separate query/projector scopes,
+and Test Failover eligibility requires current live scheduler authority rather
+than a cached READY Plan row.
+
+## 2026-07-21 Current Protection Activity And Operation History Boundary
+
+The protection UI and cache must not use the latest completed operation as the
+current activity. Plan authority, active Run, replication Cycle, and completed
+operation history are independent projections. A completed TEST_CLEANUP is
+shown in history while the protection tab shows the resumed scheduler and the
+current Cycle or idle state.
+
+Cloud cache/API/UI changes, Agent/FTCTL scope boundaries, DB reuse, rollout
+order, and acceptance criteria are normative in
+`566-cross-hypervisor-dr-current-protection-activity-and-operation-history-projection-design-20260721.md`.
+
+## 2026-07-22 Scheduler Service Ownership And Recovery Boundary
+
+지속 복제 Scheduler는 Mold Agent가 소유하는 background process가 아니다. Cloud는
+Plan authority와 desired state를 기록하고 비동기 recovery Run을 조정하며, Agent는
+명령을 짧게 전달한다. FTCTL Scheduler의 실제 수명은 Plan별 systemd template unit이
+소유한다.
+
+Agent 재시작, host reboot, 실제 worker 사망 시의 상세 UI/API/backend/Agent/FTCTL/DB
+계약과 배포 순서는
+`568-cross-hypervisor-dr-scheduler-service-and-automatic-recovery-design-20260722.md`를
+규범 문서로 사용한다. SOURCE/RUNNING Plan만 복구 대상이며 TARGET/FAILED_OVER,
+PAUSED, transition-active Plan은 forward recovery에서 제외한다.

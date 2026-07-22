@@ -1,7 +1,7 @@
 # Cross Hypervisor DR VMware To KVM Cutover And VirtIO Bootstrap Design
 
 - Date: 2026-07-14
-- Status: baseline implemented; storage locator correction pending
+- Status: baseline implemented; real Failover manifest correction designed
 - Scope: VMware source to ABLESTACK/KVM target
 - Related: 510, 521, 522, 553, 561, 562
 
@@ -10,6 +10,12 @@
 > defines the canonical RBD/file source locator, Cloud Test Session timing,
 > failure cleanup, and protection/operation projection isolation. FTCTL must
 > not infer provider or path from a bare target disk display reference.
+>
+> Normative real Failover contract (2026-07-22):
+> [567-cross-hypervisor-dr-real-failover-cutover-manifest-and-rollback-design-20260722.md](567-cross-hypervisor-dr-real-failover-cutover-manifest-and-rollback-design-20260722.md)
+> separates the Plan profile, selected durable checkpoint, and runtime target
+> disk map; requires canonical `rbd:` locators; and assigns target VM start and
+> active-side promotion to Cloud after FTCTL reports `CUTOVER_READY`.
 
 ## 1. Purpose
 
@@ -728,3 +734,15 @@ owns checkpoint leases, writable artifacts, guest preparation, and artifact
 cleanup. The normative contract, state model, database schema, rollout gates,
 and source change map are defined in
 [`561-cross-hypervisor-dr-cloud-managed-test-failover-lifecycle-design-20260719.md`](561-cross-hypervisor-dr-cloud-managed-test-failover-lifecycle-design-20260719.md).
+
+## 25. 2026-07-22 Actual Failover Promotion Authority
+
+The VMware-to-KVM guest preparation result `CUTOVER_READY` does not authorize
+FTCTL to start the Cloud-managed target VM and does not by itself complete the
+Failover Run. Cloud owns target power-on, validation, and `activeSide=TARGET`.
+After committing target authority, Cloud sends an idempotent
+`dr-cutover-commit` acknowledgement so FTCTL can mirror the final state without
+acquiring VM lifecycle ownership.
+
+The latest normative design is section 13 of
+[`567-cross-hypervisor-dr-real-failover-cutover-manifest-and-rollback-design-20260722.md`](567-cross-hypervisor-dr-real-failover-cutover-manifest-and-rollback-design-20260722.md).

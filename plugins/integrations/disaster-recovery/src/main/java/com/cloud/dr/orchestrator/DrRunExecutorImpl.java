@@ -310,6 +310,11 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
         run.setLastStatusJson(result.getDetailsJson());
         run.markUpdated();
         drRunDao.update(run.getId(), run);
+        if (drTargetMaterializationService != null
+                && StringUtils.equals(run.getRunType(), DrConstants.RUN_TYPE_TEST_CLEANUP)) {
+            drTargetMaterializationService.completeTestCleanup(plan.getId());
+        }
+        clearPlanActionError(plan.getId());
         recordEvent(plan.getId(), run.getId(), DrConstants.EVENT_RUN_SUCCEEDED, DrConstants.EVENT_SEVERITY_INFO,
                 StringUtils.defaultIfBlank(result.getMessage(), "DR run succeeded"), result.getDetailsJson());
         refreshProjection(plan.getId());
@@ -531,6 +536,7 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
 
     private boolean isPlanTerminalFailure(DrRunVO run) {
         return run != null && !StringUtils.equalsAny(run.getRunType(),
+                DrConstants.RUN_TYPE_RECOVER_SYNC,
                 DrConstants.RUN_TYPE_PAUSE_SYNC,
                 DrConstants.RUN_TYPE_RESUME_SYNC,
                 DrConstants.RUN_TYPE_TEST_FAILOVER,
@@ -545,6 +551,18 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
         }
         plan.setLastErrorCode(errorCode);
         plan.setLastErrorMessage(message);
+        plan.markUpdated();
+        drPlanDao.update(plan.getId(), plan);
+    }
+
+    private void clearPlanActionError(long planId) {
+        DrPlanVO plan = drPlanDao.findById(planId);
+        if (plan == null || plan.getRemoved() != null
+                || StringUtils.equals(plan.getState(), DrConstants.PLAN_STATE_ERROR)) {
+            return;
+        }
+        plan.setLastErrorCode(null);
+        plan.setLastErrorMessage(null);
         plan.markUpdated();
         drPlanDao.update(plan.getId(), plan);
     }

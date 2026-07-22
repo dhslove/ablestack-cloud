@@ -207,7 +207,8 @@ public class FtctlDrUnifiedActionAdapterTest {
         Mockito.when(agentManager.send(Mockito.eq(103L), Mockito.isA(FtctlDrCapabilitiesCommand.class))).thenAnswer(invocation -> {
             FtctlDrCapabilitiesAnswer answer = new FtctlDrCapabilitiesAnswer(invocation.getArgument(1), true, "ok");
             answer.setSupportedFeatures(java.util.Arrays.asList("control-protocol-v2", "guest-preparation-v2",
-                    "test-artifact-lifecycle-v2", "test-domain-lifecycle-v1", "cutover-ready-v1"));
+                    "test-artifact-lifecycle-v2", "test-domain-lifecycle-v1", "cutover-ready-v1",
+                    "cutover-manifest-v2", "cutover-preflight-v1"));
             return answer;
         });
     }

@@ -10,10 +10,16 @@ import java.util.Date;
 public class DrProtectionAuthoritySnapshot {
     private final DrPlanRuntimeVO runtime;
     private final boolean normalCutoverReady;
+    private final String normalCutoverReason;
 
     public DrProtectionAuthoritySnapshot(DrPlanRuntimeVO runtime, boolean normalCutoverReady) {
+        this(runtime, normalCutoverReady, normalCutoverReady ? null : "DR_AUTHORITY_NOT_READY");
+    }
+
+    public DrProtectionAuthoritySnapshot(DrPlanRuntimeVO runtime, boolean normalCutoverReady, String normalCutoverReason) {
         this.runtime = runtime;
         this.normalCutoverReady = normalCutoverReady;
+        this.normalCutoverReason = normalCutoverReason;
     }
 
     public DrPlanRuntimeVO getRuntime() { return runtime; }
@@ -21,6 +27,14 @@ public class DrProtectionAuthoritySnapshot {
     public String getFreshnessState() { return runtime != null ? runtime.getFreshnessState() : "UNKNOWN"; }
     public String getSchedulerState() { return runtime != null ? runtime.getSchedulerState() : null; }
     public boolean isSchedulerPidAlive() { return runtime != null && runtime.isSchedulerPidAlive(); }
+    public String getSchedulerSessionUuid() { return runtime != null ? runtime.getSchedulerSessionUuid() : null; }
+    public Long getSchedulerLeaseEpoch() { return runtime != null ? runtime.getSchedulerLeaseEpoch() : null; }
+    public Long getAuthoritySequence() { return runtime != null ? runtime.getAuthoritySequence() : null; }
+    public String getSchedulerHealthState() { return runtime != null ? runtime.getSchedulerHealthState() : null; }
+    public String getReplicationActivityState() { return runtime != null ? runtime.getReplicationActivityState() : null; }
+    public String getActiveWorkerRunUuid() { return runtime != null ? runtime.getActiveWorkerRunUuid() : null; }
+    public Date getWorkerHeartbeatAt() { return runtime != null ? runtime.getWorkerHeartbeatAt() : null; }
+    public boolean isOwnerMatched() { return runtime != null && runtime.isOwnerMatched(); }
     public Long getRuntimeGeneration() { return runtime != null ? runtime.getRuntimeGeneration() : null; }
     public Long getCurrentCycleSequence() { return runtime != null ? runtime.getCurrentCycleSequence() : null; }
     public String getCurrentCycleState() { return runtime != null ? runtime.getCurrentCycleState() : null; }
@@ -37,4 +51,5 @@ public class DrProtectionAuthoritySnapshot {
     public Long getRpoAgeSeconds() { return runtime != null ? runtime.getRpoAgeSeconds() : null; }
     public boolean isRpoOverdue() { return runtime == null || runtime.isRpoOverdue(); }
     public boolean isNormalCutoverReady() { return normalCutoverReady; }
+    public String getNormalCutoverReason() { return normalCutoverReason; }
 }

@@ -725,3 +725,64 @@ RBD clone 또는 안전한 파일 artifact를 만든다. FTCTL은 디스크 표�
 canonical artifact와 상태 투영 보정은
 `562-cross-hypervisor-dr-test-artifact-contract-and-projection-isolation-design-20260719.md`를 따른다.
 
+
+## 2026-07-20 VMware -> ABLESTACK 테스트 페일오버 상태 보정
+
+Cloud-managed 테스트 페일오버의 정상 완료 상태는
+`DrRun(TEST_FAILOVER)=SUCCEEDED`와 `DrTestSession=ACTIVE`의 조합이다.
+Run은 생성/부팅 검증이 끝난 유한 작업 이력이고, Test Session은 운영자가
+테스트 환경을 정리할 때까지 유지되는 활성 수명주기다. FTCTL은 이 동안
+`TEST_ARTIFACTS_READY`와 체크포인트 lease를 유지할 수 있으며, 이는 완료
+실패가 아니다.
+
+UI는 보호 상태, 테스트 실행 결과, 활성 테스트 환경을 분리해 표시한다.
+Cloud projection은 `ACTIVE`를 `ARTIFACTS_READY`로 되돌리지 않으며,
+materializer는 부팅 검증 직후 Run 완료를 직접 기록한다. 상세 설계는
+`../563-cross-hypervisor-dr-test-failover-terminal-convergence-design-20260720.md`를
+따른다.
+
+## VMware -> ABLESTACK 보호 상태와 복제 활동 표시 보정 (2026-07-20)
+
+첫 durable 복제본이 준비된 후의 주기적 증분 전송은 Plan을 다시 초기
+`동기화 중`으로 만들지 않는다. UI는 `보호 상태=정상`, `복제 활동=복제 중`,
+`Scheduler 상태=정상`을 독립적으로 표시한다.
+
+복제본이 존재하더라도 Scheduler가 죽었거나 실제 worker와 제어 owner가 다르면
+`보호 저하`로 표시하고 정상 cutover를 차단한다. pause/resume 실행 이력은
+Scheduler의 수명주기와 구분한다. 규범 설계는
+`../564-cross-hypervisor-dr-plan-scheduler-singleton-authority-design-20260720.md`를
+따른다.
+
+## VMware -> ABLESTACK 테스트 정리 이후 화면 해석 (2026-07-21)
+
+완료된 `TEST_CLEANUP`은 작업 이력이며 현재 보호 동작이 아니다. 보호 정보는
+현재 Scheduler 권위와 복제 Cycle을 기준으로 표시한다. 활성 유한 작업이
+있으면 작업 진행 상태를, 활성 Cycle이 있으면 복제 진행 상태를, 둘 다 없으면
+`보호 정상 / 복제 대기`를 표시한다.
+
+따라서 완료된 정리 작업이 보호 정보의 대표 진행 카드에 남거나 그 작업의
+종료 status 때문에 Scheduler/control 값이 `UNKNOWN`으로 바뀌면 정상 상태
+표시가 아니다. 캐시와 UI는 Plan runtime, active Run, latest operation Run,
+current/latest completed Cycle을 분리해야 한다. 상세 계약은 상위
+`docs/ftctl`의
+`566-cross-hypervisor-dr-current-protection-activity-and-operation-history-projection-design-20260721.md`를
+따른다.
+
+## VMware -> ABLESTACK 실제 페일오버 cutover 절차 보정 (2026-07-22)
+
+실제 페일오버는 원본 VMware 가상머신을 삭제하지 않는다. 계획 페일오버는
+원본 정지/격리와 마지막 증분 반영을 수행하고, 재해 페일오버는 운영자의 원본
+격리 확인과 최신 내구 체크포인트를 사용한다.
+
+실행 전에는 체크포인트/RPO, 원본 격리, Windows 또는 Linux 게스트 정보,
+EFI/Secure Boot, 대상 디스크와 스토리지, 기존 대상 가상머신 상태를 읽기
+전용으로 검증한다. 실행은 비동기로 진행되며 `사전 검증 -> 원본 격리 ->
+체크포인트 확정 -> 게스트 준비 -> CUTOVER_READY -> Cloud 대상 VM 기동 ->
+부팅 검증 -> TARGET 활성화` 순서를 따른다.
+
+FTCTL은 데이터와 게스트 준비를 담당하고 Cloud는 대상 가상머신의 수명주기와
+활성 사이트 전환을 담당한다. 부팅 검증 전 실패 시 활성 사이트는 SOURCE에
+남고, 대상 가상머신은 정지되며, 데이터와 체크포인트는 재시도를 위해 보존된다.
+원본은 자동 삭제 또는 자동 시작되지 않는다. 상세 계약은
+`../567-cross-hypervisor-dr-real-failover-cutover-manifest-and-rollback-design-20260722.md`를
+따른다.

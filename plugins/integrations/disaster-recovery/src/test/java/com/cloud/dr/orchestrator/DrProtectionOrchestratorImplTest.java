@@ -60,6 +60,7 @@ public class DrProtectionOrchestratorImplTest {
     @Test
     public void prepareSyncRunMaterializesReplicaAndDiskMappings() {
         DrPlanVO plan = ftctlDrPlan(DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setState(DrConstants.PLAN_STATE_READY);
         plan.setCoordinatorWorkerHostId(11L);
         plan.setMappingJson("{\"targetVmName\":\"replica-01\",\"disks\":[{\"device\":\"sda\",\"sourceVolumeId\":101,\"targetVolumeId\":201,\"format\":\"qcow2\",\"sizeBytes\":1024}]}");
         DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_SYNC);
@@ -74,7 +75,7 @@ public class DrProtectionOrchestratorImplTest {
         DrPlanVO prepared = orchestrator.prepareSyncRun(plan, run);
 
         Assert.assertSame(plan, prepared);
-        Assert.assertEquals(DrConstants.PLAN_STATE_SYNCING, plan.getState());
+        Assert.assertEquals(DrConstants.PLAN_STATE_READY, plan.getState());
         Assert.assertEquals(Long.valueOf(11L), plan.getSourceWorkerHostId());
         Assert.assertEquals(Long.valueOf(11L), plan.getTargetWorkerHostId());
         Mockito.verify(drPlanDao).update(plan.getId(), plan);

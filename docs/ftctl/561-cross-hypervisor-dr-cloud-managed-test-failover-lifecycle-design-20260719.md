@@ -1,10 +1,10 @@
 # Cross Hypervisor DR Cloud-Managed Test Failover Lifecycle Design
 
 - Date: 2026-07-19
-- Status: baseline implemented; canonical artifact and projection correction pending
+- Status: baseline and canonical artifact path implemented; terminal convergence correction pending
 - Scope: VMware to ABLESTACK Test Failover lifecycle ownership
 - Normative for: UI, API, Cloud backend, Mold Agent, FTCTL, DB
-- Related: 500, 501, 502, 503, 506, 507, 508, 509, 510, 521, 522, 554, 562
+- Related: 500, 501, 502, 503, 506, 507, 508, 509, 510, 521, 522, 554, 562, 563
 
 > Normative correction (2026-07-19):
 > [562-cross-hypervisor-dr-test-artifact-contract-and-projection-isolation-design-20260719.md](562-cross-hypervisor-dr-test-artifact-contract-and-projection-isolation-design-20260719.md)
@@ -12,6 +12,12 @@
 > `targetDiskRef`, an early engine failure has no Cloud Test Session row, or a
 > finite Test Failover operation is allowed to replace continuous-sync
 > protection authority.
+>
+> Normative terminal convergence correction (2026-07-20):
+> [563-cross-hypervisor-dr-test-failover-terminal-convergence-design-20260720.md](563-cross-hypervisor-dr-test-failover-terminal-convergence-design-20260720.md)
+> supersedes this document wherever `ACTIVE` may regress to an engine artifact
+> state, Run completion waits on a later polling race, or Plan protection state
+> is used as the active-test lifecycle state.
 
 ## 1. Decision
 
@@ -194,6 +200,11 @@ eligible until every Cloud and FTCTL resource is confirmed absent.
 `ARTIFACTS_READY` is not Test Failover success. Agent acceptance is not Test
 Failover success. A Running libvirt domain without a Cloud VM id is an integrity
 failure.
+
+A successful finite action also clears stale `DrPlan.last_error_code` and
+`last_error_message` left by an earlier failed attempt, unless the Plan itself is
+in terminal `ERROR`. Run history retains the earlier failure for audit, while the
+current Plan summary reflects the successful retry.
 
 ## 7. UI design
 
@@ -703,3 +714,31 @@ The baseline Cloud-managed lifecycle has been implemented. The implementation
 is not accepted for Test Failover until document 562's typed storage locator,
 transactional REQUESTED session, all-path cleanup, error normalization,
 projection isolation, and restore-point producer attribution gates pass.
+
+## 19. Terminal convergence clarification - 2026-07-20
+
+The successful steady state is `DrRun(TEST_FAILOVER)=SUCCEEDED` together with
+`DrTestSession=ACTIVE`. FTCTL remains `TEST_ARTIFACTS_READY` while the operator
+uses the Cloud-managed test VM. These states are complementary, not conflicting.
+
+Cloud session transitions are monotonic. Runtime projection may copy artifact
+evidence into an `ACTIVE` session but must not change its state back to
+`ARTIFACTS_READY`. The target materializer directly invokes the idempotent Run
+completion boundary after boot validation, while periodic projection is a
+restart-recovery fallback. Plan protection authority remains separate and the
+UI derives a `TEST_ACTIVE` overlay from the active Test Session.
+
+The detailed code contract, request-field correction, steps/events, DB
+conditional transition, and verification gates are normative in document 563.
+
+## 20. Post-Cleanup Protection Convergence - 2026-07-21
+
+`DrTestSession=CLEANED` and cleanup Run `SUCCEEDED` remain authoritative for the
+temporary environment lifecycle. They must not become the authority for later
+replication checkpoints. Cloud presents a short `복제 재개 확인 중` overlay until
+the Plan scheduler has acknowledged RUNNING and a checkpoint newer than the
+test checkpoint is durable and projected.
+
+The producer Run, Plan authority, cycle/restore-point attribution, DB fields,
+and delayed-resume error contract are defined in document 565. No direct UI to
+Agent/FTCTL call and no duplicate automatic Resume command are permitted.

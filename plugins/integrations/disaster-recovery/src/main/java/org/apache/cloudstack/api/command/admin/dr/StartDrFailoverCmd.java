@@ -50,6 +50,14 @@ public class StartDrFailoverCmd extends AbstractDrPlanActionCmd {
     @Parameter(name = "skipsourcefencerequest", type = CommandType.BOOLEAN, description = "whether to skip source fence request")
     private Boolean skipSourceFenceRequest;
 
+    @Parameter(name = "sourceisolationacknowledged", type = CommandType.BOOLEAN,
+            description = "operator acknowledgement that the source is isolated or unreachable in disaster mode")
+    private Boolean sourceIsolationAcknowledged;
+
+    @Parameter(name = "sourceisolationreason", type = CommandType.STRING,
+            description = "operator reason or evidence for source isolation in disaster mode")
+    private String sourceIsolationReason;
+
     public Boolean getDisaster() {
         return disaster;
     }
@@ -62,6 +70,14 @@ public class StartDrFailoverCmd extends AbstractDrPlanActionCmd {
         return skipSourceFenceRequest;
     }
 
+    public Boolean getSourceIsolationAcknowledged() {
+        return sourceIsolationAcknowledged;
+    }
+
+    public String getSourceIsolationReason() {
+        return sourceIsolationReason;
+    }
+
     @Override
     protected String getRunType() {
         return "FAILOVER";
@@ -70,11 +86,18 @@ public class StartDrFailoverCmd extends AbstractDrPlanActionCmd {
     @Override
     protected void addRequestProperties(JsonObject request) {
         boolean disasterFailover = Boolean.TRUE.equals(disaster);
+        if (disasterFailover && (!Boolean.TRUE.equals(sourceIsolationAcknowledged)
+                || StringUtils.isBlank(sourceIsolationReason))) {
+            throw new ServerApiException(ApiErrorCode.PARAM_ERROR,
+                    "Disaster failover requires source isolation acknowledgement and a reason");
+        }
         DrRestorePointVO restorePoint = resolveRestorePoint();
         addProperty(request, "disaster", disaster);
         addProperty(request, "mode", disasterFailover ? "disaster" : "planned");
         addProperty(request, "finalSync", finalSync != null ? finalSync : !disasterFailover);
         addProperty(request, "skipSourceFenceRequest", skipSourceFenceRequest);
+        addProperty(request, "sourceIsolationAcknowledged", sourceIsolationAcknowledged);
+        addProperty(request, "sourceIsolationReason", StringUtils.trimToNull(sourceIsolationReason));
         if (restorePoint == null) {
             return;
         }

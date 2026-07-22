@@ -69,6 +69,7 @@
     <bean id="drProtectionViewServiceImpl" class="com.cloud.dr.DrProtectionViewServiceImpl"/>
     <bean id="drProtectionAuthorityServiceImpl" class="com.cloud.dr.DrProtectionAuthorityServiceImpl"/>
     <bean id="drProjectionScheduler" class="com.cloud.dr.DrProjectionScheduler"/>
+    <bean id="drSchedulerRecoveryScheduler" class="com.cloud.dr.DrSchedulerRecoveryScheduler"/>
     <bean id="drTargetMaterializationServiceImpl" class="com.cloud.dr.DrTargetMaterializationServiceImpl"/>
     <bean id="drOrchestratorImpl" class="com.cloud.dr.orchestrator.DrOrchestratorImpl"/>
     <bean id="drProtectionOrchestratorImpl" class="com.cloud.dr.orchestrator.DrProtectionOrchestratorImpl"/>

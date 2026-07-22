@@ -17,6 +17,7 @@
 package com.cloud.dr;
 
 import java.util.Date;
+import java.util.Arrays;
 import java.util.Map;
 
 import org.junit.Assert;
@@ -37,6 +38,7 @@ import com.cloud.dr.dao.DrRestorePointDao;
 import com.cloud.dr.dao.DrRunDao;
 import com.cloud.dr.dao.DrSiteDao;
 import com.cloud.dr.dao.DrSyncCycleDao;
+import com.cloud.dr.dao.DrTestSessionDao;
 
 @RunWith(MockitoJUnitRunner.class)
 public class DrPlanServiceImplTest {
@@ -64,6 +66,8 @@ public class DrPlanServiceImplTest {
     private DrPlanReadinessValidator drPlanReadinessValidator;
     @Mock
     private DrProtectionAuthorityService drProtectionAuthorityService;
+    @Mock
+    private DrTestSessionDao drTestSessionDao;
 
     @InjectMocks
     private DrPlanServiceImpl service;
@@ -199,6 +203,55 @@ public class DrPlanServiceImplTest {
         Assert.assertTrue(eligibility.get("failback"));
         Assert.assertFalse(eligibility.get("reprotect"));
         Assert.assertTrue(eligibility.get("releaseProtection"));
+    }
+
+    @Test
+    public void ftctlDrEligibilityBlocksSourceActionsAfterTargetPromotion() {
+        DrPlanVO plan = new DrPlanVO("ftctl-dr-failed-over", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
+        plan.setAdminState(DrConstants.ADMIN_STATE_ENABLED);
+        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
+        plan.setState(DrConstants.PLAN_STATE_FAILED_OVER);
+        plan.setActiveSide("TARGET");
+        plan.setTargetReadyAt(new Date());
+        Mockito.when(drPlanDao.findById(plan.getId())).thenReturn(plan);
+        Mockito.when(drAdapterRegistry.getReplicationEngine(DrConstants.ENGINE_TYPE_FTCTL_DR,
+                DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR)).thenReturn(replicationEngine);
+        Mockito.when(drRunDao.findLatestByPlanId(plan.getId())).thenReturn(controlReadyRun(plan));
+        Mockito.when(drPlanReadinessValidator.validateForRelease(plan)).thenReturn(releaseReady());
+
+        Map<String, Boolean> eligibility = service.getActionEligibility(plan.getId());
+
+        Assert.assertFalse(eligibility.get("sync"));
+        Assert.assertFalse(eligibility.get("pauseSync"));
+        Assert.assertFalse(eligibility.get("resumeSync"));
+        Assert.assertFalse(eligibility.get("testFailover"));
+        Assert.assertFalse(eligibility.get("failover"));
+        Assert.assertTrue(eligibility.get("failback"));
+    }
+
+    @Test
+    public void ftctlDrEligibilityAllowsTestCleanupForActiveSessionAfterRunCompletes() {
+        DrPlanVO plan = new DrPlanVO("ftctl-dr-test-active", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
+        plan.setAdminState(DrConstants.ADMIN_STATE_ENABLED);
+        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
+        plan.setState(DrConstants.PLAN_STATE_READY);
+        DrTestSessionVO session = new DrTestSessionVO(plan.getId(), 64L, DrTestSessionState.ACTIVE);
+        session.setCleanupRequired(true);
+        Mockito.when(drPlanDao.findById(plan.getId())).thenReturn(plan);
+        Mockito.when(drAdapterRegistry.getReplicationEngine(DrConstants.ENGINE_TYPE_FTCTL_DR, DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR))
+                .thenReturn(replicationEngine);
+        DrRunVO failedCleanup = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_TEST_CLEANUP);
+        failedCleanup.setState(DrConstants.RUN_STATE_FAILED);
+        failedCleanup.setLastStatusJson("{\"state\":\"CLEANED\"}");
+        DrRunVO controlReadyRun = controlReadyRun(plan);
+        Mockito.when(drRunDao.listByPlanId(plan.getId())).thenReturn(Arrays.asList(failedCleanup, controlReadyRun));
+        Mockito.when(drTestSessionDao.findActiveByPlanId(plan.getId())).thenReturn(session);
+
+        Map<String, Boolean> eligibility = service.getActionEligibility(plan.getId());
+
+        Assert.assertTrue(eligibility.get("stopTestFailover"));
     }
 
     @Test

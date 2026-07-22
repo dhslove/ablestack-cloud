@@ -28,5 +28,9 @@ public interface DrRunDao extends GenericDao<DrRunVO, Long> {
 
     DrRunVO findLatestByPlanId(long planId);
 
+    DrRunVO findByUuid(String uuid);
+
+    DrRunVO findLatestProtectionProducerByPlanId(long planId);
+
     List<DrRunVO> listByPlanId(long planId);
 }

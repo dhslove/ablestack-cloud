@@ -154,6 +154,8 @@ public abstract class AbstractDrPlanActionCmd extends BaseAsyncCmd {
         switch (runType) {
             case DrConstants.RUN_TYPE_SYNC:
                 return "sync";
+            case DrConstants.RUN_TYPE_RECOVER_SYNC:
+                return "recoverSync";
             case DrConstants.RUN_TYPE_PAUSE_SYNC:
                 return "pauseSync";
             case DrConstants.RUN_TYPE_RESUME_SYNC:

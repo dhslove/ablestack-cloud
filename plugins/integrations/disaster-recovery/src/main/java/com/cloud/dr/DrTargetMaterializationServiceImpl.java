@@ -98,7 +98,10 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
     private static final Logger LOGGER = LogManager.getLogger(DrTargetMaterializationServiceImpl.class);
     private static final Gson GSON = new Gson();
     private static final int STEP_ORDER_RUNTIME_PROJECTION = 30;
+    private static final int STEP_ORDER_TEST_ARTIFACTS_READY = 35;
     private static final int STEP_ORDER_TARGET_MATERIALIZATION = 40;
+    private static final int STEP_ORDER_BOOT_VALIDATION = 50;
+    private static final int STEP_ORDER_TEST_FAILOVER_ACTIVE = 60;
     private static final long GIB = 1024L * 1024L * 1024L;
 
     @Inject
@@ -149,7 +152,7 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
     private AgentManager agentManager;
 
     @Override
-    public boolean ensureTargetPoweredOn(long planId) {
+    public DrTargetPowerOnResult ensureTargetPoweredOn(long planId) {
         DrPlanVO plan = drPlanDao.findById(planId);
         if (plan == null) {
             throw new CloudRuntimeException("DR plan was removed before target power-on");
@@ -168,11 +171,13 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
         if (targetVm == null || targetVm.getRemoved() != null) {
             throw new CloudRuntimeException("DR target VM no longer exists");
         }
-        if (targetVm.getState() == VirtualMachine.State.Running) {
-            return true;
+        Date powerOnAt = new Date();
+        boolean alreadyRunning = targetVm.getState() == VirtualMachine.State.Running;
+        if (alreadyRunning) {
+            return targetPowerOnResult(targetVm, powerOnAt, true);
         }
         if (targetVm.getState() != VirtualMachine.State.Stopped) {
-            return false;
+            throw new CloudRuntimeException("DR target VM is not startable from state " + targetVm.getState());
         }
         try {
             userVmManager.startVirtualMachine(targetVm.getId(), plan.getTargetWorkerHostId(),
@@ -181,7 +186,16 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
             throw new CloudRuntimeException("Failed to start the prepared DR target VM: " + e.getMessage(), e);
         }
         UserVmVO refreshed = userVmDao.findById(targetVm.getId());
-        return refreshed != null && refreshed.getState() == VirtualMachine.State.Running;
+        if (refreshed == null || refreshed.getState() != VirtualMachine.State.Running) {
+            throw new CloudRuntimeException("DR target VM did not reach Running state after start");
+        }
+        return targetPowerOnResult(refreshed, powerOnAt, false);
+    }
+
+    private DrTargetPowerOnResult targetPowerOnResult(UserVmVO targetVm, Date powerOnAt, boolean alreadyRunning) {
+        Date validatedAt = new Date();
+        return new DrTargetPowerOnResult(targetVm.getId(), targetVm.getUuid(), "POWERED_ON",
+                "POWER_STATE_VALIDATED", powerOnAt, validatedAt, alreadyRunning);
     }
 
     private final Set<Long> inFlightPlans = ConcurrentHashMap.newKeySet();
@@ -237,7 +251,7 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
     @Override
     public boolean isTestTargetActive(long runId) {
         DrTestSessionVO session = drTestSessionDao.findActiveByRunId(runId);
-        if (session == null || !StringUtils.equals(session.getState(), "ACTIVE") || session.getTargetVmId() == null) {
+        if (session == null || !StringUtils.equals(session.getState(), DrTestSessionState.ACTIVE) || session.getTargetVmId() == null) {
             return false;
         }
         UserVmVO vm = userVmDao.findById(session.getTargetVmId());
@@ -281,10 +295,16 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
         session.markUpdated();
         drTestSessionDao.update(session.getId(), session);
         try {
+            normalizeTestVolumePaths(session);
             if (session.getTargetVmId() != null) {
                 UserVmVO testVm = userVmDao.findById(session.getTargetVmId());
                 if (testVm != null && testVm.getRemoved() == null) {
                     userVmService.destroyVm(testVm.getId(), true);
+                    UserVmVO destroyedTestVm = userVmDao.findById(testVm.getId());
+                    if (destroyedTestVm != null && destroyedTestVm.getRemoved() == null
+                            && !userVmManager.expunge(destroyedTestVm)) {
+                        throw new CloudRuntimeException("Cloud-managed expunge returned false for DR test VM " + testVm.getUuid());
+                    }
                 }
             }
             AccountVO owner = resolveOwner(drPlanDao.findById(planId));
@@ -323,7 +343,8 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
             return;
         }
         DrTestSessionVO session = drTestSessionDao.findActiveByRunId(runId);
-        if (session != null && StringUtils.equals(session.getState(), "ACTIVE")) {
+        if (session != null && StringUtils.equals(session.getState(), DrTestSessionState.ACTIVE)) {
+            completeTestFailoverRunIfReady(plan, run, session, runtimeStatusJson);
             return;
         }
         if (session == null) {
@@ -340,9 +361,13 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
         session.setArtifactContractVersion("3");
         session.setDetailsJson(runtimeStatusJson);
         session.setCleanupRequired(true);
-        session.setState("CLOUD_VOLUMES_IMPORTING");
+        session.setState(DrTestSessionState.CLOUD_VOLUMES_IMPORTING);
         session.markUpdated();
         drTestSessionDao.update(session.getId(), session);
+        upsertRunStep(run, "test-artifacts-ready", STEP_ORDER_TEST_ARTIFACTS_READY,
+                DrConstants.STEP_STATE_SUCCEEDED, 80, runtimeStatusJson, null, null);
+        upsertRunStep(run, "target-materialization", STEP_ORDER_TARGET_MATERIALIZATION,
+                DrConstants.STEP_STATE_RUNNING, 85, runtimeStatusJson, null, null);
 
         try {
             DrResolvedTargetPlacement placement = resolvePlacement(plan, runtime);
@@ -391,7 +416,7 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
             if (rootVolume == null) {
                 throw new CloudRuntimeException("DR test root volume could not be resolved");
             }
-            session.setState("CLOUD_VM_CREATING");
+            session.setState(DrTestSessionState.CLOUD_VM_CREATING);
             session.markUpdated();
             drTestSessionDao.update(session.getId(), session);
             UserVmVO testVm = ensureTestVm(plan, placement, owner, rootVolume, runtime, networkMode);
@@ -407,7 +432,7 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
             session.setTargetVmId(testVm.getId());
             session.setTargetVmUuid(testVm.getUuid());
             session.setTargetVmName(testVm.getDisplayName());
-            session.setState("CLOUD_VM_STARTING");
+            session.setState(DrTestSessionState.CLOUD_VM_STARTING);
             session.markUpdated();
             drTestSessionDao.update(session.getId(), session);
             if (testVm.getState() != VirtualMachine.State.Running) {
@@ -418,13 +443,14 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
             if (running == null || running.getState() != VirtualMachine.State.Running) {
                 throw new CloudRuntimeException("DR_TEST_VM_BOOT_FAILED: Cloud test VM did not reach Running");
             }
-            session.setState("ACTIVE");
+            session.setState(DrTestSessionState.ACTIVE);
             session.setBootValidationState("POWER_STATE_VALIDATED");
             session.setArtifactManifest(GSON.toJson(records));
             session.setErrorCode(null);
             session.setErrorMessage(null);
             session.markUpdated();
             drTestSessionDao.update(session.getId(), session);
+            completeTestFailoverRunIfReady(plan, run, session, runtimeStatusJson);
         } catch (Exception e) {
             session.setState("FAILED");
             session.setErrorCode("DR_TEST_CLOUD_MATERIALIZATION_FAILED");
@@ -432,6 +458,52 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
             session.markUpdated();
             drTestSessionDao.update(session.getId(), session);
             LOGGER.warn("Failed to materialize Cloud-managed test VM for plan {} run {}: {}", plan.getUuid(), run.getUuid(), e.getMessage(), e);
+        }
+    }
+
+    private void completeTestFailoverRunIfReady(DrPlanVO plan, DrRunVO run, DrTestSessionVO session, String runtimeStatusJson) {
+        DrRunVO latestRun = drRunDao.findById(run.getId());
+        if (latestRun == null || latestRun.getRemoved() != null || latestRun.getCompleted() != null
+                || !StringUtils.equals(session.getState(), DrTestSessionState.ACTIVE)
+                || session.getTargetVmId() == null) {
+            return;
+        }
+        UserVmVO testVm = userVmDao.findById(session.getTargetVmId());
+        if (testVm == null || testVm.getRemoved() != null || testVm.getState() != VirtualMachine.State.Running) {
+            return;
+        }
+        try {
+            Date now = new Date();
+            upsertRunStep(latestRun, "target-materialization", STEP_ORDER_TARGET_MATERIALIZATION,
+                    DrConstants.STEP_STATE_SUCCEEDED, 100, runtimeStatusJson, null, null);
+            upsertRunStep(latestRun, "boot-validation", STEP_ORDER_BOOT_VALIDATION,
+                    DrConstants.STEP_STATE_SUCCEEDED, 100, runtimeStatusJson, null, null);
+            upsertRunStep(latestRun, "test-failover-active", STEP_ORDER_TEST_FAILOVER_ACTIVE,
+                    DrConstants.STEP_STATE_SUCCEEDED, 100, runtimeStatusJson, null, null);
+            latestRun.setState(DrConstants.RUN_STATE_SUCCEEDED);
+            latestRun.setCompleted(now);
+            latestRun.setCurrentStepName("test-failover-active");
+            latestRun.setEngineAccepted(true);
+            if (latestRun.getAcceptedAt() == null) {
+                latestRun.setAcceptedAt(now);
+            }
+            latestRun.setProjectionState("succeeded");
+            latestRun.setProjectionChecked(now);
+            latestRun.setRetryable(false);
+            latestRun.setRetryAfterSeconds(null);
+            latestRun.setNextRetryAt(null);
+            latestRun.setLastStatusJson(runtimeStatusJson);
+            latestRun.setErrorCode(null);
+            latestRun.setErrorMessage(null);
+            latestRun.markUpdated();
+            drRunDao.update(latestRun.getId(), latestRun);
+            recordEvent(plan.getId(), latestRun.getId(), DrConstants.EVENT_TEST_VM_ACTIVE,
+                    DrConstants.EVENT_SEVERITY_INFO, "Cloud-managed DR test VM is active", runtimeStatusJson);
+            recordEvent(plan.getId(), latestRun.getId(), DrConstants.EVENT_RUN_SUCCEEDED,
+                    DrConstants.EVENT_SEVERITY_INFO, "DR test failover completed; test environment remains active", runtimeStatusJson);
+        } catch (RuntimeException e) {
+            LOGGER.warn("Cloud-managed DR test VM is active, but run {} terminal convergence will retry: {}",
+                    latestRun.getUuid(), e.getMessage(), e);
         }
     }
 
@@ -774,7 +846,7 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
         StoragePoolVO pool = storagePoolForDisk(placement, disk);
         DiskOfferingVO offering = diskOfferingForDisk(disk);
         String volumeName = volumeNameForDisk(placement, disk, root, deviceId);
-        String path = StringUtils.defaultIfBlank(disk.getTargetRef(), volumeName);
+        String path = cloudVolumePath(StringUtils.defaultIfBlank(disk.getTargetRef(), volumeName), pool);
         VolumeVO existing = findExistingVolume(pool, path, volumeName);
         if (existing != null) {
             normalizeImportedVolume(existing, disk, root, deviceId, owner, pool, offering, path, disk.getCapacityBytes());
@@ -791,6 +863,34 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
         }
         normalizeImportedVolume(volume, disk, root, deviceId, owner, pool, offering, path, disk.getCapacityBytes());
         return verifyImportedVolumeFormat(volumeDao.findById(volume.getId()), disk, pool);
+    }
+
+    private void normalizeTestVolumePaths(DrTestSessionVO session) {
+        for (DrTestDiskVO disk : drTestDiskDao.listActiveBySessionId(session.getId())) {
+            if (disk.getTargetVolumeId() == null || !StringUtils.equalsIgnoreCase(disk.getProvider(), "RBD")) {
+                continue;
+            }
+            VolumeVO volume = volumeDao.findById(disk.getTargetVolumeId());
+            if (volume == null || volume.getRemoved() != null || volume.getPoolId() == null) {
+                continue;
+            }
+            StoragePoolVO pool = primaryDataStoreDao.findById(volume.getPoolId());
+            String normalizedPath = cloudVolumePath(firstNonBlank(disk.getArtifactRef(), volume.getPath()), pool);
+            if (StringUtils.isNotBlank(normalizedPath) && !StringUtils.equals(normalizedPath, volume.getPath())) {
+                volume.setPath(normalizedPath);
+                volumeDao.update(volume.getId(), volume);
+            }
+        }
+    }
+
+    private String cloudVolumePath(String artifactRef, StoragePoolVO pool) {
+        String path = stripArtifactScheme(artifactRef);
+        if (pool == null || pool.getPoolType() != Storage.StoragePoolType.RBD || StringUtils.isBlank(path)) {
+            return path;
+        }
+        String poolPath = StringUtils.strip(pool.getPath(), "/");
+        String prefix = StringUtils.isBlank(poolPath) ? null : poolPath + "/";
+        return prefix != null && StringUtils.startsWith(path, prefix) ? StringUtils.removeStart(path, prefix) : path;
     }
 
     private StoragePoolVO storagePoolForDisk(DrResolvedTargetPlacement placement, DrResolvedDiskMapping disk) {

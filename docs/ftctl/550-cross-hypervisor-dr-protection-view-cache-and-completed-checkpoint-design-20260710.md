@@ -1053,3 +1053,16 @@ The cached protection view will contain only current/latest aggregate cycle
 metrics. Full history is served from typed cycle tables. True VMware CBT
 incremental execution and evidence are defined in
 `555-cross-hypervisor-dr-vmware-cbt-incremental-and-transfer-metrics-design-20260714.md`.
+
+## 19. 2026-07-21 Current Protection Activity Contract
+
+`latestRun` is operation history and must never be interpreted as the current
+protection activity merely because no active Run exists. Protection-view cache
+version 2 separates `currentProtectionRuntime`, `activeRun`,
+`latestOperationRun`, `currentSyncCycle`, and `latestCompletedSyncCycle`.
+
+The current scheduler, control, owner, freshness, and authority fields come
+from `dr_plan_runtime`. A completed Run's frozen `last_status_json` is used only
+for operation diagnostics. The normative cache schema, compatibility rules,
+UI rendering priority, and acceptance tests are defined in
+`566-cross-hypervisor-dr-current-protection-activity-and-operation-history-projection-design-20260721.md`.

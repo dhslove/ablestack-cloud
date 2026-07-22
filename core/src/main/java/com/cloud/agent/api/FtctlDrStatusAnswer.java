@@ -20,6 +20,7 @@ public class FtctlDrStatusAnswer extends Answer {
 
     private String planUuid;
     private String runUuid;
+    private String statusScope;
     private String ftctlResult;
     private String state;
     private String step;
@@ -69,6 +70,7 @@ public class FtctlDrStatusAnswer extends Answer {
     private String latestCompletedCheckpointCycleType;
     private String latestCompletedCheckpointRef;
     private String latestCompletedCheckpointState;
+    private String latestCompletedProducerRunUuid;
     private String latestCompletedSourceCheckpointAt;
     private String latestCompletedTargetDurableAt;
     private Integer latestCompletedTargetReadyRpoSeconds;
@@ -102,11 +104,36 @@ public class FtctlDrStatusAnswer extends Answer {
     private String guestPreparationState;
     private String guestFamily;
     private String guestPreparationManifestPath;
+    private String manifestSchemaVersion;
+    private String manifestSha256;
+    private Long guestPreparationCheckpointSequence;
     private String testDomainName;
     private String testDomainState;
     private String testBootValidationMode;
     private Long runtimeGeneration;
     private Boolean schedulerPidAlive;
+    private String schedulerDesiredState;
+    private String schedulerServiceUnit;
+    private String schedulerUnitActiveState;
+    private String schedulerUnitSubState;
+    private Long schedulerUnitMainPid;
+    private String schedulerCgroup;
+    private String schedulerRecoveryState;
+    private String schedulerRecoveryTrigger;
+    private String schedulerRecoveredAt;
+    private String schedulerSessionUuid;
+    private Long schedulerLeaseEpoch;
+    private Long authoritySequence;
+    private Long planCycleSequence;
+    private String schedulerHealth;
+    private String replicationActivity;
+    private String protectionState;
+    private String activeWorkerRunUuid;
+    private Long activeWorkerPid;
+    private Long activeWorkerStartTicks;
+    private String workerHeartbeatAt;
+    private String controlRequestRunUuid;
+    private Boolean ownerMatched;
     private String baselineState;
     private String reseedReason;
     private Integer consecutiveAutomaticReseedCount;
@@ -161,6 +188,14 @@ public class FtctlDrStatusAnswer extends Answer {
 
     public String getRunUuid() {
         return runUuid;
+    }
+
+    public String getStatusScope() {
+        return statusScope;
+    }
+
+    public void setStatusScope(String statusScope) {
+        this.statusScope = statusScope;
     }
 
     public String getFtctlResult() {
@@ -458,6 +493,14 @@ public class FtctlDrStatusAnswer extends Answer {
         this.latestCompletedCheckpointState = latestCompletedCheckpointState;
     }
 
+    public String getLatestCompletedProducerRunUuid() {
+        return latestCompletedProducerRunUuid;
+    }
+
+    public void setLatestCompletedProducerRunUuid(String latestCompletedProducerRunUuid) {
+        this.latestCompletedProducerRunUuid = latestCompletedProducerRunUuid;
+    }
+
     public String getLatestCompletedSourceCheckpointAt() {
         return latestCompletedSourceCheckpointAt;
     }
@@ -701,6 +744,30 @@ public class FtctlDrStatusAnswer extends Answer {
         this.guestPreparationManifestPath = guestPreparationManifestPath;
     }
 
+    public String getManifestSchemaVersion() {
+        return manifestSchemaVersion;
+    }
+
+    public void setManifestSchemaVersion(String manifestSchemaVersion) {
+        this.manifestSchemaVersion = manifestSchemaVersion;
+    }
+
+    public String getManifestSha256() {
+        return manifestSha256;
+    }
+
+    public void setManifestSha256(String manifestSha256) {
+        this.manifestSha256 = manifestSha256;
+    }
+
+    public Long getGuestPreparationCheckpointSequence() {
+        return guestPreparationCheckpointSequence;
+    }
+
+    public void setGuestPreparationCheckpointSequence(Long guestPreparationCheckpointSequence) {
+        this.guestPreparationCheckpointSequence = guestPreparationCheckpointSequence;
+    }
+
     public String getTestDomainName() {
         return testDomainName;
     }
@@ -740,6 +807,52 @@ public class FtctlDrStatusAnswer extends Answer {
     public void setSchedulerPidAlive(Boolean schedulerPidAlive) {
         this.schedulerPidAlive = schedulerPidAlive;
     }
+
+    public String getSchedulerDesiredState() { return schedulerDesiredState; }
+    public void setSchedulerDesiredState(String value) { schedulerDesiredState = value; }
+    public String getSchedulerServiceUnit() { return schedulerServiceUnit; }
+    public void setSchedulerServiceUnit(String value) { schedulerServiceUnit = value; }
+    public String getSchedulerUnitActiveState() { return schedulerUnitActiveState; }
+    public void setSchedulerUnitActiveState(String value) { schedulerUnitActiveState = value; }
+    public String getSchedulerUnitSubState() { return schedulerUnitSubState; }
+    public void setSchedulerUnitSubState(String value) { schedulerUnitSubState = value; }
+    public Long getSchedulerUnitMainPid() { return schedulerUnitMainPid; }
+    public void setSchedulerUnitMainPid(Long value) { schedulerUnitMainPid = value; }
+    public String getSchedulerCgroup() { return schedulerCgroup; }
+    public void setSchedulerCgroup(String value) { schedulerCgroup = value; }
+    public String getSchedulerRecoveryState() { return schedulerRecoveryState; }
+    public void setSchedulerRecoveryState(String value) { schedulerRecoveryState = value; }
+    public String getSchedulerRecoveryTrigger() { return schedulerRecoveryTrigger; }
+    public void setSchedulerRecoveryTrigger(String value) { schedulerRecoveryTrigger = value; }
+    public String getSchedulerRecoveredAt() { return schedulerRecoveredAt; }
+    public void setSchedulerRecoveredAt(String value) { schedulerRecoveredAt = value; }
+
+    public String getSchedulerSessionUuid() { return schedulerSessionUuid; }
+    public void setSchedulerSessionUuid(String value) { schedulerSessionUuid = value; }
+    public Long getSchedulerLeaseEpoch() { return schedulerLeaseEpoch; }
+    public void setSchedulerLeaseEpoch(Long value) { schedulerLeaseEpoch = value; }
+    public Long getAuthoritySequence() { return authoritySequence; }
+    public void setAuthoritySequence(Long value) { authoritySequence = value; }
+    public Long getPlanCycleSequence() { return planCycleSequence; }
+    public void setPlanCycleSequence(Long value) { planCycleSequence = value; }
+    public String getSchedulerHealth() { return schedulerHealth; }
+    public void setSchedulerHealth(String value) { schedulerHealth = value; }
+    public String getReplicationActivity() { return replicationActivity; }
+    public void setReplicationActivity(String value) { replicationActivity = value; }
+    public String getProtectionState() { return protectionState; }
+    public void setProtectionState(String value) { protectionState = value; }
+    public String getActiveWorkerRunUuid() { return activeWorkerRunUuid; }
+    public void setActiveWorkerRunUuid(String value) { activeWorkerRunUuid = value; }
+    public Long getActiveWorkerPid() { return activeWorkerPid; }
+    public void setActiveWorkerPid(Long value) { activeWorkerPid = value; }
+    public Long getActiveWorkerStartTicks() { return activeWorkerStartTicks; }
+    public void setActiveWorkerStartTicks(Long value) { activeWorkerStartTicks = value; }
+    public String getWorkerHeartbeatAt() { return workerHeartbeatAt; }
+    public void setWorkerHeartbeatAt(String value) { workerHeartbeatAt = value; }
+    public String getControlRequestRunUuid() { return controlRequestRunUuid; }
+    public void setControlRequestRunUuid(String value) { controlRequestRunUuid = value; }
+    public Boolean getOwnerMatched() { return ownerMatched; }
+    public void setOwnerMatched(Boolean value) { ownerMatched = value; }
 
     public String getBaselineState() {
         return baselineState;

@@ -125,3 +125,86 @@ Agent가 대상 호스트에서 검증한 뒤 FTCTL에 전달한다. FTCTL은 �
 `../561-cross-hypervisor-dr-cloud-managed-test-failover-lifecycle-design-20260719.md`,
 canonical artifact와 상태 투영 보정은
 `../562-cross-hypervisor-dr-test-artifact-contract-and-projection-isolation-design-20260719.md`를 따른다.
+
+## 2026-07-20 테스트 페일오버 완료 상태 보정
+
+테스트 페일오버가 성공하면 실행 이력과 테스트 환경은 서로 다른 상태를
+가진다. 유한 작업인 `TEST_FAILOVER` Run은 테스트 VM 부팅 검증 직후
+`SUCCEEDED`로 완료되고, 테스트 환경을 나타내는 Test Session은 운영자가
+`테스트 페일오버 중지`를 실행할 때까지 `ACTIVE`를 유지한다.
+
+FTCTL의 `TEST_ARTIFACTS_READY`는 테스트 디스크와 체크포인트 lease가
+유지되고 있다는 엔진 상태이므로 정상이다. 이 상태가 Cloud Test Session의
+`ACTIVE`를 덮어쓰거나 Run 완료를 막아서는 안 된다. UI는 보호 상태,
+완료된 테스트 실행 이력, 활성 테스트 환경을 구분하여 표시한다.
+
+세부 상태 전이, 완료 판정, 요청 필드명, 재시작 복구 및 검증 기준은
+`../563-cross-hypervisor-dr-test-failover-terminal-convergence-design-20260720.md`를
+따른다.
+
+## 2026-07-20 보호 상태와 복제 활동 표시
+
+첫 번째 복구 가능한 복제본이 준비된 뒤에는 주기적인 증분 전송이 실행 중이어도
+Plan의 보호 상태는 `정상(READY)`으로 표시한다. 전송 여부는 별도 `복제 활동`
+항목에서 `대기` 또는 `복제 중`으로 표시한다.
+
+대상 복제본은 존재하지만 Scheduler가 종료됐거나 소유권이 일치하지 않으면
+`동기화 중`이 아니라 `보호 저하(DEGRADED)`로 표시한다. 이 경우 마지막 정상
+복제 시각은 유지되지만 Test Failover와 일반 Failover는 Scheduler 복구 전까지
+차단된다.
+
+pause/resume 실행 이력은 짧은 작업 결과이며 지속 Scheduler 자체가 아니다.
+운영자는 보호 상태, 복제 활동, Scheduler 상태, 마지막 완료 복제 시각을 함께
+확인한다. 세부 계약은
+`../564-cross-hypervisor-dr-plan-scheduler-singleton-authority-design-20260720.md`를
+따른다.
+
+## 2026-07-21 테스트 정리 이후 화면 해석
+
+테스트 정리가 성공하면 해당 `TEST_CLEANUP` 작업은 이력 탭에 완료 작업으로
+남는다. 보호 정보 화면의 현재 동작은 완료된 정리 작업이 아니라 현재
+Scheduler와 복제 Cycle을 기준으로 표시한다.
+
+- 활성 작업이 있으면 해당 작업 진행 상태를 표시한다.
+- 활성 복제 Cycle이 있으면 복제 진행 상태를 표시한다.
+- 둘 다 없으면 보호 상태 `정상`과 복제 활동 `대기`를 표시한다.
+- 완료된 테스트 정리는 현재 보호 상태나 테스트 페일오버 가능 여부를
+  덮어쓰지 않는다.
+
+화면에 완료된 `TEST_CLEANUP` 진행 카드가 계속 보이거나 Scheduler/control이
+`UNKNOWN`으로 보이면 실제 복제 중단이 아니라 구형 cache/UI projection일 수
+있다. 상세 판정 계약은
+`../566-cross-hypervisor-dr-current-protection-activity-and-operation-history-projection-design-20260721.md`를
+따른다.
+
+## 2026-07-22 실제 페일오버 cutover 절차 보정
+
+실제 페일오버는 원본 VMware 가상머신을 삭제하지 않는다. 계획 페일오버는
+원본을 정지하고 격리한 뒤 마지막 증분을 반영하며, 재해 페일오버는 운영자가
+원본이 이미 격리되었거나 접근 불가능함을 명시적으로 확인한 뒤 최신 내구
+체크포인트를 사용한다.
+
+실행 전 화면은 체크포인트 시각/RPO, 원본 격리, 게스트 OS, EFI/Secure Boot,
+대상 디스크 수와 스토리지, 대상 가상머신 상태, FTCTL manifest capability를
+읽기 전용으로 검증한다. 실행 요청은 비동기로 접수되고 화면은 다음 단계를
+각각 표시한다.
+
+1. cutover 사전 검증
+2. 원본 격리 확인
+3. 마지막 동기화 또는 내구 체크포인트 선택
+4. 게스트 준비
+5. cutover 준비 완료
+6. 기존 대상 가상머신 기동
+7. 부팅 검증
+8. 대상 사이트 활성화
+
+FTCTL은 체크포인트, 대상 디스크 데이터, VirtIO/게스트 준비를 담당한다.
+Cloud는 이미 관리 중인 대상 가상머신을 기동하고 부팅을 검증한 뒤에만 활성
+사이트를 TARGET으로 전환한다. 게스트 준비 단계에서 실패하면 대상 데이터와
+체크포인트는 재시도를 위해 보존하고, 대상 가상머신은 정지 상태로 유지하며,
+활성 사이트는 SOURCE에서 바뀌지 않는다. 원본은 자동으로 시작하거나 삭제하지
+않는다.
+
+세부 manifest, RBD locator, 오류 및 rollback 계약은
+`../567-cross-hypervisor-dr-real-failover-cutover-manifest-and-rollback-design-20260722.md`를
+따른다.

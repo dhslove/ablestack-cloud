@@ -9,6 +9,7 @@ import java.util.List;
 
 import com.cloud.dr.DrSyncCycleVO;
 import com.cloud.utils.db.DB;
+import com.cloud.utils.db.Filter;
 import com.cloud.utils.db.GenericDaoBase;
 import com.cloud.utils.db.SearchBuilder;
 import com.cloud.utils.db.SearchCriteria;
@@ -17,6 +18,12 @@ import com.cloud.utils.db.SearchCriteria;
 public class DrSyncCycleDaoImpl extends GenericDaoBase<DrSyncCycleVO, Long> implements DrSyncCycleDao {
     private final SearchBuilder<DrSyncCycleVO> byIdentitySearch;
     private final SearchBuilder<DrSyncCycleVO> byPlanSearch;
+    private final SearchBuilder<DrSyncCycleVO> activeByPlanSearch;
+    private final SearchBuilder<DrSyncCycleVO> completedByPlanSearch;
+
+    private static final String[] ACTIVE_STATES = {
+            "PREPARING", "SNAPSHOTTING", "TRANSFERRING", "COMMITTING", "RETRYING", "RUNNING"
+    };
 
     public DrSyncCycleDaoImpl() {
         byIdentitySearch = createSearchBuilder();
@@ -29,6 +36,18 @@ public class DrSyncCycleDaoImpl extends GenericDaoBase<DrSyncCycleVO, Long> impl
         byPlanSearch.and("planId", byPlanSearch.entity().getPlanId(), SearchCriteria.Op.EQ);
         byPlanSearch.and("removed", byPlanSearch.entity().getRemoved(), SearchCriteria.Op.NULL);
         byPlanSearch.done();
+
+        activeByPlanSearch = createSearchBuilder();
+        activeByPlanSearch.and("planId", activeByPlanSearch.entity().getPlanId(), SearchCriteria.Op.EQ);
+        activeByPlanSearch.and("states", activeByPlanSearch.entity().getState(), SearchCriteria.Op.IN);
+        activeByPlanSearch.and("removed", activeByPlanSearch.entity().getRemoved(), SearchCriteria.Op.NULL);
+        activeByPlanSearch.done();
+
+        completedByPlanSearch = createSearchBuilder();
+        completedByPlanSearch.and("planId", completedByPlanSearch.entity().getPlanId(), SearchCriteria.Op.EQ);
+        completedByPlanSearch.and("completed", completedByPlanSearch.entity().getCompleted(), SearchCriteria.Op.NNULL);
+        completedByPlanSearch.and("removed", completedByPlanSearch.entity().getRemoved(), SearchCriteria.Op.NULL);
+        completedByPlanSearch.done();
     }
 
     @Override
@@ -47,10 +66,27 @@ public class DrSyncCycleDaoImpl extends GenericDaoBase<DrSyncCycleVO, Long> impl
     }
 
     @Override
+    public DrSyncCycleVO findActiveByPlanId(long planId) {
+        SearchCriteria<DrSyncCycleVO> sc = activeByPlanSearch.create();
+        sc.setParameters("planId", planId);
+        sc.setParameters("states", (Object[]) ACTIVE_STATES);
+        List<DrSyncCycleVO> rows = listBy(sc, new Filter(DrSyncCycleVO.class, "sequence", false, 0L, 1L));
+        return rows != null && !rows.isEmpty() ? rows.get(0) : null;
+    }
+
+    @Override
+    public DrSyncCycleVO findLatestCompletedByPlanId(long planId) {
+        SearchCriteria<DrSyncCycleVO> sc = completedByPlanSearch.create();
+        sc.setParameters("planId", planId);
+        List<DrSyncCycleVO> rows = listBy(sc, new Filter(DrSyncCycleVO.class, "sequence", false, 0L, 1L));
+        return rows != null && !rows.isEmpty() ? rows.get(0) : null;
+    }
+
+    @Override
     public List<DrSyncCycleVO> listByPlanId(long planId) {
         SearchCriteria<DrSyncCycleVO> sc = byPlanSearch.create();
         sc.setParameters("planId", planId);
-        return listBy(sc, new com.cloud.utils.db.Filter(DrSyncCycleVO.class, "sequence", false, null, null));
+        return listBy(sc, new Filter(DrSyncCycleVO.class, "sequence", false, null, null));
     }
 
     @Override

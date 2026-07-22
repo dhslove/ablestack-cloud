@@ -167,6 +167,10 @@
                   :sourceSite="siteById[detailPlan.sourcesiteid] || {}"
                   :targetSite="siteById[detailPlan.targetsiteid] || {}"
                   :currentRun="currentRun"
+                  :latestOperationRun="latestOperationRun"
+                  :currentSyncCycle="currentSyncCycle"
+                  :latestCompletedSyncCycle="latestCompletedSyncCycle"
+                  :currentProtectionRuntime="currentProtectionRuntime"
                   :replicas="protectionSnapshot.replicas || []"
                   :latestCompletedCheckpoint="protectionSnapshot.latestCompletedCheckpoint || {}"
                   :generated="protectionView.generated || ''"
@@ -873,6 +877,23 @@
           :label="$t('label.dr.action.skip.source.fence')">
           <a-switch v-model:checked="actionForm.skipsourcefencerequest" />
         </a-form-item>
+        <template v-if="isFailoverAction && actionForm.disaster">
+          <a-alert
+            type="warning"
+            show-icon
+            :message="$t('message.dr.failover.source.isolation.notice')" />
+          <a-form-item :label="$t('label.dr.failover.source.isolation.acknowledged')" required>
+            <a-checkbox v-model:checked="actionForm.sourceisolationacknowledged">
+              {{ $t('message.dr.failover.source.isolation.acknowledgement') }}
+            </a-checkbox>
+          </a-form-item>
+          <a-form-item :label="$t('label.dr.failover.source.isolation.reason')" required>
+            <a-textarea
+              v-model:value="actionForm.sourceisolationreason"
+              :rows="3"
+              :placeholder="$t('message.dr.failover.source.isolation.reason.placeholder')" />
+          </a-form-item>
+        </template>
         <a-alert
           v-if="isTestFailoverAction || isFailoverAction"
           type="info"
@@ -994,7 +1015,7 @@ import Status from '@/components/widgets/Status'
 import TooltipLabel from '@/components/widgets/TooltipLabel'
 import { createDrPlan, deleteDrPlan, discoverDrPlanInventory, getDrPlan, getDrProtectionView, listDrPlans, listDrReplicas, listDrRuns, listDrSites, previewDrPlanSpec, refreshDrProtectionView, startDrAction, updateDrPlan } from '@/api/dr'
 import { DEFAULT_DR_PLAN_ACTIVE_SECTIONS, DR_PLAN_DIALOG_SECTIONS, drPlanSectionForValidation } from '@/utils/dr/planDialogSections'
-import { resolveDrPlanState } from '@/utils/dr/planState'
+import { isActiveDrRun, isActiveDrSyncCycle, resolveDrPlanState } from '@/utils/dr/planState'
 import { buildDrPlanActions } from '@/utils/dr/resourceActions'
 import { mixinDevice } from '@/utils/mixin.js'
 import { BranchesOutlined, ClockCircleOutlined, DesktopOutlined, GlobalOutlined } from '@ant-design/icons-vue'
@@ -1424,7 +1445,22 @@ export default {
       return this.filteredPlans
     },
     currentRun () {
-      return this.detailRuns.find(run => this.isActiveRun(run)) || this.detailRuns[0] || this.detailPlan.lastrun || {}
+      const cachedActiveRun = this.protectionSnapshot.activeRun || {}
+      return isActiveDrRun(cachedActiveRun)
+        ? cachedActiveRun
+        : (this.detailRuns.find(run => isActiveDrRun(run)) || {})
+    },
+    latestOperationRun () {
+      return this.protectionSnapshot.latestOperationRun || this.detailRuns[0] || this.detailPlan.lastrun || {}
+    },
+    currentSyncCycle () {
+      return this.protectionSnapshot.currentSyncCycle || {}
+    },
+    latestCompletedSyncCycle () {
+      return this.protectionSnapshot.latestCompletedSyncCycle || {}
+    },
+    currentProtectionRuntime () {
+      return this.protectionSnapshot.currentProtectionRuntime || {}
     },
     actionModalTitle () {
       return this.selectedAction.label ? this.$t(this.selectedAction.label) : this.$t('label.actions')
@@ -1535,6 +1571,8 @@ export default {
         disaster: false,
         finalsync: true,
         skipsourcefencerequest: false,
+        sourceisolationacknowledged: false,
+        sourceisolationreason: '',
         failbacktargetmoldtype: 'current',
         remotemoldapiurl: '',
         remotemoldapikey: '',
@@ -2204,24 +2242,51 @@ export default {
         const targetSite = this.normalizeCachedRecord(snapshot.targetSite)
         if (sourceSite.uuid) sourceSite.id = sourceSite.uuid
         if (targetSite.uuid) targetSite.id = targetSite.uuid
-        const latestRun = this.normalizeCachedRecord(snapshot.latestRun)
+        const latestOperationRun = this.normalizeCachedRecord(snapshot.latestOperationRun || snapshot.latestRun)
+        let activeRun = this.normalizeCachedRecord(snapshot.activeRun)
+        if ((!activeRun.id && !activeRun.uuid) && isActiveDrRun(latestOperationRun)) {
+          activeRun = latestOperationRun
+        }
+        const activeRunSteps = (snapshot.activeRunSteps || (activeRun.id === latestOperationRun.id ? snapshot.latestRunSteps : []) || [])
+          .map(item => this.normalizeCachedRecord(item))
+        const latestOperationRunSteps = (snapshot.latestOperationRunSteps || snapshot.latestRunSteps || [])
+          .map(item => this.normalizeCachedRecord(item))
+        const currentProtectionRuntime = this.normalizeCachedRecord(snapshot.currentProtectionRuntime)
+        const currentSyncCycle = this.normalizeCachedRecord(snapshot.currentSyncCycle)
+        const latestCompletedSyncCycle = this.normalizeCachedRecord(snapshot.latestCompletedSyncCycle)
+        const normalizedActiveRun = activeRun && (activeRun.uuid || activeRun.id)
+          ? Object.assign({}, activeRun, {
+            id: activeRun.uuid || activeRun.id,
+            steps: activeRunSteps
+          })
+          : {}
+        const normalizedLatestOperationRun = latestOperationRun && (latestOperationRun.uuid || latestOperationRun.id)
+          ? Object.assign({}, latestOperationRun, {
+            id: latestOperationRun.uuid || latestOperationRun.id,
+            steps: latestOperationRunSteps
+          })
+          : {}
         this.protectionSnapshot = {
           plan: cachedPlan,
           sourceSite,
           targetSite,
-          latestRun,
-          latestRunSteps: (snapshot.latestRunSteps || []).map(item => this.normalizeCachedRecord(item)),
+          activeRun: normalizedActiveRun,
+          activeRunSteps,
+          latestOperationRun: normalizedLatestOperationRun,
+          latestOperationRunSteps,
+          currentProtectionRuntime,
+          currentSyncCycle,
+          latestCompletedSyncCycle,
+          latestRun: normalizedLatestOperationRun,
+          latestRunSteps: latestOperationRunSteps,
           replicas: (snapshot.replicas || []).map(item => this.normalizeCachedRecord(item)),
           latestCompletedCheckpoint: this.normalizeCachedRecord(snapshot.latestCompletedCheckpoint),
           events: (snapshot.events || []).map(item => this.normalizeCachedRecord(item))
         }
         this.sites = [sourceSite, targetSite].filter(site => site && site.id)
-        this.detailRuns = latestRun && (latestRun.uuid || latestRun.id)
-          ? [Object.assign({}, latestRun, {
-            id: latestRun.uuid || latestRun.id,
-            steps: this.protectionSnapshot.latestRunSteps
-          })]
-          : []
+        this.detailRuns = [normalizedActiveRun, normalizedLatestOperationRun]
+          .filter(run => run && run.id)
+          .filter((run, index, runs) => runs.findIndex(item => String(item.id) === String(run.id)) === index)
       }).catch(error => {
         this.detailLoadWarning = this.errorMessage(error)
         return options.silent ? undefined : this.fetchRuns()
@@ -2803,6 +2868,14 @@ export default {
         })
         return
       }
+      if (this.isFailoverAction && this.actionForm.disaster &&
+        (!this.actionForm.sourceisolationacknowledged || !this.actionForm.sourceisolationreason.trim())) {
+        notification.error({
+          message: this.$t('label.dr.failover.source.isolation.acknowledged'),
+          description: this.$t('message.dr.failover.source.isolation.required')
+        })
+        return
+      }
       this.actionSubmitting = true
       this.executePlanAction(this.selectedAction, this.selectedActionPlan, this.buildActionPayload())
         .then(() => {
@@ -2822,6 +2895,12 @@ export default {
         payload.disaster = this.actionForm.disaster
         payload.finalsync = !this.actionForm.disaster && this.actionForm.finalsync
         payload.skipsourcefencerequest = this.actionForm.skipsourcefencerequest
+        payload.sourceisolationacknowledged = this.actionForm.disaster
+          ? this.actionForm.sourceisolationacknowledged
+          : undefined
+        payload.sourceisolationreason = this.actionForm.disaster
+          ? this.actionForm.sourceisolationreason.trim()
+          : undefined
       }
       if (this.isReleaseAction) {
         payload.force = this.actionForm.force
@@ -2980,10 +3059,13 @@ export default {
       this.scheduleRuntimePolling()
     },
     isActiveRun (run) {
-      return ['QUEUED', 'PREPARING', 'DISPATCHING', 'ACCEPTED', 'RUNNING', 'RETRYING', 'CANCEL_REQUESTED'].includes(String(run?.state || '').toUpperCase())
+      return isActiveDrRun(run)
     },
     shouldPollActiveRun () {
       return this.isActiveRun(this.currentRun)
+    },
+    shouldPollActiveCycle () {
+      return isActiveDrSyncCycle(this.currentSyncCycle)
     },
     shouldPollProtectionView () {
       if (!this.detailId || !this.detailPlan.id || !('getDrProtectionView' in this.$store.getters.apis)) {
@@ -2996,7 +3078,7 @@ export default {
       return !document.hidden && this.shouldPollProtectionView()
     },
     runtimePollDelay () {
-      return this.shouldPollActiveRun()
+      return this.shouldPollActiveRun() || this.shouldPollActiveCycle()
         ? this.activeRuntimePollIntervalMs
         : this.steadyProtectionPollIntervalMs
     },

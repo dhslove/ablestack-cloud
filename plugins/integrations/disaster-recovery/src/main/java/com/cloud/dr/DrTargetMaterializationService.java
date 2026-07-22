@@ -23,5 +23,5 @@ public interface DrTargetMaterializationService {
     boolean isTestTargetActive(long runId);
     boolean isTestTargetCleaned(long planId);
     void completeTestCleanup(long planId);
-    boolean ensureTargetPoweredOn(long planId);
+    DrTargetPowerOnResult ensureTargetPoweredOn(long planId);
 }

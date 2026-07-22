@@ -17,6 +17,7 @@
 package com.cloud.dr.adapter.ftctl;
 
 import java.util.Collections;
+import java.util.Date;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -28,6 +29,8 @@ import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnitRunner;
 
 import com.cloud.agent.AgentManager;
+import com.cloud.agent.api.Answer;
+import com.cloud.agent.api.FtctlDrActionCommand;
 import com.cloud.agent.api.FtctlDrStatusAnswer;
 import com.cloud.agent.api.FtctlDrStatusCommand;
 import com.cloud.dr.DrConstants;
@@ -40,6 +43,8 @@ import com.cloud.dr.DrRestorePointVO;
 import com.cloud.dr.DrRunStepVO;
 import com.cloud.dr.DrRunVO;
 import com.cloud.dr.DrTargetMaterializationService;
+import com.cloud.dr.DrTargetPowerOnResult;
+import com.cloud.dr.DrTestSessionVO;
 import com.cloud.dr.adapter.DrAdapterResult;
 import com.cloud.dr.dao.DrCutoverDiskDao;
 import com.cloud.dr.dao.DrCutoverSessionDao;
@@ -88,6 +93,82 @@ public class FtctlDrRuntimeProjectionAdapterTest {
 
     @InjectMocks
     private FtctlDrRuntimeProjectionAdapter adapter;
+
+    @Test
+    public void refreshPlanProjectionCompletesTestFailoverWithoutDowngradingActiveSession() {
+        DrPlanVO plan = new DrPlanVO("ftctl-dr-plan", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
+        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
+        plan.setCoordinatorWorkerHostId(103L);
+        DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_TEST_FAILOVER);
+        run.setState(DrConstants.RUN_STATE_ACCEPTED);
+        DrTestSessionVO session = new DrTestSessionVO(plan.getId(), run.getId(), "ACTIVE");
+
+        String statusJson = "{\"state\":\"TEST_ARTIFACTS_READY\",\"worker_state\":\"SUCCEEDED\"," +
+                "\"transition_state\":\"TEST_ACTIVE\",\"progress\":100}";
+        Mockito.when(agentManager.easySend(Mockito.eq(103L), Mockito.any(FtctlDrStatusCommand.class))).thenAnswer(invocation -> {
+            FtctlDrStatusCommand command = invocation.getArgument(1);
+            return new FtctlDrStatusAnswer(command, true, "ok", plan.getUuid(), run.getUuid(),
+                    "ok", "TEST_ARTIFACTS_READY", "test-artifacts-ready", 100,
+                    null, null, null, null, null, 0, "", statusJson);
+        });
+        Mockito.when(drRunDao.findActiveByPlanId(plan.getId())).thenReturn(run);
+        Mockito.when(drTestSessionDao.findActiveByRunId(run.getId())).thenReturn(session);
+        Mockito.when(drTargetMaterializationService.isTestTargetActive(run.getId())).thenReturn(true);
+
+        DrAdapterResult result = adapter.refreshPlanProjection(plan);
+
+        Assert.assertTrue(result.isSuccess());
+        Assert.assertEquals("ACTIVE", session.getState());
+        Assert.assertEquals(DrConstants.RUN_STATE_SUCCEEDED, run.getState());
+        Assert.assertEquals("test-failover-active", run.getCurrentStepName());
+        Assert.assertNotNull(run.getCompleted());
+        Mockito.verify(drTargetMaterializationService, Mockito.never())
+                .enqueueTestMaterialization(Mockito.anyLong(), Mockito.anyLong(), Mockito.anyString());
+    }
+
+    @Test
+    public void refreshPlanProjectionSeparatesAuthorityAndOperationWithoutErasingLastGoodVerification() {
+        DrPlanVO plan = new DrPlanVO("ftctl-dr-plan", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
+        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
+        plan.setCoordinatorWorkerHostId(103L);
+        DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_TEST_FAILOVER);
+        run.setState(DrConstants.RUN_STATE_ACCEPTED);
+        DrPlanRuntimeVO authority = new DrPlanRuntimeVO(plan.getId());
+        authority.setLatestCompletedCycleSequence(42L);
+        authority.setLatestCompletedIncrementalVerified(true);
+
+        Mockito.when(drRunDao.findActiveByPlanId(plan.getId())).thenReturn(run);
+        Mockito.when(drPlanRuntimeDao.findByPlanId(plan.getId())).thenReturn(authority);
+        Mockito.when(drTargetMaterializationService.isTestTargetActive(run.getId())).thenReturn(true);
+        Mockito.when(agentManager.easySend(Mockito.eq(103L), Mockito.any(FtctlDrStatusCommand.class))).thenAnswer(invocation -> {
+            FtctlDrStatusCommand command = invocation.getArgument(1);
+            if (command.getStatusScope() == FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY) {
+                FtctlDrStatusAnswer answer = new FtctlDrStatusAnswer(command, true, "ok", plan.getUuid(), null,
+                        "ok", "READY", "checkpoint-ready", 100, null, null, null,
+                        null, null, 0, "", "{\"scheduler_state\":\"RUNNING\"}");
+                answer.setStatusScope("PLAN_AUTHORITY");
+                return answer;
+            }
+            FtctlDrStatusAnswer answer = new FtctlDrStatusAnswer(command, true, "ok", plan.getUuid(), run.getUuid(),
+                    "ok", "TEST_ARTIFACTS_READY", "test-artifacts-ready", 100, null, null, null,
+                    null, null, 0, "", "{\"state\":\"TEST_ARTIFACTS_READY\"}");
+            answer.setStatusScope("OPERATION");
+            return answer;
+        });
+
+        DrAdapterResult result = adapter.refreshPlanProjection(plan);
+
+        Assert.assertTrue(result.isSuccess());
+        Assert.assertEquals(Boolean.TRUE, authority.getLatestCompletedIncrementalVerified());
+        ArgumentCaptor<FtctlDrStatusCommand> commandCaptor = ArgumentCaptor.forClass(FtctlDrStatusCommand.class);
+        Mockito.verify(agentManager, Mockito.times(2)).easySend(Mockito.eq(103L), commandCaptor.capture());
+        Assert.assertEquals(FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY,
+                commandCaptor.getAllValues().get(0).getStatusScope());
+        Assert.assertEquals(FtctlDrStatusCommand.StatusScope.OPERATION,
+                commandCaptor.getAllValues().get(1).getStatusScope());
+    }
 
     @Test
     public void refreshPlanProjectionRetainsLastGoodDataForMixedCompletedCycleGeneration() {
@@ -328,8 +409,8 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     }
 
     @Test
-    public void refreshPlanProjectionCompletesAcceptedFailoverRunWhenRuntimeFailedOver() {
-        DrPlanVO plan = new DrPlanVO("ftctl-dr-plan", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+    public void refreshPlanProjectionCompletesFailoverOnlyAfterCloudPromotionAndEngineAck() {
+        DrPlanVO plan = new DrPlanVO("ftctl-dr-plan", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
         plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
         plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
         plan.setState(DrConstants.PLAN_STATE_READY);
@@ -337,35 +418,59 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         plan.setCoordinatorWorkerHostId(103L);
         DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_FAILOVER);
         run.setState(DrConstants.RUN_STATE_ACCEPTED);
+        DrCutoverSessionVO session = new DrCutoverSessionVO(plan.getId(), run.getId(), run.getRunType(), "CUTOVER_READY");
+        Date now = new Date();
 
-        String statusJson = "{\"state\":\"FAILED_OVER\",\"active_side\":\"TARGET\",\"failover_session_id\":\""
-                + plan.getUuid() + ":run-failover\",\"failover_restore_point_ref\":\"ftctl:"
-                + plan.getUuid() + ":7\",\"checkpoint_sequence\":7,\"target_power_state\":\"POWER_ON_DELEGATED\"}";
+        String manifestSha256 = String.join("", Collections.nCopies(64, "a"));
+        String statusJson = "{\"state\":\"CUTOVER_READY\",\"active_side\":\"SOURCE\",\"failover_session_id\":\""
+                + plan.getUuid() + ":" + run.getUuid() + "\",\"failover_restore_point_ref\":\"ftctl:"
+                + plan.getUuid() + ":7\",\"checkpoint_sequence\":7,\"guest_prep_state\":\"READY\","
+                + "\"guestprep_checkpoint_sequence\":7,\"manifest_schema_version\":\"FTCTL_GUESTPREP_MANIFEST_V2\","
+                + "\"manifest_sha256\":\"" + manifestSha256 + "\",\"target_disk_count\":1}";
         Mockito.when(agentManager.easySend(Mockito.eq(103L), Mockito.any(FtctlDrStatusCommand.class))).thenAnswer(invocation -> {
             FtctlDrStatusCommand command = invocation.getArgument(1);
-            return new FtctlDrStatusAnswer(command, true, "ok", plan.getUuid(), null,
-                    "ok", "FAILED_OVER", "active-side-switch", 100,
+            FtctlDrStatusAnswer answer = new FtctlDrStatusAnswer(command, true, "ok", plan.getUuid(), run.getUuid(),
+                    "ok", "CUTOVER_READY", "cutover-ready", 95,
                     "2026-07-01T03:10:00Z", "2026-07-01T03:10:02Z", 2,
                     13L, null, 0, "", statusJson);
+            answer.setGuestPreparationState("READY");
+            answer.setManifestSchemaVersion("FTCTL_GUESTPREP_MANIFEST_V2");
+            answer.setManifestSha256(manifestSha256);
+            answer.setGuestPreparationCheckpointSequence(7L);
+            answer.setLatestCompletedCheckpointSequence(7L);
+            answer.setTargetDiskCount(1);
+            return answer;
         });
+        Mockito.when(agentManager.easySend(Mockito.eq(103L), Mockito.any(FtctlDrActionCommand.class)))
+                .thenAnswer(invocation -> new Answer(invocation.getArgument(1), true, "acknowledged"));
         Mockito.when(drRunDao.findActiveByPlanId(plan.getId())).thenReturn(run);
-        Mockito.when(drCutoverSessionDao.persist(Mockito.any(DrCutoverSessionVO.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        Mockito.when(drCutoverSessionDao.findActiveByRunId(run.getId())).thenReturn(session);
+        Mockito.when(drTargetMaterializationService.ensureTargetPoweredOn(plan.getId()))
+                .thenReturn(new DrTargetPowerOnResult(91L, "target-uuid", "POWERED_ON",
+                        "POWER_STATE_VALIDATED", now, now, false));
 
         DrAdapterResult result = adapter.refreshPlanProjection(plan);
 
         Assert.assertTrue(result.isSuccess());
+        Assert.assertEquals(DrConstants.PLAN_STATE_FAILED_OVER, plan.getState());
+        Assert.assertEquals("TARGET", plan.getActiveSide());
+        Assert.assertEquals("PROMOTED", session.getCloudPromotionState());
+        Assert.assertEquals("POWERED_ON", session.getTargetPowerState());
+        Assert.assertEquals("ACKNOWLEDGED", session.getEngineAckState());
+        Assert.assertNotNull(session.getCompletedAt());
         Assert.assertEquals(DrConstants.RUN_STATE_SUCCEEDED, run.getState());
-        Assert.assertEquals("runtime-projection", run.getCurrentStepName());
+        Assert.assertEquals("completed", run.getCurrentStepName());
         Assert.assertNull(run.getErrorCode());
         Assert.assertNotNull(run.getCompleted());
 
         ArgumentCaptor<DrRunStepVO> stepCaptor = ArgumentCaptor.forClass(DrRunStepVO.class);
-        Mockito.verify(drRunStepDao).persist(stepCaptor.capture());
-        DrRunStepVO step = stepCaptor.getValue();
-        Assert.assertEquals("runtime-projection", step.getStepName());
-        Assert.assertEquals(DrConstants.STEP_STATE_SUCCEEDED, step.getState());
-        Assert.assertEquals(Integer.valueOf(100), step.getProgress());
+        Mockito.verify(drRunStepDao, Mockito.atLeast(5)).persist(stepCaptor.capture());
+        Assert.assertTrue(stepCaptor.getAllValues().stream()
+                .anyMatch(step -> "engine-state-reconciliation".equals(step.getStepName())
+                        && DrConstants.STEP_STATE_SUCCEEDED.equals(step.getState())));
+        Assert.assertTrue(stepCaptor.getAllValues().stream()
+                .anyMatch(step -> "completed".equals(step.getStepName())
+                        && Integer.valueOf(100).equals(step.getProgress())));
 
         Mockito.verify(drRunDao).update(Mockito.eq(run.getId()), Mockito.same(run));
         Mockito.verify(drEventDao, Mockito.atLeastOnce()).persist(Mockito.any(DrEventVO.class));
@@ -648,7 +753,7 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     }
 
     @Test
-    public void refreshPlanProjectionResetsRuntimeGenerationForNewCorrelatedRun() {
+    public void refreshPlanProjectionAcceptsLowerSequenceFromNewSchedulerLeaseEpoch() {
         DrPlanVO plan = new DrPlanVO("ftctl-dr-plan", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
         plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
         plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
@@ -659,15 +764,30 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         DrPlanRuntimeVO authority = new DrPlanRuntimeVO(plan.getId());
         authority.setEngineRunUuid("previous-run");
         authority.setRuntimeGeneration(24L);
+        authority.setSchedulerSessionUuid(plan.getUuid());
+        authority.setSchedulerLeaseEpoch(2L);
+        authority.setAuthoritySequence(24L);
 
         String statusJson = "{\"state\":\"SYNCING\",\"runtime_generation\":6,"
                 + "\"scheduler_state\":\"RUNNING\",\"scheduler_pid_alive\":true,"
+                + "\"scheduler_session_uuid\":\"" + plan.getUuid() + "\","
+                + "\"scheduler_lease_epoch\":3,\"authority_sequence\":6,"
+                + "\"scheduler_health\":\"HEALTHY\",\"owner_matched\":true,"
+                + "\"active_worker_run_uuid\":\"" + run.getUuid() + "\","
                 + "\"cycle_state\":\"RUNNING\"}";
         Mockito.when(agentManager.easySend(Mockito.eq(103L), Mockito.any(FtctlDrStatusCommand.class))).thenAnswer(invocation -> {
             FtctlDrStatusCommand command = invocation.getArgument(1);
-            return new FtctlDrStatusAnswer(command, true, "ok", plan.getUuid(), run.getUuid(),
+            FtctlDrStatusAnswer answer = new FtctlDrStatusAnswer(command, true, "ok", plan.getUuid(), run.getUuid(),
                     "ok", "SYNCING", "incremental-transfer", 40,
                     null, null, null, null, null, 0, "", statusJson);
+            answer.setSchedulerSessionUuid(plan.getUuid());
+            answer.setSchedulerLeaseEpoch(3L);
+            answer.setAuthoritySequence(6L);
+            answer.setSchedulerHealth("HEALTHY");
+            answer.setSchedulerPidAlive(true);
+            answer.setOwnerMatched(true);
+            answer.setActiveWorkerRunUuid(run.getUuid());
+            return answer;
         });
         Mockito.when(drRunDao.findActiveByPlanId(plan.getId())).thenReturn(run);
         Mockito.when(drPlanRuntimeDao.findByPlanId(plan.getId())).thenReturn(authority);
@@ -677,6 +797,8 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         Assert.assertTrue(result.isSuccess());
         Assert.assertEquals(run.getUuid(), authority.getEngineRunUuid());
         Assert.assertEquals(6L, authority.getRuntimeGeneration());
+        Assert.assertEquals(3L, authority.getSchedulerLeaseEpoch());
+        Assert.assertEquals(6L, authority.getAuthoritySequence());
         Assert.assertTrue(authority.isSchedulerPidAlive());
     }
 
@@ -716,5 +838,67 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         Assert.assertEquals(DrConstants.ERROR_VMWARE_MOVER_SOURCE_GRAPH_INVALID, plan.getLastErrorCode());
         Mockito.verify(drReplicaDao).update(Mockito.eq(replica.getId()), Mockito.same(replica));
         Mockito.verify(drEventDao, Mockito.atLeastOnce()).persist(Mockito.any(DrEventVO.class));
+    }
+
+    @Test
+    public void refreshPlanProjectionUsesSyncProducerWhilePollingCompletedTestCleanup() {
+        DrPlanVO plan = new DrPlanVO("ftctl-dr-plan", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
+        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
+        plan.setCoordinatorWorkerHostId(103L);
+        plan.setRpoSeconds(300);
+        DrRunVO cleanupRun = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_TEST_CLEANUP);
+        cleanupRun.setState(DrConstants.RUN_STATE_SUCCEEDED);
+        DrRunVO syncRun = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_SYNC);
+
+        String statusJson = "{\"state\":\"READY\",\"scheduler_state\":\"RUNNING\","
+                + "\"scheduler_session_uuid\":\"" + plan.getUuid() + "\","
+                + "\"scheduler_lease_epoch\":4,\"authority_sequence\":292,"
+                + "\"plan_cycle_sequence\":146,\"scheduler_health\":\"HEALTHY\","
+                + "\"scheduler_pid_alive\":true,\"owner_matched\":true,"
+                + "\"active_worker_run_uuid\":\"" + syncRun.getUuid() + "\","
+                + "\"latest_completed_producer_run_uuid\":\"" + syncRun.getUuid() + "\"}";
+        Mockito.when(agentManager.easySend(Mockito.eq(103L), Mockito.any(FtctlDrStatusCommand.class))).thenAnswer(invocation -> {
+            FtctlDrStatusCommand command = invocation.getArgument(1);
+            FtctlDrStatusAnswer answer = new FtctlDrStatusAnswer(command, true, "ok", plan.getUuid(), cleanupRun.getUuid(),
+                    "ok", "READY", "checkpoint-ready", 100,
+                    null, null, null, null, null, 0, "", statusJson);
+            answer.setSchedulerSessionUuid(plan.getUuid());
+            answer.setSchedulerLeaseEpoch(4L);
+            answer.setAuthoritySequence(292L);
+            answer.setPlanCycleSequence(146L);
+            answer.setSchedulerHealth("HEALTHY");
+            answer.setSchedulerPidAlive(true);
+            answer.setOwnerMatched(true);
+            answer.setActiveWorkerRunUuid(syncRun.getUuid());
+            answer.setLatestCompletedProducerRunUuid(syncRun.getUuid());
+            answer.setLatestCompletedCheckpointSequence(145L);
+            answer.setLatestCompletedCheckpointRef("ftctl:" + plan.getUuid() + ":" + syncRun.getUuid() + ":145");
+            answer.setLatestCompletedCheckpointState("READY");
+            answer.setLatestCompletedSourceCheckpointAt("2026-07-21T07:16:57Z");
+            answer.setLatestCompletedTargetDurableAt("2026-07-21T07:16:59Z");
+            answer.setLatestCompletedBaselineGeneration(145L);
+            answer.setLatestCompletedCycleToken(plan.getUuid() + ":145");
+            answer.setLatestCompletedEffectiveMode("CBT_INCREMENTAL");
+            answer.setLatestCompletedChangedBytes(4096L);
+            answer.setLatestCompletedTargetWrittenBytes(4096L);
+            return answer;
+        });
+        Mockito.when(drRunDao.findActiveByPlanId(plan.getId())).thenReturn(null);
+        Mockito.when(drRunDao.findLatestByPlanId(plan.getId())).thenReturn(cleanupRun);
+        Mockito.when(drRunDao.findByUuid(syncRun.getUuid())).thenReturn(syncRun);
+        Mockito.when(drPlanDao.acquireInLockTable(plan.getId(), 10)).thenReturn(plan);
+
+        DrAdapterResult result = adapter.refreshPlanProjection(plan);
+
+        Assert.assertTrue(result.isSuccess());
+        ArgumentCaptor<DrPlanRuntimeVO> authorityCaptor = ArgumentCaptor.forClass(DrPlanRuntimeVO.class);
+        Mockito.verify(drPlanRuntimeDao).persist(authorityCaptor.capture());
+        Assert.assertEquals(syncRun.getUuid(), authorityCaptor.getValue().getEngineRunUuid());
+        Assert.assertEquals(292L, authorityCaptor.getValue().getAuthoritySequence());
+        Assert.assertEquals(Long.valueOf(145L), authorityCaptor.getValue().getLatestCompletedCycleSequence());
+        ArgumentCaptor<DrRestorePointVO> restorePointCaptor = ArgumentCaptor.forClass(DrRestorePointVO.class);
+        Mockito.verify(drRestorePointDao).persist(restorePointCaptor.capture());
+        Assert.assertTrue(restorePointCaptor.getValue().getSourceSnapshotRef().contains(syncRun.getUuid()));
     }
 }

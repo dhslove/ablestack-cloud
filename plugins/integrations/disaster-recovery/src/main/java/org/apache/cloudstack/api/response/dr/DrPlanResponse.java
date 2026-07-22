@@ -105,9 +105,73 @@ public class DrPlanResponse extends BaseResponse {
     @Param(description = "the current FTCTL scheduler state")
     private String schedulerState;
 
+    @SerializedName("schedulerdesiredstate")
+    @Param(description = "the Cloud desired state for the Plan scheduler")
+    private String schedulerDesiredState;
+
+    @SerializedName("schedulerserviceunit")
+    @Param(description = "the Plan-scoped systemd scheduler unit")
+    private String schedulerServiceUnit;
+
+    @SerializedName("schedulerunitactivestate")
+    @Param(description = "the systemd active state for the Plan scheduler")
+    private String schedulerUnitActiveState;
+
+    @SerializedName("schedulerunitsubstate")
+    @Param(description = "the systemd sub-state for the Plan scheduler")
+    private String schedulerUnitSubState;
+
+    @SerializedName("schedulerrecoverystate")
+    @Param(description = "the scheduler recovery state")
+    private String schedulerRecoveryState;
+
+    @SerializedName("schedulerrecoverytrigger")
+    @Param(description = "the scheduler recovery trigger")
+    private String schedulerRecoveryTrigger;
+
     @SerializedName("schedulerpidalive")
     @Param(description = "true when the scheduler process ownership is verified")
     private Boolean schedulerPidAlive;
+
+    @SerializedName("schedulersessionuuid")
+    @Param(description = "the Plan-scoped FTCTL scheduler session UUID")
+    private String schedulerSessionUuid;
+
+    @SerializedName("schedulerleaseepoch")
+    @Param(description = "the monotonic scheduler lease epoch")
+    private Long schedulerLeaseEpoch;
+
+    @SerializedName("authoritysequence")
+    @Param(description = "the monotonic scheduler authority sequence")
+    private Long authoritySequence;
+
+    @SerializedName("schedulerhealth")
+    @Param(description = "the scheduler ownership and heartbeat health")
+    private String schedulerHealth;
+
+    @SerializedName("replicationactivity")
+    @Param(description = "the current replication activity independent of protection state")
+    private String replicationActivity;
+
+    @SerializedName("activeworkerrunuuid")
+    @Param(description = "the run UUID that owns the active scheduler worker")
+    private String activeWorkerRunUuid;
+
+    @SerializedName("workerheartbeatat")
+    @Param(description = "the last verified active scheduler heartbeat time")
+    private Date workerHeartbeatAt;
+
+    @SerializedName("ownermatched")
+    @Param(description = "true when the status owner matches the active lease")
+    private Boolean ownerMatched;
+
+    @SerializedName("normalcutoverready")
+    @Param(description = "true when the canonical Plan authority permits test failover or failover")
+    private Boolean normalCutoverReady;
+
+    @SerializedName("normalcutoverreason")
+    @Param(description = "typed reason why normal cutover is currently blocked")
+    private String normalCutoverReason;
 
     @SerializedName("authoritygeneration")
     @Param(description = "the accepted FTCTL runtime generation")
@@ -148,6 +212,42 @@ public class DrPlanResponse extends BaseResponse {
     @SerializedName("activeside")
     @Param(description = "the active DR side")
     private String activeSide;
+
+    @SerializedName("operatingside")
+    @Param(description = "the side currently authorized to serve workloads")
+    private String operatingSide;
+
+    @SerializedName("protectionphase")
+    @Param(description = "the current protection or cutover phase")
+    private String protectionPhase;
+
+    @SerializedName("cutoversessionstate")
+    @Param(description = "the persisted actual failover session state")
+    private String cutoverSessionState;
+
+    @SerializedName("cloudpromotionstate")
+    @Param(description = "the Cloud-owned target promotion state")
+    private String cloudPromotionState;
+
+    @SerializedName("cutovertargetpowerstate")
+    @Param(description = "the target VM power state recorded by Cloud during cutover")
+    private String cutoverTargetPowerState;
+
+    @SerializedName("cutoverbootvalidationstate")
+    @Param(description = "the target VM boot validation state recorded during cutover")
+    private String cutoverBootValidationState;
+
+    @SerializedName("engineackstate")
+    @Param(description = "the FTCTL acknowledgement state for Cloud promotion")
+    private String engineAckState;
+
+    @SerializedName("cutoverauthoritygeneration")
+    @Param(description = "the monotonic Cloud cutover authority generation")
+    private Long cutoverAuthorityGeneration;
+
+    @SerializedName("cutovercompletedat")
+    @Param(description = "the time at which Cloud and FTCTL completed authority convergence")
+    private Date cutoverCompletedAt;
 
     @SerializedName("rposeconds")
     @Param(description = "the target RPO in seconds")
@@ -519,7 +619,23 @@ public class DrPlanResponse extends BaseResponse {
     public void setProjectionIntegrityCode(String value) { projectionIntegrityCode = value; }
     public void setProjectionIntegritySequence(Long value) { projectionIntegritySequence = value; }
     public void setSchedulerState(String value) { schedulerState = value; }
+    public void setSchedulerDesiredState(String value) { schedulerDesiredState = value; }
+    public void setSchedulerServiceUnit(String value) { schedulerServiceUnit = value; }
+    public void setSchedulerUnitActiveState(String value) { schedulerUnitActiveState = value; }
+    public void setSchedulerUnitSubState(String value) { schedulerUnitSubState = value; }
+    public void setSchedulerRecoveryState(String value) { schedulerRecoveryState = value; }
+    public void setSchedulerRecoveryTrigger(String value) { schedulerRecoveryTrigger = value; }
     public void setSchedulerPidAlive(Boolean value) { schedulerPidAlive = value; }
+    public void setSchedulerSessionUuid(String value) { schedulerSessionUuid = value; }
+    public void setSchedulerLeaseEpoch(Long value) { schedulerLeaseEpoch = value; }
+    public void setAuthoritySequence(Long value) { authoritySequence = value; }
+    public void setSchedulerHealth(String value) { schedulerHealth = value; }
+    public void setReplicationActivity(String value) { replicationActivity = value; }
+    public void setActiveWorkerRunUuid(String value) { activeWorkerRunUuid = value; }
+    public void setWorkerHeartbeatAt(Date value) { workerHeartbeatAt = value; }
+    public void setOwnerMatched(Boolean value) { ownerMatched = value; }
+    public void setNormalCutoverReady(Boolean value) { normalCutoverReady = value; }
+    public void setNormalCutoverReason(String value) { normalCutoverReason = value; }
     public void setAuthorityGeneration(Long value) { authorityGeneration = value; }
     public void setCurrentCycleSequence(Long value) { currentCycleSequence = value; }
     public void setCurrentCycleState(String value) { currentCycleState = value; }
@@ -536,6 +652,16 @@ public class DrPlanResponse extends BaseResponse {
     public void setActiveSide(String activeSide) {
         this.activeSide = activeSide;
     }
+
+    public void setOperatingSide(String value) { operatingSide = value; }
+    public void setProtectionPhase(String value) { protectionPhase = value; }
+    public void setCutoverSessionState(String value) { cutoverSessionState = value; }
+    public void setCloudPromotionState(String value) { cloudPromotionState = value; }
+    public void setCutoverTargetPowerState(String value) { cutoverTargetPowerState = value; }
+    public void setCutoverBootValidationState(String value) { cutoverBootValidationState = value; }
+    public void setEngineAckState(String value) { engineAckState = value; }
+    public void setCutoverAuthorityGeneration(Long value) { cutoverAuthorityGeneration = value; }
+    public void setCutoverCompletedAt(Date value) { cutoverCompletedAt = value; }
 
     public void setRpoSeconds(Integer rpoSeconds) {
         this.rpoSeconds = rpoSeconds;

@@ -50,12 +50,60 @@
 
     <section class="cross-dr-protection-info__section">
       <dr-plan-overview
-        :plan="plan"
+        :plan="protectionPlan"
         :sourceSite="sourceSite"
         :targetSite="targetSite"
         :currentRun="currentRun"
         :showDetails="false"
         :showProtectionSummary="true" />
+    </section>
+
+    <section v-if="hasCutoverState" class="cross-dr-protection-info__section">
+      <h3>{{ $t('label.dr.cutover.authority') }}</h3>
+      <a-descriptions size="small" :column="2" bordered>
+        <a-descriptions-item :label="$t('label.dr.operating.side')">
+          <dr-status-pill :status="protectionPlan.operatingside || protectionPlan.activeside || 'SOURCE'" />
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.protection.phase')">
+          <dr-status-pill :status="protectionPlan.protectionphase || 'UNKNOWN'" />
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.cloud.promotion.state')">
+          <dr-status-pill :status="protectionPlan.cloudpromotionstate || 'PENDING'" />
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.engine.ack.state')">
+          <dr-status-pill :status="protectionPlan.engineackstate || 'PENDING'" />
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.boot.validation.state')">
+          <dr-status-pill :status="protectionPlan.cutoverbootvalidationstate || 'PENDING'" />
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.cutover.completed.at')">
+          {{ protectionPlan.cutovercompletedat || '-' }}
+        </a-descriptions-item>
+      </a-descriptions>
+    </section>
+
+    <section class="cross-dr-protection-info__section">
+      <h3>{{ $t('label.dr.replication.activity') }}</h3>
+      <a-descriptions size="small" :column="2" bordered>
+        <a-descriptions-item :label="$t('label.state')">
+          <dr-status-pill :status="replicationActivityState" />
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.current.cycle')">
+          {{ activeCycleLabel }}
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.requested.mode')">
+          {{ currentSyncCycle.requestedmode || '-' }}
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.effective.mode')">
+          {{ currentSyncCycle.effectivemode || '-' }}
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.changed.bytes')">
+          {{ formatBytes(currentSyncCycle.changedbytes) }}
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.latest.completed.checkpoint')">
+          {{ latestCompletedSyncCycle.sequence || '-' }}
+        </a-descriptions-item>
+      </a-descriptions>
     </section>
 
     <section class="cross-dr-protection-info__section">
@@ -67,22 +115,22 @@
       <h3>{{ $t('label.dr.control.coordination') }}</h3>
       <a-descriptions size="small" :column="2" bordered>
         <a-descriptions-item :label="$t('label.dr.control.protocol')">
-          {{ plan.runtimecontrolprotocolversion || '-' }}
+          {{ protectionPlan.runtimecontrolprotocolversion || '-' }}
         </a-descriptions-item>
         <a-descriptions-item :label="$t('label.dr.control.readiness')">
-          <dr-status-pill :status="plan.runtimecontrolready === true ? 'READY' : 'NOT_READY'" />
+          <dr-status-pill :status="runtimeControlReady ? 'READY' : 'NOT_READY'" />
         </a-descriptions-item>
         <a-descriptions-item :label="$t('label.dr.control.state')">
-          <dr-status-pill :status="plan.runtimecontrolstate || 'UNKNOWN'" />
+          <dr-status-pill :status="protectionPlan.runtimecontrolstate || 'UNKNOWN'" />
         </a-descriptions-item>
         <a-descriptions-item :label="$t('label.dr.replication.cycle.state')">
-          <dr-status-pill :status="plan.runtimecyclestate || 'UNKNOWN'" />
+          <dr-status-pill :status="protectionPlan.runtimecyclestate || protectionPlan.currentcyclestate || 'UNKNOWN'" />
         </a-descriptions-item>
         <a-descriptions-item :label="$t('label.dr.control.generation')">
-          {{ plan.runtimecontrolgeneration || '-' }} / {{ plan.runtimecontrolackgeneration || '-' }}
+          {{ protectionPlan.runtimecontrolgeneration || '-' }} / {{ protectionPlan.runtimecontrolackgeneration || '-' }}
         </a-descriptions-item>
         <a-descriptions-item :label="$t('label.dr.transition.state')">
-          <dr-status-pill :status="plan.runtimetransitionstate || 'IDLE'" />
+          <dr-status-pill :status="protectionPlan.runtimetransitionstate || 'IDLE'" />
         </a-descriptions-item>
       </a-descriptions>
     </section>
@@ -185,6 +233,10 @@ export default {
     sourceSite: { type: Object, default: () => ({}) },
     targetSite: { type: Object, default: () => ({}) },
     currentRun: { type: Object, default: () => ({}) },
+    latestOperationRun: { type: Object, default: () => ({}) },
+    currentSyncCycle: { type: Object, default: () => ({}) },
+    latestCompletedSyncCycle: { type: Object, default: () => ({}) },
+    currentProtectionRuntime: { type: Object, default: () => ({}) },
     replicas: { type: Array, default: () => [] },
     latestCompletedCheckpoint: { type: Object, default: () => ({}) },
     generated: { type: String, default: '' },
@@ -204,6 +256,34 @@ export default {
     }
   },
   computed: {
+    protectionPlan () {
+      return Object.assign({}, this.plan, this.currentProtectionRuntime)
+    },
+    hasCutoverState () {
+      return Boolean(this.protectionPlan.cutoversessionstate || this.protectionPlan.cloudpromotionstate ||
+        String(this.protectionPlan.operatingside || this.protectionPlan.activeside || '').toUpperCase() === 'TARGET')
+    },
+    replicationActivityState () {
+      if (this.currentRun && this.currentRun.id) {
+        return this.currentRun.state || 'RUNNING'
+      }
+      if (this.currentSyncCycle && this.currentSyncCycle.id) {
+        return this.currentSyncCycle.state || 'RUNNING'
+      }
+      return this.currentProtectionRuntime.replicationactivity || 'IDLE'
+    },
+    activeCycleLabel () {
+      if (!this.currentSyncCycle || !this.currentSyncCycle.id) {
+        return '-'
+      }
+      return `#${this.currentSyncCycle.sequence || '-'} / ${this.currentSyncCycle.state || 'UNKNOWN'}`
+    },
+    runtimeControlReady () {
+      const protocol = Number(this.protectionPlan.runtimecontrolprotocolversion)
+      const generation = Number(this.protectionPlan.runtimecontrolgeneration)
+      const acknowledged = Number(this.protectionPlan.runtimecontrolackgeneration)
+      return protocol >= 2 && Number.isFinite(generation) && Number.isFinite(acknowledged) && acknowledged >= generation
+    },
     hasCycleCommitState () {
       return Boolean(this.plan.datacommitstate || this.plan.cycleretrymode || this.plan.datacopied !== undefined)
     },
@@ -221,6 +301,19 @@ export default {
     }
   },
   methods: {
+    formatBytes (value) {
+      const numeric = Number(value)
+      if (!Number.isFinite(numeric) || numeric < 0) return '-'
+      if (numeric < 1024) return `${numeric} B`
+      const units = ['KiB', 'MiB', 'GiB', 'TiB']
+      let size = numeric
+      let unit = -1
+      do {
+        size /= 1024
+        unit += 1
+      } while (size >= 1024 && unit < units.length - 1)
+      return `${size.toFixed(size >= 10 ? 1 : 2)} ${units[unit]}`
+    },
     formatEpoch (value) {
       const numeric = Number(value)
       if (!Number.isFinite(numeric) || numeric <= 0) return '-'

@@ -33,6 +33,7 @@ import com.cloud.dr.DrPlanVO;
 import com.cloud.dr.DrProjectionService;
 import com.cloud.dr.DrRunStepVO;
 import com.cloud.dr.DrRunVO;
+import com.cloud.dr.DrTargetMaterializationService;
 import com.cloud.dr.adapter.DrAdapterRegistry;
 import com.cloud.dr.adapter.DrAdapterResult;
 import com.cloud.dr.adapter.DrExecutionContext;
@@ -60,6 +61,8 @@ public class DrRunExecutorImplTest {
     private DrProtectionOrchestrator drProtectionOrchestrator;
     @Mock
     private DrReplicationEngine replicationEngine;
+    @Mock
+    private DrTargetMaterializationService drTargetMaterializationService;
 
     @InjectMocks
     private DrRunExecutorImpl executor;
@@ -179,6 +182,31 @@ public class DrRunExecutorImplTest {
         Assert.assertEquals(DrConstants.RUN_STATE_FAILED, run.getState());
         Assert.assertEquals(DrConstants.PLAN_STATE_READY, plan.getState());
         Assert.assertEquals("DR_SYNC_QUIESCE_TIMEOUT", plan.getLastErrorCode());
+        Mockito.verify(drPlanDao).update(plan.getId(), plan);
+    }
+
+    @Test
+    public void terminalTestCleanupClosesCloudTestSession() {
+        DrPlanVO plan = ftctlDrPlan();
+        plan.setLastErrorCode(DrConstants.ERROR_ENGINE_ACTION_FAILED);
+        plan.setLastErrorMessage("previous cleanup attempt failed");
+        DrRunVO run = run(DrConstants.RUN_TYPE_TEST_CLEANUP);
+        Mockito.when(drRunDao.findById(run.getId())).thenReturn(run);
+        Mockito.when(drPlanDao.findById(plan.getId())).thenReturn(plan);
+        Mockito.when(drTargetMaterializationService.cleanupTestTarget(plan.getId(), run.getId())).thenReturn(true);
+        Mockito.when(drAdapterRegistry.getReplicationEngine(DrConstants.ENGINE_TYPE_FTCTL_DR, DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR))
+                .thenReturn(replicationEngine);
+        Mockito.when(replicationEngine.validatePlan(plan)).thenReturn(DrAdapterResult.success("valid", null));
+        Mockito.when(replicationEngine.execute(Mockito.any(DrExecutionContext.class)))
+                .thenReturn(DrAdapterResult.success("cleaned", "{\"state\":\"CLEANED\"}"));
+
+        executor.queueRun(run);
+
+        Assert.assertEquals(DrConstants.RUN_STATE_SUCCEEDED, run.getState());
+        Assert.assertNull(plan.getLastErrorCode());
+        Assert.assertNull(plan.getLastErrorMessage());
+        Mockito.verify(drTargetMaterializationService).cleanupTestTarget(plan.getId(), run.getId());
+        Mockito.verify(drTargetMaterializationService).completeTestCleanup(plan.getId());
         Mockito.verify(drPlanDao).update(plan.getId(), plan);
     }
 

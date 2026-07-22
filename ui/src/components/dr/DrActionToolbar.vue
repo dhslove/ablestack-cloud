@@ -64,6 +64,7 @@
 
 <script>
 import { normalizeActionEligibility } from '@/api/dr'
+import { hasDrSourceAuthority } from '@/utils/dr/planState'
 
 export default {
   name: 'DrActionToolbar',
@@ -98,6 +99,12 @@ export default {
           command: 'startDrSync',
           icon: 'SyncOutlined',
           label: 'label.dr.action.sync.now'
+        },
+        {
+          key: 'recoversync',
+          command: 'recoverDrSync',
+          icon: 'ReloadOutlined',
+          label: 'label.dr.action.recover.sync'
         },
         {
           key: 'pausesync',
@@ -214,15 +221,26 @@ export default {
       return this.eligibility[action.key] === true
     },
     isDisabled (action) {
+      if (['sync', 'recoversync', 'pausesync', 'resumesync', 'testfailover', 'failover'].includes(action.key) && !hasDrSourceAuthority(this.plan)) {
+        return true
+      }
       return !this.hasApi(action.command) || !this.isEligible(action)
     },
     disabledReason (action) {
       if (!this.hasApi(action.command)) {
         return this.$t('message.dr.action.api.unavailable')
       }
+      if (['sync', 'recoversync', 'pausesync', 'resumesync', 'testfailover', 'failover'].includes(action.key) && !hasDrSourceAuthority(this.plan)) {
+        return this.$t('message.dr.action.target.authority')
+      }
       if (['pausesync', 'resumesync', 'testfailover', 'stoptestfailover', 'failover', 'releaseprotection'].includes(action.key) &&
           this.plan.runtimecontrolready === false) {
         return this.$t('message.dr.action.control.not.ready')
+      }
+      if (['testfailover', 'failover'].includes(action.key) && this.plan.normalcutoverready === false) {
+        const reason = String(this.plan.normalcutoverreason || 'DR_AUTHORITY_NOT_READY').toLowerCase().replace(/_/g, '.')
+        const key = `message.dr.cutover.blocked.${reason}`
+        return this.$te && this.$te(key) ? this.$t(key) : this.$t('message.dr.action.not.eligible')
       }
       if (!this.isEligible(action)) {
         return this.$t('message.dr.action.not.eligible')

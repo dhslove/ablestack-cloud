@@ -128,6 +128,7 @@ import org.apache.cloudstack.api.command.admin.dr.PauseDrSyncCmd;
 import org.apache.cloudstack.api.command.admin.dr.PreviewDrPlanSpecCmd;
 import org.apache.cloudstack.api.command.admin.dr.ReleaseDrProtectionCmd;
 import org.apache.cloudstack.api.command.admin.dr.RefreshDrProtectionViewCmd;
+import org.apache.cloudstack.api.command.admin.dr.RecoverDrSyncCmd;
 import org.apache.cloudstack.api.command.admin.dr.ResumeDrSyncCmd;
 import org.apache.cloudstack.api.command.admin.dr.StartDrFailbackCmd;
 import org.apache.cloudstack.api.command.admin.dr.StartDrFailoverCmd;
@@ -3294,6 +3295,7 @@ public class DisasterRecoveryClusterServiceImpl extends ManagerBase implements D
         cmdList.add(StartDrSyncCmd.class);
         cmdList.add(PauseDrSyncCmd.class);
         cmdList.add(ResumeDrSyncCmd.class);
+        cmdList.add(RecoverDrSyncCmd.class);
         cmdList.add(StartDrTestFailoverCmd.class);
         cmdList.add(StopDrTestFailoverCmd.class);
         cmdList.add(StartDrFailoverCmd.class);

@@ -543,3 +543,26 @@ design is
 UI detail refresh uses `getDrPlan(id)` plus the cached protection view. It must
 not fetch every Plan and filter locally, and a failed live refresh must never
 replace visible cached data with an empty object.
+
+## 16. 2026-07-21 Protection Activity Read-Model Addendum
+
+Cache-first reads additionally separate Plan authority, active finite work,
+replication Cycle activity, and completed operation history. Polling frequency
+is selected from `activeRun` and `currentSyncCycle`, not from
+`latestOperationRun`. A terminal TEST_CLEANUP remains visible in history but
+does not keep the protection tab in cleanup progress.
+
+Protection-view cache version 2 and its v1 fallback are normative in
+`566-cross-hypervisor-dr-current-protection-activity-and-operation-history-projection-design-20260721.md`.
+
+## 17. Scheduler Recovery Read-Model Addendum - 2026-07-22
+
+Protection snapshot은 단순 `DEGRADED` 외에 `schedulerDesiredState`,
+`schedulerRecoveryState`, `schedulerServiceUnit`, `unitActiveState`,
+`unitSubState`, `schedulerCgroup`, `recoveryTrigger`, `recoveryAttempts`,
+`recoveryErrorCode`, `recoveryErrorMessage`, `nextRecoveryAt`을 투영한다.
+
+UI는 이 snapshot을 cache-first로 읽되 action eligibility를 자체 추론하지 않는다.
+Backend가 계산한 `recoverSync.allowed/reasonCode`를 그대로 사용한다. `READY` 캐시는
+새 identity ACK, heartbeat, durable Cycle commit 전에는 발행하지 않는다. 구체적인
+필드 소유권과 갱신 순서는 문서 568을 따른다.

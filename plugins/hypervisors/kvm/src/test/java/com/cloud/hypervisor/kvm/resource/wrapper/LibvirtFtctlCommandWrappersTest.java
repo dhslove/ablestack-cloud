@@ -376,8 +376,8 @@ public class LibvirtFtctlCommandWrappersTest {
     @Test
     public void testDrStatusWrapperParsesStrictPlanOwnedJson() {
         LibvirtFtctlDrStatusCommandWrapper wrapper = new LibvirtFtctlDrStatusCommandWrapper();
-        FtctlDrStatusCommand command = new FtctlDrStatusCommand("plan-a", "run-a");
-        String mixedOutput = "{\"command\":\"dr-status\",\"result\":\"ok\",\"plan_uuid\":\"plan-a\",\"run_uuid\":\"run-a\","
+        FtctlDrStatusCommand command = new FtctlDrStatusCommand("plan-a", "cleanup-run");
+        String mixedOutput = "{\"command\":\"dr-status\",\"result\":\"ok\",\"plan_uuid\":\"plan-a\",\"run_uuid\":\"cleanup-run\",\"status_scope\":\"OPERATION\","
                 + "\"state\":\"ERROR\",\"step\":\"replication-cycle-failed\","
                 + "\"progress\":100,\"worker_state\":\"FAILED\",\"worker_exit_code\":68,"
                 + "\"error_code\":\"DR_CBT_METRICS_INVALID\","
@@ -386,11 +386,17 @@ public class LibvirtFtctlCommandWrappersTest {
                 + "\"data_copied\":true,\"metadata_committed\":false,\"target_durable\":false,"
                 + "\"cycle_retry_mode\":\"RESEED_REQUIRED\",\"target_vm_present\":false,"
                 + "\"current_checkpoint_sequence\":7,\"current_checkpoint_state\":\"FAILED\","
-                + "\"latest_completed_checkpoint_sequence\":6,\"latest_completed_checkpoint_ref\":\"ftctl:plan-a:run-a:6\","
+                + "\"active_worker_run_uuid\":\"sync-run\","
+                + "\"latest_completed_checkpoint_sequence\":6,\"latest_completed_checkpoint_ref\":\"ftctl:plan-a:sync-run:6\","
+                + "\"latest_completed_producer_run_uuid\":\"sync-run\","
                 + "\"latest_completed_checkpoint_state\":\"READY\",\"latest_completed_target_ready_rpo_seconds\":18,"
                 + "\"control_protocol_version\":2,\"control_generation\":9,\"control_ack_generation\":9,"
                 + "\"control_state\":\"RUNNING\",\"cycle_state\":\"IDLE\",\"transition_state\":\"COMPLETED\","
-                + "\"checkpoint_lease_state\":\"RELEASED\"}\n";
+                + "\"checkpoint_lease_state\":\"RELEASED\","
+                + "\"guest_prep_state\":\"READY\",\"guest_family\":\"windows\","
+                + "\"manifest_schema_version\":\"FTCTL_GUESTPREP_MANIFEST_V2\","
+                + "\"manifest_sha256\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\","
+                + "\"guestprep_checkpoint_sequence\":6}\n";
 
         try (MockedConstruction<Script> scripts = Mockito.mockConstruction(Script.class, (mock, context) -> {
             Mockito.when(mock.execute(Mockito.any())).thenReturn(mixedOutput);
@@ -401,6 +407,7 @@ public class LibvirtFtctlCommandWrappersTest {
             Assert.assertTrue(answer instanceof FtctlDrStatusAnswer);
             FtctlDrStatusAnswer statusAnswer = (FtctlDrStatusAnswer) answer;
             Assert.assertTrue(statusAnswer.getResult());
+            Assert.assertEquals("OPERATION", statusAnswer.getStatusScope());
             Assert.assertEquals("ERROR", statusAnswer.getState());
             Assert.assertEquals("replication-cycle-failed", statusAnswer.getStep());
             Assert.assertEquals("FAILED", statusAnswer.getWorkerState());
@@ -418,7 +425,8 @@ public class LibvirtFtctlCommandWrappersTest {
             Assert.assertEquals(Long.valueOf(7), statusAnswer.getCurrentCheckpointSequence());
             Assert.assertEquals("FAILED", statusAnswer.getCurrentCheckpointState());
             Assert.assertEquals(Long.valueOf(6), statusAnswer.getLatestCompletedCheckpointSequence());
-            Assert.assertEquals("ftctl:plan-a:run-a:6", statusAnswer.getLatestCompletedCheckpointRef());
+            Assert.assertEquals("ftctl:plan-a:sync-run:6", statusAnswer.getLatestCompletedCheckpointRef());
+            Assert.assertEquals("sync-run", statusAnswer.getLatestCompletedProducerRunUuid());
             Assert.assertEquals("READY", statusAnswer.getLatestCompletedCheckpointState());
             Assert.assertEquals(Integer.valueOf(18), statusAnswer.getLatestCompletedTargetReadyRpoSeconds());
             Assert.assertEquals(Integer.valueOf(2), statusAnswer.getControlProtocolVersion());
@@ -428,13 +436,40 @@ public class LibvirtFtctlCommandWrappersTest {
             Assert.assertEquals("IDLE", statusAnswer.getCycleState());
             Assert.assertEquals("COMPLETED", statusAnswer.getTransitionState());
             Assert.assertEquals("RELEASED", statusAnswer.getCheckpointLeaseState());
+            Assert.assertEquals("FTCTL_GUESTPREP_MANIFEST_V2", statusAnswer.getManifestSchemaVersion());
+            Assert.assertEquals("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                    statusAnswer.getManifestSha256());
+            Assert.assertEquals(Long.valueOf(6), statusAnswer.getGuestPreparationCheckpointSequence());
             Assert.assertEquals(Integer.valueOf(1), statusAnswer.getCycleContractVersion());
             Assert.assertNotNull(statusAnswer.getLatestCompletedCycle());
+            Assert.assertEquals("sync-run", statusAnswer.getLatestCompletedCycle().getRunUuid());
             Assert.assertEquals(Long.valueOf(6), statusAnswer.getLatestCompletedCycle().getSequence());
             Assert.assertEquals("plan-a:6", statusAnswer.getLatestCompletedCycle().getCycleToken());
             Assert.assertTrue(statusAnswer.getStatusJson().contains("\"worker_state\":\"FAILED\""));
             Mockito.verify(scripts.constructed().get(0)).add("--events-limit");
             Mockito.verify(scripts.constructed().get(0)).add("0");
+            Mockito.verify(scripts.constructed().get(0)).add("--run");
+            Mockito.verify(scripts.constructed().get(0)).add("cleanup-run");
+        }
+    }
+
+    @Test
+    public void testDrStatusWrapperOmitsRunForPlanAuthorityScope() {
+        LibvirtFtctlDrStatusCommandWrapper wrapper = new LibvirtFtctlDrStatusCommandWrapper();
+        FtctlDrStatusCommand command = new FtctlDrStatusCommand("plan-a", null,
+                FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY);
+        String output = "{\"command\":\"dr-status\",\"result\":\"ok\",\"plan_uuid\":\"plan-a\"," +
+                "\"status_scope\":\"PLAN_AUTHORITY\",\"state\":\"READY\",\"step\":\"checkpoint-ready\",\"progress\":100}";
+
+        try (MockedConstruction<Script> scripts = Mockito.mockConstruction(Script.class, (mock, context) -> {
+            Mockito.when(mock.execute(Mockito.any())).thenReturn(output);
+            Mockito.when(mock.getExitValue()).thenReturn(0);
+        })) {
+            FtctlDrStatusAnswer answer = (FtctlDrStatusAnswer) wrapper.execute(command, resource);
+
+            Assert.assertTrue(answer.getResult());
+            Assert.assertEquals("PLAN_AUTHORITY", answer.getStatusScope());
+            Mockito.verify(scripts.constructed().get(0), Mockito.never()).add("--run");
         }
     }
 

@@ -287,6 +287,11 @@ public class LibvirtFtctlDrActionCommandWrapper extends CommandWrapper<FtctlDrAc
         addContextArg(script, command, "targetNetworkId", "--target-network-id");
         addContextArg(script, command, "targetVolumeMapJson", "--target-volume-map-json");
         addContextArg(script, command, "targetReadyRpoSeconds", "--target-ready-rpo-seconds");
+        addContextArg(script, command, "cutoverSessionId", "--session-id");
+        addContextArg(script, command, "checkpointSequence", "--checkpoint-sequence");
+        addContextArg(script, command, "authorityGeneration", "--authority-generation");
+        addContextArg(script, command, "targetPowerState", "--target-power-state");
+        addContextArg(script, command, "bootValidationState", "--boot-validation-state");
         if (!command.isWaitForCompletion()) {
             script.add("--wait=false");
         }

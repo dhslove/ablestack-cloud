@@ -5,6 +5,17 @@
 > governs the Test Failover sequence. Cloud creates the durable Test Session
 > before dispatch and owns all temporary Cloud resources. FTCTL owns only the
 > checkpoint lease, writable artifacts, guest preparation, and artifact cleanup.
+>
+> Terminal convergence update (2026-07-20):
+> [563-cross-hypervisor-dr-test-failover-terminal-convergence-design-20260720.md](563-cross-hypervisor-dr-test-failover-terminal-convergence-design-20260720.md)
+> requires the finite Test Failover Run to become `SUCCEEDED` after Cloud boot
+> validation while the Test Session remains `ACTIVE` until explicit cleanup.
+>
+> Real Failover correction (2026-07-22):
+> [567-cross-hypervisor-dr-real-failover-cutover-manifest-and-rollback-design-20260722.md](567-cross-hypervisor-dr-real-failover-cutover-manifest-and-rollback-design-20260722.md)
+> defines read-only cutover preflight, planned/disaster source isolation,
+> `CUTOVER_READY`, Cloud target boot validation, promotion, and pre-promotion
+> rollback. It supersedes earlier implicit manifest and promotion sequences.
 
 작성일: 2026-07-01
 
@@ -432,3 +443,56 @@ removes artifacts and releases the checkpoint lease.
 
 Normative sequence and failure compensation:
 `561-cross-hypervisor-dr-cloud-managed-test-failover-lifecycle-design-20260719.md`.
+
+## 2026-07-20 Continuous Protection Session Gate
+
+Before Test Failover, Failover, Failback, or Reprotect, Cloud must verify that
+the Plan has one scheduler session, no duplicate live workers, matching lease
+epoch/owner identity, a fresh worker heartbeat, and matching control request
+and acknowledgment generations. A terminal pause/resume `DrRun` does not own
+the scheduler and cannot by itself prove continuous protection health.
+
+A durable target with a dead, stale, or mismatched scheduler is `DEGRADED`, not
+permanently `SYNCING`. Normal cutover is blocked until singleton authority is
+reconciled. The normative sequence is defined in
+`564-cross-hypervisor-dr-plan-scheduler-singleton-authority-design-20260720.md`.
+
+## 2026-07-21 Test Cleanup Resume Confirmation Addendum
+
+The Test Cleanup sequence does not end at cleanup Run success. After Cloud test
+resources and FTCTL artifacts are removed, the sequence must observe matching
+RUNNING control/ACK, a released checkpoint lease, and a durable checkpoint
+newer than the checkpoint leased by Test Failover. That checkpoint must be
+projected with the scheduler producer Run identity before normal Test Failover
+or planned Failover eligibility returns.
+
+Detailed ordering and failure semantics:
+`565-cross-hypervisor-dr-post-test-cleanup-protection-projection-convergence-design-20260721.md`.
+Section 19 is the current eligibility boundary: a successful cleanup operation
+does not enable Test Failover until Plan-scoped scheduler authority, completed
+cycle verification, DB projection, cache, and UI all converge.
+
+## 2026-07-22 Cloud Promotion Commit Addendum
+
+For actual Failover, FTCTL `CUTOVER_READY` is a preparation boundary and not the
+terminal Run result. Cloud must start and validate the existing target VM,
+durably commit `FAILED_OVER/TARGET`, acknowledge that decision back to FTCTL,
+and only then complete the Failover Run. Forward sync, pause, and resume are
+forbidden while TARGET owns a failed-over Plan. Post-failover protection is
+reported as `FAILED_OVER_UNPROTECTED` until reverse protection is established.
+
+The normative code-level ordering, DB fields, action truth table, and
+Cloud-to-FTCTL acknowledgement contract are defined in section 13 of
+`567-cross-hypervisor-dr-real-failover-cutover-manifest-and-rollback-design-20260722.md`.
+
+## 2026-07-22 Scheduler Recovery Before Transition Addendum
+
+Failover, test failover, test cleanup, failback 같은 transition을 시작하기 전에 Cloud는
+Scheduler desired state와 active side를 먼저 확인한다. Scheduler가 DEAD인
+SOURCE/RUNNING Plan은 일반 sync start가 아니라 `RECOVER_SYNC`를 수행하고, 새로운
+identity ACK, heartbeat, durable Cycle commit이 확인된 뒤 transition eligibility를
+다시 계산한다.
+
+TARGET/FAILED_OVER Plan에는 forward Scheduler를 자동 시작하지 않는다. 해당 상태는
+오류가 아니라 failback 또는 reprotection이 필요한 권한 상태다. 상세 상태 전이와
+오류 코드는 문서 568을 따른다.

@@ -25,15 +25,15 @@ import org.apache.cloudstack.api.ApiErrorCode;
 import org.apache.cloudstack.api.BaseAsyncCmd;
 import org.apache.cloudstack.api.Parameter;
 import org.apache.cloudstack.api.ServerApiException;
+import org.apache.cloudstack.api.response.SuccessResponse;
 import org.apache.cloudstack.api.response.dr.DrPlanResponse;
-import org.apache.cloudstack.api.response.dr.DrProtectionViewResponse;
 import org.apache.cloudstack.context.CallContext;
 
 import com.cloud.dr.DrProtectionViewService;
 import com.cloud.dr.cluster.DisasterRecoveryClusterEventTypes;
 
 @APICommand(name = RefreshDrProtectionViewCmd.APINAME, description = "Refresh the DR runtime projection and protection view",
-        responseObject = DrProtectionViewResponse.class, authorized = {RoleType.Admin})
+        responseObject = SuccessResponse.class, authorized = {RoleType.Admin})
 public class RefreshDrProtectionViewCmd extends BaseAsyncCmd {
     public static final String APINAME = "refreshDrProtectionView";
 
@@ -46,10 +46,8 @@ public class RefreshDrProtectionViewCmd extends BaseAsyncCmd {
     @Override
     public void execute() throws ServerApiException {
         try {
-            DrProtectionViewResponse response = DrProtectionViewResponse.from(
-                    drProtectionViewService.refreshProjectionAndView(planId, false));
-            response.setResponseName(getCommandName());
-            setResponseObject(response);
+            drProtectionViewService.refreshProjectionAndView(planId, false);
+            setResponseObject(new SuccessResponse(getCommandName()));
         } catch (RuntimeException e) {
             throw new ServerApiException(ApiErrorCode.INTERNAL_ERROR, e.getMessage());
         }

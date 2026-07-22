@@ -43,6 +43,7 @@ const objectKeys = {
   updateDrPlan: ['updatedrplanresponse', 'drplan'],
   checkDrSite: ['checkdrsiteresponse', 'drsite'],
   startDrSync: ['startdrsyncresponse', 'drrun'],
+  recoverDrSync: ['recoverdrsyncresponse', 'drrun'],
   pauseDrSync: ['pausedrsyncresponse', 'drrun'],
   resumeDrSync: ['resumedrsyncresponse', 'drrun'],
   startDrTestFailover: ['startdrtestfailoverresponse', 'drrun'],

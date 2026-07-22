@@ -126,8 +126,8 @@ public class DrOrchestratorImpl extends ManagerBase implements DrOrchestrator {
         session.setNetworkMode(stringValue(request, "networkMode"));
         session.setNetworkId(longValue(request, "networkId"));
         session.setRestorePointRef(stringValue(request, "restorePointRef"));
-        session.setValidationMode(stringValue(request, "validationMode"));
-        session.setBootTimeoutSeconds(integerValue(request, "bootTimeoutSeconds"));
+        session.setValidationMode(firstString(request, "testBootValidationMode", "validationMode"));
+        session.setBootTimeoutSeconds(firstInteger(request, "testBootTimeoutSeconds", "bootTimeoutSeconds"));
         session.setArtifactContractVersion("3");
         session.setCleanupRequired(false);
         session.setDetailsJson(requestJson);
@@ -143,6 +143,26 @@ public class DrOrchestratorImpl extends ManagerBase implements DrOrchestrator {
         } catch (RuntimeException ignored) {
             return new JsonObject();
         }
+    }
+
+    private String firstString(JsonObject object, String... names) {
+        for (String name : names) {
+            String value = stringValue(object, name);
+            if (StringUtils.isNotBlank(value)) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private Integer firstInteger(JsonObject object, String... names) {
+        for (String name : names) {
+            Integer value = integerValue(object, name);
+            if (value != null) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private String stringValue(JsonObject object, String key) {

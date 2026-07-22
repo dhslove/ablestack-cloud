@@ -16,6 +16,7 @@
 // under the License.
 
 import { normalizeActionEligibility } from '@/api/dr'
+import { hasDrSourceAuthority } from '@/utils/dr/planState'
 
 const runtimePlanActions = [
   {
@@ -24,6 +25,13 @@ const runtimePlanActions = [
     command: 'startDrSync',
     icon: 'sync-outlined',
     label: 'label.dr.action.sync.now'
+  },
+  {
+    key: 'recoversync',
+    api: 'recoverDrSync',
+    command: 'recoverDrSync',
+    icon: 'reload-outlined',
+    label: 'label.dr.action.recover.sync'
   },
   {
     key: 'pausesync',
@@ -197,6 +205,9 @@ export function buildDrPlanActions (currentRun = {}) {
         return !isActiveRun(currentRun) || !currentRun.id
       }
       if (['testfailover', 'failover'].includes(action.key) && !hasTargetReadyEvidence(resource)) {
+        return true
+      }
+      if (['sync', 'recoversync', 'pausesync', 'resumesync', 'testfailover', 'failover'].includes(action.key) && !hasDrSourceAuthority(resource)) {
         return true
       }
       return !isEligible(resource, action.key)

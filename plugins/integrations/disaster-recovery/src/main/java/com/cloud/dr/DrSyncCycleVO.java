@@ -32,6 +32,12 @@ public class DrSyncCycleVO implements InternalIdentity {
     private Long runId;
     @Column(name = "engine_run_uuid")
     private String engineRunUuid;
+    @Column(name = "scheduler_session_uuid")
+    private String schedulerSessionUuid;
+    @Column(name = "scheduler_lease_epoch")
+    private Long schedulerLeaseEpoch;
+    @Column(name = "authority_sequence")
+    private Long authoritySequence;
     private long sequence;
     @Column(name = "cycle_token")
     private String cycleToken;
@@ -110,6 +116,9 @@ public class DrSyncCycleVO implements InternalIdentity {
     public long getPlanId() { return planId; }
     public Long getRunId() { return runId; }
     public String getEngineRunUuid() { return engineRunUuid; }
+    public String getSchedulerSessionUuid() { return schedulerSessionUuid; }
+    public Long getSchedulerLeaseEpoch() { return schedulerLeaseEpoch; }
+    public Long getAuthoritySequence() { return authoritySequence; }
     public long getSequence() { return sequence; }
     public String getCycleToken() { return cycleToken; }
     public String getRequestedMode() { return requestedMode; }
@@ -143,6 +152,9 @@ public class DrSyncCycleVO implements InternalIdentity {
     public Date getRemoved() { return removed; }
 
     public void setRunId(Long value) { runId = value; }
+    public void setSchedulerSessionUuid(String value) { schedulerSessionUuid = value; }
+    public void setSchedulerLeaseEpoch(Long value) { schedulerLeaseEpoch = value; }
+    public void setAuthoritySequence(Long value) { authoritySequence = value; }
     public void setCycleToken(String value) { cycleToken = value; }
     public void setRequestedMode(String value) { requestedMode = value; }
     public void setEffectiveMode(String value) { effectiveMode = value; }

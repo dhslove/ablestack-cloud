@@ -1,0 +1,50 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements. See the NOTICE file
+// distributed with this work for additional information.
+package com.cloud.dr;
+
+import org.apache.commons.lang3.StringUtils;
+
+public final class DrTestSessionState {
+    public static final String REQUESTED = "REQUESTED";
+    public static final String PREPARING = "PREPARING";
+    public static final String ARTIFACTS_READY = "ARTIFACTS_READY";
+    public static final String CLOUD_VOLUMES_IMPORTING = "CLOUD_VOLUMES_IMPORTING";
+    public static final String CLOUD_VM_CREATING = "CLOUD_VM_CREATING";
+    public static final String CLOUD_VM_STARTING = "CLOUD_VM_STARTING";
+    public static final String ACTIVE = "ACTIVE";
+    public static final String FAILED = "FAILED";
+    public static final String CLOUD_CLEANUP_RUNNING = "CLOUD_CLEANUP_RUNNING";
+    public static final String CLOUD_RESOURCES_REMOVED = "CLOUD_RESOURCES_REMOVED";
+    public static final String CLEANED = "CLEANED";
+    public static final String CLEANUP_FAILED = "CLEANUP_FAILED";
+
+    private DrTestSessionState() {
+    }
+
+    public static String projectEngineState(String currentState, String runtimeState) {
+        if (StringUtils.equalsAny(currentState, ACTIVE, CLOUD_CLEANUP_RUNNING,
+                CLOUD_RESOURCES_REMOVED, CLEANED, CLEANUP_FAILED)) {
+            return currentState;
+        }
+        if (StringUtils.equalsAny(runtimeState, "ERROR", "FAILED")) {
+            return FAILED;
+        }
+        if (StringUtils.equalsAny(runtimeState, "TEST_ARTIFACTS_READY", ARTIFACTS_READY)) {
+            return isBeforeCloudMaterialization(currentState) ? ARTIFACTS_READY : currentState;
+        }
+        if (StringUtils.equalsAny(runtimeState, "TESTING", "QUEUED", "RUNNING")) {
+            return StringUtils.equalsAny(currentState, null, REQUESTED, PREPARING) ? PREPARING : currentState;
+        }
+        return currentState;
+    }
+
+    public static boolean isMaterializationPending(String state) {
+        return StringUtils.equalsAny(state, ARTIFACTS_READY, CLOUD_VOLUMES_IMPORTING,
+                CLOUD_VM_CREATING, CLOUD_VM_STARTING);
+    }
+
+    private static boolean isBeforeCloudMaterialization(String state) {
+        return StringUtils.equalsAny(state, null, REQUESTED, PREPARING, ARTIFACTS_READY);
+    }
+}

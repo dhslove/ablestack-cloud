@@ -10,6 +10,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND.
 package com.cloud.dr.dao;
 
+import java.util.List;
+
 import com.cloud.dr.DrCutoverSessionVO;
 import com.cloud.utils.db.DB;
 import com.cloud.utils.db.GenericDaoBase;
@@ -19,13 +21,32 @@ import com.cloud.utils.db.SearchCriteria;
 @DB
 public class DrCutoverSessionDaoImpl extends GenericDaoBase<DrCutoverSessionVO, Long> implements DrCutoverSessionDao {
     private final SearchBuilder<DrCutoverSessionVO> activeByRun;
+    private final SearchBuilder<DrCutoverSessionVO> activeByPlan;
     public DrCutoverSessionDaoImpl() {
         activeByRun = createSearchBuilder();
         activeByRun.and("runId", activeByRun.entity().getRunId(), SearchCriteria.Op.EQ);
         activeByRun.and("removed", activeByRun.entity().getRemoved(), SearchCriteria.Op.NULL);
         activeByRun.done();
+        activeByPlan = createSearchBuilder();
+        activeByPlan.and("planId", activeByPlan.entity().getPlanId(), SearchCriteria.Op.EQ);
+        activeByPlan.and("removed", activeByPlan.entity().getRemoved(), SearchCriteria.Op.NULL);
+        activeByPlan.done();
     }
     @Override public DrCutoverSessionVO findActiveByRunId(long runId) {
         SearchCriteria<DrCutoverSessionVO> sc = activeByRun.create(); sc.setParameters("runId", runId); return findOneBy(sc);
+    }
+
+    @Override
+    public DrCutoverSessionVO findLatestActiveByPlanId(long planId) {
+        SearchCriteria<DrCutoverSessionVO> sc = activeByPlan.create();
+        sc.setParameters("planId", planId);
+        List<DrCutoverSessionVO> sessions = listBy(sc);
+        DrCutoverSessionVO latest = null;
+        for (DrCutoverSessionVO session : sessions) {
+            if (latest == null || session.getId() > latest.getId()) {
+                latest = session;
+            }
+        }
+        return latest;
     }
 }

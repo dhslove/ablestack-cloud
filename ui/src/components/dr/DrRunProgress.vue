@@ -49,6 +49,10 @@
       {{ cbtNotice }}
     </div>
 
+    <div v-if="testActiveNotice" class="cross-dr-run-progress__notice cross-dr-run-progress__notice--success">
+      {{ testActiveNotice }}
+    </div>
+
     <div v-if="normalizedSteps.length" class="cross-dr-run-progress__steps">
       <div
         v-for="step in normalizedSteps"
@@ -143,6 +147,15 @@ export default {
         fields.push(`${this.$t('label.dr.govc.binary')}: ${this.run.runtimecbtgovcbin}`)
       }
       return fields.length ? `${this.$t('label.dr.cbt.status')}: ${fields.join(' / ')}` : ''
+    },
+    testActiveNotice () {
+      const runType = String(this.run.runtype || this.run.runType || '').toUpperCase()
+      const runState = String(this.run.state || '').toUpperCase()
+      const sessionState = String(this.run.testsessionstate || '').toUpperCase()
+      if (runType === 'TEST_FAILOVER' && runState === 'SUCCEEDED' && sessionState === 'ACTIVE') {
+        return this.$t('message.dr.test.failover.active')
+      }
+      return ''
     },
     errorText () {
       const runFailed = String(this.run.state || '').toUpperCase() === 'FAILED'
@@ -272,6 +285,12 @@ export default {
   color: var(--cross-dr-info-text, #0050b3);
 }
 
+.cross-dr-run-progress__notice--success {
+  border-color: var(--cross-dr-success-border, #b7eb8f);
+  background: var(--cross-dr-success-bg, #f6ffed);
+  color: var(--cross-dr-success-text, #237804);
+}
+
 .cross-dr-run-progress__steps {
   display: grid;
   gap: 8px;
@@ -300,5 +319,8 @@ body.dark-mode .cross-dr-run-step {
   --cross-dr-warning-bg: rgba(250, 173, 20, 0.12);
   --cross-dr-warning-border: rgba(250, 173, 20, 0.38);
   --cross-dr-warning-text: #ffe58f;
+  --cross-dr-success-bg: rgba(82, 196, 26, 0.12);
+  --cross-dr-success-border: rgba(82, 196, 26, 0.42);
+  --cross-dr-success-text: #b7eb8f;
 }
 </style>

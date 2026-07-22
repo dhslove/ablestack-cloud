@@ -37,9 +37,11 @@ import org.apache.cloudstack.api.response.dr.DrSiteInventoryResponse;
 import org.apache.cloudstack.api.response.dr.DrSiteResponse;
 
 import com.cloud.dr.DrEventVO;
+import com.cloud.dr.DrCutoverSessionVO;
 import com.cloud.dr.DrConstants;
 import com.cloud.dr.DrPlanReadiness;
 import com.cloud.dr.DrPlanReadinessValidator;
+import com.cloud.dr.DrPlanRuntimeVO;
 import com.cloud.dr.DrProtectionAuthorityService;
 import com.cloud.dr.DrProtectionAuthoritySnapshot;
 import com.cloud.dr.DrPlanVO;
@@ -53,6 +55,7 @@ import com.cloud.dr.DrSiteCredentialVO;
 import com.cloud.dr.DrSiteVO;
 import com.cloud.dr.DrTestSessionVO;
 import com.cloud.dr.dao.DrPlanDao;
+import com.cloud.dr.dao.DrCutoverSessionDao;
 import com.cloud.dr.dao.DrRunDao;
 import com.cloud.dr.dao.DrRunStepDao;
 import com.cloud.dr.dao.DrSiteDao;
@@ -83,6 +86,8 @@ public class DrResponseGenerator extends ManagerBase {
     private DrRunStepDao drRunStepDao;
     @Inject
     private DrTestSessionDao drTestSessionDao;
+    @Inject
+    private DrCutoverSessionDao drCutoverSessionDao;
     @Inject
     private DrSiteCredentialService drSiteCredentialService;
     @Inject
@@ -152,6 +157,7 @@ public class DrResponseGenerator extends ManagerBase {
         response.setState(plan.getState());
         response.setAdminState(plan.getAdminState());
         response.setActiveSide(plan.getActiveSide());
+        response.setOperatingSide(StringUtils.defaultIfBlank(plan.getActiveSide(), "SOURCE"));
         response.setRpoSeconds(plan.getRpoSeconds());
         response.setRtoSeconds(plan.getRtoSeconds());
         response.setScheduleJson(plan.getScheduleJson());
@@ -206,6 +212,18 @@ public class DrResponseGenerator extends ManagerBase {
             populateSourceOpenStatus(response, latestRuntime);
             populateSourceSnapshotStatus(response, latestRuntime);
         }
+        DrCutoverSessionVO cutoverSession = drCutoverSessionDao != null
+                ? drCutoverSessionDao.findLatestActiveByPlanId(plan.getId()) : null;
+        if (cutoverSession != null) {
+            response.setCutoverSessionState(cutoverSession.getState());
+            response.setCloudPromotionState(cutoverSession.getCloudPromotionState());
+            response.setCutoverTargetPowerState(cutoverSession.getTargetPowerState());
+            response.setCutoverBootValidationState(cutoverSession.getBootValidationState());
+            response.setEngineAckState(cutoverSession.getEngineAckState());
+            response.setCutoverAuthorityGeneration(cutoverSession.getCloudAuthorityGeneration());
+            response.setCutoverCompletedAt(cutoverSession.getCompletedAt());
+        }
+        response.setProtectionPhase(resolveProtectionPhase(plan, cutoverSession));
         response.setLastErrorCode(plan.getLastErrorCode());
         response.setLastErrorMessage(summarizeError(StringUtils.defaultIfBlank(runtimeErrorCode, plan.getLastErrorCode()), plan.getLastErrorMessage()));
         response.setActionEligibility(actionEligibility);
@@ -219,7 +237,23 @@ public class DrResponseGenerator extends ManagerBase {
             response.setProjectionIntegrityCode(authority.getProjectionIntegrityCode());
             response.setProjectionIntegritySequence(authority.getProjectionIntegritySequence());
             response.setSchedulerState(authority.getSchedulerState());
+            response.setSchedulerDesiredState(authority.getRuntime().getSchedulerDesiredState());
+            response.setSchedulerServiceUnit(authority.getRuntime().getSchedulerServiceUnit());
+            response.setSchedulerUnitActiveState(authority.getRuntime().getSchedulerUnitActiveState());
+            response.setSchedulerUnitSubState(authority.getRuntime().getSchedulerUnitSubState());
+            response.setSchedulerRecoveryState(authority.getRuntime().getSchedulerRecoveryState());
+            response.setSchedulerRecoveryTrigger(authority.getRuntime().getSchedulerRecoveryTrigger());
             response.setSchedulerPidAlive(authority.isSchedulerPidAlive());
+            response.setSchedulerSessionUuid(authority.getSchedulerSessionUuid());
+            response.setSchedulerLeaseEpoch(authority.getSchedulerLeaseEpoch());
+            response.setAuthoritySequence(authority.getAuthoritySequence());
+            response.setSchedulerHealth(authority.getSchedulerHealthState());
+            response.setReplicationActivity(authority.getReplicationActivityState());
+            response.setActiveWorkerRunUuid(authority.getActiveWorkerRunUuid());
+            response.setWorkerHeartbeatAt(authority.getWorkerHeartbeatAt());
+            response.setOwnerMatched(authority.isOwnerMatched());
+            response.setNormalCutoverReady(authority.isNormalCutoverReady());
+            response.setNormalCutoverReason(authority.getNormalCutoverReason());
             response.setAuthorityGeneration(authority.getRuntimeGeneration());
             response.setCurrentCycleSequence(authority.getCurrentCycleSequence());
             response.setCurrentCycleState(authority.getCurrentCycleState());
@@ -229,6 +263,7 @@ public class DrResponseGenerator extends ManagerBase {
             response.setRpoAgeSeconds(authority.getRpoAgeSeconds());
             response.setRpoOverdue(authority.isRpoOverdue());
             response.setEffectiveState(authority.getProtectionState());
+            populateCurrentProtectionControlState(response, authority.getRuntime());
         }
         if (drPlanReadinessValidator != null) {
             readiness = drPlanReadinessValidator.validate(plan);
@@ -261,6 +296,38 @@ public class DrResponseGenerator extends ManagerBase {
         response.setCreated(plan.getCreated());
         response.setRemoved(plan.getRemoved());
         return response;
+    }
+
+    private String resolveProtectionPhase(DrPlanVO plan, DrCutoverSessionVO session) {
+        if (session != null && StringUtils.equalsIgnoreCase(session.getCloudPromotionState(), "PROMOTED")) {
+            return StringUtils.equalsIgnoreCase(session.getEngineAckState(), "ACKNOWLEDGED")
+                    ? "FAILED_OVER_UNPROTECTED" : "TARGET_PROMOTED_ENGINE_PENDING";
+        }
+        if (session != null && StringUtils.equalsAnyIgnoreCase(session.getState(), "CUTOVER_READY", "CLOUD_PROMOTED")) {
+            return session.getState();
+        }
+        if (StringUtils.equalsIgnoreCase(plan.getActiveSide(), "TARGET")) {
+            return "FAILED_OVER_UNPROTECTED";
+        }
+        return StringUtils.defaultIfBlank(plan.getState(), "NEW");
+    }
+
+    private void populateCurrentProtectionControlState(DrPlanResponse response, DrPlanRuntimeVO runtime) {
+        JsonObject currentRuntime = parseObject(runtime != null ? runtime.getStatusJson() : null);
+        Integer controlProtocolVersion = firstInteger(currentRuntime, "control_protocol_version");
+        Long controlGeneration = firstLong(currentRuntime, "control_generation");
+        Long controlAckGeneration = firstLong(currentRuntime, "control_ack_generation");
+        response.setRuntimeControlProtocolVersion(controlProtocolVersion);
+        response.setRuntimeControlGeneration(controlGeneration);
+        response.setRuntimeControlAckGeneration(controlAckGeneration);
+        response.setRuntimeControlState(firstString(currentRuntime, "control_state"));
+        response.setRuntimeCycleState(StringUtils.defaultIfBlank(runtime.getCurrentCycleState(),
+                firstString(currentRuntime, "cycle_state")));
+        response.setRuntimeTransitionState(firstString(currentRuntime, "transition_state"));
+        response.setRuntimeCheckpointLeaseState(firstString(currentRuntime, "checkpoint_lease_state"));
+        response.setRuntimeControlReady(controlProtocolVersion != null && controlProtocolVersion >= 2
+                && controlGeneration != null && controlAckGeneration != null
+                && controlAckGeneration >= controlGeneration);
     }
 
     public DrRunResponse createRunResponse(DrRunVO run, List<DrRunStepVO> steps, boolean accepted) {

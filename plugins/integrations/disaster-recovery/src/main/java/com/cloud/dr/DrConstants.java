@@ -92,6 +92,7 @@ public final class DrConstants {
     public static final String RUN_STATE_CANCELED = "CANCELED";
 
     public static final String RUN_TYPE_SYNC = "SYNC";
+    public static final String RUN_TYPE_RECOVER_SYNC = "RECOVER_SYNC";
     public static final String RUN_TYPE_PAUSE_SYNC = "PAUSE_SYNC";
     public static final String RUN_TYPE_RESUME_SYNC = "RESUME_SYNC";
     public static final String RUN_TYPE_TEST_FAILOVER = "TEST_FAILOVER";
@@ -102,6 +103,13 @@ public final class DrConstants {
     public static final String RUN_TYPE_REPROTECT = "REPROTECT";
     public static final String RUN_TYPE_ADOPT = "ADOPT";
     public static final String RUN_TYPE_RELEASE = "RELEASE";
+
+    public static final String SCHEDULER_RECOVERY_NONE = "NONE";
+    public static final String SCHEDULER_RECOVERY_PENDING = "PENDING";
+    public static final String SCHEDULER_RECOVERY_RECOVERING = "RECOVERING";
+    public static final String SCHEDULER_RECOVERY_SUCCEEDED = "SUCCEEDED";
+    public static final String SCHEDULER_RECOVERY_FAILED = "FAILED";
+    public static final String SCHEDULER_RECOVERY_SUPPRESSED = "SUPPRESSED";
 
     public static final String STEP_STATE_QUEUED = "QUEUED";
     public static final String STEP_STATE_RUNNING = "RUNNING";
@@ -132,6 +140,7 @@ public final class DrConstants {
     public static final String EVENT_TARGET_MATERIALIZED = "TARGET_MATERIALIZED";
     public static final String EVENT_AGENT_CAPABILITY_CHECK = "AGENT_CAPABILITY_CHECK";
     public static final String EVENT_TARGET_MATERIALIZATION_RECOVERED = "TARGET_MATERIALIZATION_RECOVERED";
+    public static final String EVENT_TEST_VM_ACTIVE = "TEST_VM_ACTIVE";
 
     public static final String ERROR_PLAN_NOT_FOUND = "DR_PLAN_NOT_FOUND";
     public static final String ERROR_SITE_NOT_FOUND = "DR_SITE_NOT_FOUND";
@@ -174,6 +183,14 @@ public final class DrConstants {
     public static final String ERROR_TARGET_DISK_MAPPING_INVALID = "DR_TARGET_DISK_MAPPING_INVALID";
     public static final String ERROR_TARGET_DISK_SIZE_UNRESOLVED = "DR_TARGET_DISK_SIZE_UNRESOLVED";
     public static final String ERROR_TARGET_DISK_PREPARE_FAILED = "DR_TARGET_DISK_PREPARE_FAILED";
+    public static final String ERROR_CUTOVER_MANIFEST_INVALID = "DR_CUTOVER_MANIFEST_INVALID";
+    public static final String ERROR_GUEST_OS_UNRESOLVED = "DR_GUEST_OS_UNRESOLVED";
+    public static final String ERROR_TARGET_DISK_MAP_MISSING = "DR_TARGET_DISK_MAP_MISSING";
+    public static final String ERROR_TARGET_DISK_LOCATOR_INVALID = "DR_TARGET_DISK_LOCATOR_INVALID";
+    public static final String ERROR_TARGET_DISK_NOT_DURABLE = "DR_TARGET_DISK_NOT_DURABLE";
+    public static final String ERROR_GUEST_PREP_RUNTIME_UNAVAILABLE = "DR_GUEST_PREP_RUNTIME_UNAVAILABLE";
+    public static final String ERROR_GUEST_PREPARATION_FAILED = "DR_GUEST_PREPARATION_FAILED";
+    public static final String ERROR_SOURCE_ISOLATION_UNCONFIRMED = "DR_SOURCE_ISOLATION_UNCONFIRMED";
     public static final String ERROR_TARGET_STORAGE_UNRESOLVED = "DR_TARGET_STORAGE_UNRESOLVED";
     public static final String ERROR_TARGET_VM_MATERIALIZE_FAILED = "DR_TARGET_VM_MATERIALIZE_FAILED";
     public static final String ERROR_SOURCE_HARDWARE_CHANGED = "SOURCE_HARDWARE_CHANGED";

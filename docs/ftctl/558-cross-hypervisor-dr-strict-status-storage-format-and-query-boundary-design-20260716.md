@@ -1093,3 +1093,32 @@ AS-IS/TO-BE table are in
 Until its live Linux and Windows gates pass, the deployed state is not a
 functional continuous-DR PASS even when target readiness and RPO freshness are
 green.
+
+## 34. 2026-07-20 Scheduler Session And Authority Version Correction
+
+The runtime authority table and cycle table remain the canonical Cloud
+boundaries, but `engine_run_uuid + runtime_generation` is not a sufficient
+ordering key. Live validation proved that control generation can be written as
+runtime generation and then be followed by a lower run-local cycle sequence.
+It also proved that the latest operation run can be terminal while an older
+run's scheduler is the only live worker.
+
+The corrected authority version is `(scheduler_lease_epoch,
+authority_sequence)`. Continuous protection has a scheduler session identity
+separate from operation runs, and cycle history uses a Plan-wide sequence.
+Scheduler health includes lease ownership, PID start token, heartbeat, and ACK
+identity. The typed DB migration and cross-layer implementation contract are
+defined in
+`564-cross-hypervisor-dr-plan-scheduler-singleton-authority-design-20260720.md`.
+
+## 35. 2026-07-21 Finite Operation Query Boundary Correction
+
+A strict status response may be requested for a finite operation while carrying
+newer Plan-wide protection authority. The consumer must validate and project
+the operation and protection envelopes independently. A terminal
+`TEST_CLEANUP` Run may remain the latest operation but cannot suppress authority,
+cycle, RPO, or restore-point projection from the active producer.
+
+The response envelope, DAO resolution, projection order, typed cleanup-resume
+state, migration, and acceptance tests are defined in document 565 and FTCTL
+companion document 437.

@@ -197,6 +197,11 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
             return DrAdapterResult.failure(DrConstants.ERROR_TARGET_MAPPING_INVALID, message, GSON.toJson(buildExecutionDetails(context, action, null)));
         }
 
+        DrAdapterResult isolationValidation = validateFailoverIsolation(context, action);
+        if (isolationValidation != null) {
+            return isolationValidation;
+        }
+
         DrAdapterResult capabilityResult = validateCapabilities(context, action, coordinatorHostId);
         if (capabilityResult != null) {
             return capabilityResult;
@@ -386,6 +391,25 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         return action == FtctlDrActionCommand.Action.TEST_PREPARE || action == FtctlDrActionCommand.Action.FAILOVER;
     }
 
+    private DrAdapterResult validateFailoverIsolation(DrExecutionContext context, FtctlDrActionCommand.Action action) {
+        if (action != FtctlDrActionCommand.Action.FAILOVER) {
+            return null;
+        }
+        JsonObject request = requestJson(context.getRun());
+        if (!StringUtils.equalsIgnoreCase(requestString(request, "mode"), "disaster")) {
+            return null;
+        }
+        boolean acknowledged = requestBoolean(request, "sourceIsolationAcknowledged", false);
+        String reason = requestString(request, "sourceIsolationReason");
+        if (acknowledged && StringUtils.isNotBlank(reason)) {
+            return null;
+        }
+        JsonObject details = buildExecutionDetails(context, action, resolveCoordinatorHostId(context.getPlan()));
+        details.addProperty("sourceIsolationAcknowledged", acknowledged);
+        return DrAdapterResult.failure(DrConstants.ERROR_SOURCE_ISOLATION_UNCONFIRMED,
+                "Disaster failover requires source isolation acknowledgement and a reason", GSON.toJson(details));
+    }
+
     private DrAdapterResult validateCapabilities(DrExecutionContext context, FtctlDrActionCommand.Action action, long hostId) {
         FtctlDrCapabilitiesCommand command = new FtctlDrCapabilitiesCommand(context.getPlan().getUuid(), context.getRun().getUuid());
         List<String> requiredActions = new ArrayList<String>();
@@ -414,9 +438,11 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
                         "FTCTL_DR control protocol v2 is required for coordinated DR actions", GSON.toJson(details));
             }
             if (requiresVmwareGuestPreparation(context, action)) {
-                String missingFeature = firstMissingFeature(capabilities.getSupportedFeatures(),
-                        "guest-preparation-v2",
-                        action == FtctlDrActionCommand.Action.TEST_PREPARE ? "test-artifact-lifecycle-v2" : "cutover-ready-v1");
+                String missingFeature = action == FtctlDrActionCommand.Action.TEST_PREPARE
+                        ? firstMissingFeature(capabilities.getSupportedFeatures(),
+                                "guest-preparation-v2", "test-artifact-lifecycle-v2")
+                        : firstMissingFeature(capabilities.getSupportedFeatures(),
+                                "guest-preparation-v2", "cutover-ready-v1", "cutover-manifest-v2", "cutover-preflight-v1");
                 if (missingFeature != null) {
                     details.addProperty("missingFeature", missingFeature);
                     return DrAdapterResult.failure(DrConstants.ERROR_AGENT_CAPABILITY_MISMATCH,
@@ -554,6 +580,9 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         if (StringUtils.equals(runType, DrConstants.RUN_TYPE_SYNC)) {
             return FtctlDrActionCommand.Action.SYNC;
         }
+        if (StringUtils.equals(runType, DrConstants.RUN_TYPE_RECOVER_SYNC)) {
+            return FtctlDrActionCommand.Action.RECOVER_SYNC;
+        }
         if (StringUtils.equals(runType, DrConstants.RUN_TYPE_PAUSE_SYNC)) {
             return FtctlDrActionCommand.Action.PAUSE_SYNC;
         }
@@ -583,7 +612,7 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
 
     private boolean isTerminalControlAction(DrRunVO run) {
         return StringUtils.equalsAny(StringUtils.upperCase(run.getRunType(), Locale.ROOT),
-                DrConstants.RUN_TYPE_PAUSE_SYNC, DrConstants.RUN_TYPE_RESUME_SYNC,
+                DrConstants.RUN_TYPE_RECOVER_SYNC, DrConstants.RUN_TYPE_PAUSE_SYNC, DrConstants.RUN_TYPE_RESUME_SYNC,
                 DrConstants.RUN_TYPE_TEST_CLEANUP, DrConstants.RUN_TYPE_RELEASE);
     }
 
@@ -611,6 +640,9 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         profile.addProperty("engine", DrConstants.ENGINE_TYPE_FTCTL_DR);
         profile.addProperty("planUuid", plan.getUuid());
         profile.addProperty("runUuid", run.getUuid());
+        // The scheduler session belongs to the Plan, while runUuid identifies
+        // the finite API operation that requested a transition.
+        profile.addProperty("schedulerSessionUuid", plan.getUuid());
         profile.addProperty("direction", plan.getDirection());
         profile.addProperty("activeSide", plan.getActiveSide());
         profile.addProperty("rpoTargetSeconds", plan.getRpoSeconds());

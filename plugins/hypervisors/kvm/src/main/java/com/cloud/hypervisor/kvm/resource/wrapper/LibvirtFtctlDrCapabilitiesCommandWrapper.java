@@ -181,6 +181,7 @@ public class LibvirtFtctlDrCapabilitiesCommandWrapper extends CommandWrapper<Ftc
     private static Map<String, String> buildActionToCliMap() {
         Map<String, String> actions = new LinkedHashMap<String, String>();
         actions.put("SYNC", "dr-sync-start");
+        actions.put("RECOVER_SYNC", "dr-sync-recover");
         actions.put("PAUSE_SYNC", "dr-sync-pause");
         actions.put("RESUME_SYNC", "dr-sync-resume");
         actions.put("TEST_FAILOVER", "dr-test-failover");
@@ -191,6 +192,7 @@ public class LibvirtFtctlDrCapabilitiesCommandWrapper extends CommandWrapper<Ftc
         actions.put("FAILBACK", "dr-failback");
         actions.put("REPROTECT", "dr-reprotect");
         actions.put("TARGET_MATERIALIZED", "dr-target-materialized");
+        actions.put("CUTOVER_COMMIT", "dr-cutover-commit");
         actions.put("RELEASE", "dr-release");
         return Collections.unmodifiableMap(actions);
     }

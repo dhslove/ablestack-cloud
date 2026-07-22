@@ -21,10 +21,11 @@ import java.util.Map;
 
 public class FtctlDrActionCommand extends Command {
 
-    public static final String ACTION_CONTRACT_VERSION = "2026-07-19";
+    public static final String ACTION_CONTRACT_VERSION = "2026-07-22";
 
     public enum Action {
         SYNC("dr-sync-start"),
+        RECOVER_SYNC("dr-sync-recover"),
         PAUSE_SYNC("dr-sync-pause"),
         RESUME_SYNC("dr-sync-resume"),
         TEST_FAILOVER("dr-test-failover"),
@@ -35,6 +36,7 @@ public class FtctlDrActionCommand extends Command {
         FAILBACK("dr-failback"),
         REPROTECT("dr-reprotect"),
         TARGET_MATERIALIZED("dr-target-materialized"),
+        CUTOVER_COMMIT("dr-cutover-commit"),
         RELEASE("dr-release");
 
         private final String cliCommand;

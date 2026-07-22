@@ -48,6 +48,20 @@ public class DrCutoverSessionVO implements InternalIdentity {
     @Column(name = "secure_boot_state") private String secureBootState;
     @Column(name = "domain_name") private String domainName;
     @Column(name = "boot_validation_state") private String bootValidationState;
+    @Column(name = "source_fence_state") private String sourceFenceState;
+    @Column(name = "source_power_state") private String sourcePowerState;
+    @Column(name = "manifest_schema_version") private String manifestSchemaVersion;
+    @Column(name = "manifest_sha256") private String manifestSha256;
+    @Column(name = "target_disk_count") private Integer targetDiskCount;
+    @Column(name = "scheduler_recovery_state") private String schedulerRecoveryState;
+    @Column(name = "cloud_promotion_state") private String cloudPromotionState;
+    @Column(name = "target_power_state") private String targetPowerState;
+    @Temporal(TemporalType.TIMESTAMP) @Column(name = "target_power_on_at") private Date targetPowerOnAt;
+    @Temporal(TemporalType.TIMESTAMP) @Column(name = "boot_validated_at") private Date bootValidatedAt;
+    @Column(name = "engine_ack_state") private String engineAckState;
+    @Temporal(TemporalType.TIMESTAMP) @Column(name = "engine_ack_at") private Date engineAckAt;
+    @Column(name = "cloud_authority_generation") private Long cloudAuthorityGeneration;
+    @Temporal(TemporalType.TIMESTAMP) @Column(name = "completed_at") private Date completedAt;
     @Column(name = "cleanup_required") private boolean cleanupRequired;
     @Column(name = "details_json", length = 16777215) private String detailsJson;
     @Column(name = "error_code") private String errorCode;
@@ -73,6 +87,20 @@ public class DrCutoverSessionVO implements InternalIdentity {
     public String getSecureBootState() { return secureBootState; }
     public String getDomainName() { return domainName; }
     public String getBootValidationState() { return bootValidationState; }
+    public String getSourceFenceState() { return sourceFenceState; }
+    public String getSourcePowerState() { return sourcePowerState; }
+    public String getManifestSchemaVersion() { return manifestSchemaVersion; }
+    public String getManifestSha256() { return manifestSha256; }
+    public Integer getTargetDiskCount() { return targetDiskCount; }
+    public String getSchedulerRecoveryState() { return schedulerRecoveryState; }
+    public String getCloudPromotionState() { return cloudPromotionState; }
+    public String getTargetPowerState() { return targetPowerState; }
+    public Date getTargetPowerOnAt() { return targetPowerOnAt; }
+    public Date getBootValidatedAt() { return bootValidatedAt; }
+    public String getEngineAckState() { return engineAckState; }
+    public Date getEngineAckAt() { return engineAckAt; }
+    public Long getCloudAuthorityGeneration() { return cloudAuthorityGeneration; }
+    public Date getCompletedAt() { return completedAt; }
     public boolean isCleanupRequired() { return cleanupRequired; }
     public String getDetailsJson() { return detailsJson; }
     public String getErrorCode() { return errorCode; }
@@ -88,6 +116,20 @@ public class DrCutoverSessionVO implements InternalIdentity {
     public void setSecureBootState(String value) { secureBootState = value; }
     public void setDomainName(String value) { domainName = value; }
     public void setBootValidationState(String value) { bootValidationState = value; }
+    public void setSourceFenceState(String value) { sourceFenceState = value; }
+    public void setSourcePowerState(String value) { sourcePowerState = value; }
+    public void setManifestSchemaVersion(String value) { manifestSchemaVersion = value; }
+    public void setManifestSha256(String value) { manifestSha256 = value; }
+    public void setTargetDiskCount(Integer value) { targetDiskCount = value; }
+    public void setSchedulerRecoveryState(String value) { schedulerRecoveryState = value; }
+    public void setCloudPromotionState(String value) { cloudPromotionState = value; }
+    public void setTargetPowerState(String value) { targetPowerState = value; }
+    public void setTargetPowerOnAt(Date value) { targetPowerOnAt = value; }
+    public void setBootValidatedAt(Date value) { bootValidatedAt = value; }
+    public void setEngineAckState(String value) { engineAckState = value; }
+    public void setEngineAckAt(Date value) { engineAckAt = value; }
+    public void setCloudAuthorityGeneration(Long value) { cloudAuthorityGeneration = value; }
+    public void setCompletedAt(Date value) { completedAt = value; }
     public void setCleanupRequired(boolean value) { cleanupRequired = value; }
     public void setDetailsJson(String value) { detailsJson = value; }
     public void setErrorCode(String value) { errorCode = value; }

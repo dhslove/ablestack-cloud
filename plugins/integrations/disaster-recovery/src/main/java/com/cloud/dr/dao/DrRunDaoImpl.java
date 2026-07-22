@@ -18,6 +18,9 @@ package com.cloud.dr.dao;
 
 import java.util.List;
 
+import org.apache.commons.lang3.StringUtils;
+
+import com.cloud.dr.DrConstants;
 import com.cloud.dr.DrRunVO;
 import com.cloud.utils.db.DB;
 import com.cloud.utils.db.Filter;
@@ -31,6 +34,7 @@ public class DrRunDaoImpl extends GenericDaoBase<DrRunVO, Long> implements DrRun
     private final SearchBuilder<DrRunVO> activeByPlanSearch;
     private final SearchBuilder<DrRunVO> byPlanAndIdempotencySearch;
     private final SearchBuilder<DrRunVO> byPlanSearch;
+    private final SearchBuilder<DrRunVO> byUuidSearch;
 
     public DrRunDaoImpl() {
         activeByPlanSearch = createSearchBuilder();
@@ -49,6 +53,11 @@ public class DrRunDaoImpl extends GenericDaoBase<DrRunVO, Long> implements DrRun
         byPlanSearch.and("planId", byPlanSearch.entity().getPlanId(), SearchCriteria.Op.EQ);
         byPlanSearch.and("removed", byPlanSearch.entity().getRemoved(), SearchCriteria.Op.NULL);
         byPlanSearch.done();
+
+        byUuidSearch = createSearchBuilder();
+        byUuidSearch.and("uuid", byUuidSearch.entity().getUuid(), SearchCriteria.Op.EQ);
+        byUuidSearch.and("removed", byUuidSearch.entity().getRemoved(), SearchCriteria.Op.NULL);
+        byUuidSearch.done();
     }
 
     @Override
@@ -79,5 +88,28 @@ public class DrRunDaoImpl extends GenericDaoBase<DrRunVO, Long> implements DrRun
         sc.setParameters("planId", planId);
         List<DrRunVO> runs = listBy(sc, new Filter(DrRunVO.class, "created", false, 0L, 1L));
         return runs != null && !runs.isEmpty() ? runs.get(0) : null;
+    }
+
+    @Override
+    public DrRunVO findByUuid(String uuid) {
+        if (StringUtils.isBlank(uuid)) {
+            return null;
+        }
+        SearchCriteria<DrRunVO> sc = byUuidSearch.create();
+        sc.setParameters("uuid", uuid);
+        return findOneBy(sc);
+    }
+
+    @Override
+    public DrRunVO findLatestProtectionProducerByPlanId(long planId) {
+        List<DrRunVO> runs = listByPlanId(planId);
+        if (runs == null) {
+            return null;
+        }
+        return runs.stream()
+                .filter(run -> StringUtils.equalsAnyIgnoreCase(run.getRunType(),
+                        DrConstants.RUN_TYPE_SYNC, DrConstants.RUN_TYPE_REPROTECT))
+                .findFirst()
+                .orElse(null);
     }
 }

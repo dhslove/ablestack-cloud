@@ -17,4 +17,5 @@ import com.cloud.dr.DrCutoverSessionVO;
 import com.cloud.utils.db.GenericDao;
 public interface DrCutoverSessionDao extends GenericDao<DrCutoverSessionVO, Long> {
     DrCutoverSessionVO findActiveByRunId(long runId);
+    DrCutoverSessionVO findLatestActiveByPlanId(long planId);
 }

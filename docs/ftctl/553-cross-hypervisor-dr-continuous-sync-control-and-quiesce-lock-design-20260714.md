@@ -845,3 +845,44 @@ previous durable target exists.
 
 The normative cross-layer contract is section 17 onward of
 558-cross-hypervisor-dr-strict-status-storage-format-and-query-boundary-design-20260716.md.
+
+## 23. 2026-07-20 Plan Singleton And Identity Correction
+
+Control protocol v2 removed the global-lock self-conflict, but generation/state
+acknowledgment alone does not prove which process owns the Plan. Live preflight
+found multiple run-scoped PID files, a surviving old-run worker, a dead latest
+resume worker, and a control ACK that named the latest run. Therefore the
+control contract in sections 7 and 22 is necessary but not sufficient.
+
+The corrected contract uses a Plan-scoped scheduler session, lifetime owner
+lock, lease epoch, process start token, identity-bearing ACK, and Plan-wide
+cycle sequence. `DrRun` remains a short operation record. Protection state,
+replication activity, and scheduler health are projected independently.
+
+The normative replacement for scheduler ownership, generation ordering, DB
+fields, UI states, migration, and acceptance testing is
+`564-cross-hypervisor-dr-plan-scheduler-singleton-authority-design-20260720.md`.
+
+## 24. 2026-07-21 Cleanup Resume Projection Correction
+
+The control protocol and automatic resume implementation are valid, but Cloud
+must not query a terminal `TEST_CLEANUP` Run as the continuing protection
+producer. RUNNING ACK proves control convergence; a newer durable checkpoint
+and its Cloud projection prove resumed data protection.
+
+Operation reconciliation, Plan authority projection, cycle projection, and
+restore-point attribution are separate backend phases. The producer is taken
+from the validated active worker/completed checkpoint, not from the status
+request Run. The detailed correction is normative in document 565.
+
+## 25. Agent Restart Durable Scheduler Correction - 2026-07-22
+
+Continuous sync의 장기 worker는 Mold Agent 요청 process에서 fork하여 소유하지 않는다.
+Agent는 `dr-sync-recover` 또는 start 접수만 수행하고, Plan별 systemd unit이
+foreground Scheduler를 소유한다. 기존 committed baseline과 CBT cursor는 process
+복구만으로 폐기하지 않는다.
+
+복구 Run은 unit start 응답에서 끝나지 않는다. 새 worker identity ACK, heartbeat,
+첫 durable Cycle commit까지 추적한다. valid baseline이면
+`CBT_INCREMENTAL/RECOVERY_BASELINE_VALID`를 사용하며 Full Reseed는 reason-bearing
+fallback에서만 허용한다. 상세 설계는 문서 568과 FTCTL 문서 439를 따른다.

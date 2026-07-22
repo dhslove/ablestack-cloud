@@ -32,8 +32,58 @@ public class DrPlanRuntimeVO implements InternalIdentity {
     private long runtimeGeneration;
     @Column(name = "scheduler_state")
     private String schedulerState;
+    @Column(name = "scheduler_desired_state")
+    private String schedulerDesiredState;
+    @Column(name = "scheduler_service_unit")
+    private String schedulerServiceUnit;
+    @Column(name = "scheduler_unit_active_state")
+    private String schedulerUnitActiveState;
+    @Column(name = "scheduler_unit_sub_state")
+    private String schedulerUnitSubState;
+    @Column(name = "scheduler_unit_main_pid")
+    private Long schedulerUnitMainPid;
+    @Column(name = "scheduler_cgroup", length = 512)
+    private String schedulerCgroup;
+    @Column(name = "scheduler_recovery_state")
+    private String schedulerRecoveryState;
+    @Column(name = "scheduler_recovery_trigger")
+    private String schedulerRecoveryTrigger;
+    @Column(name = "scheduler_recovery_attempts")
+    private int schedulerRecoveryAttempts;
+    @Column(name = "scheduler_recovery_error_code")
+    private String schedulerRecoveryErrorCode;
+    @Column(name = "scheduler_recovery_error_message", length = 4096)
+    private String schedulerRecoveryErrorMessage;
+    @Temporal(TemporalType.TIMESTAMP)
+    @Column(name = "scheduler_recovered_at")
+    private Date schedulerRecoveredAt;
     @Column(name = "scheduler_pid_alive")
     private boolean schedulerPidAlive;
+    @Column(name = "scheduler_session_uuid")
+    private String schedulerSessionUuid;
+    @Column(name = "scheduler_lease_epoch")
+    private long schedulerLeaseEpoch;
+    @Column(name = "authority_sequence")
+    private long authoritySequence;
+    @Column(name = "plan_cycle_sequence")
+    private Long planCycleSequence;
+    @Column(name = "scheduler_health_state")
+    private String schedulerHealthState;
+    @Column(name = "replication_activity_state")
+    private String replicationActivityState;
+    @Column(name = "active_worker_run_uuid")
+    private String activeWorkerRunUuid;
+    @Column(name = "active_worker_pid")
+    private Long activeWorkerPid;
+    @Column(name = "active_worker_start_ticks")
+    private Long activeWorkerStartTicks;
+    @Temporal(TemporalType.TIMESTAMP)
+    @Column(name = "worker_heartbeat_at")
+    private Date workerHeartbeatAt;
+    @Column(name = "control_request_run_uuid")
+    private String controlRequestRunUuid;
+    @Column(name = "owner_matched")
+    private boolean ownerMatched;
     @Column(name = "worker_state")
     private String workerState;
     @Column(name = "current_cycle_sequence")
@@ -101,7 +151,31 @@ public class DrPlanRuntimeVO implements InternalIdentity {
     public String getEngineRunUuid() { return engineRunUuid; }
     public long getRuntimeGeneration() { return runtimeGeneration; }
     public String getSchedulerState() { return schedulerState; }
+    public String getSchedulerDesiredState() { return schedulerDesiredState; }
+    public String getSchedulerServiceUnit() { return schedulerServiceUnit; }
+    public String getSchedulerUnitActiveState() { return schedulerUnitActiveState; }
+    public String getSchedulerUnitSubState() { return schedulerUnitSubState; }
+    public Long getSchedulerUnitMainPid() { return schedulerUnitMainPid; }
+    public String getSchedulerCgroup() { return schedulerCgroup; }
+    public String getSchedulerRecoveryState() { return schedulerRecoveryState; }
+    public String getSchedulerRecoveryTrigger() { return schedulerRecoveryTrigger; }
+    public int getSchedulerRecoveryAttempts() { return schedulerRecoveryAttempts; }
+    public String getSchedulerRecoveryErrorCode() { return schedulerRecoveryErrorCode; }
+    public String getSchedulerRecoveryErrorMessage() { return schedulerRecoveryErrorMessage; }
+    public Date getSchedulerRecoveredAt() { return schedulerRecoveredAt; }
     public boolean isSchedulerPidAlive() { return schedulerPidAlive; }
+    public String getSchedulerSessionUuid() { return schedulerSessionUuid; }
+    public long getSchedulerLeaseEpoch() { return schedulerLeaseEpoch; }
+    public long getAuthoritySequence() { return authoritySequence; }
+    public Long getPlanCycleSequence() { return planCycleSequence; }
+    public String getSchedulerHealthState() { return schedulerHealthState; }
+    public String getReplicationActivityState() { return replicationActivityState; }
+    public String getActiveWorkerRunUuid() { return activeWorkerRunUuid; }
+    public Long getActiveWorkerPid() { return activeWorkerPid; }
+    public Long getActiveWorkerStartTicks() { return activeWorkerStartTicks; }
+    public Date getWorkerHeartbeatAt() { return workerHeartbeatAt; }
+    public String getControlRequestRunUuid() { return controlRequestRunUuid; }
+    public boolean isOwnerMatched() { return ownerMatched; }
     public String getWorkerState() { return workerState; }
     public Long getCurrentCycleSequence() { return currentCycleSequence; }
     public String getCurrentCycleState() { return currentCycleState; }
@@ -131,7 +205,31 @@ public class DrPlanRuntimeVO implements InternalIdentity {
     public void setEngineRunUuid(String value) { engineRunUuid = value; }
     public void setRuntimeGeneration(long value) { runtimeGeneration = value; }
     public void setSchedulerState(String value) { schedulerState = value; }
+    public void setSchedulerDesiredState(String value) { schedulerDesiredState = value; }
+    public void setSchedulerServiceUnit(String value) { schedulerServiceUnit = value; }
+    public void setSchedulerUnitActiveState(String value) { schedulerUnitActiveState = value; }
+    public void setSchedulerUnitSubState(String value) { schedulerUnitSubState = value; }
+    public void setSchedulerUnitMainPid(Long value) { schedulerUnitMainPid = value; }
+    public void setSchedulerCgroup(String value) { schedulerCgroup = value; }
+    public void setSchedulerRecoveryState(String value) { schedulerRecoveryState = value; }
+    public void setSchedulerRecoveryTrigger(String value) { schedulerRecoveryTrigger = value; }
+    public void setSchedulerRecoveryAttempts(int value) { schedulerRecoveryAttempts = value; }
+    public void setSchedulerRecoveryErrorCode(String value) { schedulerRecoveryErrorCode = value; }
+    public void setSchedulerRecoveryErrorMessage(String value) { schedulerRecoveryErrorMessage = value; }
+    public void setSchedulerRecoveredAt(Date value) { schedulerRecoveredAt = value; }
     public void setSchedulerPidAlive(boolean value) { schedulerPidAlive = value; }
+    public void setSchedulerSessionUuid(String value) { schedulerSessionUuid = value; }
+    public void setSchedulerLeaseEpoch(long value) { schedulerLeaseEpoch = value; }
+    public void setAuthoritySequence(long value) { authoritySequence = value; }
+    public void setPlanCycleSequence(Long value) { planCycleSequence = value; }
+    public void setSchedulerHealthState(String value) { schedulerHealthState = value; }
+    public void setReplicationActivityState(String value) { replicationActivityState = value; }
+    public void setActiveWorkerRunUuid(String value) { activeWorkerRunUuid = value; }
+    public void setActiveWorkerPid(Long value) { activeWorkerPid = value; }
+    public void setActiveWorkerStartTicks(Long value) { activeWorkerStartTicks = value; }
+    public void setWorkerHeartbeatAt(Date value) { workerHeartbeatAt = value; }
+    public void setControlRequestRunUuid(String value) { controlRequestRunUuid = value; }
+    public void setOwnerMatched(boolean value) { ownerMatched = value; }
     public void setWorkerState(String value) { workerState = value; }
     public void setCurrentCycleSequence(Long value) { currentCycleSequence = value; }
     public void setCurrentCycleState(String value) { currentCycleState = value; }

@@ -18,16 +18,28 @@ package com.cloud.agent.api;
 
 public class FtctlDrStatusCommand extends Command {
 
+    public enum StatusScope {
+        PLAN_AUTHORITY,
+        OPERATION
+    }
+
     private String planUuid;
     private String runUuid;
     private Long eventsOffset;
+    private StatusScope statusScope;
 
     public FtctlDrStatusCommand() {
     }
 
     public FtctlDrStatusCommand(String planUuid, String runUuid) {
+        this(planUuid, runUuid, runUuid == null || runUuid.isEmpty()
+                ? StatusScope.PLAN_AUTHORITY : StatusScope.OPERATION);
+    }
+
+    public FtctlDrStatusCommand(String planUuid, String runUuid, StatusScope statusScope) {
         this.planUuid = planUuid;
         this.runUuid = runUuid;
+        this.statusScope = statusScope;
     }
 
     public String getPlanUuid() {
@@ -40,6 +52,11 @@ public class FtctlDrStatusCommand extends Command {
 
     public Long getEventsOffset() {
         return eventsOffset;
+    }
+
+    public StatusScope getStatusScope() {
+        return statusScope != null ? statusScope
+                : (runUuid == null || runUuid.isEmpty() ? StatusScope.PLAN_AUTHORITY : StatusScope.OPERATION);
     }
 
     public void setEventsOffset(Long eventsOffset) {

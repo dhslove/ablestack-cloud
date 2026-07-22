@@ -31,6 +31,7 @@ import org.apache.commons.lang3.StringUtils;
 
 import com.cloud.agent.AgentManager;
 import com.cloud.agent.api.Answer;
+import com.cloud.agent.api.FtctlDrActionCommand;
 import com.cloud.agent.api.FtctlDrCycleSnapshot;
 import com.cloud.agent.api.FtctlDrStatusAnswer;
 import com.cloud.agent.api.FtctlDrStatusCommand;
@@ -48,6 +49,8 @@ import com.cloud.dr.DrRunVO;
 import com.cloud.dr.DrSyncCycleVO;
 import com.cloud.dr.DrTestSessionVO;
 import com.cloud.dr.DrTargetMaterializationService;
+import com.cloud.dr.DrTargetPowerOnResult;
+import com.cloud.dr.DrTestSessionState;
 import com.cloud.dr.adapter.DrAdapterResult;
 import com.cloud.dr.adapter.DrProjectionAdapter;
 import com.cloud.dr.dao.DrEventDao;
@@ -74,8 +77,14 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
     private static final int RUNTIME_CREATION_GRACE_SECONDS = 120;
     private static final int WORKER_START_GRACE_SECONDS = 60;
     private static final int STEP_ORDER_RUNTIME_PROJECTION = 30;
+    private static final int STEP_ORDER_TARGET_POWER_ON = 40;
+    private static final int STEP_ORDER_BOOT_VALIDATION = 50;
+    private static final int STEP_ORDER_CLOUD_PROMOTION = 60;
+    private static final int STEP_ORDER_ENGINE_ACK = 70;
+    private static final int STEP_ORDER_FINAL = 90;
     private static final int STATUS_REFRESH_WAIT_SECONDS = 5;
     private static final int DEFAULT_CHECKPOINT_RETENTION = 24;
+    private static final int SCHEDULER_HEARTBEAT_STALE_SECONDS = 90;
 
     @Inject
     private AgentManager agentManager;
@@ -124,43 +133,78 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             return DrAdapterResult.failure(DrConstants.ERROR_TARGET_MAPPING_INVALID, message, GSON.toJson(buildDetails(plan, null, null)));
         }
 
-        DrRunVO projectionRun = resolveProjectionRun(plan);
-        String runUuid = projectionRun != null ? projectionRun.getUuid() : null;
-        FtctlDrStatusCommand command = new FtctlDrStatusCommand(plan.getUuid(), runUuid);
-        command.setWait(STATUS_REFRESH_WAIT_SECONDS);
-        Answer answer = agentManager.easySend(hostId, command);
+        DrRunVO projectionRun = drRunDao != null ? drRunDao.findActiveByPlanId(plan.getId()) : null;
+        FtctlDrStatusCommand authorityCommand = new FtctlDrStatusCommand(plan.getUuid(), null,
+                FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY);
+        authorityCommand.setWait(STATUS_REFRESH_WAIT_SECONDS);
+        Answer answer = agentManager.easySend(hostId, authorityCommand);
         if (!(answer instanceof FtctlDrStatusAnswer)) {
             String message = answer != null ? answer.getDetails() : "Agent returned no FTCTL_DR status answer";
             return DrAdapterResult.failure(DrConstants.ERROR_ENGINE_UNAVAILABLE, message, GSON.toJson(buildDetails(plan, hostId, null)));
         }
 
-        FtctlDrStatusAnswer status = (FtctlDrStatusAnswer) answer;
+        FtctlDrStatusAnswer authorityStatus = (FtctlDrStatusAnswer) answer;
+        JsonObject authorityDetails = buildDetails(plan, hostId, authorityStatus);
+        if (!isCorrelatedRuntime(plan, null, authorityStatus)) {
+            authorityDetails.addProperty("projectionIgnored", true);
+            authorityDetails.addProperty("reason", "STALE_PLAN_AUTHORITY_IGNORED");
+            persistRunProjectionEvent(plan, projectionRun, DrConstants.EVENT_PROJECTION_REFRESH,
+                    DrConstants.EVENT_SEVERITY_WARN,
+                    "Ignored FTCTL_DR authority status for a different plan", GSON.toJson(authorityDetails));
+            return DrAdapterResult.success("Ignored stale FTCTL_DR authority status", GSON.toJson(authorityDetails));
+        }
+        if (!authorityStatus.getResult() && isStatusBoundaryFailure(authorityStatus)) {
+            markProjectionStale(plan, authorityStatus);
+            return DrAdapterResult.retryable(authorityStatus.getErrorCode(),
+                    statusMessage(authorityStatus, "FTCTL_DR authority status failed validation; last-good projection was retained"),
+                    GSON.toJson(authorityDetails), STATUS_REFRESH_WAIT_SECONDS);
+        }
+        FtctlDrCycleSnapshot latestCompletedCycle = latestCompletedCycle(authorityStatus);
+        if (!isCoherentCycleSnapshot(plan, authorityStatus, latestCompletedCycle)) {
+            markProjectionIntegrityFailure(plan, latestCompletedCycle, "DR_STATUS_CYCLE_SNAPSHOT_INCOHERENT");
+            return DrAdapterResult.retryable("DR_STATUS_CYCLE_SNAPSHOT_INCOHERENT",
+                    "FTCTL_DR completed cycle snapshot was not coherent; last-good projection was retained",
+                    GSON.toJson(authorityDetails), STATUS_REFRESH_WAIT_SECONDS);
+        }
+        JsonObject authorityRuntime = parseObject(authorityStatus.getStatusJson());
+        DrRunVO protectionProducerRun = resolveProtectionProducerRun(plan, authorityStatus, authorityRuntime);
+        projectProtectionAuthority(plan, protectionProducerRun, authorityStatus, authorityRuntime);
+        upsertRestorePointFromStatus(plan, protectionProducerRun, authorityStatus, authorityRuntime);
+
+        FtctlDrStatusAnswer status = authorityStatus;
+        if (projectionRun != null) {
+            FtctlDrStatusCommand operationCommand = new FtctlDrStatusCommand(plan.getUuid(), projectionRun.getUuid(),
+                    FtctlDrStatusCommand.StatusScope.OPERATION);
+            operationCommand.setWait(STATUS_REFRESH_WAIT_SECONDS);
+            Answer operationAnswer = agentManager.easySend(hostId, operationCommand);
+            if (!(operationAnswer instanceof FtctlDrStatusAnswer)) {
+                String message = operationAnswer != null ? operationAnswer.getDetails()
+                        : "Agent returned no FTCTL_DR operation status answer";
+                return DrAdapterResult.retryable(DrConstants.ERROR_ENGINE_UNAVAILABLE, message,
+                        GSON.toJson(authorityDetails), STATUS_REFRESH_WAIT_SECONDS);
+            }
+            status = (FtctlDrStatusAnswer) operationAnswer;
+        }
+
         JsonObject details = buildDetails(plan, hostId, status);
+        details.add("authority", authorityDetails);
         if (!isCorrelatedRuntime(plan, projectionRun, status)) {
             details.addProperty("projectionIgnored", true);
-            details.addProperty("reason", "STALE_RUNTIME_IGNORED");
+            details.addProperty("reason", "STALE_OPERATION_IGNORED");
             persistRunProjectionEvent(plan, projectionRun, DrConstants.EVENT_PROJECTION_REFRESH,
                     DrConstants.EVENT_SEVERITY_WARN,
                     "Ignored FTCTL_DR status for a different plan/run", GSON.toJson(details));
             return DrAdapterResult.success("Ignored stale FTCTL_DR runtime status", GSON.toJson(details));
         }
-        FtctlDrCycleSnapshot latestCompletedCycle = latestCompletedCycle(status);
-        if (!isCoherentCycleSnapshot(plan, status, latestCompletedCycle)) {
-            markProjectionIntegrityFailure(plan, latestCompletedCycle, "DR_STATUS_CYCLE_SNAPSHOT_INCOHERENT");
-            return DrAdapterResult.retryable("DR_STATUS_CYCLE_SNAPSHOT_INCOHERENT",
-                    "FTCTL_DR completed cycle snapshot was not coherent; last-good projection was retained",
-                    GSON.toJson(details), STATUS_REFRESH_WAIT_SECONDS);
-        }
         JsonObject runtimeStatus = parseObject(status.getStatusJson());
         reconcileCloudManagedTestTarget(plan, projectionRun, status, runtimeStatus);
-        projectProtectionAuthority(plan, projectionRun, status, runtimeStatus);
         if (!status.getResult() && isStatusBoundaryFailure(status)) {
             markProjectionStale(plan, status);
             return DrAdapterResult.retryable(status.getErrorCode(),
                     statusMessage(status, "FTCTL_DR status failed validation; last-good projection was retained"),
                     GSON.toJson(details), STATUS_REFRESH_WAIT_SECONDS);
         }
-        if (!hardwareContractMatches(plan, runtimeStatus)) {
+        if (!hardwareContractMatches(plan, authorityRuntime)) {
             String message = "FTCTL_DR source hardware fingerprint differs from the persisted DR Plan";
             markPlanProjectionFailed(plan, DrConstants.ERROR_SOURCE_HARDWARE_CHANGED, message);
             return DrAdapterResult.failure(DrConstants.ERROR_SOURCE_HARDWARE_CHANGED, message, GSON.toJson(details));
@@ -181,7 +225,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                     projectionFailureMessage(status.getErrorCode(), status, runtime), GSON.toJson(details));
         }
 
-        updatePlanFromStatus(plan, projectionRun, status);
+        updatePlanFromStatus(plan, projectionRun, protectionProducerRun, status);
         return DrAdapterResult.success("FTCTL_DR runtime projection refreshed", GSON.toJson(details));
     }
 
@@ -195,39 +239,81 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         return plan.getTargetWorkerHostId();
     }
 
-    private void projectProtectionAuthority(DrPlanVO plan, DrRunVO projectionRun, FtctlDrStatusAnswer status,
+    private void projectProtectionAuthority(DrPlanVO plan, DrRunVO protectionProducerRun, FtctlDrStatusAnswer status,
             JsonObject runtime) {
-        if (isFiniteOperationRun(projectionRun)) {
-            return;
-        }
         Long generation = status.getRuntimeGeneration() != null ? status.getRuntimeGeneration()
                 : longValue(runtime, "runtime_generation");
+        Long leaseEpoch = status.getSchedulerLeaseEpoch() != null ? status.getSchedulerLeaseEpoch()
+                : longValue(runtime, "scheduler_lease_epoch");
+        Long authoritySequence = status.getAuthoritySequence() != null ? status.getAuthoritySequence()
+                : longValue(runtime, "authority_sequence");
         Long sequence = status.getCurrentCheckpointSequence() != null ? status.getCurrentCheckpointSequence()
                 : longValue(runtime, "current_checkpoint_sequence");
-        if (generation == null) {
-            generation = sequence != null ? sequence : 0L;
-        }
+        leaseEpoch = leaseEpoch != null ? leaseEpoch : 0L;
+        authoritySequence = authoritySequence != null ? authoritySequence
+                : (generation != null ? generation : (sequence != null ? sequence : 0L));
+        generation = authoritySequence;
 
         DrPlanRuntimeVO authority = drPlanRuntimeDao.findByPlanId(plan.getId());
-        boolean sameEngineRun = authority != null
-                && StringUtils.equals(authority.getEngineRunUuid(), status.getRunUuid());
-        boolean statusRunUnknown = StringUtils.isBlank(status.getRunUuid());
-        if (authority != null && generation < authority.getRuntimeGeneration()
-                && (sameEngineRun || statusRunUnknown)) {
-            return;
+        if (authority != null) {
+            if (leaseEpoch < authority.getSchedulerLeaseEpoch()) {
+                return;
+            }
+            if (leaseEpoch == authority.getSchedulerLeaseEpoch()
+                    && authoritySequence < authority.getAuthoritySequence()) {
+                return;
+            }
         }
         if (authority == null) {
             authority = new DrPlanRuntimeVO(plan.getId());
         }
 
         Date now = new Date();
-        Date sourceAt = firstDate(parseDate(status.getLastSourceCheckpointAt()),
+        Date sourceAt = firstDate(parseDate(status.getLatestCompletedSourceCheckpointAt()),
+                parseDate(status.getLastSourceCheckpointAt()),
+                parseDate(stringValue(runtime, "latest_completed_source_checkpoint_at")),
                 parseDate(stringValue(runtime, "last_source_checkpoint_at")));
         Date durableAt = firstDate(parseDate(status.getLatestCompletedTargetDurableAt()),
                 parseDate(status.getLastTargetDurableAt()),
                 parseDate(stringValue(runtime, "latest_completed_target_durable_at")),
                 parseDate(stringValue(runtime, "last_target_durable_at")));
         String schedulerState = stringValue(runtime, "scheduler_state");
+        String schedulerDesiredState = StringUtils.defaultIfBlank(status.getSchedulerDesiredState(),
+                stringValue(runtime, "scheduler_desired_state"));
+        String schedulerServiceUnit = StringUtils.defaultIfBlank(status.getSchedulerServiceUnit(),
+                stringValue(runtime, "scheduler_service_unit"));
+        String schedulerUnitActiveState = StringUtils.defaultIfBlank(status.getSchedulerUnitActiveState(),
+                stringValue(runtime, "scheduler_unit_active_state"));
+        String schedulerUnitSubState = StringUtils.defaultIfBlank(status.getSchedulerUnitSubState(),
+                stringValue(runtime, "scheduler_unit_sub_state"));
+        Long schedulerUnitMainPid = status.getSchedulerUnitMainPid() != null ? status.getSchedulerUnitMainPid()
+                : longValue(runtime, "scheduler_unit_main_pid");
+        String schedulerCgroup = StringUtils.defaultIfBlank(status.getSchedulerCgroup(),
+                stringValue(runtime, "scheduler_cgroup"));
+        String schedulerRecoveryState = StringUtils.defaultIfBlank(status.getSchedulerRecoveryState(),
+                StringUtils.defaultIfBlank(stringValue(runtime, "scheduler_recovery_state"), DrConstants.SCHEDULER_RECOVERY_NONE));
+        String schedulerRecoveryTrigger = StringUtils.defaultIfBlank(status.getSchedulerRecoveryTrigger(),
+                stringValue(runtime, "scheduler_recovery_trigger"));
+        Date schedulerRecoveredAt = firstDate(parseDate(status.getSchedulerRecoveredAt()),
+                parseDate(stringValue(runtime, "scheduler_recovered_at")));
+        String schedulerSessionUuid = StringUtils.defaultIfBlank(status.getSchedulerSessionUuid(),
+                stringValue(runtime, "scheduler_session_uuid"));
+        String schedulerHealth = StringUtils.defaultIfBlank(status.getSchedulerHealth(),
+                stringValue(runtime, "scheduler_health"));
+        String replicationActivity = StringUtils.defaultIfBlank(status.getReplicationActivity(),
+                StringUtils.defaultIfBlank(stringValue(runtime, "replication_activity"), "IDLE"));
+        String activeWorkerRunUuid = StringUtils.defaultIfBlank(status.getActiveWorkerRunUuid(),
+                stringValue(runtime, "active_worker_run_uuid"));
+        Long activeWorkerPid = status.getActiveWorkerPid() != null ? status.getActiveWorkerPid()
+                : longValue(runtime, "active_worker_pid");
+        Long activeWorkerStartTicks = status.getActiveWorkerStartTicks() != null ? status.getActiveWorkerStartTicks()
+                : longValue(runtime, "active_worker_start_ticks");
+        Date workerHeartbeatAt = firstDate(parseDate(status.getWorkerHeartbeatAt()),
+                parseDate(stringValue(runtime, "worker_heartbeat_at")));
+        String controlRequestRunUuid = StringUtils.defaultIfBlank(status.getControlRequestRunUuid(),
+                stringValue(runtime, "control_request_run_uuid"));
+        Boolean ownerMatched = status.getOwnerMatched() != null ? status.getOwnerMatched()
+                : booleanValue(runtime, "owner_matched");
         String workerState = StringUtils.defaultIfBlank(status.getWorkerState(), stringValue(runtime, "worker_state"));
         String cycleState = StringUtils.defaultIfBlank(status.getCurrentCheckpointState(),
                 StringUtils.defaultIfBlank(status.getCycleState(), stringValue(runtime, "cycle_state")));
@@ -246,11 +332,19 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         long rpoAge = durableAt != null ? Math.max(0L, (now.getTime() - durableAt.getTime()) / 1000L) : Long.MAX_VALUE;
         long rpoLimit = plan.getRpoSeconds() != null ? Math.max(1, plan.getRpoSeconds()) : 300L;
         boolean overdue = durableAt == null || rpoAge > rpoLimit + Math.min(30L, Math.max(5L, rpoLimit / 10L));
-        boolean runtimeFailed = StringUtils.equalsAnyIgnoreCase(status.getState(), "ERROR", "FAILED")
-                || StringUtils.equalsAnyIgnoreCase(cycleState, "ERROR", "FAILED") || StringUtils.isNotBlank(errorCode);
+        String engineProtectionState = StringUtils.defaultIfBlank(status.getProtectionState(),
+                stringValue(runtime, "protection_state"));
+        boolean runtimeFailed = StringUtils.equalsAnyIgnoreCase(engineProtectionState, "ERROR", "FAILED")
+                || StringUtils.equalsAnyIgnoreCase(cycleState, "ERROR", "FAILED")
+                || StringUtils.equalsAnyIgnoreCase(schedulerHealth, "DEAD", "OWNER_MISMATCH", "DUPLICATE_WORKER");
         boolean reseeding = StringUtils.equalsAnyIgnoreCase(cycleMode, "FULL_RESEED", "full-reseed")
                 && !StringUtils.equalsAnyIgnoreCase(cycleState, "COMPLETED", "READY");
-        boolean schedulerHealthy = Boolean.TRUE.equals(pidAlive)
+        long heartbeatAge = workerHeartbeatAt != null
+                ? Math.max(0L, (now.getTime() - workerHeartbeatAt.getTime()) / 1000L) : Long.MAX_VALUE;
+        boolean sessionMatched = StringUtils.equals(plan.getUuid(), schedulerSessionUuid);
+        boolean schedulerHealthy = Boolean.TRUE.equals(pidAlive) && Boolean.TRUE.equals(ownerMatched)
+                && sessionMatched && heartbeatAge <= SCHEDULER_HEARTBEAT_STALE_SECONDS
+                && StringUtils.equalsAnyIgnoreCase(schedulerHealth, "HEALTHY")
                 && StringUtils.equalsAnyIgnoreCase(schedulerState, "RUNNING", "STARTED", "COMPLETED");
         boolean targetMaterialized = Boolean.TRUE.equals(status.getTargetMaterialized())
                 || Boolean.TRUE.equals(booleanValue(runtime, "target_materialized"));
@@ -261,8 +355,14 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             protectionState = DrConstants.PLAN_STATE_ERROR;
         } else if (reseeding) {
             protectionState = "RESEEDING";
-        } else if (StringUtils.equalsIgnoreCase(status.getState(), "PAUSED")) {
+        } else if (StringUtils.equalsAnyIgnoreCase(engineProtectionState, "PAUSED")
+                || StringUtils.equalsIgnoreCase(schedulerState, "PAUSED")) {
             protectionState = DrConstants.PLAN_STATE_PAUSED;
+        } else if ((StringUtils.equalsIgnoreCase(plan.getActiveSide(), "TARGET")
+                || StringUtils.equalsAnyIgnoreCase(stringValue(runtime, "active_side"), "TARGET")
+                || StringUtils.equalsAnyIgnoreCase(stringValue(runtime, "state"), "FAILED_OVER", "PROMOTED"))
+                && !schedulerHealthy) {
+            protectionState = "FAILED_OVER_UNPROTECTED";
         } else if (!schedulerHealthy || overdue) {
             protectionState = "DEGRADED";
         } else if (targetMaterialized && durableAt != null) {
@@ -271,10 +371,42 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             protectionState = DrConstants.PLAN_STATE_SYNCING;
         }
 
-        authority.setEngineRunUuid(status.getRunUuid());
+        String producerRunUuid = resolveProtectionProducerRunUuid(status, runtime);
+        authority.setEngineRunUuid(producerRunUuid);
         authority.setRuntimeGeneration(generation);
         authority.setSchedulerState(schedulerState);
+        authority.setSchedulerDesiredState(StringUtils.defaultIfBlank(schedulerDesiredState,
+                StringUtils.equalsIgnoreCase(plan.getActiveSide(), "TARGET") ? "STOPPED" : "RUNNING"));
+        authority.setSchedulerServiceUnit(schedulerServiceUnit);
+        authority.setSchedulerUnitActiveState(schedulerUnitActiveState);
+        authority.setSchedulerUnitSubState(schedulerUnitSubState);
+        authority.setSchedulerUnitMainPid(schedulerUnitMainPid);
+        authority.setSchedulerCgroup(schedulerCgroup);
+        if (StringUtils.equalsIgnoreCase(schedulerRecoveryState, DrConstants.SCHEDULER_RECOVERY_RECOVERING)
+                && !StringUtils.equalsIgnoreCase(authority.getSchedulerRecoveryState(), DrConstants.SCHEDULER_RECOVERY_RECOVERING)) {
+            authority.setSchedulerRecoveryAttempts(authority.getSchedulerRecoveryAttempts() + 1);
+        }
+        authority.setSchedulerRecoveryState(schedulerRecoveryState);
+        authority.setSchedulerRecoveryTrigger(schedulerRecoveryTrigger);
+        authority.setSchedulerRecoveryErrorCode(StringUtils.equalsIgnoreCase(schedulerRecoveryState,
+                DrConstants.SCHEDULER_RECOVERY_FAILED) ? errorCode : null);
+        authority.setSchedulerRecoveryErrorMessage(StringUtils.equalsIgnoreCase(schedulerRecoveryState,
+                DrConstants.SCHEDULER_RECOVERY_FAILED) ? errorMessage : null);
+        authority.setSchedulerRecoveredAt(schedulerRecoveredAt);
         authority.setSchedulerPidAlive(Boolean.TRUE.equals(pidAlive));
+        authority.setSchedulerSessionUuid(schedulerSessionUuid);
+        authority.setSchedulerLeaseEpoch(leaseEpoch);
+        authority.setAuthoritySequence(authoritySequence);
+        authority.setPlanCycleSequence(status.getPlanCycleSequence() != null ? status.getPlanCycleSequence()
+                : longValue(runtime, "plan_cycle_sequence"));
+        authority.setSchedulerHealthState(schedulerHealth);
+        authority.setReplicationActivityState(replicationActivity);
+        authority.setActiveWorkerRunUuid(activeWorkerRunUuid);
+        authority.setActiveWorkerPid(activeWorkerPid);
+        authority.setActiveWorkerStartTicks(activeWorkerStartTicks);
+        authority.setWorkerHeartbeatAt(workerHeartbeatAt);
+        authority.setControlRequestRunUuid(controlRequestRunUuid);
+        authority.setOwnerMatched(Boolean.TRUE.equals(ownerMatched));
         authority.setWorkerState(workerState);
         authority.setCurrentCycleSequence(sequence);
         authority.setCurrentCycleState(cycleState);
@@ -284,11 +416,15 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         authority.setLastModeDecisionCode(StringUtils.defaultIfBlank(status.getLatestCompletedModeDecisionCode(), modeDecisionCode));
         authority.setConsecutiveAutomaticReseedCount(status.getConsecutiveAutomaticReseedCount() != null
                 ? status.getConsecutiveAutomaticReseedCount() : 0);
-        authority.setLatestCompletedCycleSequence(status.getLatestCompletedCheckpointSequence());
-        authority.setLatestCompletedIncrementalVerified(status.getLatestCompletedIncrementalVerified());
+        if (status.getLatestCompletedCheckpointSequence() != null) {
+            authority.setLatestCompletedCycleSequence(status.getLatestCompletedCheckpointSequence());
+            authority.setProjectionIntegritySequence(status.getLatestCompletedCheckpointSequence());
+        }
+        if (status.getLatestCompletedIncrementalVerified() != null) {
+            authority.setLatestCompletedIncrementalVerified(status.getLatestCompletedIncrementalVerified());
+        }
         authority.setProjectionIntegrityState("CONSISTENT");
         authority.setProjectionIntegrityCode(null);
-        authority.setProjectionIntegritySequence(status.getLatestCompletedCheckpointSequence());
         authority.setProtectionState(protectionState);
         authority.setFreshnessState(freshnessState);
         authority.setLastStatusAt(now);
@@ -306,12 +442,13 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             drPlanRuntimeDao.update(authority.getId(), authority);
         }
 
-        if (sequence != null && StringUtils.isNotBlank(status.getRunUuid())) {
-            projectCurrentSyncCycle(plan, projectionRun, status, sequence, requestedMode, effectiveMode, cycleState,
+        if (sequence != null && StringUtils.isNotBlank(producerRunUuid)) {
+            projectCurrentSyncCycle(plan, protectionProducerRun, status, sequence, requestedMode, effectiveMode, cycleState,
                     baselineState, reseedReason, sourceAt, errorCode, errorMessage);
         }
-        if (status.getLatestCompletedCheckpointSequence() != null && StringUtils.isNotBlank(status.getRunUuid())) {
-            projectLatestCompletedSyncCycle(plan, projectionRun, status,
+        if (status.getLatestCompletedCheckpointSequence() != null
+                && StringUtils.isNotBlank(producerRunUuid)) {
+            projectLatestCompletedSyncCycle(plan, protectionProducerRun, status,
                     status.getLatestCompletedCheckpointSequence(), baselineState);
         }
     }
@@ -319,15 +456,19 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
     private void projectCurrentSyncCycle(DrPlanVO plan, DrRunVO projectionRun, FtctlDrStatusAnswer status,
             long sequence, String requestedMode, String effectiveMode, String cycleState, String baselineState,
             String reseedReason, Date sourceAt, String errorCode, String errorMessage) {
-        DrSyncCycleVO cycle = drSyncCycleDao.findByPlanRunSequence(plan.getId(), status.getRunUuid(), sequence);
+        String engineRunUuid = resolveProtectionProducerRunUuid(status, parseObject(status.getStatusJson()));
+        DrSyncCycleVO cycle = drSyncCycleDao.findByPlanRunSequence(plan.getId(), engineRunUuid, sequence);
         if (cycle == null) {
-            cycle = new DrSyncCycleVO(plan.getId(), status.getRunUuid(), sequence);
+            cycle = new DrSyncCycleVO(plan.getId(), engineRunUuid, sequence);
             cycle.setStarted(new Date());
         }
         if (cycle.getCompleted() != null) {
             return;
         }
         cycle.setRunId(projectionRun != null ? projectionRun.getId() : null);
+        cycle.setSchedulerSessionUuid(status.getSchedulerSessionUuid());
+        cycle.setSchedulerLeaseEpoch(status.getSchedulerLeaseEpoch());
+        cycle.setAuthoritySequence(status.getAuthoritySequence());
         cycle.setRequestedMode(requestedMode);
         cycle.setEffectiveMode(effectiveMode);
         cycle.setState(StringUtils.defaultIfBlank(cycleState, status.getState()));
@@ -350,9 +491,10 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             return;
         }
         sequence = snapshot.getSequence();
-        DrSyncCycleVO cycle = drSyncCycleDao.findByPlanRunSequence(plan.getId(), status.getRunUuid(), sequence);
+        String engineRunUuid = resolveProtectionProducerRunUuid(status, parseObject(status.getStatusJson()));
+        DrSyncCycleVO cycle = drSyncCycleDao.findByPlanRunSequence(plan.getId(), engineRunUuid, sequence);
         if (cycle == null) {
-            cycle = new DrSyncCycleVO(plan.getId(), status.getRunUuid(), sequence);
+            cycle = new DrSyncCycleVO(plan.getId(), engineRunUuid, sequence);
             cycle.setStarted(parseDate(status.getLatestCompletedSourceCheckpointAt()));
         }
         if (cycle.getCompleted() != null && cycle.getBaselineGeneration() != null
@@ -363,6 +505,9 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         Date sourceAt = parseDate(status.getLatestCompletedSourceCheckpointAt());
         Date durableAt = parseDate(status.getLatestCompletedTargetDurableAt());
         cycle.setRunId(projectionRun != null ? projectionRun.getId() : null);
+        cycle.setSchedulerSessionUuid(status.getSchedulerSessionUuid());
+        cycle.setSchedulerLeaseEpoch(status.getSchedulerLeaseEpoch());
+        cycle.setAuthoritySequence(status.getAuthoritySequence());
         cycle.setCycleToken(snapshot.getCycleToken());
         cycle.setRequestedMode(StringUtils.defaultIfBlank(snapshot.getRequestedMode(),
                 status.getLatestCompletedCheckpointCycleType()));
@@ -409,7 +554,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         }
         snapshot = new FtctlDrCycleSnapshot();
         snapshot.setPlanUuid(status.getPlanUuid());
-        snapshot.setRunUuid(status.getRunUuid());
+        snapshot.setRunUuid(resolveProtectionProducerRunUuid(status, parseObject(status.getStatusJson())));
         snapshot.setSequence(status.getLatestCompletedCheckpointSequence());
         snapshot.setCycleToken(status.getLatestCompletedCycleToken());
         snapshot.setState(status.getLatestCompletedCheckpointState());
@@ -436,8 +581,9 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         if (snapshot == null) {
             return true;
         }
+        String producerRunUuid = resolveProtectionProducerRunUuid(status, parseObject(status.getStatusJson()));
         if (snapshot.getSequence() == null || !StringUtils.equals(plan.getUuid(), snapshot.getPlanUuid())
-                || !StringUtils.equals(status.getRunUuid(), snapshot.getRunUuid())) {
+                || !StringUtils.equals(producerRunUuid, snapshot.getRunUuid())) {
             return false;
         }
         String expectedToken = snapshot.getPlanUuid() + ":" + snapshot.getSequence();
@@ -479,10 +625,11 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
     }
 
 
-    private void updatePlanFromStatus(DrPlanVO plan, DrRunVO projectionRun, FtctlDrStatusAnswer status) {
+    private void updatePlanFromStatus(DrPlanVO plan, DrRunVO projectionRun, DrRunVO protectionProducerRun,
+            FtctlDrStatusAnswer status) {
         boolean changed = false;
         JsonObject runtime = parseObject(status.getStatusJson());
-        upsertCutoverSession(plan, projectionRun, status, runtime);
+        DrCutoverSessionVO cutoverSession = upsertCutoverSession(plan, projectionRun, status, runtime);
         if (isFiniteOperationRun(projectionRun)) {
             reconcileAcceptedRunFromStatus(plan, status, runtime);
             return;
@@ -498,11 +645,10 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         String planState = toPlanState(status.getState());
         if (isCutoverReadyRuntime(plan, status, runtime)) {
             try {
-                if (!drTargetMaterializationService.ensureTargetPoweredOn(plan.getId())) {
-                    reconcileAcceptedRunFromStatus(plan, status, runtime);
-                    return;
-                }
+                DrTargetPowerOnResult powerOnResult = drTargetMaterializationService.ensureTargetPoweredOn(plan.getId());
+                commitCloudOwnedCutover(plan, projectionRun, cutoverSession, status, runtime, powerOnResult);
                 runtime.addProperty("state", "FAILED_OVER");
+                runtime.addProperty("active_side", "TARGET");
                 runtime.addProperty("target_power_state", "POWERED_ON");
                 runtime.addProperty("target_promotion_state", "PROMOTED");
                 planState = DrConstants.PLAN_STATE_FAILED_OVER;
@@ -591,20 +737,41 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             plan.markUpdated();
             drPlanDao.update(plan.getId(), plan);
         }
-        upsertRestorePointFromStatus(plan, status, runtime);
         reconcileAcceptedRunFromStatus(plan, status, runtime);
     }
 
     private boolean isCutoverReadyRuntime(DrPlanVO plan, FtctlDrStatusAnswer status, JsonObject runtime) {
         String state = StringUtils.upperCase(StringUtils.defaultIfBlank(status.getState(), stringValue(runtime, "state")), Locale.ROOT);
+        String guestPreparationState = StringUtils.defaultIfBlank(status.getGuestPreparationState(),
+                StringUtils.defaultIfBlank(stringValue(runtime, "guest_prep_state"),
+                        stringValue(runtime, "guest_preparation_state")));
+        String manifestSchema = StringUtils.defaultIfBlank(status.getManifestSchemaVersion(),
+                stringValue(runtime, "manifest_schema_version"));
+        String manifestSha256 = StringUtils.defaultIfBlank(status.getManifestSha256(),
+                stringValue(runtime, "manifest_sha256"));
+        Long manifestCheckpoint = status.getGuestPreparationCheckpointSequence() != null
+                ? status.getGuestPreparationCheckpointSequence() : longValue(runtime, "guestprep_checkpoint_sequence");
+        Long durableCheckpoint = status.getLatestCompletedCheckpointSequence() != null
+                ? status.getLatestCompletedCheckpointSequence()
+                : longValue(runtime, "latest_completed_checkpoint_sequence");
+        if (durableCheckpoint == null) {
+            durableCheckpoint = longValue(runtime, "checkpoint_sequence");
+        }
+        Integer targetDiskCount = firstInteger(status.getTargetDiskCount(), integerValue(runtime, "target_disk_count"));
         return StringUtils.equalsIgnoreCase(plan.getDirection(), "VMWARE_TO_KVM")
                 && StringUtils.equals(state, "CUTOVER_READY")
-                && StringUtils.equalsIgnoreCase(status.getGuestPreparationState(), "READY");
+                && StringUtils.equalsIgnoreCase(guestPreparationState, "READY")
+                && StringUtils.equals(manifestSchema, "FTCTL_GUESTPREP_MANIFEST_V2")
+                && StringUtils.length(manifestSha256) == 64
+                && manifestSha256.matches("[0-9a-fA-F]{64}")
+                && manifestCheckpoint != null
+                && (durableCheckpoint == null || manifestCheckpoint.equals(durableCheckpoint))
+                && targetDiskCount != null && targetDiskCount > 0;
     }
 
-    private void upsertCutoverSession(DrPlanVO plan, DrRunVO run, FtctlDrStatusAnswer status, JsonObject runtime) {
+    private DrCutoverSessionVO upsertCutoverSession(DrPlanVO plan, DrRunVO run, FtctlDrStatusAnswer status, JsonObject runtime) {
         if (run == null || !StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_FAILOVER)) {
-            return;
+            return null;
         }
         DrCutoverSessionVO session = drCutoverSessionDao.findActiveByRunId(run.getId());
         if (session == null) {
@@ -612,21 +779,131 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                     StringUtils.defaultIfBlank(status.getState(), "PREPARING"));
             session = drCutoverSessionDao.persist(session);
         }
-        session.setState(StringUtils.defaultIfBlank(status.getState(), session.getState()));
-        session.setCheckpointSequence(longValue(runtime, "test_restore_point_sequence"));
+        if (!StringUtils.equalsIgnoreCase(session.getCloudPromotionState(), "PROMOTED")) {
+            session.setState(StringUtils.defaultIfBlank(status.getState(), session.getState()));
+        }
+        Long checkpointSequence = status.getGuestPreparationCheckpointSequence();
+        if (checkpointSequence == null) {
+            checkpointSequence = longValue(runtime, "guestprep_checkpoint_sequence");
+        }
+        if (checkpointSequence == null) {
+            checkpointSequence = status.getLatestCompletedCheckpointSequence();
+        }
+        session.setCheckpointSequence(checkpointSequence);
         session.setGuestOsFamily(status.getGuestFamily());
         session.setGuestPreparationState(status.getGuestPreparationState());
         session.setVirtioState(StringUtils.equalsIgnoreCase(status.getGuestPreparationState(), "READY") ? "READY" : status.getGuestPreparationState());
         session.setSecureBootState(stringValue(runtime, "secure_boot_state"));
         session.setDomainName(status.getTestDomainName());
         session.setBootValidationState(status.getTestDomainState());
+        session.setSourceFenceState(stringValue(runtime, "source_fence_state"));
+        session.setSourcePowerState(stringValue(runtime, "source_power_state"));
+        session.setManifestSchemaVersion(StringUtils.defaultIfBlank(status.getManifestSchemaVersion(),
+                stringValue(runtime, "manifest_schema_version")));
+        session.setManifestSha256(StringUtils.defaultIfBlank(status.getManifestSha256(),
+                stringValue(runtime, "manifest_sha256")));
+        session.setTargetDiskCount(firstInteger(status.getTargetDiskCount(), integerValue(runtime, "target_disk_count")));
+        session.setSchedulerRecoveryState(stringValue(runtime, "scheduler_recovery_state"));
         session.setCleanupRequired(StringUtils.equalsAnyIgnoreCase(status.getState(), "TESTING", "TEST_RUNNING", "ERROR"));
         session.setDetailsJson(compactRuntimeStatusJson(status.getStatusJson()));
         session.setErrorCode(status.getErrorCode());
-        session.setErrorMessage(stringValue(runtime, "error_message"));
+        session.setErrorMessage(StringUtils.isNotBlank(status.getErrorCode())
+                ? projectionFailureMessage(status.getErrorCode(), status, runtime) : null);
         session.markUpdated();
         drCutoverSessionDao.update(session.getId(), session);
         upsertCutoverDisks(session, runtime);
+        return session;
+    }
+
+    private void commitCloudOwnedCutover(DrPlanVO plan, DrRunVO run, DrCutoverSessionVO session,
+            FtctlDrStatusAnswer status, JsonObject runtime, DrTargetPowerOnResult powerOnResult) {
+        if (run == null || session == null || powerOnResult == null || !powerOnResult.isReady()) {
+            throw new IllegalStateException("Cloud target promotion evidence is incomplete");
+        }
+        String compactStatusJson = compactRuntimeStatusJson(status.getStatusJson());
+        recordRunStep(run, "target-power-on", STEP_ORDER_TARGET_POWER_ON, DrConstants.STEP_STATE_SUCCEEDED,
+                100, compactStatusJson, null, null);
+        recordRunStep(run, "boot-validation", STEP_ORDER_BOOT_VALIDATION, DrConstants.STEP_STATE_SUCCEEDED,
+                100, compactStatusJson, null, null);
+
+        long generation = session.getCloudAuthorityGeneration() != null
+                ? session.getCloudAuthorityGeneration()
+                : session.getCheckpointSequence() != null ? session.getCheckpointSequence() : run.getId();
+        session.setCloudAuthorityGeneration(generation);
+        session.setCloudPromotionState("PROMOTED");
+        session.setTargetPowerState(powerOnResult.getPowerState());
+        session.setTargetPowerOnAt(powerOnResult.getPowerOnAt());
+        session.setBootValidationState(powerOnResult.getBootValidationState());
+        session.setBootValidatedAt(powerOnResult.getBootValidatedAt());
+        session.setEngineAckState("PENDING");
+        session.setState("CLOUD_PROMOTED");
+        session.setErrorCode(null);
+        session.setErrorMessage(null);
+        session.markUpdated();
+        drCutoverSessionDao.update(session.getId(), session);
+
+        plan.setState(DrConstants.PLAN_STATE_FAILED_OVER);
+        plan.setActiveSide("TARGET");
+        plan.setLastErrorCode(null);
+        plan.setLastErrorMessage(null);
+        plan.markUpdated();
+        drPlanDao.update(plan.getId(), plan);
+        runtime.addProperty("state", "FAILED_OVER");
+        runtime.addProperty("active_side", "TARGET");
+        runtime.addProperty("target_power_state", powerOnResult.getPowerState());
+        runtime.addProperty("target_promotion_state", "PROMOTED");
+        runtime.addProperty("boot_validation_state", powerOnResult.getBootValidationState());
+        runtime.addProperty("cloud_authority_generation", generation);
+        updateReplicaRuntimeProjection(plan, status, runtime, DrConstants.REPLICA_STATE_FAILED_OVER,
+                "TARGET", powerOnResult.getPowerState());
+        recordRunStep(run, "cloud-promotion", STEP_ORDER_CLOUD_PROMOTION, DrConstants.STEP_STATE_SUCCEEDED,
+                100, GSON.toJson(runtime), null, null);
+
+        Answer answer = sendCutoverCommit(plan, run, session, powerOnResult, runtime, generation);
+        if (answer == null || !answer.getResult()) {
+            String message = answer != null ? answer.getDetails() : "Agent returned no cutover commit acknowledgement";
+            session.setEngineAckState("FAILED");
+            session.setErrorCode("DR_CUTOVER_COMMIT_FAILED");
+            session.setErrorMessage(message);
+            session.markUpdated();
+            drCutoverSessionDao.update(session.getId(), session);
+            recordRunStep(run, "engine-state-reconciliation", STEP_ORDER_ENGINE_ACK, DrConstants.STEP_STATE_RUNNING,
+                    95, GSON.toJson(runtime), "DR_CUTOVER_COMMIT_FAILED", message);
+            return;
+        }
+
+        Date now = new Date();
+        session.setEngineAckState("ACKNOWLEDGED");
+        session.setEngineAckAt(now);
+        session.setState(DrConstants.PLAN_STATE_FAILED_OVER);
+        session.setCompletedAt(now);
+        session.setErrorCode(null);
+        session.setErrorMessage(null);
+        session.markUpdated();
+        drCutoverSessionDao.update(session.getId(), session);
+        runtime.addProperty("engine_ack_state", "ACKNOWLEDGED");
+        runtime.addProperty("engine_ack_at", DateUtil.getDateDisplayString(TimeZone.getTimeZone("GMT"), now));
+        recordRunStep(run, "engine-state-reconciliation", STEP_ORDER_ENGINE_ACK, DrConstants.STEP_STATE_SUCCEEDED,
+                100, GSON.toJson(runtime), null, null);
+    }
+
+    private Answer sendCutoverCommit(DrPlanVO plan, DrRunVO run, DrCutoverSessionVO session,
+            DrTargetPowerOnResult powerOnResult, JsonObject runtime, long generation) {
+        Long hostId = resolveCoordinatorHostId(plan);
+        if (hostId == null) {
+            return null;
+        }
+        FtctlDrActionCommand command = new FtctlDrActionCommand(FtctlDrActionCommand.Action.CUTOVER_COMMIT,
+                plan.getUuid(), run.getUuid());
+        command.setRole("coordinator");
+        command.setWaitForCompletion(true);
+        command.setWait(30);
+        command.setContextParam("cutoverSessionId", stringValue(runtime, "failover_session_id"));
+        command.setContextParam("checkpointSequence", String.valueOf(session.getCheckpointSequence()));
+        command.setContextParam("authorityGeneration", String.valueOf(generation));
+        command.setContextParam("targetPowerState", powerOnResult.getPowerState());
+        command.setContextParam("bootValidationState", powerOnResult.getBootValidationState());
+        return agentManager.easySend(hostId, command);
     }
 
     private void reconcileCloudManagedTestTarget(DrPlanVO plan, DrRunVO run, FtctlDrStatusAnswer status, JsonObject runtime) {
@@ -635,17 +912,17 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         }
         String runtimeState = StringUtils.upperCase(StringUtils.defaultIfBlank(status.getState(), stringValue(runtime, "state")), Locale.ROOT);
         DrTestSessionVO session = drTestSessionDao != null ? drTestSessionDao.findActiveByRunId(run.getId()) : null;
+        boolean materializationPending = false;
         if (session != null) {
-            if (StringUtils.equalsAny(runtimeState, "ERROR", "FAILED")) {
-                session.setState("FAILED");
+            String projectedState = DrTestSessionState.projectEngineState(session.getState(), runtimeState);
+            if (StringUtils.equals(projectedState, DrTestSessionState.FAILED)) {
+                session.setState(projectedState);
                 session.setErrorCode(StringUtils.defaultIfBlank(status.getErrorCode(), stringValue(runtime, "error_code")));
                 session.setErrorMessage(StringUtils.defaultIfBlank(status.getErrorMessage(), stringValue(runtime, "error_message")));
                 session.setCleanupRequired(true);
-            } else if (StringUtils.equalsAny(runtimeState, "TEST_ARTIFACTS_READY", "ARTIFACTS_READY")) {
-                session.setState("ARTIFACTS_READY");
+            } else if (!StringUtils.equals(session.getState(), projectedState)) {
+                session.setState(projectedState);
                 session.setCleanupRequired(true);
-            } else if (StringUtils.equalsAny(runtimeState, "TESTING", "QUEUED", "RUNNING")) {
-                session.setState("PREPARING");
             }
             Long checkpointSequence = status.getCurrentCheckpointSequence();
             if (checkpointSequence == null) {
@@ -660,8 +937,9 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             session.setDetailsJson(compactRuntimeStatusJson(status.getStatusJson()));
             session.markUpdated();
             drTestSessionDao.update(session.getId(), session);
+            materializationPending = DrTestSessionState.isMaterializationPending(session.getState());
         }
-        if (StringUtils.equalsAny(runtimeState, "TEST_ARTIFACTS_READY", "ARTIFACTS_READY")) {
+        if (materializationPending && StringUtils.equalsAny(runtimeState, "TEST_ARTIFACTS_READY", "ARTIFACTS_READY")) {
             drTargetMaterializationService.enqueueTestMaterialization(plan.getId(), run.getId(), status.getStatusJson());
         }
     }
@@ -961,6 +1239,11 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         if (run == null || run.getCompleted() != null || !isProjectableRunState(run)) {
             return;
         }
+        if (StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_TEST_FAILOVER)
+                && drTargetMaterializationService.isTestTargetActive(run.getId())) {
+            completeRunFromProjection(plan, run, status);
+            return;
+        }
         if (isRetryableWorkerCondition(status, runtime)) {
             failRetryableRunFromProjection(plan, run, status, runtime);
             return;
@@ -1003,6 +1286,35 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             return activeRun;
         }
         return drRunDao.findLatestByPlanId(plan.getId());
+    }
+
+    private DrRunVO resolveProtectionProducerRun(DrPlanVO plan, FtctlDrStatusAnswer status, JsonObject runtime) {
+        if (plan == null || drRunDao == null) {
+            return null;
+        }
+        String producerRunUuid = resolveProtectionProducerRunUuid(status, runtime);
+        DrRunVO producerRun = drRunDao.findByUuid(producerRunUuid);
+        if (producerRun != null && producerRun.getPlanId() == plan.getId()
+                && StringUtils.equalsAnyIgnoreCase(producerRun.getRunType(),
+                        DrConstants.RUN_TYPE_SYNC, DrConstants.RUN_TYPE_REPROTECT)) {
+            return producerRun;
+        }
+        return drRunDao.findLatestProtectionProducerByPlanId(plan.getId());
+    }
+
+    private String resolveProtectionProducerRunUuid(FtctlDrStatusAnswer status, JsonObject runtime) {
+        if (status == null) {
+            return null;
+        }
+        String producerRunUuid = StringUtils.defaultIfBlank(status.getLatestCompletedProducerRunUuid(),
+                StringUtils.defaultIfBlank(stringValue(runtime, "latest_completed_producer_run_uuid"),
+                        StringUtils.defaultIfBlank(status.getActiveWorkerRunUuid(),
+                                stringValue(runtime, "active_worker_run_uuid"))));
+        if (StringUtils.isBlank(producerRunUuid)
+                && !StringUtils.equalsIgnoreCase(status.getStatusScope(), "PLAN_AUTHORITY")) {
+            producerRunUuid = status.getRunUuid();
+        }
+        return producerRunUuid;
     }
 
     private boolean isRetryableWorkerCondition(FtctlDrStatusAnswer status, JsonObject runtime) {
@@ -1062,9 +1374,15 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             return drTargetMaterializationService.isTestTargetActive(run.getId());
         }
         if (StringUtils.equals(runType, DrConstants.RUN_TYPE_FAILOVER)) {
-            return StringUtils.equals(plan.getState(), DrConstants.PLAN_STATE_FAILED_OVER)
-                    || StringUtils.equals(runtimeState, "FAILED_OVER")
-                    || StringUtils.isNotBlank(stringValue(runtime, "failover_session_id"));
+            DrCutoverSessionVO session = drCutoverSessionDao.findActiveByRunId(run.getId());
+            return session != null
+                    && StringUtils.equals(plan.getState(), DrConstants.PLAN_STATE_FAILED_OVER)
+                    && StringUtils.equalsIgnoreCase(plan.getActiveSide(), "TARGET")
+                    && StringUtils.equalsIgnoreCase(session.getCloudPromotionState(), "PROMOTED")
+                    && StringUtils.equalsIgnoreCase(session.getTargetPowerState(), "POWERED_ON")
+                    && StringUtils.equalsIgnoreCase(session.getEngineAckState(), "ACKNOWLEDGED")
+                    && StringUtils.equalsIgnoreCase(session.getState(), DrConstants.PLAN_STATE_FAILED_OVER)
+                    && session.getCompletedAt() != null;
         }
         if (StringUtils.equals(runType, DrConstants.RUN_TYPE_FAILBACK)) {
             return StringUtils.equals(plan.getState(), DrConstants.PLAN_STATE_READY)
@@ -1088,9 +1406,22 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
     private void completeRunFromProjection(DrPlanVO plan, DrRunVO run, FtctlDrStatusAnswer status) {
         String compactStatusJson = compactRuntimeStatusJson(status.getStatusJson());
         recordRunProjectionStep(run, DrConstants.STEP_STATE_SUCCEEDED, 100, compactStatusJson, null, null);
+        if (StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_TEST_FAILOVER)) {
+            recordRunStep(run, "target-materialization", 40, DrConstants.STEP_STATE_SUCCEEDED, 100, compactStatusJson, null, null);
+            recordRunStep(run, "boot-validation", 50, DrConstants.STEP_STATE_SUCCEEDED, 100, compactStatusJson, null, null);
+            recordRunStep(run, "test-failover-active", 60, DrConstants.STEP_STATE_SUCCEEDED, 100, compactStatusJson, null, null);
+        } else if (StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_FAILOVER)) {
+            recordRunStep(run, "target-power-on", STEP_ORDER_TARGET_POWER_ON, DrConstants.STEP_STATE_SUCCEEDED, 100, compactStatusJson, null, null);
+            recordRunStep(run, "boot-validation", STEP_ORDER_BOOT_VALIDATION, DrConstants.STEP_STATE_SUCCEEDED, 100, compactStatusJson, null, null);
+            recordRunStep(run, "cloud-promotion", STEP_ORDER_CLOUD_PROMOTION, DrConstants.STEP_STATE_SUCCEEDED, 100, compactStatusJson, null, null);
+            recordRunStep(run, "engine-state-reconciliation", STEP_ORDER_ENGINE_ACK, DrConstants.STEP_STATE_SUCCEEDED, 100, compactStatusJson, null, null);
+            recordRunStep(run, "completed", STEP_ORDER_FINAL, DrConstants.STEP_STATE_SUCCEEDED, 100, compactStatusJson, null, null);
+        }
         run.setState(DrConstants.RUN_STATE_SUCCEEDED);
         run.setCompleted(new Date());
-        run.setCurrentStepName("runtime-projection");
+        run.setCurrentStepName(StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_TEST_FAILOVER)
+                ? "test-failover-active" : StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_FAILOVER)
+                        ? "completed" : "runtime-projection");
         run.setEngineAccepted(true);
         if (run.getAcceptedAt() == null) {
             run.setAcceptedAt(new Date());
@@ -1107,6 +1438,10 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         drRunDao.update(run.getId(), run);
         persistRunProjectionEvent(plan, run, DrConstants.EVENT_RUN_SUCCEEDED, DrConstants.EVENT_SEVERITY_INFO,
                 "FTCTL_DR runtime accepted state completed", compactStatusJson);
+        if (StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_TEST_FAILOVER)) {
+            persistRunProjectionEvent(plan, run, DrConstants.EVENT_TEST_VM_ACTIVE, DrConstants.EVENT_SEVERITY_INFO,
+                    "Cloud-managed DR test VM is active", compactStatusJson);
+        }
     }
 
     private void failRunFromProjection(DrPlanVO plan, DrRunVO run, FtctlDrStatusAnswer status, JsonObject runtime) {
@@ -1141,12 +1476,33 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
     }
 
     private String projectionFailureMessage(String errorCode, FtctlDrStatusAnswer status, JsonObject runtime) {
-        if (StringUtils.isNotBlank(status.getErrorMessage())) {
+        if (isMeaningfulErrorMessage(status.getErrorMessage())) {
             return status.getErrorMessage();
         }
         String runtimeMessage = stringValue(runtime, "error_message");
-        if (StringUtils.isNotBlank(runtimeMessage)) {
+        if (isMeaningfulErrorMessage(runtimeMessage)) {
             return runtimeMessage;
+        }
+        if (StringUtils.equalsIgnoreCase(errorCode, DrConstants.ERROR_CUTOVER_MANIFEST_INVALID)) {
+            return "The cutover manifest failed schema or cross-field validation";
+        }
+        if (StringUtils.equalsIgnoreCase(errorCode, DrConstants.ERROR_GUEST_OS_UNRESOLVED)) {
+            return "The source guest operating system could not be resolved for cutover preparation";
+        }
+        if (StringUtils.equalsIgnoreCase(errorCode, DrConstants.ERROR_TARGET_DISK_MAP_MISSING)) {
+            return "The cutover manifest is missing a target disk binding";
+        }
+        if (StringUtils.equalsIgnoreCase(errorCode, DrConstants.ERROR_TARGET_DISK_LOCATOR_INVALID)) {
+            return "A target disk provider locator is invalid or is only a display reference";
+        }
+        if (StringUtils.equalsIgnoreCase(errorCode, DrConstants.ERROR_TARGET_DISK_NOT_DURABLE)) {
+            return "A target disk provider object is absent or not readable";
+        }
+        if (StringUtils.equalsIgnoreCase(errorCode, DrConstants.ERROR_GUEST_PREP_RUNTIME_UNAVAILABLE)) {
+            return "The guest preparation runtime or required ISO is unavailable";
+        }
+        if (StringUtils.equalsIgnoreCase(errorCode, DrConstants.ERROR_GUEST_PREPARATION_FAILED)) {
+            return "Guest preparation failed after cutover manifest validation";
         }
         if (StringUtils.equalsIgnoreCase(errorCode, DrConstants.ERROR_VMWARE_MOVER_UNAVAILABLE)) {
             return "VMware data mover is not available on the selected FTCTL worker";
@@ -1191,6 +1547,10 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         return StringUtils.isNotBlank(errorCode)
                 ? "FTCTL_DR runtime reported failure: " + errorCode
                 : "FTCTL_DR runtime reported failure";
+    }
+
+    private boolean isMeaningfulErrorMessage(String message) {
+        return StringUtils.isNotBlank(message) && !StringUtils.equalsAnyIgnoreCase(StringUtils.trim(message), "OK", "SUCCESS");
     }
 
     private String statusMessage(FtctlDrStatusAnswer status, String defaultMessage) {
@@ -1294,12 +1654,17 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
 
     private void recordRunProjectionStep(DrRunVO run, String state, Integer progress, String detailsJson,
             String errorCode, String errorMessage) {
+        recordRunStep(run, "runtime-projection", STEP_ORDER_RUNTIME_PROJECTION, state, progress, detailsJson, errorCode, errorMessage);
+    }
+
+    private void recordRunStep(DrRunVO run, String name, int order, String state, Integer progress, String detailsJson,
+            String errorCode, String errorMessage) {
         if (drRunStepDao == null) {
             return;
         }
-        DrRunStepVO step = drRunStepDao.findActiveByRunIdAndStepOrder(run.getId(), STEP_ORDER_RUNTIME_PROJECTION);
+        DrRunStepVO step = drRunStepDao.findActiveByRunIdAndStepOrder(run.getId(), order);
         if (step == null) {
-            step = new DrRunStepVO(run.getId(), "runtime-projection", STEP_ORDER_RUNTIME_PROJECTION);
+            step = new DrRunStepVO(run.getId(), name, order);
         }
         step.setState(state);
         step.setProgress(progress);
@@ -1465,7 +1830,8 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         }
     }
 
-    private void upsertRestorePointFromStatus(DrPlanVO plan, FtctlDrStatusAnswer status, JsonObject runtime) {
+    private void upsertRestorePointFromStatus(DrPlanVO plan, DrRunVO protectionProducerRun,
+            FtctlDrStatusAnswer status, JsonObject runtime) {
         FtctlDrCycleSnapshot completedCycle = latestCompletedCycle(status);
         if (!isCoherentCycleSnapshot(plan, status, completedCycle)) {
             markProjectionIntegrityFailure(plan, completedCycle, "DR_STATUS_CYCLE_SNAPSHOT_INCOHERENT");
@@ -1496,7 +1862,6 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         }
 
         String checkpointSequence = String.valueOf(completedSequence);
-        DrRunVO projectionRun = resolveProjectionRun(plan);
         String sourceSnapshotRef = completedRef;
         byte[] checkpointRefHash = sha256(sourceSnapshotRef);
         if (drPlanDao.acquireInLockTable(plan.getId(), 10) == null) {
@@ -1524,7 +1889,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             if (sourceCheckpointAt == null) {
                 sourceCheckpointAt = parseDate(stringValue(runtime, "latest_completed_source_checkpoint_at"));
             }
-            restorePoint.setRunId(projectionRun != null ? projectionRun.getId() : null);
+            restorePoint.setRunId(protectionProducerRun != null ? protectionProducerRun.getId() : null);
             restorePoint.setCheckpointSequence(parseLong(checkpointSequence));
             restorePoint.setCheckpointCycleType(StringUtils.defaultIfBlank(status.getLatestCompletedCheckpointCycleType(),
                     stringValue(runtime, "latest_completed_checkpoint_cycle_type")));
@@ -1767,6 +2132,9 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         copyJsonProperty(runtime, compact, "disk_map_role");
         copyJsonProperty(runtime, compact, "target_disk_count");
         copyJsonProperty(runtime, compact, "target_disk_invalid_count");
+        copyJsonProperty(runtime, compact, "manifest_schema_version");
+        copyJsonProperty(runtime, compact, "manifest_sha256");
+        copyJsonProperty(runtime, compact, "guestprep_checkpoint_sequence");
         copyJsonProperty(runtime, compact, "manifest_path");
         copyJsonProperty(runtime, compact, "checkpoint_path");
         copyJsonProperty(runtime, compact, "cbt_status_path");
@@ -1778,6 +2146,19 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         copyJsonProperty(runtime, compact, "scheduler_state");
         copyJsonProperty(runtime, compact, "scheduler_pid_alive");
         copyJsonProperty(runtime, compact, "runtime_generation");
+        copyJsonProperty(runtime, compact, "scheduler_session_uuid");
+        copyJsonProperty(runtime, compact, "scheduler_lease_epoch");
+        copyJsonProperty(runtime, compact, "authority_sequence");
+        copyJsonProperty(runtime, compact, "plan_cycle_sequence");
+        copyJsonProperty(runtime, compact, "scheduler_health");
+        copyJsonProperty(runtime, compact, "replication_activity");
+        copyJsonProperty(runtime, compact, "protection_state");
+        copyJsonProperty(runtime, compact, "active_worker_run_uuid");
+        copyJsonProperty(runtime, compact, "active_worker_pid");
+        copyJsonProperty(runtime, compact, "active_worker_start_ticks");
+        copyJsonProperty(runtime, compact, "worker_heartbeat_at");
+        copyJsonProperty(runtime, compact, "control_request_run_uuid");
+        copyJsonProperty(runtime, compact, "owner_matched");
         copyJsonProperty(runtime, compact, "baseline_state");
         copyJsonProperty(runtime, compact, "reseed_reason");
         copyJsonProperty(runtime, compact, "control_protocol_version");
@@ -1805,8 +2186,15 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         copyJsonProperty(runtime, compact, "failover_mode");
         copyJsonProperty(runtime, compact, "failover_session_id");
         copyJsonProperty(runtime, compact, "failover_restore_point_ref");
+        copyJsonProperty(runtime, compact, "source_fence_state");
+        copyJsonProperty(runtime, compact, "scheduler_recovery_state");
         copyJsonProperty(runtime, compact, "target_power_state");
         copyJsonProperty(runtime, compact, "target_promotion_state");
+        copyJsonProperty(runtime, compact, "boot_validation_state");
+        copyJsonProperty(runtime, compact, "cloud_cutover_session_id");
+        copyJsonProperty(runtime, compact, "cloud_authority_generation");
+        copyJsonProperty(runtime, compact, "engine_ack_state");
+        copyJsonProperty(runtime, compact, "engine_ack_at");
         copyJsonProperty(runtime, compact, "source_power_state");
         copyJsonProperty(runtime, compact, "source_promotion_state");
         copyJsonProperty(runtime, compact, "failback_session_id");

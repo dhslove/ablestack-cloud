@@ -59,7 +59,9 @@ public class LibvirtFtctlDrStatusCommandWrapper extends CommandWrapper<FtctlDrSt
         script.add(boundedTimeoutSeconds + "s");
         script.add("ablestack_vm_ftctl");
         script.add("dr-status");
-        LibvirtFtctlDrCommandHelper.addPlanRunArgs(script, command.getPlanUuid(), command.getRunUuid());
+        String requestedRunUuid = command.getStatusScope() == FtctlDrStatusCommand.StatusScope.OPERATION
+                ? command.getRunUuid() : null;
+        LibvirtFtctlDrCommandHelper.addPlanRunArgs(script, command.getPlanUuid(), requestedRunUuid);
         if (command.getEventsOffset() != null) {
             script.add("--events-offset");
             script.add(String.valueOf(command.getEventsOffset()));
@@ -87,7 +89,8 @@ public class LibvirtFtctlDrStatusCommandWrapper extends CommandWrapper<FtctlDrSt
         String returnedPlanUuid = LibvirtFtctlDrCommandHelper.getString(payload, "plan_uuid");
         String returnedRunUuid = LibvirtFtctlDrCommandHelper.getString(payload, "run_uuid");
         if (!StringUtils.equals(command.getPlanUuid(), returnedPlanUuid)
-                || (StringUtils.isNotBlank(command.getRunUuid()) && !StringUtils.equals(command.getRunUuid(), returnedRunUuid))) {
+                || (command.getStatusScope() == FtctlDrStatusCommand.StatusScope.OPERATION
+                && StringUtils.isNotBlank(command.getRunUuid()) && !StringUtils.equals(command.getRunUuid(), returnedRunUuid))) {
             return validationAnswer(command, ERROR_STATUS_IDENTITY_MISMATCH,
                     "FTCTL_DR status identity did not match the requested plan/run", exitValue);
         }
@@ -119,6 +122,7 @@ public class LibvirtFtctlDrStatusCommandWrapper extends CommandWrapper<FtctlDrSt
                 LibvirtFtctlDrCommandHelper.getLong(payload, "events_offset"),
                 LibvirtFtctlDrCommandHelper.getString(payload, "error_code"),
                 exitValue, output, payload != null ? payload.toString() : null);
+        answer.setStatusScope(LibvirtFtctlDrCommandHelper.getString(payload, "status_scope"));
         answer.setErrorMessage(payloadErrorMessage);
         answer.setFailedComponent(LibvirtFtctlDrCommandHelper.getString(payload, "failed_component"));
         answer.setDataCommitState(LibvirtFtctlDrCommandHelper.getString(payload, "data_commit_state"));
@@ -151,6 +155,7 @@ public class LibvirtFtctlDrStatusCommandWrapper extends CommandWrapper<FtctlDrSt
         answer.setLatestCompletedCheckpointCycleType(LibvirtFtctlDrCommandHelper.getString(payload, "latest_completed_checkpoint_cycle_type"));
         answer.setLatestCompletedCheckpointRef(LibvirtFtctlDrCommandHelper.getString(payload, "latest_completed_checkpoint_ref"));
         answer.setLatestCompletedCheckpointState(LibvirtFtctlDrCommandHelper.getString(payload, "latest_completed_checkpoint_state"));
+        answer.setLatestCompletedProducerRunUuid(LibvirtFtctlDrCommandHelper.getString(payload, "latest_completed_producer_run_uuid"));
         answer.setLatestCompletedSourceCheckpointAt(LibvirtFtctlDrCommandHelper.getString(payload, "latest_completed_source_checkpoint_at"));
         answer.setLatestCompletedTargetDurableAt(LibvirtFtctlDrCommandHelper.getString(payload, "latest_completed_target_durable_at"));
         answer.setLatestCompletedTargetReadyRpoSeconds(LibvirtFtctlDrCommandHelper.getInteger(payload, "latest_completed_target_ready_rpo_seconds"));
@@ -174,6 +179,7 @@ public class LibvirtFtctlDrStatusCommandWrapper extends CommandWrapper<FtctlDrSt
         answer.setLatestCompletedThroughputBps(LibvirtFtctlDrCommandHelper.getLong(payload, "latest_completed_throughput_bps"));
         answer.setLatestCompletedBaselineGeneration(LibvirtFtctlDrCommandHelper.getLong(payload, "latest_completed_baseline_generation"));
         answer.setLatestCompletedCycleToken(LibvirtFtctlDrCommandHelper.getString(payload, "latest_completed_cycle_token"));
+        answer.setActiveWorkerRunUuid(LibvirtFtctlDrCommandHelper.getString(payload, "active_worker_run_uuid"));
         FtctlDrCycleSnapshot currentCycle = buildCurrentCycleSnapshot(answer, payloadPlanUuid, payloadRunUuid);
         FtctlDrCycleSnapshot latestCompletedCycle = buildLatestCompletedCycleSnapshot(answer, payloadPlanUuid, payloadRunUuid);
         if (!isCoherentLatestCompletedCycle(latestCompletedCycle)) {
@@ -193,11 +199,36 @@ public class LibvirtFtctlDrStatusCommandWrapper extends CommandWrapper<FtctlDrSt
         answer.setGuestPreparationState(LibvirtFtctlDrCommandHelper.getString(payload, "guest_prep_state"));
         answer.setGuestFamily(LibvirtFtctlDrCommandHelper.getString(payload, "guest_family"));
         answer.setGuestPreparationManifestPath(LibvirtFtctlDrCommandHelper.getString(payload, "guestprep_manifest_path"));
+        answer.setManifestSchemaVersion(LibvirtFtctlDrCommandHelper.getString(payload, "manifest_schema_version"));
+        answer.setManifestSha256(LibvirtFtctlDrCommandHelper.getString(payload, "manifest_sha256"));
+        answer.setGuestPreparationCheckpointSequence(LibvirtFtctlDrCommandHelper.getLong(payload, "guestprep_checkpoint_sequence"));
         answer.setTestDomainName(LibvirtFtctlDrCommandHelper.getString(payload, "test_domain_name"));
         answer.setTestDomainState(LibvirtFtctlDrCommandHelper.getString(payload, "test_domain_state"));
         answer.setTestBootValidationMode(LibvirtFtctlDrCommandHelper.getString(payload, "test_boot_validation_mode"));
         answer.setRuntimeGeneration(LibvirtFtctlDrCommandHelper.getLong(payload, "runtime_generation"));
         answer.setSchedulerPidAlive(LibvirtFtctlDrCommandHelper.getBoolean(payload, "scheduler_pid_alive"));
+        answer.setSchedulerDesiredState(LibvirtFtctlDrCommandHelper.getString(payload, "scheduler_desired_state"));
+        answer.setSchedulerServiceUnit(LibvirtFtctlDrCommandHelper.getString(payload, "scheduler_service_unit"));
+        answer.setSchedulerUnitActiveState(LibvirtFtctlDrCommandHelper.getString(payload, "scheduler_unit_active_state"));
+        answer.setSchedulerUnitSubState(LibvirtFtctlDrCommandHelper.getString(payload, "scheduler_unit_sub_state"));
+        answer.setSchedulerUnitMainPid(LibvirtFtctlDrCommandHelper.getLong(payload, "scheduler_unit_main_pid"));
+        answer.setSchedulerCgroup(LibvirtFtctlDrCommandHelper.getString(payload, "scheduler_cgroup"));
+        answer.setSchedulerRecoveryState(LibvirtFtctlDrCommandHelper.getString(payload, "scheduler_recovery_state"));
+        answer.setSchedulerRecoveryTrigger(LibvirtFtctlDrCommandHelper.getString(payload, "scheduler_recovery_trigger"));
+        answer.setSchedulerRecoveredAt(LibvirtFtctlDrCommandHelper.getString(payload, "scheduler_recovered_at"));
+        answer.setSchedulerSessionUuid(LibvirtFtctlDrCommandHelper.getString(payload, "scheduler_session_uuid"));
+        answer.setSchedulerLeaseEpoch(LibvirtFtctlDrCommandHelper.getLong(payload, "scheduler_lease_epoch"));
+        answer.setAuthoritySequence(LibvirtFtctlDrCommandHelper.getLong(payload, "authority_sequence"));
+        answer.setPlanCycleSequence(LibvirtFtctlDrCommandHelper.getLong(payload, "plan_cycle_sequence"));
+        answer.setSchedulerHealth(LibvirtFtctlDrCommandHelper.getString(payload, "scheduler_health"));
+        answer.setReplicationActivity(LibvirtFtctlDrCommandHelper.getString(payload, "replication_activity"));
+        answer.setProtectionState(LibvirtFtctlDrCommandHelper.getString(payload, "protection_state"));
+        answer.setActiveWorkerRunUuid(LibvirtFtctlDrCommandHelper.getString(payload, "active_worker_run_uuid"));
+        answer.setActiveWorkerPid(LibvirtFtctlDrCommandHelper.getLong(payload, "active_worker_pid"));
+        answer.setActiveWorkerStartTicks(LibvirtFtctlDrCommandHelper.getLong(payload, "active_worker_start_ticks"));
+        answer.setWorkerHeartbeatAt(LibvirtFtctlDrCommandHelper.getString(payload, "worker_heartbeat_at"));
+        answer.setControlRequestRunUuid(LibvirtFtctlDrCommandHelper.getString(payload, "control_request_run_uuid"));
+        answer.setOwnerMatched(LibvirtFtctlDrCommandHelper.getBoolean(payload, "owner_matched"));
         answer.setBaselineState(LibvirtFtctlDrCommandHelper.getString(payload, "baseline_state"));
         answer.setReseedReason(LibvirtFtctlDrCommandHelper.getString(payload, "reseed_reason"));
         answer.setConsecutiveAutomaticReseedCount(LibvirtFtctlDrCommandHelper.getInteger(payload, "consecutive_automatic_reseed_count"));
@@ -210,7 +241,7 @@ public class LibvirtFtctlDrStatusCommandWrapper extends CommandWrapper<FtctlDrSt
         }
         FtctlDrCycleSnapshot snapshot = new FtctlDrCycleSnapshot();
         snapshot.setPlanUuid(planUuid);
-        snapshot.setRunUuid(runUuid);
+        snapshot.setRunUuid(StringUtils.defaultIfBlank(answer.getActiveWorkerRunUuid(), runUuid));
         snapshot.setSequence(answer.getCurrentCheckpointSequence());
         snapshot.setState(answer.getCurrentCheckpointState());
         snapshot.setRequestedMode(answer.getCurrentCheckpointRequestedMode());
@@ -224,7 +255,8 @@ public class LibvirtFtctlDrStatusCommandWrapper extends CommandWrapper<FtctlDrSt
         }
         FtctlDrCycleSnapshot snapshot = new FtctlDrCycleSnapshot();
         snapshot.setPlanUuid(planUuid);
-        snapshot.setRunUuid(runUuid);
+        snapshot.setRunUuid(StringUtils.defaultIfBlank(answer.getLatestCompletedProducerRunUuid(),
+                StringUtils.defaultIfBlank(answer.getActiveWorkerRunUuid(), runUuid)));
         snapshot.setSequence(answer.getLatestCompletedCheckpointSequence());
         snapshot.setCycleToken(StringUtils.defaultIfBlank(answer.getLatestCompletedCycleToken(),
                 planUuid + ":" + answer.getLatestCompletedCheckpointSequence()));
@@ -279,7 +311,7 @@ public class LibvirtFtctlDrStatusCommandWrapper extends CommandWrapper<FtctlDrSt
                 "target_network_present", "restore_point_present", "data_copied", "metadata_committed",
                 "target_durable", "retryable", "latest_completed_incremental_verified",
                 "latest_completed_metrics_estimated", "current_checkpoint_automatic_reseed",
-                "latest_completed_automatic_reseed", "scheduler_pid_alive", "events_truncated"};
+                "latest_completed_automatic_reseed", "scheduler_pid_alive", "owner_matched", "events_truncated"};
         for (String field : booleans) {
             if (!LibvirtFtctlWrapperHelper.isBooleanOrNull(payload, field)) {
                 return false;
@@ -287,14 +319,16 @@ public class LibvirtFtctlDrStatusCommandWrapper extends CommandWrapper<FtctlDrSt
         }
         String[] numbers = {"progress", "target_ready_rpo_seconds", "events_offset", "events_next_offset",
                 "events_invalid_count", "target_disk_count", "target_disk_invalid_count", "worker_pid",
-                "worker_exit_code", "retry_after_sec", "current_checkpoint_sequence",
+                "worker_exit_code", "retry_after_sec", "current_checkpoint_sequence", "guestprep_checkpoint_sequence",
                 "latest_completed_checkpoint_sequence", "latest_completed_target_ready_rpo_seconds",
                 "latest_completed_virtual_bytes", "latest_completed_changed_bytes", "latest_completed_source_read_bytes",
                 "latest_completed_target_written_bytes", "latest_completed_transfer_payload_bytes",
                 "latest_completed_changed_extent_count", "latest_completed_duration_ms",
                 "latest_completed_throughput_bps", "latest_completed_baseline_generation",
                 "current_checkpoint_invalid_baseline_disk_count", "latest_completed_invalid_baseline_disk_count",
-                "consecutive_automatic_reseed_count", "runtime_generation"};
+                "consecutive_automatic_reseed_count", "runtime_generation", "scheduler_lease_epoch",
+                "authority_sequence", "plan_cycle_sequence", "active_worker_pid", "active_worker_start_ticks",
+                "scheduler_unit_main_pid"};
         for (String field : numbers) {
             if (!LibvirtFtctlWrapperHelper.isNumberOrNull(payload, field)) {
                 return false;

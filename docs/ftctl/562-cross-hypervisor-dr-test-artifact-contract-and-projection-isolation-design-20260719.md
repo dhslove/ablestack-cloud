@@ -1,11 +1,16 @@
 # Cross Hypervisor DR Test Artifact Contract And Projection Isolation Design
 
 - Date: 2026-07-19
-- Status: corrective implementation design, implementation pending
+- Status: canonical artifact path implemented and real-environment verified; terminal convergence correction pending
 - Scope: VMware to ABLESTACK Test Failover failure remediation
 - Normative for: UI, API, Cloud backend, Mold Agent, FTCTL, DB
-- Related: 521, 522, 523, 554, 561
+- Related: 521, 522, 523, 554, 561, 563
 - FTCTL companion: `ablestack-qemu-exec-tools/docs/ftctl/435-ftctl-dr-test-artifact-canonical-locator-and-failure-contract-design-20260719.md`
+
+> Normative terminal convergence update (2026-07-20):
+> [563-cross-hypervisor-dr-test-failover-terminal-convergence-design-20260720.md](563-cross-hypervisor-dr-test-failover-terminal-convergence-design-20260720.md)
+> governs monotonic Cloud Test Session state, direct Run completion after Cloud
+> boot validation, restart recovery, and canonical validation-policy fields.
 
 ## 1. Decision
 
@@ -741,3 +746,26 @@ This corrective design is complete when documents 521, 522, 523, 554, and 561
 defer to this contract for Test Failover disk identity, failure cleanup, and
 projection isolation. Implementation is complete only after Linux and Windows
 end-to-end acceptance passes with zero residual resources.
+
+## 20. Verified artifact path and remaining convergence boundary - 2026-07-20
+
+The canonical v3 RBD path has now passed a real Test Failover preparation:
+FTCTL created a protected snapshot and Plan/Run-scoped clone, guest preparation
+completed, Cloud imported the clone as a managed volume, and the Cloud test VM
+booted. The remaining nonterminal Run is not an Agent, FTCTL, or artifact
+failure.
+
+Document 563 defines the remaining correction: preserve `ACTIVE` as the Cloud
+session authority, complete the finite Run directly after boot validation, and
+use periodic projection only as an idempotent recovery path.
+
+## 21. Terminal Cleanup Is Not A Protection Producer - 2026-07-21
+
+The projection isolation rule in section 12 also applies after cleanup is
+terminal. The latest operation Run may be `TEST_CLEANUP`, while the producer is
+the existing `SYNC` worker. Cloud resolves and persists both identities
+separately. A completed checkpoint and restore point are attributed to the
+producer Run even when status was requested with the cleanup Run.
+
+The exact adapter refactor, status envelope, DB migration, UI convergence
+overlay, and acceptance gate are normative in document 565.

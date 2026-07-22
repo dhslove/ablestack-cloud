@@ -56,7 +56,7 @@
       </template>
     </a-alert>
 
-    <dr-run-progress v-if="showProtectionSummary && currentRun && currentRun.id" :run="currentRun" />
+    <dr-run-progress v-if="showProtectionSummary && isActiveRun(currentRun)" :run="currentRun" />
   </div>
 </template>
 
@@ -65,7 +65,7 @@ import DrResourceDetailsTab from '@/components/dr/DrResourceDetailsTab.vue'
 import DrRpoKpi from '@/components/dr/DrRpoKpi.vue'
 import DrRunProgress from '@/components/dr/DrRunProgress.vue'
 import DrStatusPill from '@/components/dr/DrStatusPill.vue'
-import { resolveDrPlanState } from '@/utils/dr/planState'
+import { isActiveDrRun, resolveDrPlanState, resolveDrReplicationResumeState } from '@/utils/dr/planState'
 import { mixinDevice } from '@/utils/mixin.js'
 
 export default {
@@ -146,6 +146,10 @@ export default {
         { key: 'currentCycle', label: this.$t('label.dr.current.cycle'), value: this.currentCycleLabel },
         { key: 'baselineState', label: this.$t('label.dr.baseline.state'), value: this.plan.baselinestate },
         { key: 'schedulerState', label: this.$t('label.dr.scheduler.state'), value: this.plan.schedulerstate },
+        { key: 'schedulerHealth', label: this.$t('label.dr.scheduler.health'), value: this.plan.schedulerhealth },
+        { key: 'replicationActivity', label: this.$t('label.dr.replication.activity'), value: this.plan.replicationactivity },
+        { key: 'replicationResumeState', label: this.$t('label.dr.replication.resume.state'), value: this.replicationResumeState },
+        { key: 'workerHeartbeatAt', label: this.$t('label.dr.scheduler.heartbeat'), value: this.plan.workerheartbeatat },
         { key: 'lastSourceCheckpoint', label: this.$t('label.dr.last.source.checkpoint'), value: this.plan.lastsourcecheckpointat },
         { key: 'lastTargetDurable', label: this.$t('label.dr.last.target.durable'), value: this.plan.lasttargetdurableat },
         { key: 'created', label: this.$t('label.created'), value: this.plan.created }
@@ -153,6 +157,9 @@ export default {
     },
     effectiveState () {
       return resolveDrPlanState(this.plan, this.currentRun)
+    },
+    replicationResumeState () {
+      return resolveDrReplicationResumeState(this.plan)
     },
     currentCycleLabel () {
       const values = [this.plan.currentcyclesequence, this.plan.currentcyclemode, this.plan.currentcyclestate]
@@ -170,6 +177,9 @@ export default {
     }
   },
   methods: {
+    isActiveRun (run) {
+      return isActiveDrRun(run)
+    },
     directionLabel (direction) {
       return {
         KVM_TO_KVM: 'label.dr.direction.kvm.to.kvm',
