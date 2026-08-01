@@ -454,3 +454,18 @@ Implementation must keep the distinction:
 | VDDK NBD export is unavailable after the socket path is built | `DR_VMWARE_VDDK_EXPORT_UNAVAILABLE` |
 | VDDK cannot open a powered-on disk because no run snapshot is used | `DR_VMWARE_VDDK_SOURCE_LOCKED` |
 | VDDK rejects the requested VMDK path or current delta path | `DR_VMWARE_VDDK_OPEN_DENIED` |
+
+## 13. Follow-up: Deterministic NBD Drain And Cloud Projection
+
+Live RPO-cycle evidence on 2026-07-23 showed that a valid source graph and a
+successful incremental data patch can still leave a short disconnect race with
+udev/partition reads. The full cross-layer correction is:
+
+```text
+569-cross-hypervisor-dr-nbd-deterministic-drain-and-cycle-observability-design-20260723.md
+```
+
+Cloud must not accept `COMPLETED` or `incrementalVerified=true` for a cycle
+whose FTCTL NBD teardown state is not `DRAINED`. Raw NBD device paths remain
+host-local; Agent/API/UI receive only typed aggregate teardown state and
+sanitized errors.

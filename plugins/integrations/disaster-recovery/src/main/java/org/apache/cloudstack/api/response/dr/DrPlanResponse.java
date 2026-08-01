@@ -205,6 +205,26 @@ public class DrPlanResponse extends BaseResponse {
     @Param(description = "true when the latest durable target copy is outside RPO")
     private Boolean rpoOverdue;
 
+    @SerializedName("rpoevaluationmode")
+    @Param(description = "the authority-aware RPO evaluation mode")
+    private String rpoEvaluationMode;
+
+    @SerializedName("displayrposeconds")
+    @Param(description = "the authority-aware RPO value to display")
+    private Long displayRpoSeconds;
+
+    @SerializedName("rpoasof")
+    @Param(description = "the reference time used for the displayed RPO")
+    private Date rpoAsOf;
+
+    @SerializedName("rpostatus")
+    @Param(description = "the authority-aware RPO target status")
+    private String rpoStatus;
+
+    @SerializedName("currentseverity")
+    @Param(description = "the severity of the current DR condition, excluding historical failures")
+    private String currentSeverity;
+
     @SerializedName("adminstate")
     @Param(description = "the DR plan administrative state")
     private String adminState;
@@ -220,6 +240,46 @@ public class DrPlanResponse extends BaseResponse {
     @SerializedName("protectionphase")
     @Param(description = "the current protection or cutover phase")
     private String protectionPhase;
+
+    @SerializedName("authorityside")
+    @Param(description = "the canonical side that currently owns workload authority")
+    private String authoritySide;
+
+    @SerializedName("authorityphase")
+    @Param(description = "the canonical authority lifecycle phase")
+    private String authorityPhase;
+
+    @SerializedName("authorityconsistent")
+    @Param(description = "true when Plan, cutover session, and runtime authority evidence agree")
+    private Boolean authorityConsistent;
+
+    @SerializedName("authorityinconsistencycode")
+    @Param(description = "typed authority projection inconsistency code")
+    private String authorityInconsistencyCode;
+
+    @SerializedName("authorityinconsistencymessage")
+    @Param(description = "operator-readable authority projection inconsistency message")
+    private String authorityInconsistencyMessage;
+
+    @SerializedName("authoritytransitiontype")
+    @Param(description = "the recognized authority transition type")
+    private String authorityTransitionType;
+
+    @SerializedName("authoritytransitionstate")
+    @Param(description = "the recognized authority transition state")
+    private String authorityTransitionState;
+
+    @SerializedName("authoritytransitionrunid")
+    @Param(description = "the DR run ID that owns the current authority transition")
+    private String authorityTransitionRunId;
+
+    @SerializedName("requiredcheckpointsequence")
+    @Param(description = "the minimum completed checkpoint sequence required to finish the transition")
+    private Long requiredCheckpointSequence;
+
+    @SerializedName("currentcutoversessionid")
+    @Param(description = "the current authority-bearing cutover session ID, absent for source authority")
+    private String currentCutoverSessionId;
 
     @SerializedName("cutoversessionstate")
     @Param(description = "the persisted actual failover session state")
@@ -497,6 +557,10 @@ public class DrPlanResponse extends BaseResponse {
     @Param(description = "the backend calculated action eligibility map")
     private Map<String, Boolean> actionEligibility;
 
+    @SerializedName("actionavailability")
+    @Param(description = "the backend calculated typed action availability map")
+    private Map<String, DrActionAvailabilityResponse> actionAvailability;
+
     @SerializedName("readinessstate")
     @Param(description = "the backend calculated DR plan readiness state")
     private String readinessState;
@@ -644,6 +708,11 @@ public class DrPlanResponse extends BaseResponse {
     public void setReseedReason(String value) { reseedReason = value; }
     public void setRpoAgeSeconds(Long value) { rpoAgeSeconds = value; }
     public void setRpoOverdue(Boolean value) { rpoOverdue = value; }
+    public void setRpoEvaluationMode(String value) { rpoEvaluationMode = value; }
+    public void setDisplayRpoSeconds(Long value) { displayRpoSeconds = value; }
+    public void setRpoAsOf(Date value) { rpoAsOf = value; }
+    public void setRpoStatus(String value) { rpoStatus = value; }
+    public void setCurrentSeverity(String value) { currentSeverity = value; }
 
     public void setAdminState(String adminState) {
         this.adminState = adminState;
@@ -655,6 +724,16 @@ public class DrPlanResponse extends BaseResponse {
 
     public void setOperatingSide(String value) { operatingSide = value; }
     public void setProtectionPhase(String value) { protectionPhase = value; }
+    public void setAuthoritySide(String value) { authoritySide = value; }
+    public void setAuthorityPhase(String value) { authorityPhase = value; }
+    public void setAuthorityConsistent(Boolean value) { authorityConsistent = value; }
+    public void setAuthorityInconsistencyCode(String value) { authorityInconsistencyCode = value; }
+    public void setAuthorityInconsistencyMessage(String value) { authorityInconsistencyMessage = value; }
+    public void setAuthorityTransitionType(String value) { authorityTransitionType = value; }
+    public void setAuthorityTransitionState(String value) { authorityTransitionState = value; }
+    public void setAuthorityTransitionRunId(String value) { authorityTransitionRunId = value; }
+    public void setRequiredCheckpointSequence(Long value) { requiredCheckpointSequence = value; }
+    public void setCurrentCutoverSessionId(String value) { currentCutoverSessionId = value; }
     public void setCutoverSessionState(String value) { cutoverSessionState = value; }
     public void setCloudPromotionState(String value) { cloudPromotionState = value; }
     public void setCutoverTargetPowerState(String value) { cutoverTargetPowerState = value; }
@@ -898,6 +977,10 @@ public class DrPlanResponse extends BaseResponse {
 
     public void setActionEligibility(Map<String, Boolean> actionEligibility) {
         this.actionEligibility = actionEligibility;
+    }
+
+    public void setActionAvailability(Map<String, DrActionAvailabilityResponse> actionAvailability) {
+        this.actionAvailability = actionAvailability;
     }
 
     public void setReadinessState(String readinessState) {

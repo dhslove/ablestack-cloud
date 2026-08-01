@@ -16,7 +16,7 @@
 // under the License.
 package com.cloud.dr;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -27,6 +27,7 @@ import org.apache.commons.lang3.StringUtils;
 
 import com.cloud.dr.adapter.DrAdapterRegistry;
 import com.cloud.dr.dao.DrPlanDao;
+import com.cloud.dr.dao.DrCutoverSessionDao;
 import com.cloud.dr.dao.DrPlanViewCacheDao;
 import com.cloud.dr.dao.DrPlanRuntimeDao;
 import com.cloud.dr.dao.DrReplicaDao;
@@ -43,6 +44,8 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 public class DrPlanServiceImpl extends ManagerBase implements DrPlanService {
+    private static final DrPlanActionAvailabilityEvaluator ACTION_AVAILABILITY_EVALUATOR =
+            new DrPlanActionAvailabilityEvaluator();
     @Inject
     private DrPlanDao drPlanDao;
     @Inject
@@ -67,6 +70,8 @@ public class DrPlanServiceImpl extends ManagerBase implements DrPlanService {
     private DrProtectionAuthorityService drProtectionAuthorityService;
     @Inject
     private DrTestSessionDao drTestSessionDao;
+    @Inject
+    private DrCutoverSessionDao drCutoverSessionDao;
 
     @Override
     public DrPlanVO createPlan(DrPlanVO plan) {
@@ -241,6 +246,16 @@ public class DrPlanServiceImpl extends ManagerBase implements DrPlanService {
 
     @Override
     public Map<String, Boolean> getActionEligibility(long planId) {
+        return getActionEvaluation(planId).getEligibility();
+    }
+
+    @Override
+    public Map<String, DrActionAvailability> getActionAvailability(long planId) {
+        return getActionEvaluation(planId).getAvailability();
+    }
+
+    @Override
+    public DrPlanActionEvaluation getActionEvaluation(long planId) {
         DrPlanVO plan = requirePlan(planId);
         boolean enabled = StringUtils.equals(DrConstants.ADMIN_STATE_ENABLED, plan.getAdminState());
         boolean activeRun = drRunDao.findActiveByPlanId(planId) != null;
@@ -254,15 +269,14 @@ public class DrPlanServiceImpl extends ManagerBase implements DrPlanService {
         DrPlanReadiness targetReadiness = drPlanReadinessValidator != null ? drPlanReadinessValidator.validateTargetReadiness(plan) : null;
         boolean targetReady = targetReadiness != null ? targetReadiness.isTargetMaterialized() : plan.getTargetReadyAt() != null;
         boolean failedOver = StringUtils.equals(DrConstants.PLAN_STATE_FAILED_OVER, plan.getState());
+        boolean lifecycleTransition = StringUtils.equals(DrConstants.PLAN_STATE_COMMIT_VERIFYING, plan.getState());
         boolean targetActive = StringUtils.equalsIgnoreCase("TARGET", plan.getActiveSide());
         boolean sourceAuthority = !failedOver && !targetActive;
         boolean syncPausable = StringUtils.equalsAny(plan.getState(), DrConstants.PLAN_STATE_SYNCING, DrConstants.PLAN_STATE_READY);
         boolean syncPaused = StringUtils.equals(DrConstants.PLAN_STATE_PAUSED, plan.getState());
         DrTestSessionVO activeTestSession = drTestSessionDao != null ? drTestSessionDao.findActiveByPlanId(planId) : null;
         boolean testRunning = StringUtils.equals(DrConstants.PLAN_STATE_TESTING, plan.getState())
-                || activeTestSession != null && (activeTestSession.isCleanupRequired()
-                        || StringUtils.equalsAny(activeTestSession.getState(), DrTestSessionState.ACTIVE,
-                                DrTestSessionState.FAILED, DrTestSessionState.CLEANUP_FAILED));
+                || DrTestSessionState.blocksNewTest(activeTestSession);
         DrPlanReadiness executionReadiness = drPlanReadinessValidator != null ? drPlanReadinessValidator.validateForExecution(plan) : null;
         DrPlanReadiness releaseReadiness = drPlanReadinessValidator != null ? drPlanReadinessValidator.validateForRelease(plan) : null;
         boolean ftctlDrExecutionReady = !ftctlDrPlan || executionReadiness == null || executionReadiness.isExecutionReady();
@@ -270,12 +284,17 @@ public class DrPlanServiceImpl extends ManagerBase implements DrPlanService {
         boolean ftctlDrControlReady = !ftctlDrPlan || isFtctlDrControlReady(planId);
         DrPlanRuntimeVO planRuntime = ftctlDrPlan && drPlanRuntimeDao != null
                 ? drPlanRuntimeDao.findByPlanId(planId) : null;
-        boolean recoverSyncRequired = isRecoverSyncRequired(plan, planRuntime, sourceAuthority);
+        boolean nbdRecoveryRequired = planRuntime != null
+                && (StringUtils.equalsIgnoreCase(planRuntime.getNbdTeardownState(), "QUARANTINED")
+                        || planRuntime.getNbdQuarantinedDeviceCount() > 0);
+        boolean recoverSyncRequired = nbdRecoveryRequired
+                || isRecoverSyncRequired(plan, planRuntime, sourceAuthority);
         DrProtectionAuthoritySnapshot authority = ftctlDrPlan && drProtectionAuthorityService != null
                 ? drProtectionAuthorityService.getAuthority(planId) : null;
         boolean normalCutoverReady = !ftctlDrPlan || (authority != null && authority.isNormalCutoverReady());
+        boolean committedTargetAuthority = !ftctlDrPlan || hasCommittedTargetAuthority(plan);
 
-        Map<String, Boolean> eligibility = new HashMap<String, Boolean>();
+        Map<String, Boolean> eligibility = new LinkedHashMap<String, Boolean>();
         eligibility.put("update", !activeRun);
         eligibility.put("delete", !activeRun && !runtimeResources && !isProtectedPlanState(plan));
         eligibility.put("sync", enabled && !activeRun && hasEngine && sourceAuthority && !v2kPlan
@@ -292,16 +311,75 @@ public class DrPlanServiceImpl extends ManagerBase implements DrPlanService {
         eligibility.put("failover", enabled && !activeRun && hasEngine
                 && sourceAuthority
                 && (legacyFtctlPlan || (ftctlDrPlan && ftctlDrControlReady && targetReady && normalCutoverReady)));
-        eligibility.put("confirmFenceClear", enabled && !activeRun && hasEngine && (legacyFtctlPlan || (ftctlDrPlan && failedOver)));
+        eligibility.put("confirmFenceClear", enabled && !activeRun && hasEngine && legacyFtctlPlan && failedOver);
         eligibility.put("failback", enabled && !activeRun && hasEngine
                 && (legacyFtctlPlan || (ftctlDrPlan && ftctlDrControlReady && (failedOver || targetActive))));
         eligibility.put("reprotect", enabled && !activeRun && hasEngine
-                && (legacyFtctlPlan || (ftctlDrPlan && ftctlDrControlReady && failedOver)));
+                && (legacyFtctlPlan || (ftctlDrPlan && ftctlDrControlReady && failedOver
+                        && targetActive && committedTargetAuthority && !testRunning)));
         eligibility.put("adoptReplica", enabled && !activeRun && hasEngine && legacyFtctlPlan);
         eligibility.put("releaseProtection", enabled && !activeRun && hasEngine && ftctlDrPlan && ftctlDrControlReady && ftctlDrReleaseReady);
         eligibility.put("migrationOnly", vmwarePhase1 || v2kPlan);
         eligibility.put("cancelRun", activeRun);
-        return eligibility;
+        if (lifecycleTransition) {
+            eligibility.replaceAll((action, allowed) -> false);
+            eligibility.put("cancelRun", activeRun);
+        }
+        if (nbdRecoveryRequired) {
+            eligibility.replaceAll((action, allowed) -> false);
+            eligibility.put("recoverSync", enabled && !activeRun && hasEngine && ftctlDrPlan);
+            eligibility.put("cancelRun", activeRun);
+        }
+        DrPlanActionAvailabilityContext context = new DrPlanActionAvailabilityContext();
+        context.planEnabled = enabled;
+        context.activeRun = activeRun;
+        context.runtimeResources = runtimeResources;
+        context.protectedPlanState = isProtectedPlanState(plan);
+        context.hasEngine = hasEngine;
+        context.sourceAuthority = sourceAuthority;
+        context.targetAuthority = failedOver || targetActive;
+        context.v2kPlan = v2kPlan;
+        context.legacyFtctlPlan = legacyFtctlPlan;
+        context.ftctlDrPlan = ftctlDrPlan;
+        context.syncPausable = syncPausable;
+        context.syncPaused = syncPaused;
+        context.recoverSyncRequired = recoverSyncRequired;
+        context.testRunning = testRunning;
+        context.targetReady = targetReady;
+        context.normalCutoverReady = normalCutoverReady;
+        context.failedOver = failedOver;
+        context.committedTargetAuthority = committedTargetAuthority;
+        context.ftctlControlReady = ftctlDrControlReady;
+        context.ftctlReleaseReady = ftctlDrReleaseReady;
+        context.lifecycleTransition = lifecycleTransition;
+        context.nbdRecoveryRequired = nbdRecoveryRequired;
+        return new DrPlanActionEvaluation(eligibility,
+                ACTION_AVAILABILITY_EVALUATOR.evaluate(eligibility, context));
+    }
+
+    private boolean hasCommittedTargetAuthority(DrPlanVO plan) {
+        if (plan == null || drCutoverSessionDao == null || drReplicaDao == null) {
+            return false;
+        }
+        DrCutoverSessionVO session = drCutoverSessionDao.findLatestActiveByPlanId(plan.getId());
+        if (session == null
+                || !StringUtils.equalsAnyIgnoreCase(session.getState(), "PROMOTED", "COMPLETED", "FAILED_OVER")
+                || !StringUtils.equalsIgnoreCase(session.getCloudPromotionState(), "PROMOTED")
+                || !StringUtils.equalsIgnoreCase(session.getEngineAckState(), "ACKNOWLEDGED")
+                || session.getCloudAuthorityGeneration() == null || session.getCloudAuthorityGeneration() <= 0) {
+            return false;
+        }
+        List<DrReplicaVO> replicas = drReplicaDao.listActiveByPlanId(plan.getId());
+        if (replicas == null) {
+            return false;
+        }
+        for (DrReplicaVO replica : replicas) {
+            if (replica != null && replica.getTargetVmId() != null
+                    && StringUtils.equalsIgnoreCase(replica.getActiveSide(), "TARGET")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean isRecoverSyncRequired(DrPlanVO plan, DrPlanRuntimeVO runtime, boolean sourceAuthority) {
@@ -390,7 +468,8 @@ public class DrPlanServiceImpl extends ManagerBase implements DrPlanService {
                 DrConstants.PLAN_STATE_READY,
                 DrConstants.PLAN_STATE_TESTING,
                 DrConstants.PLAN_STATE_PAUSED,
-                DrConstants.PLAN_STATE_FAILED_OVER);
+                DrConstants.PLAN_STATE_FAILED_OVER,
+                DrConstants.PLAN_STATE_COMMIT_VERIFYING);
     }
 
     private boolean hasDisruptiveUpdate(DrPlanVO plan, DrPlanVO update) {

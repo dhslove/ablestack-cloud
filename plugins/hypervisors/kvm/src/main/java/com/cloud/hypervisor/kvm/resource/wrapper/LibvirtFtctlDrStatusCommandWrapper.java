@@ -43,6 +43,8 @@ public class LibvirtFtctlDrStatusCommandWrapper extends CommandWrapper<FtctlDrSt
     private static final String ERROR_STATUS_PAYLOAD_TOO_LARGE = "DR_STATUS_PAYLOAD_TOO_LARGE";
     private static final String ERROR_STATUS_TYPE_MISMATCH = "DR_STATUS_TYPE_MISMATCH";
     private static final String ERROR_STATUS_CYCLE_SNAPSHOT_INCOHERENT = "DR_STATUS_CYCLE_SNAPSHOT_INCOHERENT";
+    private static final String ERROR_STATUS_CYCLE_EVIDENCE_INCOMPLETE = "DR_STATUS_CYCLE_EVIDENCE_INCOMPLETE";
+    private static final String ERROR_STATUS_CYCLE_EVIDENCE_CONFLICT = "DR_STATUS_CYCLE_EVIDENCE_CONFLICT";
     private static final int MAX_STATUS_BYTES = 256 * 1024;
 
     @Override
@@ -58,16 +60,29 @@ public class LibvirtFtctlDrStatusCommandWrapper extends CommandWrapper<FtctlDrSt
         script.add("--kill-after=" + STATUS_KILL_AFTER_SECONDS + "s");
         script.add(boundedTimeoutSeconds + "s");
         script.add("ablestack_vm_ftctl");
-        script.add("dr-status");
+        boolean transitionPreflight =
+                command.getStatusScope() == FtctlDrStatusCommand.StatusScope.TRANSITION_PREFLIGHT;
+        script.add(transitionPreflight ? "dr-transition-preflight" : "dr-status");
         String requestedRunUuid = command.getStatusScope() == FtctlDrStatusCommand.StatusScope.OPERATION
                 ? command.getRunUuid() : null;
         LibvirtFtctlDrCommandHelper.addPlanRunArgs(script, command.getPlanUuid(), requestedRunUuid);
-        if (command.getEventsOffset() != null) {
+        if (transitionPreflight) {
+            script.add("--operation");
+            script.add(command.getTransitionOperation());
+            script.add("--expected-authority");
+            script.add(StringUtils.defaultIfBlank(command.getExpectedAuthoritySide(), "TARGET"));
+            if (command.getExpectedAuthorityGeneration() != null) {
+                script.add("--authority-generation");
+                script.add(String.valueOf(command.getExpectedAuthorityGeneration()));
+            }
+        } else if (command.getEventsOffset() != null) {
             script.add("--events-offset");
             script.add(String.valueOf(command.getEventsOffset()));
         }
-        script.add("--events-limit");
-        script.add("0");
+        if (!transitionPreflight) {
+            script.add("--events-limit");
+            script.add("0");
+        }
         script.add("--json");
 
         OutputInterpreter.AllLinesParser parser = new OutputInterpreter.AllLinesParser();
@@ -93,6 +108,9 @@ public class LibvirtFtctlDrStatusCommandWrapper extends CommandWrapper<FtctlDrSt
                 && StringUtils.isNotBlank(command.getRunUuid()) && !StringUtils.equals(command.getRunUuid(), returnedRunUuid))) {
             return validationAnswer(command, ERROR_STATUS_IDENTITY_MISMATCH,
                     "FTCTL_DR status identity did not match the requested plan/run", exitValue);
+        }
+        if (transitionPreflight) {
+            return transitionPreflightAnswer(command, payload, output, exitValue);
         }
         if (!hasValidStatusTypes(payload)) {
             return validationAnswer(command, ERROR_STATUS_TYPE_MISMATCH,
@@ -179,14 +197,40 @@ public class LibvirtFtctlDrStatusCommandWrapper extends CommandWrapper<FtctlDrSt
         answer.setLatestCompletedThroughputBps(LibvirtFtctlDrCommandHelper.getLong(payload, "latest_completed_throughput_bps"));
         answer.setLatestCompletedBaselineGeneration(LibvirtFtctlDrCommandHelper.getLong(payload, "latest_completed_baseline_generation"));
         answer.setLatestCompletedCycleToken(LibvirtFtctlDrCommandHelper.getString(payload, "latest_completed_cycle_token"));
+        answer.setLatestCompletedNbdTeardownState(LibvirtFtctlDrCommandHelper.getString(payload, "latest_completed_nbd_teardown_state"));
+        answer.setLatestCompletedNbdTeardownStartedAtEpochMs(LibvirtFtctlDrCommandHelper.getLong(payload, "latest_completed_nbd_teardown_started_at_ms"));
+        answer.setLatestCompletedNbdTeardownCompletedAtEpochMs(LibvirtFtctlDrCommandHelper.getLong(payload, "latest_completed_nbd_teardown_completed_at_ms"));
+        answer.setLatestCompletedNbdTeardownDurationMs(LibvirtFtctlDrCommandHelper.getLong(payload, "latest_completed_nbd_teardown_duration_ms"));
+        answer.setLatestCompletedNbdSourceDeviceCount(LibvirtFtctlDrCommandHelper.getInteger(payload, "latest_completed_nbd_source_device_count"));
+        answer.setLatestCompletedNbdTargetDeviceCount(LibvirtFtctlDrCommandHelper.getInteger(payload, "latest_completed_nbd_target_device_count"));
+        answer.setLatestCompletedNbdQuarantinedDeviceCount(LibvirtFtctlDrCommandHelper.getInteger(payload, "latest_completed_nbd_quarantined_device_count"));
+        answer.setLatestCompletedNbdTeardownErrorCode(LibvirtFtctlDrCommandHelper.getString(payload, "latest_completed_nbd_teardown_error_code"));
+        answer.setLatestCompletedNbdTeardownErrorMessage(LibvirtFtctlDrCommandHelper.getString(payload, "latest_completed_nbd_teardown_error_message"));
+        answer.setReplicationDirection(LibvirtFtctlDrCommandHelper.getString(payload, "reverse_direction"));
+        answer.setProviderPair(LibvirtFtctlDrCommandHelper.getString(payload, "provider_pair"));
+        answer.setReverseBaselineGeneration(LibvirtFtctlDrCommandHelper.getLong(payload, "baseline_generation"));
+        answer.setReverseBaselineState(LibvirtFtctlDrCommandHelper.getString(payload, "baseline_state"));
+        answer.setReverseTrackerState(LibvirtFtctlDrCommandHelper.getString(payload, "tracker_state"));
+        answer.setReverseWriterState(LibvirtFtctlDrCommandHelper.getString(payload, "writer_state"));
+        answer.setReverseTargetWritten(LibvirtFtctlDrCommandHelper.getBoolean(payload, "target_written"));
+        answer.setReverseWriteVerified(LibvirtFtctlDrCommandHelper.getBoolean(payload, "write_verified"));
+        answer.setReverseGuestCompatibilityState(LibvirtFtctlDrCommandHelper.getString(payload, "reverse_guest_compatibility_state"));
         answer.setActiveWorkerRunUuid(LibvirtFtctlDrCommandHelper.getString(payload, "active_worker_run_uuid"));
         FtctlDrCycleSnapshot currentCycle = buildCurrentCycleSnapshot(answer, payloadPlanUuid, payloadRunUuid);
         FtctlDrCycleSnapshot latestCompletedCycle = buildLatestCompletedCycleSnapshot(answer, payloadPlanUuid, payloadRunUuid);
-        if (!isCoherentLatestCompletedCycle(latestCompletedCycle)) {
-            return validationAnswer(command, ERROR_STATUS_CYCLE_SNAPSHOT_INCOHERENT,
-                    "FTCTL_DR latest completed cycle identity/generation was incoherent", exitValue);
+        String cycleEvidenceState = classifyLatestCompletedCycleEvidence(latestCompletedCycle);
+        if (!StringUtils.equals(cycleEvidenceState, "COMPLETE")) {
+            String errorCode = StringUtils.equals(cycleEvidenceState, "INCOMPLETE")
+                    ? ERROR_STATUS_CYCLE_EVIDENCE_INCOMPLETE : ERROR_STATUS_CYCLE_EVIDENCE_CONFLICT;
+            String message = StringUtils.equals(cycleEvidenceState, "INCOMPLETE")
+                    ? "FTCTL_DR latest completed cycle evidence is incomplete and may be retried"
+                    : "FTCTL_DR latest completed cycle identity/generation conflicts with Plan authority";
+            return validationAnswer(command, errorCode, message, exitValue, cycleEvidenceState);
         }
         answer.setCycleContractVersion(1);
+        answer.setCycleEvidenceState("COMPLETE");
+        answer.setCycleEvidenceCode(null);
+        answer.setCycleEvidenceMessage(null);
         answer.setCurrentCycle(currentCycle);
         answer.setLatestCompletedCycle(latestCompletedCycle);
         answer.setControlProtocolVersion(LibvirtFtctlDrCommandHelper.getInteger(payload, "control_protocol_version"));
@@ -198,6 +242,11 @@ public class LibvirtFtctlDrStatusCommandWrapper extends CommandWrapper<FtctlDrSt
         answer.setCheckpointLeaseState(LibvirtFtctlDrCommandHelper.getString(payload, "checkpoint_lease_state"));
         answer.setGuestPreparationState(LibvirtFtctlDrCommandHelper.getString(payload, "guest_prep_state"));
         answer.setGuestFamily(LibvirtFtctlDrCommandHelper.getString(payload, "guest_family"));
+        answer.setTestSessionState(LibvirtFtctlDrCommandHelper.getString(payload, "test_session_state"));
+        answer.setTestArtifactsState(LibvirtFtctlDrCommandHelper.getString(payload, "test_artifacts_state"));
+        answer.setTestArtifactCount(LibvirtFtctlDrCommandHelper.getInteger(payload, "test_artifact_count"));
+        answer.setTestCleanupState(LibvirtFtctlDrCommandHelper.getString(payload, "test_cleanup_state"));
+        answer.setCleanupRequired(LibvirtFtctlDrCommandHelper.getBoolean(payload, "cleanup_required"));
         answer.setGuestPreparationManifestPath(LibvirtFtctlDrCommandHelper.getString(payload, "guestprep_manifest_path"));
         answer.setManifestSchemaVersion(LibvirtFtctlDrCommandHelper.getString(payload, "manifest_schema_version"));
         answer.setManifestSha256(LibvirtFtctlDrCommandHelper.getString(payload, "manifest_sha256"));
@@ -216,10 +265,22 @@ public class LibvirtFtctlDrStatusCommandWrapper extends CommandWrapper<FtctlDrSt
         answer.setSchedulerRecoveryState(LibvirtFtctlDrCommandHelper.getString(payload, "scheduler_recovery_state"));
         answer.setSchedulerRecoveryTrigger(LibvirtFtctlDrCommandHelper.getString(payload, "scheduler_recovery_trigger"));
         answer.setSchedulerRecoveredAt(LibvirtFtctlDrCommandHelper.getString(payload, "scheduler_recovered_at"));
+        answer.setNbdTeardownState(LibvirtFtctlDrCommandHelper.getString(payload, "nbd_teardown_state"));
+        answer.setNbdQuarantinedDeviceCount(LibvirtFtctlDrCommandHelper.getInteger(payload, "nbd_quarantined_device_count"));
+        answer.setNbdTeardownErrorCode(LibvirtFtctlDrCommandHelper.getString(payload, "nbd_teardown_error_code"));
+        answer.setNbdTeardownErrorMessage(LibvirtFtctlDrCommandHelper.getString(payload, "nbd_teardown_error_message"));
         answer.setSchedulerSessionUuid(LibvirtFtctlDrCommandHelper.getString(payload, "scheduler_session_uuid"));
         answer.setSchedulerLeaseEpoch(LibvirtFtctlDrCommandHelper.getLong(payload, "scheduler_lease_epoch"));
         answer.setAuthoritySequence(LibvirtFtctlDrCommandHelper.getLong(payload, "authority_sequence"));
         answer.setPlanCycleSequence(LibvirtFtctlDrCommandHelper.getLong(payload, "plan_cycle_sequence"));
+        answer.setResumeBaselineCheckpointSequence(
+                LibvirtFtctlDrCommandHelper.getLong(payload, "resume_baseline_checkpoint_sequence"));
+        answer.setMinimumCompletedCheckpointSequence(
+                LibvirtFtctlDrCommandHelper.getLong(payload, "minimum_completed_checkpoint_sequence"));
+        answer.setImmediateCyclePending(
+                LibvirtFtctlDrCommandHelper.getBoolean(payload, "immediate_cycle_pending"));
+        answer.setImmediateCycleOwnerRun(
+                LibvirtFtctlDrCommandHelper.getString(payload, "immediate_cycle_owner_run"));
         answer.setSchedulerHealth(LibvirtFtctlDrCommandHelper.getString(payload, "scheduler_health"));
         answer.setReplicationActivity(LibvirtFtctlDrCommandHelper.getString(payload, "replication_activity"));
         answer.setProtectionState(LibvirtFtctlDrCommandHelper.getString(payload, "protection_state"));
@@ -232,6 +293,29 @@ public class LibvirtFtctlDrStatusCommandWrapper extends CommandWrapper<FtctlDrSt
         answer.setBaselineState(LibvirtFtctlDrCommandHelper.getString(payload, "baseline_state"));
         answer.setReseedReason(LibvirtFtctlDrCommandHelper.getString(payload, "reseed_reason"));
         answer.setConsecutiveAutomaticReseedCount(LibvirtFtctlDrCommandHelper.getInteger(payload, "consecutive_automatic_reseed_count"));
+        return answer;
+    }
+
+    private Answer transitionPreflightAnswer(FtctlDrStatusCommand command, JsonObject payload,
+            String output, int exitValue) {
+        Boolean ready = LibvirtFtctlDrCommandHelper.getBoolean(payload, "ready");
+        if (ready == null) {
+            return validationAnswer(command, ERROR_STATUS_TYPE_MISMATCH,
+                    "FTCTL_DR transition preflight did not return a boolean ready field", exitValue);
+        }
+        String errorCode = LibvirtFtctlDrCommandHelper.getString(payload, "error_code");
+        String message = LibvirtFtctlDrCommandHelper.getString(payload, "message");
+        boolean success = exitValue == 0 && ready;
+        FtctlDrStatusAnswer answer = new FtctlDrStatusAnswer(command, success,
+                StringUtils.defaultIfBlank(message, success ? "FTCTL_DR transition preflight ready"
+                        : "FTCTL_DR transition preflight rejected"),
+                command.getPlanUuid(), null,
+                LibvirtFtctlDrCommandHelper.getString(payload, "result"),
+                success ? "READY" : "ERROR", "source-isolation-preflight",
+                100, null, null, null, null, null, null, null, null,
+                command.getEventsOffset(), errorCode, exitValue, output, payload.toString());
+        answer.setStatusScope(FtctlDrStatusCommand.StatusScope.TRANSITION_PREFLIGHT.name());
+        answer.setErrorMessage(message);
         return answer;
     }
 
@@ -276,34 +360,61 @@ public class LibvirtFtctlDrStatusCommandWrapper extends CommandWrapper<FtctlDrSt
         snapshot.setThroughputBps(answer.getLatestCompletedThroughputBps());
         snapshot.setSourceCheckpointAt(answer.getLatestCompletedSourceCheckpointAt());
         snapshot.setTargetDurableAt(answer.getLatestCompletedTargetDurableAt());
+        snapshot.setNbdTeardownState(answer.getLatestCompletedNbdTeardownState());
+        snapshot.setNbdTeardownStartedAtEpochMs(answer.getLatestCompletedNbdTeardownStartedAtEpochMs());
+        snapshot.setNbdTeardownCompletedAtEpochMs(answer.getLatestCompletedNbdTeardownCompletedAtEpochMs());
+        snapshot.setNbdTeardownDurationMs(answer.getLatestCompletedNbdTeardownDurationMs());
+        snapshot.setNbdSourceDeviceCount(answer.getLatestCompletedNbdSourceDeviceCount());
+        snapshot.setNbdTargetDeviceCount(answer.getLatestCompletedNbdTargetDeviceCount());
+        snapshot.setNbdQuarantinedDeviceCount(answer.getLatestCompletedNbdQuarantinedDeviceCount());
+        snapshot.setNbdTeardownErrorCode(answer.getLatestCompletedNbdTeardownErrorCode());
+        snapshot.setNbdTeardownErrorMessage(answer.getLatestCompletedNbdTeardownErrorMessage());
         return snapshot;
     }
 
-    private boolean isCoherentLatestCompletedCycle(FtctlDrCycleSnapshot snapshot) {
+    private String classifyLatestCompletedCycleEvidence(FtctlDrCycleSnapshot snapshot) {
         if (snapshot == null) {
-            return true;
+            return "COMPLETE";
         }
         if (snapshot.getSequence() == null || StringUtils.isBlank(snapshot.getPlanUuid())) {
-            return false;
+            return "INCOMPLETE";
         }
         String expectedToken = snapshot.getPlanUuid() + ":" + snapshot.getSequence();
         if (StringUtils.isNotBlank(snapshot.getCycleToken()) && !StringUtils.equals(expectedToken, snapshot.getCycleToken())) {
-            return false;
+            return "CONFLICT";
         }
         if (snapshot.getBaselineGeneration() != null
                 && !snapshot.getBaselineGeneration().equals(snapshot.getSequence())) {
-            return false;
+            return "CONFLICT";
+        }
+        if (Boolean.TRUE.equals(snapshot.getIncrementalVerified())
+                && StringUtils.equalsIgnoreCase(snapshot.getEffectiveMode(), "CBT_INCREMENTAL")
+                && StringUtils.isBlank(snapshot.getNbdTeardownState())) {
+            return "INCOMPLETE";
+        }
+        if (Boolean.TRUE.equals(snapshot.getIncrementalVerified())
+                && StringUtils.equalsIgnoreCase(snapshot.getEffectiveMode(), "CBT_INCREMENTAL")
+                && !StringUtils.equalsIgnoreCase(snapshot.getNbdTeardownState(), "DRAINED")) {
+            return "CONFLICT";
+        }
+        if (StringUtils.equalsIgnoreCase(snapshot.getNbdTeardownState(), "QUARANTINED")
+                && (snapshot.getNbdQuarantinedDeviceCount() == null
+                || snapshot.getNbdQuarantinedDeviceCount() < 1
+                || StringUtils.isBlank(snapshot.getNbdTeardownErrorCode()))) {
+            return "CONFLICT";
         }
         Long changed = snapshot.getChangedBytes();
         Long written = snapshot.getTargetWrittenBytes();
         if (changed != null && written != null && changed == 0L && written == 0L) {
             return StringUtils.isBlank(snapshot.getEffectiveMode())
-                    || StringUtils.equalsIgnoreCase(snapshot.getEffectiveMode(), "NO_CHANGE");
+                    || StringUtils.equalsIgnoreCase(snapshot.getEffectiveMode(), "NO_CHANGE")
+                    ? "COMPLETE" : "CONFLICT";
         }
         if (changed != null && written != null && (changed > 0L || written > 0L)) {
-            return !StringUtils.equalsIgnoreCase(snapshot.getEffectiveMode(), "NO_CHANGE");
+            return !StringUtils.equalsIgnoreCase(snapshot.getEffectiveMode(), "NO_CHANGE")
+                    ? "COMPLETE" : "CONFLICT";
         }
-        return true;
+        return "COMPLETE";
     }
 
     private boolean hasValidStatusTypes(JsonObject payload) {
@@ -311,7 +422,8 @@ public class LibvirtFtctlDrStatusCommandWrapper extends CommandWrapper<FtctlDrSt
                 "target_network_present", "restore_point_present", "data_copied", "metadata_committed",
                 "target_durable", "retryable", "latest_completed_incremental_verified",
                 "latest_completed_metrics_estimated", "current_checkpoint_automatic_reseed",
-                "latest_completed_automatic_reseed", "scheduler_pid_alive", "owner_matched", "events_truncated"};
+                "latest_completed_automatic_reseed", "scheduler_pid_alive", "owner_matched", "events_truncated",
+                "cleanup_required", "immediate_cycle_pending", "target_written", "write_verified"};
         for (String field : booleans) {
             if (!LibvirtFtctlWrapperHelper.isBooleanOrNull(payload, field)) {
                 return false;
@@ -321,14 +433,19 @@ public class LibvirtFtctlDrStatusCommandWrapper extends CommandWrapper<FtctlDrSt
                 "events_invalid_count", "target_disk_count", "target_disk_invalid_count", "worker_pid",
                 "worker_exit_code", "retry_after_sec", "current_checkpoint_sequence", "guestprep_checkpoint_sequence",
                 "latest_completed_checkpoint_sequence", "latest_completed_target_ready_rpo_seconds",
+                "test_artifact_count",
                 "latest_completed_virtual_bytes", "latest_completed_changed_bytes", "latest_completed_source_read_bytes",
                 "latest_completed_target_written_bytes", "latest_completed_transfer_payload_bytes",
                 "latest_completed_changed_extent_count", "latest_completed_duration_ms",
                 "latest_completed_throughput_bps", "latest_completed_baseline_generation",
                 "current_checkpoint_invalid_baseline_disk_count", "latest_completed_invalid_baseline_disk_count",
                 "consecutive_automatic_reseed_count", "runtime_generation", "scheduler_lease_epoch",
-                "authority_sequence", "plan_cycle_sequence", "active_worker_pid", "active_worker_start_ticks",
-                "scheduler_unit_main_pid"};
+                "authority_sequence", "plan_cycle_sequence", "resume_baseline_checkpoint_sequence",
+                "minimum_completed_checkpoint_sequence", "active_worker_pid", "active_worker_start_ticks",
+                "scheduler_unit_main_pid", "nbd_quarantined_device_count",
+                "latest_completed_nbd_teardown_started_at_ms", "latest_completed_nbd_teardown_completed_at_ms",
+                "latest_completed_nbd_teardown_duration_ms", "latest_completed_nbd_source_device_count",
+                "latest_completed_nbd_target_device_count", "latest_completed_nbd_quarantined_device_count"};
         for (String field : numbers) {
             if (!LibvirtFtctlWrapperHelper.isNumberOrNull(payload, field)) {
                 return false;
@@ -338,6 +455,11 @@ public class LibvirtFtctlDrStatusCommandWrapper extends CommandWrapper<FtctlDrSt
     }
 
     private Answer validationAnswer(FtctlDrStatusCommand command, String errorCode, String message, int exitValue) {
+        return validationAnswer(command, errorCode, message, exitValue, null);
+    }
+
+    private Answer validationAnswer(FtctlDrStatusCommand command, String errorCode, String message, int exitValue,
+            String cycleEvidenceState) {
         JsonObject payload = new JsonObject();
         payload.addProperty("command", "dr-status");
         payload.addProperty("result", "error");
@@ -351,9 +473,18 @@ public class LibvirtFtctlDrStatusCommandWrapper extends CommandWrapper<FtctlDrSt
         payload.addProperty("progress", 0);
         payload.addProperty("error_code", errorCode);
         payload.addProperty("error_message", message);
-        return new FtctlDrStatusAnswer(command, false, message, command.getPlanUuid(), command.getRunUuid(),
+        if (StringUtils.isNotBlank(cycleEvidenceState)) {
+            payload.addProperty("cycle_evidence_state", cycleEvidenceState);
+        }
+        FtctlDrStatusAnswer answer = new FtctlDrStatusAnswer(command, false, message, command.getPlanUuid(), command.getRunUuid(),
                 "error", "UNKNOWN", "status-validation", 0, null, null, null, command.getEventsOffset(),
                 errorCode, exitValue, message, payload.toString());
+        answer.setRetryable(StringUtils.equals(cycleEvidenceState, "INCOMPLETE"));
+        answer.setRetryAfterSeconds(StringUtils.equals(cycleEvidenceState, "INCOMPLETE") ? 5 : null);
+        answer.setCycleEvidenceState(cycleEvidenceState);
+        answer.setCycleEvidenceCode(errorCode);
+        answer.setCycleEvidenceMessage(message);
+        return answer;
     }
 
     private boolean isTimeout(int exitValue, String result, String output) {

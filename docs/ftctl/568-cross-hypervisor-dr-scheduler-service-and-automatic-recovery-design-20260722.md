@@ -13,6 +13,8 @@
   - [553-cross-hypervisor-dr-continuous-sync-control-and-quiesce-lock-design-20260714.md](553-cross-hypervisor-dr-continuous-sync-control-and-quiesce-lock-design-20260714.md)
   - [564-cross-hypervisor-dr-plan-scheduler-singleton-authority-design-20260720.md](564-cross-hypervisor-dr-plan-scheduler-singleton-authority-design-20260720.md)
   - [566-cross-hypervisor-dr-current-protection-activity-and-operation-history-projection-design-20260721.md](566-cross-hypervisor-dr-current-protection-activity-and-operation-history-projection-design-20260721.md)
+  - [569-cross-hypervisor-dr-nbd-deterministic-drain-and-cycle-observability-design-20260723.md](569-cross-hypervisor-dr-nbd-deterministic-drain-and-cycle-observability-design-20260723.md)
+  - [570-cross-hypervisor-dr-reprotect-canonical-authority-preservation-design-20260723.md](570-cross-hypervisor-dr-reprotect-canonical-authority-preservation-design-20260723.md)
 
 ## 1. 목적
 
@@ -947,3 +949,62 @@ DR 관련 failed systemd unit, stale recovery transition, 중복 Scheduler는 �
 baseline과 복구 대상 VM은 보존했으며 SOURCE Plan은 RPO 동기화를 계속 수행한다. 따라서
 Agent 재시작 또는 Scheduler 강제 종료 후 local reconcile 복구, 수동 `recoverDrSync`,
 TARGET 억제의 세 시나리오를 재테스트할 준비가 완료되었다.
+
+## 21. NBD Quarantine Recovery Addendum (2026-07-23)
+
+`nbdTeardownState=QUARANTINED` is not a normal dead-worker condition. Local and
+Cloud recovery controllers must first dispatch cleanup-only NBD drain. They may
+resume the Plan's previous desired `RUNNING` state only after FTCTL reports
+`DRAINED`.
+
+While quarantined, ordinary sync, Test Failover, and Failover are disabled by
+both Backend eligibility and UI action state. Recovery does not create a new
+snapshot, perform CBT transfer, advance the cycle sequence, or replace the
+previous committed baseline. The normative cross-layer contract is document
+569.
+
+## 22. Reprotect Scheduler Ownership Addendum (2026-07-23)
+
+Automatic scheduler recovery applies only to a SOURCE-authority protection
+session. A `FAILED_OVER/TARGET` Plan does not restart the old forward
+scheduler. It requires an explicit Reprotect transition.
+
+Reprotect first validates canonical TARGET authority and the actual target VM
+runtime. FTCTL then completes a durable reverse seed and starts a new
+target-side scheduler. Only that scheduler may change protection from
+`FAILED_OVER_UNPROTECTED` to `READY`.
+
+A failed Reprotect Run must not trigger generic forward scheduler recovery and
+must not mark the serving target replica `ERROR`. The detailed authority,
+operation-envelope, and failure-scope contract is document 570.
+
+## 23. Failback Commit and Rollback Scheduler Fence Addendum (2026-07-27)
+
+Failback commit에서 Scheduler recovery는 일반 dead-worker recovery가 아니다.
+transition이 생성한 하나의 RUN generation을 systemd worker가 채택하고 같은
+generation으로 ACK해야 한다. worker startup이 별도 `scheduler-start`
+generation을 만들어 commit 요청을 덮어쓰면 안 된다.
+
+commit 응답이 불확실하면 recovery controller는 새 worker를 추가로 시작하지
+않고 commit journal/generation을 조회한다. rollback이 결정되면 자동 recovery를
+억제하고 다음 순서를 강제한다.
+
+```text
+STOP generation
+  -> matching STOPPED/IDLE ACK
+  -> SOURCE OFF
+  -> TARGET ON
+  -> TARGET authority commit
+```
+
+`FAILED_OVER_UNPROTECTED/TARGET`에서는 forward scheduler desired state도
+`STOPPED`다. 상세 cross-layer 계약은 문서 575, FTCTL control protocol은 qemu
+문서 215를 따른다.
+
+## 2026-07-30 TARGET Scheduler Terminal Addendum
+
+TARGET authority에서는 scheduler가 실행되지 않는 것이 정상이다. 상태는
+`STOPPED/desired STOPPED/health SUPPRESSED/recovery SUPPRESSED`로 투영하며
+자동 recovery 대상에서 제외한다. Plan이 TARGET인데 desired state가 RUNNING인
+행은 정합성 결함으로 backfill한다. 상세 계약은 Cloud 문서 581과 qemu 문서
+218을 따른다.

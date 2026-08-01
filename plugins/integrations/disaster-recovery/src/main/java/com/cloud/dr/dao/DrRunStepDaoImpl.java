@@ -30,6 +30,7 @@ public class DrRunStepDaoImpl extends GenericDaoBase<DrRunStepVO, Long> implemen
 
     private final SearchBuilder<DrRunStepVO> activeByRunSearch;
     private final SearchBuilder<DrRunStepVO> activeByRunAndOrderSearch;
+    private final SearchBuilder<DrRunStepVO> activeByRunAndNameSearch;
 
     public DrRunStepDaoImpl() {
         activeByRunSearch = createSearchBuilder();
@@ -42,6 +43,12 @@ public class DrRunStepDaoImpl extends GenericDaoBase<DrRunStepVO, Long> implemen
         activeByRunAndOrderSearch.and("stepOrder", activeByRunAndOrderSearch.entity().getStepOrder(), SearchCriteria.Op.EQ);
         activeByRunAndOrderSearch.and("removed", activeByRunAndOrderSearch.entity().getRemoved(), SearchCriteria.Op.NULL);
         activeByRunAndOrderSearch.done();
+
+        activeByRunAndNameSearch = createSearchBuilder();
+        activeByRunAndNameSearch.and("runId", activeByRunAndNameSearch.entity().getRunId(), SearchCriteria.Op.EQ);
+        activeByRunAndNameSearch.and("stepName", activeByRunAndNameSearch.entity().getStepName(), SearchCriteria.Op.EQ);
+        activeByRunAndNameSearch.and("removed", activeByRunAndNameSearch.entity().getRemoved(), SearchCriteria.Op.NULL);
+        activeByRunAndNameSearch.done();
     }
 
     @Override
@@ -56,6 +63,14 @@ public class DrRunStepDaoImpl extends GenericDaoBase<DrRunStepVO, Long> implemen
         SearchCriteria<DrRunStepVO> sc = activeByRunAndOrderSearch.create();
         sc.setParameters("runId", runId);
         sc.setParameters("stepOrder", stepOrder);
+        return findOneBy(sc);
+    }
+
+    @Override
+    public DrRunStepVO findActiveByRunIdAndStepName(long runId, String stepName) {
+        SearchCriteria<DrRunStepVO> sc = activeByRunAndNameSearch.create();
+        sc.setParameters("runId", runId);
+        sc.setParameters("stepName", stepName);
         return findOneBy(sc);
     }
 }

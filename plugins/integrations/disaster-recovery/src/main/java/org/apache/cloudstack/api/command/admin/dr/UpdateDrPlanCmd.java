@@ -212,7 +212,7 @@ public class UpdateDrPlanCmd extends BaseAsyncCmd {
             applyGuidedSpec(update);
             validateDraftPolicy(update);
             DrPlanVO plan = drPlanService.updatePlan(id, update);
-            DrPlanResponse response = drResponseGenerator.createPlanResponse(plan, drPlanService.getActionEligibility(plan.getId()));
+            DrPlanResponse response = drResponseGenerator.createPlanResponse(plan, drPlanService.getActionEvaluation(plan.getId()));
             response.setResponseName(getCommandName());
             setResponseObject(response);
         } catch (ServerApiException e) {

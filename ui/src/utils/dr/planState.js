@@ -68,6 +68,41 @@ export function resolveDrPlanState (plan = {}, currentRun = null) {
   return state || readiness || 'UNKNOWN'
 }
 
+export function resolveDrPlanSeverity (plan = {}, currentRun = null) {
+  const typed = String(plan.currentseverity || plan.currentSeverity || '').toUpperCase()
+  if (['ERROR', 'WARNING', 'INFO', 'NONE'].includes(typed)) {
+    return typed
+  }
+  const run = currentRun || {}
+  if (String(plan.projectionintegritystate || '').toUpperCase() === 'INCONSISTENT' ||
+      String(run.state || '').toUpperCase() === 'FAILED' ||
+      ['ERROR', 'FAILED'].includes(String(plan.protectionstate || plan.effectivestate || '').toUpperCase())) {
+    return 'ERROR'
+  }
+  if (['DEGRADED', 'RPO_EXCEEDED', 'STALE'].includes(String(plan.protectionstate || '').toUpperCase())) {
+    return 'WARNING'
+  }
+  if (String(plan.protectionphase || '').toUpperCase() === 'FAILED_OVER_UNPROTECTED') {
+    return 'INFO'
+  }
+  return 'NONE'
+}
+
+export function resolveDrRpoPresentation (plan = {}) {
+  const mode = String(plan.rpoevaluationmode || plan.rpoEvaluationMode || 'LIVE').toUpperCase()
+  const seconds = plan.displayrposeconds !== undefined && plan.displayrposeconds !== null
+    ? plan.displayrposeconds
+    : plan.rpoageseconds !== undefined && plan.rpoageseconds !== null
+      ? plan.rpoageseconds
+      : plan.targetreadyrposeconds
+  return {
+    mode,
+    seconds,
+    asOf: plan.rpoasof || plan.rpoAsOf || null,
+    status: String(plan.rpostatus || plan.rpoStatus || 'UNKNOWN').toUpperCase()
+  }
+}
+
 export function hasDrSourceAuthority (plan = {}) {
   const side = String(plan.operatingside || plan.operatingSide || plan.activeside || plan.activeSide || 'SOURCE').toUpperCase()
   const state = String(plan.state || '').toUpperCase()

@@ -62,6 +62,8 @@ public class DrCutoverSessionVO implements InternalIdentity {
     @Temporal(TemporalType.TIMESTAMP) @Column(name = "engine_ack_at") private Date engineAckAt;
     @Column(name = "cloud_authority_generation") private Long cloudAuthorityGeneration;
     @Temporal(TemporalType.TIMESTAMP) @Column(name = "completed_at") private Date completedAt;
+    @Temporal(TemporalType.TIMESTAMP) @Column(name = "authority_ended_at") private Date authorityEndedAt;
+    @Column(name = "authority_ended_by_run_id") private Long authorityEndedByRunId;
     @Column(name = "cleanup_required") private boolean cleanupRequired;
     @Column(name = "details_json", length = 16777215) private String detailsJson;
     @Column(name = "error_code") private String errorCode;
@@ -101,6 +103,8 @@ public class DrCutoverSessionVO implements InternalIdentity {
     public Date getEngineAckAt() { return engineAckAt; }
     public Long getCloudAuthorityGeneration() { return cloudAuthorityGeneration; }
     public Date getCompletedAt() { return completedAt; }
+    public Date getAuthorityEndedAt() { return authorityEndedAt; }
+    public Long getAuthorityEndedByRunId() { return authorityEndedByRunId; }
     public boolean isCleanupRequired() { return cleanupRequired; }
     public String getDetailsJson() { return detailsJson; }
     public String getErrorCode() { return errorCode; }
@@ -130,6 +134,8 @@ public class DrCutoverSessionVO implements InternalIdentity {
     public void setEngineAckAt(Date value) { engineAckAt = value; }
     public void setCloudAuthorityGeneration(Long value) { cloudAuthorityGeneration = value; }
     public void setCompletedAt(Date value) { completedAt = value; }
+    public void setAuthorityEndedAt(Date value) { authorityEndedAt = value; }
+    public void setAuthorityEndedByRunId(Long value) { authorityEndedByRunId = value; }
     public void setCleanupRequired(boolean value) { cleanupRequired = value; }
     public void setDetailsJson(String value) { detailsJson = value; }
     public void setErrorCode(String value) { errorCode = value; }

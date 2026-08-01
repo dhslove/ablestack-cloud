@@ -171,6 +171,7 @@
                   :currentSyncCycle="currentSyncCycle"
                   :latestCompletedSyncCycle="latestCompletedSyncCycle"
                   :currentProtectionRuntime="currentProtectionRuntime"
+                  :failbackSession="protectionSnapshot.failbackSession || {}"
                   :replicas="protectionSnapshot.replicas || []"
                   :latestCompletedCheckpoint="protectionSnapshot.latestCompletedCheckpoint || {}"
                   :generated="protectionView.generated || ''"
@@ -851,14 +852,21 @@
     <dr-form-modal
       :visible="showActionModal"
       :title="actionModalTitle"
+      :loading="actionPreflightLoading"
       :confirm-loading="actionSubmitting"
+      :ok-disabled="isFailbackAction && (!failbackPreflight.ready || actionPreflightLoading)"
       :danger="selectedAction.danger"
       @cancel="closeActionModal"
       @ok="submitActionModal">
       <div class="form-layout cross-dr-form-layout" v-ctrl-enter="submitActionModal">
       <a-form layout="vertical" class="cross-dr-action-modal">
+        <a-alert
+          v-if="isFullResyncAction"
+          type="warning"
+          show-icon
+          :message="$t('message.dr.full.resync.confirm')" />
         <a-form-item
-          v-if="isFailoverAction || isReleaseAction"
+          v-if="isFailoverAction || isReleaseAction || isFailbackAction"
           :label="$t('label.dr.action.force')">
           <a-switch v-model:checked="actionForm.force" />
         </a-form-item>
@@ -937,36 +945,62 @@
             <a-input-number v-model:value="actionForm.boottimeoutseconds" style="width: 100%" :min="30" :max="1800" />
           </a-form-item>
         </template>
-        <a-form-item
-          v-if="isFailbackAction"
-          :label="$t('label.dr.failback.target.mold.type')">
-          <a-select v-model:value="actionForm.failbacktargetmoldtype">
-            <a-select-option value="current">current</a-select-option>
-            <a-select-option value="original-primary">original-primary</a-select-option>
-            <a-select-option value="new">new</a-select-option>
-          </a-select>
-        </a-form-item>
-        <template v-if="isFailbackAction || isFenceAction">
-          <a-form-item :label="$t('label.dr.remote.mold.api.url')">
-            <a-input v-model:value="actionForm.remotemoldapiurl" />
-          </a-form-item>
-          <a-form-item :label="$t('label.dr.remote.mold.api.key')">
-            <a-input v-model:value="actionForm.remotemoldapikey" />
-          </a-form-item>
-          <a-form-item :label="$t('label.dr.remote.mold.secret.key')">
-            <a-input-password v-model:value="actionForm.remotemoldsecretkey" />
-          </a-form-item>
-        </template>
         <template v-if="isFailbackAction">
-          <a-form-item :label="$t('label.dr.target.mold.api.url')">
-            <a-input v-model:value="actionForm.targetmoldapiurl" />
-          </a-form-item>
-          <a-form-item :label="$t('label.dr.target.mold.api.key')">
-            <a-input v-model:value="actionForm.targetmoldapikey" />
-          </a-form-item>
-          <a-form-item :label="$t('label.dr.target.mold.secret.key')">
-            <a-input-password v-model:value="actionForm.targetmoldsecretkey" />
-          </a-form-item>
+          <a-alert
+            class="cross-dr-failback-alert"
+            show-icon
+            :type="failbackPreflight.ready ? 'success' : 'error'"
+            :message="failbackPreflight.ready
+              ? $t('message.dr.failback.preflight.ready')
+              : (failbackPreflight.message || $t('message.dr.failback.preflight.not.ready'))" />
+          <a-descriptions
+            class="cross-dr-failback-route"
+            size="small"
+            :column="1"
+            bordered>
+            <a-descriptions-item :label="$t('label.dr.failback.active.site')">
+              <div class="cross-dr-failback-site">
+                <div class="cross-dr-failback-site__identity">
+                  <strong>{{ failbackSiteValue('active', 'sitename') }}</strong>
+                  <span>{{ failbackSiteValue('active', 'sitetype') }}</span>
+                </div>
+                <div class="cross-dr-failback-site__statuses">
+                  <dr-status-pill :status="failbackSiteValue('active', 'sitehealth')" />
+                  <dr-status-pill :status="failbackSiteValue('active', 'credentialstate')" />
+                </div>
+              </div>
+            </a-descriptions-item>
+            <a-descriptions-item :label="$t('label.dr.failback.destination.site')">
+              <div class="cross-dr-failback-site">
+                <div class="cross-dr-failback-site__identity">
+                  <strong>{{ failbackSiteValue('destination', 'sitename') }}</strong>
+                  <span>{{ failbackSiteValue('destination', 'sitetype') }}</span>
+                </div>
+                <div class="cross-dr-failback-site__statuses">
+                  <dr-status-pill :status="failbackSiteValue('destination', 'sitehealth')" />
+                  <dr-status-pill :status="failbackSiteValue('destination', 'credentialstate')" />
+                </div>
+              </div>
+            </a-descriptions-item>
+            <a-descriptions-item :label="$t('label.dr.failback.checkpoint')">
+              <div class="cross-dr-failback-checkpoint">
+                <strong>{{ failbackPreflight.checkpointsequence || '-' }}</strong>
+                <span v-if="failbackPreflight.checkpointreadyat">{{ failbackPreflight.checkpointreadyat }}</span>
+              </div>
+            </a-descriptions-item>
+            <a-descriptions-item :label="$t('label.dr.failback.source.isolation')">
+              <div class="cross-dr-failback-site__statuses">
+                <dr-status-pill :status="failbackPreflight.sourcefencestate || failbackPreflight.sourcepowerstate || 'UNKNOWN'" />
+                <span>{{ failbackPreflight.sourcepowerstate || '-' }}</span>
+              </div>
+            </a-descriptions-item>
+            <a-descriptions-item :label="$t('label.dr.failback.engine.preflight')">
+              <div class="cross-dr-failback-site__statuses">
+                <dr-status-pill :status="failbackPreflight.enginepreflightready ? 'READY' : 'ERROR'" />
+                <span>{{ failbackPreflight.authoritygeneration || '-' }}</span>
+              </div>
+            </a-descriptions-item>
+          </a-descriptions>
         </template>
         <a-form-item
           v-if="isAdoptAction"
@@ -1008,12 +1042,13 @@ import DrProtectionInfoTab from '@/views/infra/dr/DrProtectionInfoTab.vue'
 import DrResourceActionMenu from '@/components/dr/DrResourceActionMenu.vue'
 import DrResourceContextMenu from '@/components/dr/DrResourceContextMenu.vue'
 import DrResourceInfoCard from '@/components/dr/DrResourceInfoCard.vue'
+import DrStatusPill from '@/components/dr/DrStatusPill.vue'
 import ResourceLayout from '@/layouts/ResourceLayout'
 import SearchFilter from '@/components/view/SearchFilter'
 import SearchView from '@/components/view/SearchView'
 import Status from '@/components/widgets/Status'
 import TooltipLabel from '@/components/widgets/TooltipLabel'
-import { createDrPlan, deleteDrPlan, discoverDrPlanInventory, getDrPlan, getDrProtectionView, listDrPlans, listDrReplicas, listDrRuns, listDrSites, previewDrPlanSpec, refreshDrProtectionView, startDrAction, updateDrPlan } from '@/api/dr'
+import { createDrPlan, deleteDrPlan, discoverDrPlanInventory, getDrFailbackPreflight, getDrPlan, getDrProtectionView, listDrPlans, listDrReplicas, listDrRuns, listDrSites, previewDrPlanSpec, refreshDrProtectionView, startDrAction, updateDrPlan } from '@/api/dr'
 import { DEFAULT_DR_PLAN_ACTIVE_SECTIONS, DR_PLAN_DIALOG_SECTIONS, drPlanSectionForValidation } from '@/utils/dr/planDialogSections'
 import { isActiveDrRun, isActiveDrSyncCycle, resolveDrPlanState } from '@/utils/dr/planState'
 import { buildDrPlanActions } from '@/utils/dr/resourceActions'
@@ -1033,6 +1068,7 @@ export default {
     DrResourceActionMenu,
     DrResourceContextMenu,
     DrResourceInfoCard,
+    DrStatusPill,
     BranchesOutlined,
     GlobalOutlined,
     ResourceLayout,
@@ -1067,8 +1103,11 @@ export default {
       contextMenuPlan: {},
       contextMenuPosition: { x: 0, y: 0 },
       actionSubmitting: false,
+      actionPreflightLoading: false,
       selectedAction: {},
       selectedActionPlan: {},
+      actionRequestKey: '',
+      failbackPreflight: {},
       actionReplicas: [],
       actionForm: this.defaultActionForm(),
       runtimePollTimer: null,
@@ -1119,7 +1158,7 @@ export default {
         { value: 'VMWARE_PHASE1', label: 'label.dr.engine.vmware.phase1' },
         { value: 'V2K', label: 'label.dr.engine.v2k.migration.only', disabled: true }
       ],
-      planStates: ['CREATED', 'ENABLED', 'SYNCING', 'READY', 'TESTING', 'FAILED_OVER', 'FAILBACK_READY', 'REPROTECTING', 'PAUSED', 'ERROR'],
+      planStates: ['CREATED', 'ENABLED', 'SYNCING', 'READY', 'TESTING', 'FAILED_OVER', 'FAILED_OVER_UNPROTECTED', 'FAILBACK_READY', 'COMMIT_VERIFYING', 'REPROTECTING', 'PAUSED', 'ERROR'],
       columns: [
         { key: 'name', title: this.$t('label.name'), dataIndex: 'name', sorter: this.sortBy('name') },
         { key: 'state', title: this.$t('label.state'), dataIndex: 'state', sorter: this.sortBy('state') },
@@ -1471,8 +1510,8 @@ export default {
     isTestFailoverAction () {
       return this.selectedAction.command === 'startDrTestFailover'
     },
-    isFenceAction () {
-      return this.selectedAction.command === 'confirmDrFenceClear'
+    isFullResyncAction () {
+      return this.selectedAction.command === 'startDrSync'
     },
     isFailbackAction () {
       return this.selectedAction.command === 'startDrFailback'
@@ -1573,13 +1612,9 @@ export default {
         skipsourcefencerequest: false,
         sourceisolationacknowledged: false,
         sourceisolationreason: '',
-        failbacktargetmoldtype: 'current',
         remotemoldapiurl: '',
         remotemoldapikey: '',
         remotemoldsecretkey: '',
-        targetmoldapiurl: '',
-        targetmoldapikey: '',
-        targetmoldsecretkey: '',
         replicaid: undefined,
         cleanuptransport: true,
         networkmode: 'ISOLATED_NETWORK',
@@ -2236,8 +2271,11 @@ export default {
             return
           }
         }
-        const cachedPlan = this.normalizeCachedRecord(snapshot.plan)
-        this.applyCachedPlan(cachedPlan)
+        const snapshotVersion = Number(snapshot.version || view?.snapshotversion || 0)
+        const authoritativeProjection = snapshotVersion >= 4
+        const cachedPlan = this.normalizeCachedRecord(
+          authoritativeProjection ? snapshot.planProjection : snapshot.plan)
+        this.applyCachedPlan(cachedPlan, { authoritative: authoritativeProjection })
         const sourceSite = this.normalizeCachedRecord(snapshot.sourceSite)
         const targetSite = this.normalizeCachedRecord(snapshot.targetSite)
         if (sourceSite.uuid) sourceSite.id = sourceSite.uuid
@@ -2254,6 +2292,7 @@ export default {
         const currentProtectionRuntime = this.normalizeCachedRecord(snapshot.currentProtectionRuntime)
         const currentSyncCycle = this.normalizeCachedRecord(snapshot.currentSyncCycle)
         const latestCompletedSyncCycle = this.normalizeCachedRecord(snapshot.latestCompletedSyncCycle)
+        const failbackSession = this.normalizeCachedRecord(snapshot.failbackSession)
         const normalizedActiveRun = activeRun && (activeRun.uuid || activeRun.id)
           ? Object.assign({}, activeRun, {
             id: activeRun.uuid || activeRun.id,
@@ -2267,6 +2306,7 @@ export default {
           })
           : {}
         this.protectionSnapshot = {
+          version: snapshotVersion,
           plan: cachedPlan,
           sourceSite,
           targetSite,
@@ -2277,6 +2317,7 @@ export default {
           currentProtectionRuntime,
           currentSyncCycle,
           latestCompletedSyncCycle,
+          failbackSession,
           latestRun: normalizedLatestOperationRun,
           latestRunSteps: latestOperationRunSteps,
           replicas: (snapshot.replicas || []).map(item => this.normalizeCachedRecord(item)),
@@ -2292,8 +2333,16 @@ export default {
         return options.silent ? undefined : this.fetchRuns()
       })
     },
-    applyCachedPlan (cachedPlan) {
+    applyCachedPlan (cachedPlan, options = {}) {
       if (!cachedPlan || (!cachedPlan.uuid && !cachedPlan.id)) {
+        return
+      }
+      if (options.authoritative === true) {
+        const publicId = cachedPlan.id || cachedPlan.uuid || this.detailPlan.id || this.detailId
+        this.detailPlan = Object.assign({}, this.detailPlan, cachedPlan, {
+          id: publicId,
+          uuid: publicId
+        })
         return
       }
       const databaseId = cachedPlan.id
@@ -2834,14 +2883,16 @@ export default {
       this.executePlanAction(action, target, {})
     },
     requiresActionModal (action) {
-      return ['startDrTestFailover', 'startDrFailover', 'confirmDrFenceClear', 'startDrFailback', 'adoptDrReplica', 'releaseDrProtection', 'cancelDrRun', 'stopDrTestFailover'].includes(action.command)
+      return ['startDrSync', 'startDrTestFailover', 'startDrFailover', 'startDrFailback', 'adoptDrReplica', 'releaseDrProtection', 'cancelDrRun', 'stopDrTestFailover'].includes(action.command)
     },
     openActionModal (action, plan) {
-      this.selectedAction = action
-      this.selectedActionPlan = plan
+      this.selectedAction = Object.freeze(Object.assign({}, action))
+      this.selectedActionPlan = Object.freeze(Object.assign({}, plan))
+      this.actionRequestKey = this.createActionRequestKey(action, plan)
       this.actionForm = this.defaultActionForm()
       this.actionReplicas = []
       this.actionNetworkOptions = []
+      this.failbackPreflight = {}
       this.showActionModal = true
       if (action.command === 'startDrTestFailover') {
         this.loadActionNetworks(plan)
@@ -2851,13 +2902,19 @@ export default {
           this.actionReplicas = result.items || []
         })
       }
+      if (action.command === 'startDrFailback') {
+        this.loadFailbackPreflight(plan)
+      }
     },
     closeActionModal () {
       this.showActionModal = false
       this.selectedAction = {}
       this.selectedActionPlan = {}
+      this.actionRequestKey = ''
       this.actionReplicas = []
       this.actionNetworkOptions = []
+      this.failbackPreflight = {}
+      this.actionPreflightLoading = false
       this.actionForm = this.defaultActionForm()
     },
     submitActionModal () {
@@ -2911,23 +2968,39 @@ export default {
         payload.bootvalidationmode = this.actionForm.bootvalidationmode
         payload.boottimeoutseconds = this.actionForm.boottimeoutseconds
       }
-      if (this.isFenceAction || this.isFailbackAction) {
-        payload.remotemoldapiurl = this.actionForm.remotemoldapiurl || undefined
-        payload.remotemoldapikey = this.actionForm.remotemoldapikey || undefined
-        payload.remotemoldsecretkey = this.actionForm.remotemoldsecretkey || undefined
-      }
       if (this.isFailbackAction) {
         payload.force = this.actionForm.force
-        payload.failbacktargetmoldtype = this.actionForm.failbacktargetmoldtype
-        payload.targetmoldapiurl = this.actionForm.targetmoldapiurl || undefined
-        payload.targetmoldapikey = this.actionForm.targetmoldapikey || undefined
-        payload.targetmoldsecretkey = this.actionForm.targetmoldsecretkey || undefined
       }
       if (this.isAdoptAction) {
         payload.replicaid = this.actionForm.replicaid || undefined
         payload.cleanuptransport = this.actionForm.cleanuptransport
       }
       return payload
+    },
+    loadFailbackPreflight (plan) {
+      if (!plan?.id || !('getDrFailbackPreflight' in this.$store.getters.apis)) {
+        this.failbackPreflight = {
+          ready: false,
+          message: this.$t('message.dr.failback.preflight.api.unavailable')
+        }
+        return
+      }
+      this.actionPreflightLoading = true
+      getDrFailbackPreflight(plan.id).then(result => {
+        this.failbackPreflight = result || {}
+      }).catch(error => {
+        this.failbackPreflight = {
+          ready: false,
+          message: error?.response?.data?.errorresponse?.errortext ||
+            this.$t('message.dr.failback.preflight.not.ready')
+        }
+      }).finally(() => {
+        this.actionPreflightLoading = false
+      })
+    },
+    failbackSiteValue (side, field) {
+      const prefix = side === 'active' ? 'active' : 'destination'
+      return this.failbackPreflight[`${prefix}${field}`] || '-'
     },
     loadActionNetworks (plan) {
       const configuredNetworkId = this.readJsonValue(plan.mappingjson, 'target.networks.0.networkId') ||
@@ -2960,20 +3033,49 @@ export default {
     executePlanAction (action, plan, payload) {
       this.actionLoading = action.command
       this.actionLoadingPlanId = plan.id
+      const expectedRunType = action.expectedRunType || action.intent
+      const requestKey = this.actionRequestKey || this.createActionRequestKey(action, plan)
+      const actionContract = expectedRunType
+        ? { actionintent: action.intent, idempotencykey: requestKey }
+        : {}
       const params = action.command === 'cancelDrRun'
         ? Object.assign({ id: action.currentRun?.id || this.currentRun.id }, payload)
-        : Object.assign({ planid: plan.id }, payload)
-      return startDrAction(action.command, params).then(run => {
+        : Object.assign({ planid: plan.id }, payload, actionContract)
+      return startDrAction(action.command, params, { expectedRunType }).then(run => {
+        const actualRunType = String(run.runtype || run.runType || '').toUpperCase()
+        if (expectedRunType && actualRunType !== String(expectedRunType).toUpperCase()) {
+          this.fetchData()
+          throw new Error(`DR action contract mismatch: expected ${expectedRunType}, received ${actualRunType || 'EMPTY'}`)
+        }
         notification.success({
           message: this.$t(action.label),
           description: run.id || run.state || this.$t('label.success')
         })
         this.applyAcceptedRun(run, plan)
         this.fetchData()
+        return run
+      }).catch(error => {
+        notification.error({
+          message: this.$t('label.error'),
+          description: this.errorMessage(error)
+        })
+        this.fetchData()
+        return null
       }).finally(() => {
         this.actionLoading = ''
         this.actionLoadingPlanId = ''
       })
+    },
+    createActionRequestKey (action, plan) {
+      if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+        return window.crypto.randomUUID()
+      }
+      return [
+        action.command || action.api || 'dr-action',
+        plan.id || 'plan',
+        Date.now(),
+        Math.random().toString(16).slice(2)
+      ].join(':')
     },
     confirmDeletePlan (plan) {
       if (!plan?.id) {

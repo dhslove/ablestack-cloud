@@ -59,6 +59,14 @@ public class DrRunServiceImpl extends ManagerBase implements DrRunService {
     }
 
     @Override
+    public DrRunVO findRunByIdempotencyKey(long planId, String idempotencyKey) {
+        if (StringUtils.isBlank(idempotencyKey)) {
+            return null;
+        }
+        return drRunDao.findByPlanIdAndIdempotencyKey(planId, idempotencyKey);
+    }
+
+    @Override
     public List<DrRunStepVO> listRunSteps(long runId) {
         requireRun(runId);
         return drRunStepDao.listActiveByRunId(runId);

@@ -2839,6 +2839,7 @@ CREATE TABLE `cloud`.`dr_run_step` (
   UNIQUE KEY `uk_dr_run_step__uuid` (`uuid`),
   KEY `i_dr_run_step__run_id` (`run_id`),
   KEY `i_dr_run_step__run_order` (`run_id`, `step_order`),
+  KEY `i_dr_run_step__run_name_removed` (`run_id`, `step_name`, `removed`),
   CONSTRAINT `fk_dr_run_step__run_id` FOREIGN KEY (`run_id`) REFERENCES `dr_run` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
@@ -2926,6 +2927,10 @@ CREATE TABLE `cloud`.`dr_plan_runtime` (
     `projection_integrity_state` varchar(32) DEFAULT NULL,
     `projection_integrity_code` varchar(128) DEFAULT NULL,
     `projection_integrity_sequence` bigint unsigned DEFAULT NULL,
+    `nbd_teardown_state` varchar(32) DEFAULT NULL,
+    `nbd_quarantined_device_count` int unsigned NOT NULL DEFAULT 0,
+    `nbd_teardown_error_code` varchar(128) DEFAULT NULL,
+    `nbd_teardown_error_message` varchar(4096) DEFAULT NULL,
     `protection_state` varchar(32) NOT NULL DEFAULT 'UNKNOWN',
     `freshness_state` varchar(32) NOT NULL DEFAULT 'UNKNOWN',
     `last_status_at` datetime DEFAULT NULL,
@@ -2941,6 +2946,7 @@ CREATE TABLE `cloud`.`dr_plan_runtime` (
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_dr_plan_runtime__plan_id` (`plan_id`),
     KEY `i_dr_plan_runtime__state_updated` (`protection_state`, `freshness_state`, `updated`),
+    KEY `i_dr_plan_runtime__nbd_teardown_state` (`nbd_teardown_state`, `updated`),
     CONSTRAINT `fk_dr_plan_runtime__plan_id` FOREIGN KEY (`plan_id`) REFERENCES `dr_plan` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -2975,6 +2981,15 @@ CREATE TABLE `cloud`.`dr_sync_cycle` (
     `changed_extent_count` bigint unsigned DEFAULT NULL,
     `duration_ms` bigint unsigned DEFAULT NULL,
     `throughput_bps` bigint unsigned DEFAULT NULL,
+    `nbd_teardown_state` varchar(32) DEFAULT NULL,
+    `nbd_teardown_started_at` datetime DEFAULT NULL,
+    `nbd_teardown_completed_at` datetime DEFAULT NULL,
+    `nbd_teardown_duration_ms` bigint unsigned DEFAULT NULL,
+    `nbd_source_device_count` int unsigned DEFAULT NULL,
+    `nbd_target_device_count` int unsigned DEFAULT NULL,
+    `nbd_quarantined_device_count` int unsigned NOT NULL DEFAULT 0,
+    `nbd_teardown_error_code` varchar(128) DEFAULT NULL,
+    `nbd_teardown_error_message` varchar(4096) DEFAULT NULL,
     `source_checkpoint_at` datetime DEFAULT NULL,
     `target_durable_at` datetime DEFAULT NULL,
     `error_code` varchar(128) DEFAULT NULL,
@@ -3007,17 +3022,61 @@ CREATE TABLE IF NOT EXISTS `cloud`.`dr_cutover_session` (
   `target_power_on_at` datetime, `boot_validated_at` datetime,
   `engine_ack_state` varchar(32), `engine_ack_at` datetime,
   `cloud_authority_generation` bigint unsigned, `completed_at` datetime,
+  `authority_ended_at` datetime, `authority_ended_by_run_id` bigint unsigned,
   `cleanup_required` tinyint(1) NOT NULL DEFAULT 0,
   `details_json` mediumtext, `error_code` varchar(128), `error_message` varchar(1024),
   `created` datetime NOT NULL, `updated` datetime NOT NULL, `removed` datetime,
   PRIMARY KEY (`id`), UNIQUE KEY `uk_dr_cutover_session_uuid` (`uuid`),
-  KEY `idx_dr_cutover_session_plan_active` (`plan_id`,`removed`), KEY `idx_dr_cutover_session_run` (`run_id`)
+  KEY `idx_dr_cutover_session_plan_active` (`plan_id`,`removed`), KEY `idx_dr_cutover_session_run` (`run_id`),
+  KEY `idx_dr_cutover_session_plan_state_active` (`plan_id`,`state`,`removed`,`id`),
+  KEY `idx_dr_cutover_session_authority_end_run` (`authority_ended_by_run_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE TABLE IF NOT EXISTS `cloud`.`dr_cutover_disk` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT, `session_id` bigint unsigned NOT NULL, `disk_index` int unsigned NOT NULL,
   `provider` varchar(32) NOT NULL, `checkpoint_ref` varchar(1024) NOT NULL, `writable_ref` varchar(1024),
-  `rollback_ref` varchar(1024), `state` varchar(64) NOT NULL, `details_json` mediumtext,
+  `rollback_ref` varchar(1024), `state` varchar(64) NOT NULL,
+  `target_volume_id` bigint unsigned DEFAULT NULL, `target_volume_uuid` varchar(40) DEFAULT NULL,
+  `checkpoint_sequence` bigint unsigned DEFAULT NULL, `manifest_sha256` varchar(64) DEFAULT NULL,
+  `details_json` mediumtext,
   `created` datetime NOT NULL, `updated` datetime NOT NULL, `removed` datetime,
   PRIMARY KEY (`id`), UNIQUE KEY `uk_dr_cutover_disk_session_index` (`session_id`,`disk_index`),
-  KEY `idx_dr_cutover_disk_session_active` (`session_id`,`removed`)
+  KEY `idx_dr_cutover_disk_session_active` (`session_id`,`removed`),
+  KEY `idx_dr_cutover_disk_target_volume` (`target_volume_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `cloud`.`dr_failback_session` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT, `uuid` varchar(40) NOT NULL,
+  `plan_id` bigint unsigned NOT NULL, `run_id` bigint unsigned NOT NULL,
+  `engine_session_id` varchar(255) NOT NULL, `checkpoint_sequence` bigint unsigned,
+  `authority_generation` bigint unsigned, `state` varchar(64) NOT NULL,
+  `target_power_state` varchar(32), `source_power_state` varchar(32),
+  `boot_validation_state` varchar(64), `engine_ack_state` varchar(32),
+  `commit_attempt_id` varchar(64), `commit_outcome` varchar(32),
+  `scheduler_generation` bigint unsigned, `scheduler_ack_generation` bigint unsigned,
+  `scheduler_state` varchar(32), `rollback_state` varchar(32),
+  `rollback_generation` bigint unsigned, `lifecycle_version` bigint unsigned NOT NULL DEFAULT 0,
+  `resume_baseline_checkpoint_sequence` bigint unsigned,
+  `required_post_failback_checkpoint_sequence` bigint unsigned,
+  `post_failback_checkpoint_sequence` bigint unsigned,
+  `replication_direction` varchar(32),
+  `provider_pair` varchar(64),
+  `baseline_generation` bigint unsigned,
+  `baseline_state` varchar(32),
+  `tracker_state` varchar(32),
+  `writer_state` varchar(32),
+  `target_written` tinyint(1),
+  `write_verified` tinyint(1),
+  `guest_compatibility_state` varchar(64),
+  `data_ready_at` datetime, `target_stopped_at` datetime, `source_powered_on_at` datetime,
+  `boot_validated_at` datetime, `engine_ack_at` datetime,
+  `commit_requested_at` datetime, `commit_verified_at` datetime,
+  `protection_resume_requested_at` datetime, `protection_resume_verified_at` datetime,
+  `rollback_requested_at` datetime, `rollback_verified_at` datetime, `last_probe_at` datetime,
+  `completed_at` datetime,
+  `details_json` mediumtext, `error_code` varchar(128), `error_message` varchar(1024),
+  `created` datetime NOT NULL, `updated` datetime NOT NULL, `removed` datetime,
+  PRIMARY KEY (`id`), UNIQUE KEY `uk_dr_failback_session_uuid` (`uuid`),
+  UNIQUE KEY `uk_dr_failback_session_run` (`run_id`),
+  KEY `idx_dr_failback_session_plan_active` (`plan_id`,`removed`),
+  KEY `idx_dr_failback_session_reconcile` (`state`,`last_probe_at`,`removed`,`plan_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -1,5 +1,13 @@
 # Cross Hypervisor DR FTCTL Runtime Contract Design
 
+> 2026-07-31 latest correction: FTCTL_DR uses read-only transition preflight
+> and no standalone fence-clear mutation. See Cloud 587 and qemu 444.
+
+> Normative Failover projection update (2026-07-27):
+> [577-cross-hypervisor-dr-failover-projection-evidence-and-compensation-design-20260727.md](577-cross-hypervisor-dr-failover-projection-evidence-and-compensation-design-20260727.md)
+> defines completed-cycle evidence completeness, exact checkpoint hydration,
+> bounded projection retry, and pre-promotion compensation.
+
 > Normative Test Failover runtime update (2026-07-19):
 > [562-cross-hypervisor-dr-test-artifact-contract-and-projection-isolation-design-20260719.md](562-cross-hypervisor-dr-test-artifact-contract-and-projection-isolation-design-20260719.md)
 > defines the v3 typed artifact input, all-path rollback, and separation of
@@ -887,3 +895,146 @@ reject the operation.
 This section supersedes the earlier isolated test-domain runtime contract. The
 normative v2 contract is
 `561-cross-hypervisor-dr-cloud-managed-test-failover-lifecycle-design-20260719.md`.
+
+## 2026-07-25 Site-Derived Failback Runtime Addendum
+
+일반 `FTCTL_DR` source-controller failback의 endpoint와 credential authority는
+action request가 아니라 DR Plan의 등록 Site다.
+
+- active Site: `plan.target_site_id`
+- normal failback destination: `plan.source_site_id`
+- credential: `DrSiteCredentialService.resolveCredential(site)`
+- operator request: reason, acknowledgement, force 같은 non-secret intent만 허용
+
+UI/API는 `failbacktargetmoldtype`, `remotemold*`, `targetmold*`를 전달하지
+않는다. Cloud는 Site-derived runtime profile을 Agent에 보내고, FTCTL runtime은
+기존 `credentials.json` mode `0600` 및 durable profile redaction 계약을
+유지한다.
+
+FTCTL은 Mold를 선택하지 않는다. FTCTL의 failback 책임은 reverse data copy,
+checkpoint/disk-map validation, finalize와 reprotect data-plane 준비다. Cloud가
+VM과 Site lifecycle 및 최종 authority commit을 담당한다.
+
+상세 코드/API/DB 계약은
+`571-cross-hypervisor-dr-site-derived-failback-contract-design-20260725.md`를
+따른다.
+
+## 2026-07-26 Failback Data-Ready / Lifecycle Commit Correction
+
+2026-07-25 Site-derived credential 계약은 유지한다. 다만 FTCTL reverse
+checkpoint 완료를 곧바로 failback 완료로 취급하는 해석은 폐기한다.
+
+- FTCTL reverse-copy 완료: `FAILBACK_DATA_READY`, authority `TARGET`
+- Cloud VM lifecycle 완료: TARGET OFF, SOURCE ON, boot validation READY
+- FTCTL authority commit ACK: `FAILBACK_COMPLETED`, authority `SOURCE`
+
+`failback_session_id` 존재만으로 Plan/Run을 완료하지 않는다. Cloud 상태기계와
+완료 조건은 문서 574, FTCTL 계약은 qemu 문서 214가 이전 failback 완료
+조건보다 우선한다.
+
+## 2026-07-27 Failback Generation and Rollback Fence Correction
+
+문서 574의 commit 계약은 유지하되 scheduler resume와 rollback은 다음으로
+강화한다.
+
+- transition마다 하나의 control generation만 생성
+- 새 worker가 pending generation을 채택하고 같은 generation을 ACK
+- durable commit journal 기반 멱등 status/retry
+- rollback 전에 scheduler `STOPPED/IDLE` ACK 확보
+- TARGET authority에서 forward cycle hard fence
+
+Cloud/Agent/DB 수렴 계약은 문서 575, FTCTL 상세 control protocol은 qemu
+문서 215가 우선한다.
+
+## 2026-07-27 Late ACK and Authority Snapshot Contract
+
+Failback commit timeout 뒤 동일 generation의 ACK가 늦게 도착할 수 있으므로
+`UNKNOWN`을 terminal 상태로 고정하지 않는다. FTCTL status adapter는 다음
+scope를 명시적으로 요청한다.
+
+| Scope | 기준 식별자 | 용도 |
+| --- | --- | --- |
+| `OPERATION` | failback Run UUID | commit journal과 transition 결과 |
+| `PLAN_AUTHORITY` | Plan UUID | active side, scheduler, latest completed cycle |
+
+cycle identity는 `planUuid:sequence`, checkpoint reference는
+`ftctl:planUuid:producerRunUuid:sequence`를 사용한다. operation Run UUID를
+producer Run UUID로 대체하지 않는다. 한 cycle response의 CBT, NBD, byte 및
+checkpoint 필드는 반드시 같은 immutable checkpoint에서 읽는다.
+
+Cloud/Agent/API 계약은 문서 576, FTCTL 구현 계약은 qemu 문서 216이 이전의
+혼합 flat-field 해석보다 우선한다.
+
+## 2026-07-28 Cloud Projection Boundary Addendum
+
+현재 authority와 historical cutover 분리는 Cloud control-plane 책임이다.
+FTCTL은 기존 `active_side`, scheduler ACK, completed checkpoint, NBD 증거를
+계속 제공하며 Cloud cutover history 또는 UI eligibility를 관리하지 않는다.
+
+이번 개선은 신규 Agent command 또는 FTCTL action을 요구하지 않는다. DTO
+field가 변경되지 않는 한 Agent JAR와 FTCTL RPM은 변경 대상이 아니다. 상세
+경계는 Cloud 문서 578과 qemu 문서 217을 따른다.
+
+## 2026-07-30 Historical Error Projection Boundary Addendum
+
+FTCTL status의 current error code/message가 비어 있고 protection이 `READY`면
+Cloud는 과거 `dr_run` 실패를 FTCTL current 오류로 간주하지 않는다. FTCTL은
+현재 엔진 증거를 제공하고, 종료 Run 이력과 현재 UI 경고의 분리는 Cloud
+response/cache/UI가 소유한다.
+
+따라서 이번 `DR_GUEST_OS_UNSUPPORTED` 오표시 교정은 Agent DTO와 FTCTL status
+schema를 변경하지 않는다. 실제 current FTCTL status에서 같은 오류가 다시
+발생할 때만 guest identity resolver 결함으로 별도 처리한다. 상세 설계는
+문서 580을 따른다.
+
+## 2026-07-30 TARGET Authority Terminal Addendum
+
+실제 Failover 성공 후 FTCTL status는 `scheduler_state=STOPPED`,
+`scheduler_desired_state=STOPPED`, `scheduler_health=SUPPRESSED`,
+`replication_activity=STOPPED`를 함께 제공해야 한다. Agent command와 DTO는
+기존 필드를 재사용하고 손실 없는 round-trip을 검증한다. Cloud 계약은
+[581-cross-hypervisor-dr-post-failover-runtime-ui-convergence-design-20260730.md](581-cross-hypervisor-dr-post-failover-runtime-ui-convergence-design-20260730.md),
+FTCTL 구현 계약은 qemu 문서 218을 따른다.
+## 2026-07-30 Failback Sequence Handoff Addendum
+
+Failback commit은 scheduler 재개 전에 reverse-final checkpoint를 Plan cycle
+baseline으로 원자 seed하고, 최소 다음 sequence의 immediate validation cycle을
+요청한다. Agent는 baseline/minimum/immediate-cycle을 typed command로 전달한다.
+Cloud 계약은 문서 583, FTCTL 구현 계약은 qemu 문서 219를 따른다.
+
+## 2026-07-30 Action Menu Projection Boundary Addendum
+
+DR 작업 메뉴의 applicable/enabled/reason 판정은 Cloud control-plane
+책임이다. FTCTL은 기존 scheduler, checkpoint, NBD, authority ACK 증거를
+제공할 뿐 UI 메뉴 구성이나 비활성 사유를 관리하지 않는다.
+
+이번 개선은 신규 Agent command, FTCTL action, profile, lock, state 또는 status
+field를 요구하지 않는다. 메뉴 조회와 Plan API는 Agent/FTCTL을 동기 호출하지
+않는다. 상세 Cloud 경계는
+[584-cross-hypervisor-dr-context-action-availability-and-darkmode-design-20260730.md](584-cross-hypervisor-dr-context-action-availability-and-darkmode-design-20260730.md)를
+따른다.
+
+## 2026-08-01 Bidirectional Replication Runtime Addendum
+
+The runtime contract now distinguishes `VMWARE_TO_KVM` and
+`KVM_TO_VMWARE` as separate provider pipelines. A reversed endpoint document
+does not authorize reuse of the forward VMware CBT mover. Reverse runtime
+acceptance requires KVM baseline lineage, changed extents, VDDK target-write
+evidence, reverse guest preparation, and isolated target boot validation.
+
+Cloud must reject Failback when only lifecycle evidence exists. The normative
+Cloud contract is
+[588-cross-hypervisor-dr-bidirectional-incremental-replication-and-failback-data-contract-design-20260801.md](588-cross-hypervisor-dr-bidirectional-incremental-replication-and-failback-data-contract-design-20260801.md).
+
+## 2026-07-31 Test Session Reconcile Boundary Addendum
+
+과거 실패 Test Session의 blocking 여부와 DB soft-close는 Cloud
+control-plane 책임이다. FTCTL은 기존 typed
+`test_session_state/test_artifacts_state/test_cleanup_state`,
+artifact count, checkpoint lease, worker terminal 증거를 제공한다.
+
+이번 개선은 신규 FTCTL action이나 profile 변경을 요구하지 않는다. Cloud는
+현재 engine test session 부재와 terminal cleanup proof를 과거 failure
+event와 구분해 소비한다. 상세 경계는
+[586-cross-hypervisor-dr-test-session-blocker-and-async-acceptance-design-20260731.md](586-cross-hypervisor-dr-test-session-blocker-and-async-acceptance-design-20260731.md)를
+따른다.

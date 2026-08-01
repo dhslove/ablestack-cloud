@@ -18,10 +18,13 @@ package org.apache.cloudstack.api.command.admin.dr;
 
 import org.apache.cloudstack.acl.RoleType;
 import org.apache.cloudstack.api.APICommand;
+import org.apache.cloudstack.api.ApiErrorCode;
 import org.apache.cloudstack.api.Parameter;
 import org.apache.cloudstack.api.ResponseObject;
+import org.apache.cloudstack.api.ServerApiException;
 import org.apache.cloudstack.api.response.dr.DrRunResponse;
 
+import com.cloud.dr.DrConstants;
 import com.cloud.dr.cluster.DisasterRecoveryClusterEventTypes;
 import com.google.gson.JsonObject;
 
@@ -64,14 +67,20 @@ public class StartDrFailbackCmd extends AbstractDrPlanActionCmd {
     }
 
     @Override
+    protected void validateActionAllowed() {
+        super.validateActionAllowed();
+        if (failbackTargetMoldType != null || remoteMoldApiUrl != null || remoteMoldApiKey != null
+                || remoteMoldSecretKey != null || targetMoldApiUrl != null || targetMoldApiKey != null
+                || targetMoldSecretKey != null) {
+            throw new ServerApiException(ApiErrorCode.PARAM_ERROR,
+                    DrConstants.ERROR_FAILBACK_INLINE_CREDENTIAL_UNSUPPORTED
+                            + ": failback route and credentials are derived from the registered DR sites");
+        }
+    }
+
+    @Override
     protected void addRequestProperties(JsonObject request) {
-        addProperty(request, "failbackTargetMoldType", failbackTargetMoldType);
-        addProperty(request, "remoteMoldApiUrl", remoteMoldApiUrl);
-        addProperty(request, "remoteMoldApiKey", remoteMoldApiKey);
-        addProperty(request, "remoteMoldSecretKey", remoteMoldSecretKey);
-        addProperty(request, "targetMoldApiUrl", targetMoldApiUrl);
-        addProperty(request, "targetMoldApiKey", targetMoldApiKey);
-        addProperty(request, "targetMoldSecretKey", targetMoldSecretKey);
+        // Failback carries operator intent only. Site routes and credentials are resolved server-side.
     }
 
     @Override

@@ -1,5 +1,8 @@
 # Cross Hypervisor DR Async Action Remediation Plan
 
+> 2026-07-31 latest correction: source-isolation lookup is read-only;
+> Failback/Reprotect remain asynchronous Runs. See document 587.
+
 작성일: 2026-07-01
 
 대상 브랜치: `feature/ftctl-cloud-integration`
@@ -480,3 +483,54 @@ pause/release/cancel은 generation 기반 control channel로 안전 지점 전�
 
 이 보정의 상세 설계와 수용 기준:
 `553-cross-hypervisor-dr-continuous-sync-control-and-quiesce-lock-design-20260714.md`.
+
+## 17. 2026-07-25 보정: Failback action credential 제거
+
+이 문서의 2026-07-01 구현 기록 중 failback target Mold selector와
+`remotemold*`/`targetmold*` one-time credential을 UI/API action payload에
+추가한 부분은 최신 DR Site credential 모델로 대체한다.
+
+최신 계약:
+
+1. `startDrFailback`은 non-secret operator intent만 durable Run request로
+   저장한다.
+2. active/destination Site는 `DrPlanVO.targetSiteId/sourceSiteId`로 결정한다.
+3. backend가 `DrSiteCredentialService`로 양쪽 credential을 resolve한다.
+4. secret key가 포함된 action request는 저장 전에 거부한다.
+5. UI는 Site route/readiness를 표시하고 credential을 입력받지 않는다.
+6. 신규 Site 복구는 별도 replica-controller recovery workflow다.
+
+기존 비동기 원칙은 유지한다. API는 Run을 enqueue하고 즉시 반환하며
+Agent/ftctl 완료를 동기식으로 기다리지 않는다.
+
+상세 설계와 migration 기준:
+`571-cross-hypervisor-dr-site-derived-failback-contract-design-20260725.md`.
+
+## 18. 2026-07-27 보정: Failback Late ACK 비동기 수렴
+
+Failback API가 Run을 즉시 반환하는 원칙은 유지한다. 다만 최초 Agent timeout
+뒤 lifecycle 진행이 UI polling이나 projection refresh 호출에 의존해서는 안
+된다.
+
+- FTCTL은 late ACK를 durable commit journal로 멱등 승격한다.
+- Agent는 `OPERATION`과 `PLAN_AUTHORITY` scope를 구분해 전달한다.
+- Backend scheduled reconciler는 전환 session을 독립적으로 probe한다.
+- DB terminal transaction 완료 후에만 API action eligibility를 다시 연다.
+- UI는 polling consumer이며 lifecycle worker가 아니다.
+
+상세 async retry/backoff, terminal 판정과 AS-IS/TO-BE는
+[576-cross-hypervisor-dr-failback-late-ack-and-projection-convergence-design-20260727.md](576-cross-hypervisor-dr-failback-late-ack-and-projection-convergence-design-20260727.md)를
+따른다.
+
+## 2026-07-31 Async Acceptance Ordering Addendum
+
+DR action UI는 `POST -> jobid -> queryAsyncJobResult -> accepted Run` 순서를
+지킨다. async job 실패에는 Run이 없으므로 idempotency Run recovery를
+수행하지 않는다. recovery는 job 성공 후 response object가 비어 있는
+read-after-write 예외 경로다.
+
+이 규칙은 UI를 장시간 동기 실행으로 바꾸지 않는다. Run 접수까지만 확인하고
+Agent/FTCTL 작업은 기존 worker와 polling 경로에서 계속 비동기로 수행한다.
+Test Session blocker 사례의 구체 설계는
+[586-cross-hypervisor-dr-test-session-blocker-and-async-acceptance-design-20260731.md](586-cross-hypervisor-dr-test-session-blocker-and-async-acceptance-design-20260731.md)를
+따른다.

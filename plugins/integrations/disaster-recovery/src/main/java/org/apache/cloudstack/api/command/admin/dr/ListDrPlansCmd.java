@@ -83,7 +83,7 @@ public class ListDrPlansCmd extends BaseListCmd {
                 sourceSiteId, targetSiteId, direction, engineType, getStartIndex(), getPageSizeVal()));
         List<DrPlanResponse> responses = new ArrayList<DrPlanResponse>();
         for (DrPlanVO plan : plans.first()) {
-            responses.add(drResponseGenerator.createPlanResponse(plan, drPlanService.getActionEligibility(plan.getId())));
+            responses.add(drResponseGenerator.createPlanResponse(plan, drPlanService.getActionEvaluation(plan.getId())));
         }
         ListResponse<DrPlanResponse> response = new ListResponse<DrPlanResponse>();
         response.setResponses(responses, plans.second());

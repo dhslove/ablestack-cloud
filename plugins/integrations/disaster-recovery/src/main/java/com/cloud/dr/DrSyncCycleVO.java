@@ -80,6 +80,26 @@ public class DrSyncCycleVO implements InternalIdentity {
     private Long durationMs;
     @Column(name = "throughput_bps")
     private Long throughputBps;
+    @Column(name = "nbd_teardown_state")
+    private String nbdTeardownState;
+    @Temporal(TemporalType.TIMESTAMP)
+    @Column(name = "nbd_teardown_started_at")
+    private Date nbdTeardownStartedAt;
+    @Temporal(TemporalType.TIMESTAMP)
+    @Column(name = "nbd_teardown_completed_at")
+    private Date nbdTeardownCompletedAt;
+    @Column(name = "nbd_teardown_duration_ms")
+    private Long nbdTeardownDurationMs;
+    @Column(name = "nbd_source_device_count")
+    private Integer nbdSourceDeviceCount;
+    @Column(name = "nbd_target_device_count")
+    private Integer nbdTargetDeviceCount;
+    @Column(name = "nbd_quarantined_device_count")
+    private int nbdQuarantinedDeviceCount;
+    @Column(name = "nbd_teardown_error_code")
+    private String nbdTeardownErrorCode;
+    @Column(name = "nbd_teardown_error_message", length = 4096)
+    private String nbdTeardownErrorMessage;
     @Column(name = "error_code")
     private String errorCode;
     @Column(name = "error_message", length = 4096)
@@ -141,6 +161,15 @@ public class DrSyncCycleVO implements InternalIdentity {
     public Long getChangedExtentCount() { return changedExtentCount; }
     public Long getDurationMs() { return durationMs; }
     public Long getThroughputBps() { return throughputBps; }
+    public String getNbdTeardownState() { return nbdTeardownState; }
+    public Date getNbdTeardownStartedAt() { return nbdTeardownStartedAt; }
+    public Date getNbdTeardownCompletedAt() { return nbdTeardownCompletedAt; }
+    public Long getNbdTeardownDurationMs() { return nbdTeardownDurationMs; }
+    public Integer getNbdSourceDeviceCount() { return nbdSourceDeviceCount; }
+    public Integer getNbdTargetDeviceCount() { return nbdTargetDeviceCount; }
+    public int getNbdQuarantinedDeviceCount() { return nbdQuarantinedDeviceCount; }
+    public String getNbdTeardownErrorCode() { return nbdTeardownErrorCode; }
+    public String getNbdTeardownErrorMessage() { return nbdTeardownErrorMessage; }
     public String getErrorCode() { return errorCode; }
     public String getErrorMessage() { return errorMessage; }
     public Date getSourceCheckpointAt() { return sourceCheckpointAt; }
@@ -176,6 +205,15 @@ public class DrSyncCycleVO implements InternalIdentity {
     public void setChangedExtentCount(Long value) { changedExtentCount = value; }
     public void setDurationMs(Long value) { durationMs = value; }
     public void setThroughputBps(Long value) { throughputBps = value; }
+    public void setNbdTeardownState(String value) { nbdTeardownState = value; }
+    public void setNbdTeardownStartedAt(Date value) { nbdTeardownStartedAt = value; }
+    public void setNbdTeardownCompletedAt(Date value) { nbdTeardownCompletedAt = value; }
+    public void setNbdTeardownDurationMs(Long value) { nbdTeardownDurationMs = value; }
+    public void setNbdSourceDeviceCount(Integer value) { nbdSourceDeviceCount = value; }
+    public void setNbdTargetDeviceCount(Integer value) { nbdTargetDeviceCount = value; }
+    public void setNbdQuarantinedDeviceCount(int value) { nbdQuarantinedDeviceCount = value; }
+    public void setNbdTeardownErrorCode(String value) { nbdTeardownErrorCode = value; }
+    public void setNbdTeardownErrorMessage(String value) { nbdTeardownErrorMessage = value; }
     public void setErrorCode(String value) { errorCode = value; }
     public void setErrorMessage(String value) { errorMessage = value; }
     public void setSourceCheckpointAt(Date value) { sourceCheckpointAt = value; }

@@ -39,6 +39,10 @@ public final class LibvirtFtctlDrCommandHelper {
         return writeOwnerOnlyJson("ftctl-dr-artifact-" + safeToken(runUuid, "run") + "-", artifactSpecJson);
     }
 
+    public static File writeAuthoritySpecJson(String runUuid, String authoritySpecJson) throws IOException {
+        return writeOwnerOnlyJson("ftctl-dr-authority-" + safeToken(runUuid, "run") + "-", authoritySpecJson);
+    }
+
     private static File writeOwnerOnlyJson(String prefix, String json) throws IOException {
         if (StringUtils.isBlank(json)) {
             return null;
@@ -93,6 +97,13 @@ public final class LibvirtFtctlDrCommandHelper {
         if (artifactSpecFile != null) {
             script.add("--artifact-spec-json");
             script.add(artifactSpecFile.getAbsolutePath());
+        }
+    }
+
+    public static void addAuthoritySpecJsonArg(Script script, File authoritySpecFile) {
+        if (authoritySpecFile != null) {
+            script.add("--authority-spec-json");
+            script.add(authoritySpecFile.getAbsolutePath());
         }
     }
 

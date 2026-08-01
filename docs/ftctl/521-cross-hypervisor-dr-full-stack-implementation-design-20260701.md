@@ -1,5 +1,8 @@
 # Cross Hypervisor DR Full Stack Implementation Design
 
+> 2026-07-31 latest correction: FTCTL_DR standalone fence clear is removed.
+> Full-stack source-isolation preflight responsibilities are in document 587.
+
 > Normative Test Failover update (2026-07-19):
 > [562-cross-hypervisor-dr-test-artifact-contract-and-projection-isolation-design-20260719.md](562-cross-hypervisor-dr-test-artifact-contract-and-projection-isolation-design-20260719.md)
 > governs Cloud/Agent/FTCTL ownership, typed storage locators, failure cleanup,
@@ -17,6 +20,12 @@
 > source isolation, Cloud-owned target start, promotion, and rollback. Earlier
 > real Failover text that infers guest/storage fields or promotes the target
 > before Cloud boot validation is superseded.
+>
+> Normative Reprotect authority update (2026-07-23):
+> [570-cross-hypervisor-dr-reprotect-canonical-authority-preservation-design-20260723.md](570-cross-hypervisor-dr-reprotect-canonical-authority-preservation-design-20260723.md)
+> governs committed TARGET authority, actual target-runtime preflight,
+> immutable Cloud-to-FTCTL authority transport, reverse-provider readiness,
+> and operation-only failure projection.
 
 작성일: 2026-07-01
 
@@ -885,3 +894,74 @@ Agent 재시작, host reboot, 실제 worker 사망 시의 상세 UI/API/backend/
 `568-cross-hypervisor-dr-scheduler-service-and-automatic-recovery-design-20260722.md`를
 규범 문서로 사용한다. SOURCE/RUNNING Plan만 복구 대상이며 TARGET/FAILED_OVER,
 PAUSED, transition-active Plan은 forward recovery에서 제외한다.
+
+## 2026-07-27 Failback Commit Convergence Boundary
+
+Failback lifecycle의 Agent 응답 오류는 explicit reject와 outcome unknown으로
+구분한다. unknown result는 status probe로 확인하고, rollback은 scheduler fence
+이후에만 VM lifecycle을 되돌린다. Plan/Replica/Run/Session/API/UI는 versioned
+snapshot으로 함께 수렴하며 `READY/TARGET`은 허용하지 않는다.
+
+계층별 코드 위치, DB CAS 필드, 실제 worker test, 구현 및 배포 순서는
+`575-cross-hypervisor-dr-failback-commit-convergence-and-rollback-fencing-design-20260727.md`를
+규범으로 사용한다.
+
+## 2026-07-27 Failback Late ACK Full-Stack Boundary
+
+Failback operation 요청과 재개된 보호 scheduler는 수명과 Run UUID가 다르다.
+Cloud는 operation Run을 Plan authority로 복사하지 않고, Agent를 통해 두
+scope를 각각 조회한 뒤 Backend reconciler에서 결합한다.
+
+| Layer | 책임 |
+| --- | --- |
+| UI | lifecycle/protection/serving/cache freshness 분리 표시 |
+| API | canonical lifecycle와 authority snapshot을 함께 반환 |
+| Backend | late ACK probe와 terminal transaction 조정 |
+| Agent | `OPERATION`/`PLAN_AUTHORITY` status scope 전달 |
+| FTCTL | generation/owner 재검증 및 checkpoint 단일 스냅샷 |
+| DB | Plan/Run/Session/Replica 원자 수렴과 probe lease |
+
+구체 클래스, method, transaction 경계와 권장 구현 순서는 문서 576을 따른다.
+
+## 2026-07-30 Context Action Availability Full-Stack Boundary
+
+DR Plan 작업 메뉴는 current authority와 runtime 상태를 다시 추론하지 않고
+Cloud backend의 typed action availability를 표시한다.
+
+| Layer | 책임 |
+| --- | --- |
+| UI | 단일 action catalog, applicable filtering, disabled reason, light/dark menu |
+| API | boolean compatibility와 typed availability 동시 제공 |
+| Backend | 단일 evaluator로 applicability/enabled/reason 계산 |
+| Agent | 기존 action 전달과 status 증거 제공, 변경 없음 |
+| FTCTL | 기존 data-plane action/status 계약 유지, 변경 없음 |
+| DB | schema 변경 없이 Protection View cache version 7 |
+
+상태 반대편 작업은 숨기고 현재 단계의 선행 조건 부족만 비활성 사유로
+표시한다. UI/API/backend가 서로 다른 eligibility 조건식을 갖지 않는다.
+상세 코드 위치, 상태 matrix, 스타일 token, 구현 순서 및 AS-IS/TO-BE는
+[584-cross-hypervisor-dr-context-action-availability-and-darkmode-design-20260730.md](584-cross-hypervisor-dr-context-action-availability-and-darkmode-design-20260730.md)를
+따른다.
+
+## 2026-08-01 Bidirectional Incremental Implementation Addendum
+
+The full-stack implementation must treat forward and reverse replication as
+two typed provider pipelines with one authority state machine. UI and API
+expose Reprotect as the mandatory transition after Failover. Backend and DB
+persist directional baseline lineage. Agent transports immutable operation
+specifications. FTCTL owns changed-extent extraction, target writes, reverse
+guest preparation, and typed transfer evidence.
+
+The implementation baseline is
+[588-cross-hypervisor-dr-bidirectional-incremental-replication-and-failback-data-contract-design-20260801.md](588-cross-hypervisor-dr-bidirectional-incremental-replication-and-failback-data-contract-design-20260801.md).
+
+## 2026-07-31 Test Session And Async Acceptance Addendum
+
+Test Failover의 UI/API/backend/DB 계약은 문서 586으로 보강한다.
+UI는 async job 접수 결과를 먼저 확인하고, backend는 Test Session
+blocking 판정을 단일 lifecycle service로 통합한다. `FAILED` 이력과 cleanup
+obligation을 분리하고 terminal proof가 있는 세션은 soft-close한다.
+
+Agent/FTCTL에는 신규 action이 없으며 기존 typed terminal proof를 Cloud
+reconcile 증거로 사용한다. Protection View cache는 blocking reason을 포함하는
+version 8을 사용한다.

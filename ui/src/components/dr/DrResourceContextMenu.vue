@@ -24,24 +24,22 @@
     :style="{ top: adjustedPosition.y + 'px', left: adjustedPosition.x + 'px' }"
     @click.stop
     @contextmenu.stop.prevent>
-    <action-button
+    <dr-action-menu-content
       :actions="actions"
       :resource="resource"
-      :dataView="true"
       :show-resource-title="showResourceTitle"
-      :titleOverride="title"
-      size="default"
+      :title="title"
       @exec-action="execAction" />
   </div>
 </template>
 
 <script>
-import ActionButton from '@/components/view/ActionButton'
+import DrActionMenuContent from '@/components/dr/DrActionMenuContent.vue'
 
 export default {
   name: 'DrResourceContextMenu',
   components: {
-    ActionButton
+    DrActionMenuContent
   },
   props: {
     visible: {

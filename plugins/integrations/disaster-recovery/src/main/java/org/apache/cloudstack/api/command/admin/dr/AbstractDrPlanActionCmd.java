@@ -22,6 +22,7 @@ import java.util.Map;
 import javax.inject.Inject;
 
 import com.google.gson.JsonObject;
+import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cloudstack.api.ApiCommandResourceType;
 import org.apache.cloudstack.api.ApiErrorCode;
@@ -64,6 +65,10 @@ public abstract class AbstractDrPlanActionCmd extends BaseAsyncCmd {
             description = "the idempotency key for retry-safe action execution")
     private String idempotencyKey;
 
+    @Parameter(name = "actionintent", type = CommandType.STRING,
+            description = "the immutable DR run type intended by the caller")
+    private String actionIntent;
+
     @Parameter(name = "dryrun", type = CommandType.BOOLEAN,
             description = "whether to run validation only")
     private Boolean dryRun;
@@ -96,6 +101,10 @@ public abstract class AbstractDrPlanActionCmd extends BaseAsyncCmd {
         return idempotencyKey;
     }
 
+    public String getActionIntent() {
+        return actionIntent;
+    }
+
     public Boolean getDryRun() {
         return dryRun;
     }
@@ -123,6 +132,7 @@ public abstract class AbstractDrPlanActionCmd extends BaseAsyncCmd {
 
     @Override
     public void execute() throws ServerApiException {
+        validateActionIntent();
         validateActionAllowed();
         try {
             DrRunVO run = drRunService.startRun(planId, getRunType(), idempotencyKey, CallContext.current().getCallingUserId(), null, buildRequestJson());
@@ -133,6 +143,14 @@ public abstract class AbstractDrPlanActionCmd extends BaseAsyncCmd {
             throw e;
         } catch (RuntimeException e) {
             throw new ServerApiException(ApiErrorCode.INTERNAL_ERROR, e.getMessage());
+        }
+    }
+
+    protected void validateActionIntent() {
+        if (StringUtils.isNotBlank(actionIntent)
+                && !StringUtils.equalsIgnoreCase(actionIntent, getRunType())) {
+            throw new ServerApiException(ApiErrorCode.PARAM_ERROR,
+                    DrConstants.ERROR_ACTION_INTENT_MISMATCH + ": expected " + getRunType());
         }
     }
 
@@ -204,6 +222,8 @@ public abstract class AbstractDrPlanActionCmd extends BaseAsyncCmd {
         addProperty(request, "force", force);
         addProperty(request, "acknowledgement", acknowledgement);
         addProperty(request, "reason", reason);
+        addProperty(request, "actionIntent", StringUtils.defaultIfBlank(actionIntent, getRunType()));
+        addProperty(request, "apiCommand", getApiName());
         addRequestProperties(request);
         return request.entrySet().isEmpty() ? null : request.toString();
     }

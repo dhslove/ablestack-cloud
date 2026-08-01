@@ -39,4 +39,8 @@ public interface DrPlanService {
     boolean deletePlan(long planId);
 
     Map<String, Boolean> getActionEligibility(long planId);
+
+    Map<String, DrActionAvailability> getActionAvailability(long planId);
+
+    DrPlanActionEvaluation getActionEvaluation(long planId);
 }

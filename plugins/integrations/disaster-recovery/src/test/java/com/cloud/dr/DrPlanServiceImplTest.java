@@ -30,6 +30,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 
 import com.cloud.dr.adapter.DrAdapterRegistry;
 import com.cloud.dr.adapter.DrReplicationEngine;
+import com.cloud.dr.dao.DrCutoverSessionDao;
 import com.cloud.dr.dao.DrPlanDao;
 import com.cloud.dr.dao.DrPlanRuntimeDao;
 import com.cloud.dr.dao.DrPlanViewCacheDao;
@@ -46,6 +47,8 @@ public class DrPlanServiceImplTest {
     private DrPlanDao drPlanDao;
     @Mock
     private DrPlanRuntimeDao drPlanRuntimeDao;
+    @Mock
+    private DrCutoverSessionDao drCutoverSessionDao;
     @Mock
     private DrSyncCycleDao drSyncCycleDao;
     @Mock
@@ -228,6 +231,37 @@ public class DrPlanServiceImplTest {
         Assert.assertFalse(eligibility.get("testFailover"));
         Assert.assertFalse(eligibility.get("failover"));
         Assert.assertTrue(eligibility.get("failback"));
+        Assert.assertFalse(eligibility.get("reprotect"));
+    }
+
+    @Test
+    public void ftctlDrEligibilityAllowsReprotectOnlyWithCommittedTargetAuthority() {
+        DrPlanVO plan = new DrPlanVO("ftctl-dr-failed-over", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
+        plan.setAdminState(DrConstants.ADMIN_STATE_ENABLED);
+        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
+        plan.setState(DrConstants.PLAN_STATE_FAILED_OVER);
+        plan.setActiveSide("TARGET");
+        plan.setTargetReadyAt(new Date());
+        DrCutoverSessionVO cutover = new DrCutoverSessionVO(plan.getId(), 11L, "planned", "PROMOTED");
+        cutover.setCloudPromotionState("PROMOTED");
+        cutover.setEngineAckState("ACKNOWLEDGED");
+        cutover.setCloudAuthorityGeneration(3L);
+        DrReplicaVO replica = new DrReplicaVO(plan.getId(), plan.getTargetSiteId());
+        replica.setTargetVmId(256L);
+        replica.setActiveSide("TARGET");
+
+        Mockito.when(drPlanDao.findById(plan.getId())).thenReturn(plan);
+        Mockito.when(drAdapterRegistry.getReplicationEngine(DrConstants.ENGINE_TYPE_FTCTL_DR,
+                DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR)).thenReturn(replicationEngine);
+        Mockito.when(drRunDao.findLatestByPlanId(plan.getId())).thenReturn(controlReadyRun(plan));
+        Mockito.when(drPlanReadinessValidator.validateForRelease(plan)).thenReturn(releaseReady());
+        Mockito.when(drCutoverSessionDao.findLatestActiveByPlanId(plan.getId())).thenReturn(cutover);
+        Mockito.when(drReplicaDao.listActiveByPlanId(plan.getId())).thenReturn(Arrays.asList(replica));
+
+        Map<String, Boolean> eligibility = service.getActionEligibility(plan.getId());
+
+        Assert.assertTrue(eligibility.get("reprotect"));
     }
 
     @Test
@@ -252,6 +286,59 @@ public class DrPlanServiceImplTest {
         Map<String, Boolean> eligibility = service.getActionEligibility(plan.getId());
 
         Assert.assertTrue(eligibility.get("stopTestFailover"));
+    }
+
+    @Test
+    public void ftctlDrEligibilityTreatsCleanedFailedSessionAsHistory() {
+        DrPlanVO plan = new DrPlanVO("ftctl-dr-test-cleaned-failure", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
+        plan.setAdminState(DrConstants.ADMIN_STATE_ENABLED);
+        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
+        plan.setState(DrConstants.PLAN_STATE_READY);
+        plan.setTargetReadyAt(new Date());
+        DrTestSessionVO session = new DrTestSessionVO(plan.getId(), 64L, DrTestSessionState.FAILED);
+        session.setCleanupRequired(false);
+        Mockito.when(drPlanDao.findById(plan.getId())).thenReturn(plan);
+        Mockito.when(drAdapterRegistry.getReplicationEngine(DrConstants.ENGINE_TYPE_FTCTL_DR,
+                DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR)).thenReturn(replicationEngine);
+        Mockito.when(drRunDao.findLatestByPlanId(plan.getId())).thenReturn(controlReadyRun(plan));
+        Mockito.when(drPlanReadinessValidator.validateForRelease(plan)).thenReturn(releaseReady());
+        Mockito.when(drProtectionAuthorityService.getAuthority(plan.getId()))
+                .thenReturn(new DrProtectionAuthoritySnapshot(new DrPlanRuntimeVO(plan.getId()), true));
+        Mockito.when(drTestSessionDao.findActiveByPlanId(plan.getId())).thenReturn(session);
+
+        Map<String, Boolean> eligibility = service.getActionEligibility(plan.getId());
+
+        Assert.assertTrue(eligibility.get("testFailover"));
+        Assert.assertFalse(eligibility.get("stopTestFailover"));
+    }
+
+    @Test
+    public void ftctlDrNbdQuarantineAllowsOnlySynchronizationRecovery() {
+        DrPlanVO plan = new DrPlanVO("ftctl-dr-quarantine", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
+        plan.setAdminState(DrConstants.ADMIN_STATE_ENABLED);
+        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
+        plan.setState(DrConstants.PLAN_STATE_READY);
+        plan.setTargetReadyAt(new Date());
+        DrPlanRuntimeVO runtime = new DrPlanRuntimeVO(plan.getId());
+        runtime.setNbdTeardownState("QUARANTINED");
+        runtime.setNbdQuarantinedDeviceCount(1);
+
+        Mockito.when(drPlanDao.findById(plan.getId())).thenReturn(plan);
+        Mockito.when(drPlanRuntimeDao.findByPlanId(plan.getId())).thenReturn(runtime);
+        Mockito.when(drAdapterRegistry.getReplicationEngine(DrConstants.ENGINE_TYPE_FTCTL_DR,
+                DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR)).thenReturn(replicationEngine);
+        Mockito.when(drRunDao.findLatestByPlanId(plan.getId())).thenReturn(controlReadyRun(plan));
+
+        Map<String, Boolean> eligibility = service.getActionEligibility(plan.getId());
+
+        Assert.assertTrue(eligibility.get("recoverSync"));
+        Assert.assertFalse(eligibility.get("sync"));
+        Assert.assertFalse(eligibility.get("pauseSync"));
+        Assert.assertFalse(eligibility.get("testFailover"));
+        Assert.assertFalse(eligibility.get("failover"));
+        Assert.assertFalse(eligibility.get("releaseProtection"));
     }
 
     @Test

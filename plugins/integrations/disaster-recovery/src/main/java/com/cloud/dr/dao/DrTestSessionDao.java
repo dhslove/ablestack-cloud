@@ -7,4 +7,5 @@ import com.cloud.utils.db.GenericDao;
 public interface DrTestSessionDao extends GenericDao<DrTestSessionVO, Long> {
     DrTestSessionVO findActiveByRunId(long runId);
     DrTestSessionVO findActiveByPlanId(long planId);
+    DrTestSessionVO findByRunIdIncludingRemoved(long runId);
 }

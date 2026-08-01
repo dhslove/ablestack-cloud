@@ -210,6 +210,11 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
         DrExecutionContext context = new DrExecutionContext(plan, run);
 
         if (StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_FENCE_CONFIRM)) {
+            if (StringUtils.equalsIgnoreCase(engineBindingType, DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR)
+                    || StringUtils.equalsIgnoreCase(engineType, DrConstants.ENGINE_TYPE_FTCTL_DR)) {
+                return DrAdapterResult.failure(DrConstants.ERROR_FENCE_CLEAR_INTERNAL_ONLY,
+                        "FTCTL_DR source isolation is validated internally by failback or reprotect", null);
+            }
             DrFencingAdapter adapter = drAdapterRegistry.getFencingAdapter(engineType, engineBindingType);
             if (adapter == null) {
                 return DrAdapterResult.failure(DrConstants.ERROR_ENGINE_UNAVAILABLE, "DR fencing adapter is unavailable", null);

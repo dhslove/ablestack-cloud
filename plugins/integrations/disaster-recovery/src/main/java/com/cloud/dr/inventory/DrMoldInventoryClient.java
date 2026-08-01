@@ -39,6 +39,8 @@ public class DrMoldInventoryClient {
     private static final String COMMAND_LIST_ZONES = "listZones";
     private static final String COMMAND_LIST_VMWARE_DCS = "listVmwareDcs";
     private static final String COMMAND_LIST_VMS = "listVirtualMachines";
+    private static final String COMMAND_START_VM = "startVirtualMachine";
+    private static final String COMMAND_STOP_VM = "stopVirtualMachine";
 
     public List<DrInventoryOption> listZones(DrResolvedSiteCredential credential) {
         JsonObject response = execute(credential, COMMAND_LIST_ZONES, null);
@@ -77,6 +79,40 @@ public class DrMoldInventoryClient {
         JsonObject response = execute(credential, COMMAND_LIST_VMS, params);
         JsonObject payload = getObjectIgnoreCase(response, "listvirtualmachinesresponse");
         return toVirtualMachineOptions(getArrayIgnoreCase(payload, "virtualmachine"));
+    }
+
+    public String getVirtualMachinePowerState(DrResolvedSiteCredential credential, String vmRef) {
+        Map<String, String> params = new LinkedHashMap<String, String>();
+        params.put("id", vmRef);
+        params.put("listall", "true");
+        params.put("details", "min");
+        JsonObject response = execute(credential, COMMAND_LIST_VMS, params);
+        JsonObject payload = getObjectIgnoreCase(response, "listvirtualmachinesresponse");
+        JsonArray items = getArrayIgnoreCase(payload, "virtualmachine");
+        if (items.size() == 0 || !items.get(0).isJsonObject()) {
+            throw new InventoryException(404, "Mold VM was not found: " + vmRef);
+        }
+        return normalizePowerState(firstString(items.get(0).getAsJsonObject(), "state"));
+    }
+
+    public String ensureVirtualMachinePowerState(DrResolvedSiteCredential credential, String vmRef, boolean poweredOn) {
+        String expected = poweredOn ? "POWERED_ON" : "POWERED_OFF";
+        if (StringUtils.equals(expected, getVirtualMachinePowerState(credential, vmRef))) {
+            return expected;
+        }
+        Map<String, String> params = new LinkedHashMap<String, String>();
+        params.put("id", vmRef);
+        if (!poweredOn) {
+            params.put("forced", "true");
+        }
+        execute(credential, poweredOn ? COMMAND_START_VM : COMMAND_STOP_VM, params);
+        for (int attempt = 0; attempt < 30; attempt++) {
+            if (StringUtils.equals(expected, getVirtualMachinePowerState(credential, vmRef))) {
+                return expected;
+            }
+            sleep(2000L);
+        }
+        throw new InventoryException(0, "Mold VM did not reach " + expected + ": " + vmRef);
     }
 
     private JsonObject execute(DrResolvedSiteCredential credential, String command, Map<String, String> additionalParams) {
@@ -268,6 +304,21 @@ public class DrMoldInventoryClient {
     private String getSecret(JsonObject secret, String key) {
         JsonElement element = secret != null ? getElementIgnoreCase(secret, key) : null;
         return element != null && !element.isJsonNull() ? StringUtils.trimToNull(element.getAsString()) : null;
+    }
+
+    private String normalizePowerState(String state) {
+        return StringUtils.equalsAnyIgnoreCase(state, "Running", "Starting", "Migrating")
+                ? "POWERED_ON" : StringUtils.equalsAnyIgnoreCase(state, "Stopped", "Stopping", "Destroyed", "Expunging")
+                ? "POWERED_OFF" : StringUtils.upperCase(StringUtils.defaultIfBlank(state, "UNKNOWN"), Locale.ROOT);
+    }
+
+    private void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new InventoryException(0, "Mold VM power wait was interrupted");
+        }
     }
 
     public static class InventoryException extends RuntimeException {

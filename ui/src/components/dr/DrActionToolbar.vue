@@ -63,8 +63,8 @@
 </template>
 
 <script>
-import { normalizeActionEligibility } from '@/api/dr'
-import { hasDrSourceAuthority } from '@/utils/dr/planState'
+import { buildDrPlanActions } from '@/utils/dr/resourceActions'
+import { drActionReasonMessageKey, resolveDrActionAvailability } from '@/utils/dr/actionAvailability'
 
 export default {
   name: 'DrActionToolbar',
@@ -91,159 +91,32 @@ export default {
     }
   },
   emits: ['run-action'],
-  data () {
-    return {
-      actions: [
-        {
-          key: 'sync',
-          command: 'startDrSync',
-          icon: 'SyncOutlined',
-          label: 'label.dr.action.sync.now'
-        },
-        {
-          key: 'recoversync',
-          command: 'recoverDrSync',
-          icon: 'ReloadOutlined',
-          label: 'label.dr.action.recover.sync'
-        },
-        {
-          key: 'pausesync',
-          command: 'pauseDrSync',
-          icon: 'PauseCircleOutlined',
-          label: 'label.dr.action.pause.sync'
-        },
-        {
-          key: 'resumesync',
-          command: 'resumeDrSync',
-          icon: 'PlayCircleOutlined',
-          label: 'label.dr.action.resume.sync'
-        },
-        {
-          key: 'testfailover',
-          command: 'startDrTestFailover',
-          icon: 'ExperimentOutlined',
-          label: 'label.dr.action.test.failover'
-        },
-        {
-          key: 'stoptestfailover',
-          command: 'stopDrTestFailover',
-          icon: 'StopOutlined',
-          label: 'label.dr.action.test.cleanup',
-          danger: true,
-          modal: true
-        },
-        {
-          key: 'failover',
-          command: 'startDrFailover',
-          icon: 'ThunderboltOutlined',
-          label: 'label.dr.action.failover',
-          danger: true,
-          modal: true,
-          confirmMessage: 'message.dr.confirm.failover'
-        },
-        {
-          key: 'confirmfenceclear',
-          command: 'confirmDrFenceClear',
-          icon: 'SafetyOutlined',
-          label: 'label.dr.action.fence.clear',
-          danger: true,
-          modal: true
-        },
-        {
-          key: 'failback',
-          command: 'startDrFailback',
-          icon: 'UndoOutlined',
-          label: 'label.dr.action.failback',
-          danger: true,
-          modal: true,
-          confirmMessage: 'message.dr.confirm.failback'
-        },
-        {
-          key: 'reprotect',
-          command: 'startDrReprotect',
-          icon: 'RetweetOutlined',
-          label: 'label.dr.action.reprotect'
-        },
-        {
-          key: 'adoptreplica',
-          command: 'adoptDrReplica',
-          icon: 'SafetyCertificateOutlined',
-          label: 'label.dr.action.adopt.replica',
-          danger: true,
-          modal: true,
-          confirmMessage: 'message.dr.confirm.adopt.replica'
-        },
-        {
-          key: 'releaseprotection',
-          command: 'releaseDrProtection',
-          icon: 'DeleteOutlined',
-          label: 'label.dr.action.release.protection',
-          danger: true,
-          modal: true,
-          confirmMessage: 'message.dr.confirm.release.protection'
-        },
-        {
-          key: 'cancelrun',
-          command: 'cancelDrRun',
-          icon: 'CloseCircleOutlined',
-          label: 'label.dr.action.cancel.run',
-          danger: true,
-          modal: true
-        }
-      ]
-    }
-  },
   computed: {
-    eligibility () {
-      return normalizeActionEligibility(this.plan.actioneligibility || this.plan.actionEligibility || {})
+    actions () {
+      return buildDrPlanActions(this.currentRun).filter(action => action.command)
     },
     visibleActions () {
       return this.actions.filter(action => this.isVisible(action))
     }
   },
   methods: {
-    hasApi (command) {
-      return command in this.$store.getters.apis
-    },
-    hasEligibilityMap () {
-      return Object.keys(this.eligibility).length > 0
-    },
-    hasEligibilityEntry (action) {
-      return Object.prototype.hasOwnProperty.call(this.eligibility, action.key)
-    },
     isVisible (action) {
-      return !this.hasEligibilityMap() || this.hasEligibilityEntry(action)
-    },
-    isEligible (action) {
-      if (action.key === 'cancelrun') {
-        return this.isActiveRun(this.currentRun) && !!this.currentRun.id
-      }
-      return this.eligibility[action.key] === true
+      return resolveDrActionAvailability(action, this.plan, this.currentRun).applicable
     },
     isDisabled (action) {
-      if (['sync', 'recoversync', 'pausesync', 'resumesync', 'testfailover', 'failover'].includes(action.key) && !hasDrSourceAuthority(this.plan)) {
-        return true
-      }
-      return !this.hasApi(action.command) || !this.isEligible(action)
+      const state = resolveDrActionAvailability(action, this.plan, this.currentRun)
+      return !(action.api in this.$store.getters.apis) || !state.enabled
     },
     disabledReason (action) {
-      if (!this.hasApi(action.command)) {
+      if (!(action.api in this.$store.getters.apis)) {
         return this.$t('message.dr.action.api.unavailable')
       }
-      if (['sync', 'recoversync', 'pausesync', 'resumesync', 'testfailover', 'failover'].includes(action.key) && !hasDrSourceAuthority(this.plan)) {
-        return this.$t('message.dr.action.target.authority')
-      }
-      if (['pausesync', 'resumesync', 'testfailover', 'stoptestfailover', 'failover', 'releaseprotection'].includes(action.key) &&
-          this.plan.runtimecontrolready === false) {
-        return this.$t('message.dr.action.control.not.ready')
-      }
-      if (['testfailover', 'failover'].includes(action.key) && this.plan.normalcutoverready === false) {
-        const reason = String(this.plan.normalcutoverreason || 'DR_AUTHORITY_NOT_READY').toLowerCase().replace(/_/g, '.')
-        const key = `message.dr.cutover.blocked.${reason}`
-        return this.$te && this.$te(key) ? this.$t(key) : this.$t('message.dr.action.not.eligible')
-      }
-      if (!this.isEligible(action)) {
-        return this.$t('message.dr.action.not.eligible')
+      const state = resolveDrActionAvailability(action, this.plan, this.currentRun)
+      if (!state.enabled) {
+        const key = drActionReasonMessageKey(state.reasonCode)
+        return this.$te && this.$te(key)
+          ? this.$t(key, state.reasonArgs || {})
+          : this.$t('message.dr.action.not.eligible')
       }
       return ''
     },
@@ -252,9 +125,6 @@ export default {
         return
       }
       this.$emit('run-action', Object.assign({}, action, { currentRun: this.currentRun || {} }))
-    },
-    isActiveRun (run) {
-      return ['QUEUED', 'PREPARING', 'DISPATCHING', 'ACCEPTED', 'RUNNING', 'RETRYING', 'CANCEL_REQUESTED'].includes(String(run?.state || '').toUpperCase())
     }
   }
 }

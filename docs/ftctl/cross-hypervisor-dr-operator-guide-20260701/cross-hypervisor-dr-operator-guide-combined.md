@@ -3,6 +3,11 @@
 문서 기준일: 2026-07-01
 검토 기준 소스: Cloud `bb8857cbc3`, ftctl/qemu-exec-tools `a25443d`
 
+> 2026-07-31 운영 보정: FTCTL_DR에서는 `원본 사이트 격리 해제 확인`을
+> 별도로 실행하지 않는다. 원래 사이트 복귀는 `페일백`, 현재 사이트 계속
+> 운영은 `현재 운영 사이트에서 재보호`를 사용하며 source isolation은 내부
+> preflight가 자동 확인한다. 기술 기준은 문서 587이다.
+
 이 통합 문서는 요청된 6개 Markdown 문서를 PDF 변환용으로 순서대로 묶은 것이다.
 
 
@@ -614,6 +619,13 @@ sequenceDiagram
 
 # Cross Hypervisor DR 기대효과, 장점 및 강점
 
+> Failover 운영 보완 (2026-07-27): VMware -> ABLESTACK 실제 Failover에서
+> target VM은 완료 checkpoint의 identity, CBT 결과, NBD 정리 증거가 모두
+> 확인된 뒤 Cloud가 시작한다. 일시적 증거 누락은 제한 재시도하고, target 시작
+> 전 준비 실패는 source 전원을 자동 조작하지 않은 채 안전하게 정리한다.
+> target가 이미 시작된 뒤에는 자동 rollback하지 않고 운영자 복구 상태로
+> 전환한다.
+
 문서 기준일: 2026-07-01
 
 ## 1. 기대효과
@@ -786,3 +798,43 @@ FTCTL은 데이터와 게스트 준비를 담당하고 Cloud는 대상 가상머
 원본은 자동 삭제 또는 자동 시작되지 않는다. 상세 계약은
 `../567-cross-hypervisor-dr-real-failover-cutover-manifest-and-rollback-design-20260722.md`를
 따른다.
+
+## 현재 권한과 과거 전환 이력
+
+Failover 완료 후 TARGET이 운영 사이트인 동안에는 해당 cutover session이
+현재 권한이다. Failback이 완료돼 SOURCE 보호가 재개되면 이전 cutover는
+삭제하지 않고 과거 실행 이력으로 보존한다.
+
+보호 정보 화면은 현재 권한만 표시하고 과거 Failover/Failback은 이력 탭에서
+조회한다. SOURCE 복귀 후에도 과거 `PROMOTED` 정보가 현재 권한처럼 보이거나
+작업 메뉴 갱신에 브라우저 강제 새로고침이 필요하면 projection 결함으로
+판정한다.
+## 2026-07-30 Failback 상태 해석 보강
+
+Failback은 비동기 작업이다. 요청 접수 후 `COMMIT_VERIFYING`과
+`PROTECTION_RESUMING`은 정상 진행 상태이며, 원본 사이트 권한 복구와 원본 방향
+보호 재개가 모두 확인된 뒤 완료된다. 완료 checkpoint는 Failback 기준
+checkpoint보다 반드시 커야 한다. 응답이 지연되어도 동일 idempotency key로
+접수 이력을 복원하므로 사용자가 작업을 다시 제출할 필요가 없다.
+
+## VMware에서 ABLESTACK으로 페일오버한 뒤의 보호
+
+페일오버 후에는 ABLESTACK이 운영 사이트가 되며, VMware 복구 사이트를 향한
+역방향 보호를 별도로 구성해야 한다. **현재 운영 사이트에서 재보호**가 최초
+역방향 시드와 지속적인 KVM-to-VMware 증분 복제를 담당한다. 이 단계가 완료되기
+전에는 페일백할 수 없다.
+
+페일백은 마지막 역방향 변경분과 VMware 부팅 호환성을 검증한 뒤 운영 권한을
+원본 사이트로 돌려놓고, 다시 VMware-to-KVM 정방향 보호를 재개한다. 기술 계약은
+문서 588을 따른다.
+
+## 테스트 페일오버 접수와 기존 세션
+
+테스트 페일오버 버튼이 활성화돼도 backend transaction에서 이전 테스트
+환경이 발견되면 요청은 접수되지 않을 수 있다. 이때 UI는 Cloud async job의
+`DR_TEST_SESSION_BLOCKING` 원인을 표시해야 하며 FTCTL 실행 실패로 안내하면
+안 된다.
+
+실제 테스트 VM, disk, artifact, lease가 없는 과거 FAILED 세션은 감사 이력으로
+보존하되 새 테스트를 차단하지 않는다. 잔존 리소스 또는 cleanup obligation이
+있는 세션만 테스트 정리를 요구한다. 기술 계약은 문서 586을 따른다.

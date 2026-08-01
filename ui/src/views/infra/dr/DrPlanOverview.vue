@@ -30,9 +30,12 @@
         <div class="cross-dr-kpi__meta">{{ plan.adminstate || '-' }}</div>
       </div>
       <dr-rpo-kpi
-        :label="$t('label.dr.target.rpo')"
-        :seconds="plan.targetreadyrposeconds"
-        :targetSeconds="plan.rposeconds" />
+        :label="rpoLabel"
+        :seconds="rpoPresentation.seconds"
+        :targetSeconds="plan.rposeconds"
+        :evaluationMode="rpoPresentation.mode"
+        :asOf="rpoPresentation.asOf"
+        :status="rpoPresentation.status" />
       <div class="cross-dr-kpi">
         <div class="cross-dr-kpi__label">{{ $t('label.dr.target.ready.at') }}</div>
         <div class="cross-dr-kpi__value cross-dr-kpi__value--small">{{ plan.targetreadyat || '-' }}</div>
@@ -46,13 +49,16 @@
     </div>
 
     <a-alert
-      v-if="showProtectionSummary && (visibleErrorCode || visibleErrorMessage)"
-      type="warning"
+      v-if="showProtectionSummary && hasCurrentRisk"
+      :type="riskAlertType"
       show-icon
-      class="cross-dr-risk">
+      class="cross-dr-risk cross-dr-detail-warning">
       <template #message>
-        <div>{{ visibleErrorCode || $t('label.error') }}</div>
-        <div class="cross-dr-risk__body">{{ visibleErrorMessage || '-' }}</div>
+        <div>{{ riskSummary }}</div>
+      </template>
+      <template #description>
+        <div v-if="visibleErrorCode" class="cross-dr-error-code">{{ visibleErrorCode }}</div>
+        <div v-if="visibleErrorDescription" class="cross-dr-risk__body">{{ visibleErrorDescription }}</div>
       </template>
     </a-alert>
 
@@ -65,7 +71,13 @@ import DrResourceDetailsTab from '@/components/dr/DrResourceDetailsTab.vue'
 import DrRpoKpi from '@/components/dr/DrRpoKpi.vue'
 import DrRunProgress from '@/components/dr/DrRunProgress.vue'
 import DrStatusPill from '@/components/dr/DrStatusPill.vue'
-import { isActiveDrRun, resolveDrPlanState, resolveDrReplicationResumeState } from '@/utils/dr/planState'
+import {
+  isActiveDrRun,
+  resolveDrPlanState,
+  resolveDrPlanSeverity,
+  resolveDrReplicationResumeState,
+  resolveDrRpoPresentation
+} from '@/utils/dr/planState'
 import { mixinDevice } from '@/utils/mixin.js'
 
 export default {
@@ -169,11 +181,87 @@ export default {
     currentRunFailed () {
       return String(this.currentRun.state || '').toUpperCase() === 'FAILED'
     },
+    currentSeverity () {
+      return resolveDrPlanSeverity(this.plan, this.currentRun)
+    },
+    rpoPresentation () {
+      return resolveDrRpoPresentation(this.plan)
+    },
+    rpoLabel () {
+      return this.rpoPresentation.mode === 'CUTOVER_FROZEN'
+        ? this.$t('label.dr.rpo.at.failover')
+        : this.$t('label.dr.target.rpo')
+    },
+    currentProtectionFailed () {
+      return this.currentSeverity === 'ERROR'
+    },
+    currentProtectionWarning () {
+      return this.currentSeverity === 'WARNING'
+    },
+    reprotectRequired () {
+      return this.currentSeverity === 'INFO' &&
+        String(this.plan.protectionphase || this.plan.protectionstate || '').toUpperCase() === 'FAILED_OVER_UNPROTECTED'
+    },
+    projectionInconsistent () {
+      return String(this.plan.projectionintegritystate || '').toUpperCase() === 'INCONSISTENT'
+    },
+    schedulerFailed () {
+      return String(this.plan.schedulerhealth || '').toUpperCase() === 'FAILED'
+    },
+    hasCurrentRisk () {
+      return this.currentProtectionFailed ||
+        this.currentProtectionWarning ||
+        this.reprotectRequired ||
+        this.projectionInconsistent ||
+        this.schedulerFailed ||
+        this.currentRunFailed
+    },
     visibleErrorCode () {
-      return this.plan.runtimeerrorcode || this.currentRun.runtimeerrorcode || this.plan.lasterrorcode || (this.currentRunFailed ? this.currentRun.errorcode : null)
+      if (!this.hasCurrentRisk) {
+        return ''
+      }
+      return this.plan.runtimeerrorcode ||
+        this.currentRun.runtimeerrorcode ||
+        this.plan.lasterrorcode ||
+        this.plan.projectionintegritycode ||
+        (this.currentRunFailed ? this.currentRun.errorcode : null) ||
+        ''
     },
     visibleErrorMessage () {
-      return this.plan.lasterrormessage || (this.currentRunFailed ? this.currentRun.errormessage : null) || this.translatedError(this.visibleErrorCode)
+      if (!this.hasCurrentRisk) {
+        return ''
+      }
+      return this.plan.lasterrormessage ||
+        this.plan.authorityinconsistencymessage ||
+        (this.currentRunFailed ? this.currentRun.errormessage : null) ||
+        ''
+    },
+    translatedVisibleError () {
+      return this.translatedError(this.visibleErrorCode)
+    },
+    riskAlertType () {
+      return this.currentProtectionFailed || this.projectionInconsistent || this.currentRunFailed
+        ? 'error'
+        : this.currentProtectionWarning
+          ? 'warning'
+          : 'info'
+    },
+    riskSummary () {
+      if (this.translatedVisibleError || this.visibleErrorMessage) {
+        return this.translatedVisibleError || this.visibleErrorMessage
+      }
+      if (this.reprotectRequired) {
+        return this.$t('message.dr.reprotect.required')
+      }
+      if (this.currentProtectionWarning) {
+        return this.$t('message.dr.protection.degraded')
+      }
+      return this.$t('message.dr.current.condition.requires.attention')
+    },
+    visibleErrorDescription () {
+      return this.visibleErrorMessage && this.visibleErrorMessage !== this.translatedVisibleError
+        ? this.visibleErrorMessage
+        : ''
     }
   },
   methods: {
@@ -255,14 +343,19 @@ export default {
   border-radius: 6px;
 }
 
-.cross-dr-risk__body {
-  margin-top: 4px;
-  color: var(--cross-dr-text-secondary, rgba(0, 0, 0, 0.55));
+.cross-dr-error-code {
+  color: inherit;
+  font-family: monospace;
   font-size: 12px;
   line-height: 18px;
+  overflow-wrap: anywhere;
 }
 
-body.dark-mode .cross-dr-risk__body {
-  --cross-dr-text-secondary: rgba(255, 255, 255, 0.64);
+.cross-dr-risk__body {
+  margin-top: 4px;
+  color: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
 }
 </style>

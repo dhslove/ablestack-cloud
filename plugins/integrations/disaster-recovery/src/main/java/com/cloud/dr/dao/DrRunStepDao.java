@@ -25,4 +25,6 @@ public interface DrRunStepDao extends GenericDao<DrRunStepVO, Long> {
     List<DrRunStepVO> listActiveByRunId(long runId);
 
     DrRunStepVO findActiveByRunIdAndStepOrder(long runId, int stepOrder);
+
+    DrRunStepVO findActiveByRunIdAndStepName(long runId, String stepName);
 }

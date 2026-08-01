@@ -110,6 +110,14 @@ public class DrPlanRuntimeVO implements InternalIdentity {
     private String projectionIntegrityCode;
     @Column(name = "projection_integrity_sequence")
     private Long projectionIntegritySequence;
+    @Column(name = "nbd_teardown_state")
+    private String nbdTeardownState;
+    @Column(name = "nbd_quarantined_device_count")
+    private int nbdQuarantinedDeviceCount;
+    @Column(name = "nbd_teardown_error_code")
+    private String nbdTeardownErrorCode;
+    @Column(name = "nbd_teardown_error_message", length = 4096)
+    private String nbdTeardownErrorMessage;
     @Column(name = "protection_state")
     private String protectionState;
     @Column(name = "freshness_state")
@@ -189,6 +197,10 @@ public class DrPlanRuntimeVO implements InternalIdentity {
     public String getProjectionIntegrityState() { return projectionIntegrityState; }
     public String getProjectionIntegrityCode() { return projectionIntegrityCode; }
     public Long getProjectionIntegritySequence() { return projectionIntegritySequence; }
+    public String getNbdTeardownState() { return nbdTeardownState; }
+    public int getNbdQuarantinedDeviceCount() { return nbdQuarantinedDeviceCount; }
+    public String getNbdTeardownErrorCode() { return nbdTeardownErrorCode; }
+    public String getNbdTeardownErrorMessage() { return nbdTeardownErrorMessage; }
     public String getProtectionState() { return protectionState; }
     public String getFreshnessState() { return freshnessState; }
     public Date getLastStatusAt() { return lastStatusAt; }
@@ -243,6 +255,10 @@ public class DrPlanRuntimeVO implements InternalIdentity {
     public void setProjectionIntegrityState(String value) { projectionIntegrityState = value; }
     public void setProjectionIntegrityCode(String value) { projectionIntegrityCode = value; }
     public void setProjectionIntegritySequence(Long value) { projectionIntegritySequence = value; }
+    public void setNbdTeardownState(String value) { nbdTeardownState = value; }
+    public void setNbdQuarantinedDeviceCount(int value) { nbdQuarantinedDeviceCount = value; }
+    public void setNbdTeardownErrorCode(String value) { nbdTeardownErrorCode = value; }
+    public void setNbdTeardownErrorMessage(String value) { nbdTeardownErrorMessage = value; }
     public void setProtectionState(String value) { protectionState = value; }
     public void setFreshnessState(String value) { freshnessState = value; }
     public void setLastStatusAt(Date value) { lastStatusAt = value; }

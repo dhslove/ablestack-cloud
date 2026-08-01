@@ -21,6 +21,7 @@
     <div class="cross-dr-kpi__label">{{ label }}</div>
     <div class="cross-dr-kpi__value">{{ formattedValue }}</div>
     <div v-if="targetText" class="cross-dr-kpi__meta">{{ targetText }}</div>
+    <div v-if="asOfText" class="cross-dr-kpi__meta">{{ asOfText }}</div>
   </div>
 </template>
 
@@ -39,6 +40,18 @@ export default {
     targetSeconds: {
       type: [Number, String],
       default: null
+    },
+    evaluationMode: {
+      type: String,
+      default: 'LIVE'
+    },
+    asOf: {
+      type: [String, Date],
+      default: null
+    },
+    status: {
+      type: String,
+      default: 'UNKNOWN'
     }
   },
   computed: {
@@ -51,6 +64,16 @@ export default {
       return Number.isFinite(value) ? value : null
     },
     breached () {
+      const status = String(this.status || '').toUpperCase()
+      if (status === 'MISSED') {
+        return true
+      }
+      if (status === 'MET') {
+        return false
+      }
+      if (!['LIVE', 'REVERSE_LIVE'].includes(String(this.evaluationMode || '').toUpperCase())) {
+        return false
+      }
       return this.numericSeconds !== null && this.numericTargetSeconds !== null && this.numericSeconds > this.numericTargetSeconds
     },
     formattedValue () {
@@ -61,6 +84,12 @@ export default {
         return ''
       }
       return this.$t('label.dr.target') + ': ' + this.formatSeconds(this.numericTargetSeconds)
+    },
+    asOfText () {
+      if (!this.asOf) {
+        return ''
+      }
+      return this.$t('label.dr.rpo.as.of') + ': ' + this.asOf
     }
   },
   methods: {

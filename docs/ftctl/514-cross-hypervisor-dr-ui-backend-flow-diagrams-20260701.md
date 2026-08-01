@@ -1,5 +1,8 @@
 # Cross Hypervisor DR UI And Backend Flow Diagrams
 
+> 2026-07-31 latest correction: the user selects Failback or Reprotect and
+> source isolation is an internal preflight. See document 587.
+
 ## Direction-Specific Split Documents
 
 이 통합 문서는 전체 흐름 참고용이다. 방향별 리뷰와 구현 판단은 다음 분리 문서를 기준으로 한다.
@@ -372,3 +375,86 @@ sequenceDiagram
 | Spring wiring | `spring-disaster-recovery-context.xml` |
 
 빌드/테스트 근거는 [515-cross-hypervisor-dr-async-action-remediation-plan-20260701.md](515-cross-hypervisor-dr-async-action-remediation-plan-20260701.md)의 `14.4 검증 결과`에 반영되어 있다.
+
+## 9. 2026-07-25 Failback 흐름 보정
+
+이 문서의 기존 Failback 표에서 one-time remote/target Mold credential modal을
+연결된 정상 흐름으로 표시한 부분은 최신 Site credential 계약으로 대체한다.
+
+```mermaid
+sequenceDiagram
+  actor User
+  participant UI
+  participant API
+  participant Backend
+  participant Credential as DrSiteCredentialService
+  participant Agent
+  participant FTCTL
+
+  User->>UI: Failback 선택
+  UI->>API: getDrFailbackPreflight(planid)
+  API->>Backend: Plan/Site/health/readiness 검증
+  Backend-->>UI: active Site -> original Site 경로
+  User->>UI: reason/ack 확인
+  UI->>API: startDrFailback(non-secret payload)
+  API-->>UI: accepted Run
+  Backend->>Credential: 양쪽 등록 Site credential resolve
+  Backend->>Agent: Site-derived runtime profile
+  Agent->>FTCTL: dr-failback
+  FTCTL-->>Backend: async status/event
+  UI->>API: DB projection polling
+```
+
+UI/API는 credential을 수신하거나 표시하지 않는다. 신규/교체 Site 복구는
+일반 Failback과 분리된 replica-controller workflow다. 상세 설계는
+[571-cross-hypervisor-dr-site-derived-failback-contract-design-20260725.md](571-cross-hypervisor-dr-site-derived-failback-contract-design-20260725.md)를
+따른다.
+
+## 10. 2026-07-27 Failback Late ACK 수렴 흐름
+
+Failback 명령 응답 timeout과 실제 실패를 동일하게 처리하지 않는다. Backend
+reconciler가 FTCTL operation commit journal, Plan authority, 실제 양쪽 VM power
+상태 및 post-failback checkpoint를 다시 모은 뒤 DB terminal transaction을
+수행한다. UI는 이 DB projection만 비동기로 조회한다.
+
+상세 sequence와 계층별 입력/출력은
+[576-cross-hypervisor-dr-failback-late-ack-and-projection-convergence-design-20260727.md](576-cross-hypervisor-dr-failback-late-ack-and-projection-convergence-design-20260727.md)를
+따른다.
+
+## 11. 2026-07-30 Current 상태와 이력 분리 흐름
+
+```mermaid
+flowchart LR
+  FTCTL["FTCTL current status"] --> Agent["Mold Agent"]
+  Agent --> Runtime["dr_plan_runtime"]
+  Runtime --> Authority["Current authority projection"]
+  Active["Active dr_run"] --> Current["Current operation"]
+  History["Latest completed dr_run"] --> RunHistory["Operation history"]
+  Authority --> Cache["Protection View v5"]
+  Current --> Cache
+  RunHistory --> Cache
+  Cache --> API["Cloud API"]
+  API --> UI["DR detail UI"]
+```
+
+UI 상단 상태와 경고는 Authority와 active Run만 사용한다. latest completed
+Run은 이력에만 표시한다. Agent/FTCTL은 현재 상태 증거를 제공하며 화면의
+current/history 분리는 Cloud backend와 UI가 소유한다. 상세 계약은
+[580-cross-hypervisor-dr-current-runtime-history-and-darkmode-warning-design-20260730.md](580-cross-hypervisor-dr-current-runtime-history-and-darkmode-warning-design-20260730.md)를
+따른다.
+
+## 2026-07-31 Test Failover Acceptance Flow
+
+```mermaid
+flowchart LR
+  UI["UI action submit"] --> Job["Cloud async job"]
+  Job -->|failed| Error["Typed backend error"]
+  Error --> UI
+  Job -->|accepted| Run["TEST_FAILOVER Run"]
+  Run --> Agent["Agent dispatch"]
+  Agent --> FTCTL["FTCTL test lifecycle"]
+```
+
+실패 async job에는 Run과 Agent dispatch가 없으며 UI가 `listDrRuns` timeout으로
+오류를 대체하지 않는다. 과거 Test Session의 blocking 여부는 공통 Cloud
+lifecycle policy가 계산한다. 상세 설계는 문서 586을 따른다.

@@ -20,8 +20,12 @@ import org.apache.cloudstack.acl.RoleType;
 import org.apache.cloudstack.api.APICommand;
 import org.apache.cloudstack.api.Parameter;
 import org.apache.cloudstack.api.ResponseObject;
+import org.apache.cloudstack.api.ApiErrorCode;
+import org.apache.cloudstack.api.ServerApiException;
 import org.apache.cloudstack.api.response.dr.DrRunResponse;
 
+import com.cloud.dr.DrConstants;
+import com.cloud.dr.DrPlanVO;
 import com.cloud.dr.cluster.DisasterRecoveryClusterEventTypes;
 import com.google.gson.JsonObject;
 
@@ -45,6 +49,18 @@ public class ConfirmDrFenceClearCmd extends AbstractDrPlanActionCmd {
     @Override
     protected String getRunType() {
         return "FENCE_CONFIRM";
+    }
+
+    @Override
+    protected void validateActionAllowed() {
+        DrPlanVO plan = drPlanService.getPlan(getPlanId());
+        if (plan != null && (DrConstants.ENGINE_TYPE_FTCTL_DR.equalsIgnoreCase(plan.getEngineType())
+                || DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR.equalsIgnoreCase(plan.getEngineBindingType()))) {
+            throw new ServerApiException(ApiErrorCode.PARAM_ERROR,
+                    DrConstants.ERROR_FENCE_CLEAR_INTERNAL_ONLY
+                            + ": source isolation is validated inside failback or reprotect");
+        }
+        super.validateActionAllowed();
     }
 
     @Override

@@ -27,6 +27,8 @@ public interface DrRunService {
 
     List<DrRunVO> listRuns(long planId);
 
+    DrRunVO findRunByIdempotencyKey(long planId, String idempotencyKey);
+
     List<DrRunStepVO> listRunSteps(long runId);
 
     DrRunVO cancelRun(long runId);

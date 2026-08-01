@@ -17,6 +17,8 @@
 package com.cloud.dr.inventory;
 
 import java.net.HttpURLConnection;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -64,6 +66,79 @@ public class DrVmwareInventoryClient {
         return listVirtualMachineHardware(credential, vmRef, "ethernet");
     }
 
+    public String getVirtualMachinePowerState(DrResolvedSiteCredential credential, String vmRef) {
+        try {
+            SessionContext context = sessionContext(credential);
+            return fetchPowerState(context.rootEndpoint, context.sessionId, context.tlsVerify, vmRef);
+        } catch (InventoryException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new InventoryException(0, "vCenter VM power-state request failed: " + e.getClass().getSimpleName());
+        }
+    }
+
+    public String ensureVirtualMachinePowerState(DrResolvedSiteCredential credential, String vmRef, boolean poweredOn) {
+        try {
+            SessionContext context = sessionContext(credential);
+            String expected = poweredOn ? "POWERED_ON" : "POWERED_OFF";
+            if (StringUtils.equals(expected, fetchPowerState(context.rootEndpoint, context.sessionId, context.tlsVerify, vmRef))) {
+                return expected;
+            }
+            invokePowerAction(context.rootEndpoint, context.sessionId, context.tlsVerify, vmRef,
+                    poweredOn ? "start" : "stop");
+            for (int attempt = 0; attempt < 30; attempt++) {
+                if (StringUtils.equals(expected, fetchPowerState(context.rootEndpoint, context.sessionId, context.tlsVerify, vmRef))) {
+                    return expected;
+                }
+                Thread.sleep(2000L);
+            }
+            throw new InventoryException(0, "vCenter VM did not reach " + expected + ": " + vmRef);
+        } catch (InventoryException e) {
+            throw e;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new InventoryException(0, "vCenter VM power wait was interrupted");
+        } catch (Exception e) {
+            throw new InventoryException(0, "vCenter VM power action failed: " + e.getClass().getSimpleName());
+        }
+    }
+
+    public String validateVirtualMachineGuestBoot(DrResolvedSiteCredential credential, String vmRef) {
+        try {
+            SessionContext context = sessionContext(credential);
+            InventoryException last = null;
+            for (int attempt = 0; attempt < 60; attempt++) {
+                for (String prefix : new String[] {"/rest/vcenter/vm/", "/api/vcenter/vm/"}) {
+                    try {
+                        JsonObject identity = fetchVmObject(DrSiteProbeSupport.appendPath(context.rootEndpoint,
+                                prefix + encodePath(vmRef) + "/guest/identity"),
+                                "vmware-api-session-id", context.sessionId, context.tlsVerify);
+                        String family = firstString(identity, "family", "guest_family", "guestFamily");
+                        String name = firstString(identity, "name", "host_name", "hostName");
+                        String fullName = firstString(identity, "full_name", "fullName");
+                        if (StringUtils.isNotBlank(family) || StringUtils.isNotBlank(name)
+                                || StringUtils.isNotBlank(fullName)) {
+                            return "GUEST_HEARTBEAT_VALIDATED";
+                        }
+                    } catch (InventoryException e) {
+                        last = e;
+                    }
+                }
+                Thread.sleep(2000L);
+            }
+            throw last != null ? last : new InventoryException(0,
+                    "vCenter guest identity did not become available for " + vmRef);
+        } catch (InventoryException e) {
+            throw e;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new InventoryException(0, "vCenter guest boot validation was interrupted");
+        } catch (Exception e) {
+            throw new InventoryException(0,
+                    "vCenter guest boot validation failed: " + e.getClass().getSimpleName());
+        }
+    }
+
     private List<DrInventoryOption> listVirtualMachineHardware(DrResolvedSiteCredential credential, String vmRef, String hardwareType) {
         if (StringUtils.isBlank(vmRef)) {
             return new ArrayList<DrInventoryOption>();
@@ -98,6 +173,86 @@ public class DrVmwareInventoryClient {
             return openRestSession(DrSiteProbeSupport.appendPath(rootEndpoint, "/api/session"), principal, password, tlsVerify);
         } catch (InventoryException e) {
             throw fallback != null ? fallback : e;
+        }
+    }
+
+    private SessionContext sessionContext(DrResolvedSiteCredential credential) throws Exception {
+        DrSiteCredentialVO credentialVo = credential.getCredential();
+        String rootEndpoint = DrSiteProbeSupport.normalizeRootEndpoint(
+                StringUtils.defaultString(credentialVo.getEndpoint()), "https");
+        String principal = StringUtils.trimToNull(credentialVo.getPrincipal());
+        String password = getSecret(credential.getSecretPayload(), "password");
+        if (StringUtils.isAnyBlank(rootEndpoint, principal, password)) {
+            throw new InventoryException(0, "vCenter URL, username, and password are required");
+        }
+        return new SessionContext(rootEndpoint, openSession(rootEndpoint, principal, password,
+                credentialVo.getTlsVerify()), credentialVo.getTlsVerify());
+    }
+
+    private String fetchPowerState(String rootEndpoint, String sessionId, Boolean tlsVerify, String vmRef) throws Exception {
+        InventoryException fallback = null;
+        for (String prefix : new String[] {"/rest/vcenter/vm/", "/api/vcenter/vm/"}) {
+            try {
+                JsonObject response = fetchVmObject(DrSiteProbeSupport.appendPath(rootEndpoint,
+                        prefix + encodePath(vmRef) + "/power"), "vmware-api-session-id", sessionId, tlsVerify);
+                return normalizePowerState(firstString(response, "state", "power_state", "powerState"));
+            } catch (InventoryException e) {
+                fallback = e;
+            }
+        }
+        throw fallback != null ? fallback : new InventoryException(0, "vCenter power API unavailable");
+    }
+
+    private void invokePowerAction(String rootEndpoint, String sessionId, Boolean tlsVerify,
+            String vmRef, String action) throws Exception {
+        InventoryException fallback = null;
+        String encodedVmRef = encodePath(vmRef);
+        String[] actionUrls = {
+                DrSiteProbeSupport.appendPath(rootEndpoint,
+                        "/rest/vcenter/vm/" + encodedVmRef + "/power/" + action),
+                DrSiteProbeSupport.appendPath(rootEndpoint,
+                        "/api/vcenter/vm/" + encodedVmRef + "/power?action=" + action)
+        };
+        for (String url : actionUrls) {
+            try {
+                HttpURLConnection connection = DrSiteProbeSupport.openConnection(url, "POST", tlsVerify,
+                        CONNECT_TIMEOUT_MS, READ_TIMEOUT_MS);
+                connection.setRequestProperty("Accept", "application/json");
+                connection.setRequestProperty("vmware-api-session-id", sessionId);
+                int responseCode = connection.getResponseCode();
+                DrSiteProbeSupport.readBody(connection);
+                if (responseCode >= 200 && responseCode < 300) {
+                    return;
+                }
+                fallback = new InventoryException(responseCode,
+                        "vCenter power action returned HTTP " + responseCode);
+            } catch (InventoryException e) {
+                fallback = e;
+            }
+        }
+        throw fallback != null ? fallback : new InventoryException(0, "vCenter power action unavailable");
+    }
+
+    private String encodePath(String value) {
+        return URLEncoder.encode(StringUtils.defaultString(value), StandardCharsets.UTF_8)
+                .replace("+", "%20");
+    }
+
+    private String normalizePowerState(String state) {
+        return StringUtils.equalsAnyIgnoreCase(state, "POWERED_ON", "poweredOn")
+                ? "POWERED_ON" : StringUtils.equalsAnyIgnoreCase(state, "POWERED_OFF", "poweredOff")
+                ? "POWERED_OFF" : StringUtils.upperCase(StringUtils.defaultIfBlank(state, "UNKNOWN"), Locale.ROOT);
+    }
+
+    private static class SessionContext {
+        private final String rootEndpoint;
+        private final String sessionId;
+        private final Boolean tlsVerify;
+
+        private SessionContext(String rootEndpoint, String sessionId, Boolean tlsVerify) {
+            this.rootEndpoint = rootEndpoint;
+            this.sessionId = sessionId;
+            this.tlsVerify = tlsVerify;
         }
     }
 

@@ -21,12 +21,15 @@ import org.apache.cloudstack.api.APICommand;
 import org.apache.cloudstack.api.ResponseObject;
 import org.apache.cloudstack.api.response.dr.DrRunResponse;
 
+import com.google.gson.JsonObject;
+
 import com.cloud.dr.cluster.DisasterRecoveryClusterEventTypes;
 
-@APICommand(name = StartDrSyncCmd.APINAME, description = "Start a DR sync run", responseObject = DrRunResponse.class,
+@APICommand(name = StartDrSyncCmd.APINAME, description = "Start a full DR resynchronization run", responseObject = DrRunResponse.class,
         responseView = ResponseObject.ResponseView.Full, authorized = {RoleType.Admin})
 public class StartDrSyncCmd extends AbstractDrPlanActionCmd {
     public static final String APINAME = "startDrSync";
+    private static final String FULL_RESEED_MODE = "FULL_RESEED";
 
     @Override
     protected String getRunType() {
@@ -39,12 +42,18 @@ public class StartDrSyncCmd extends AbstractDrPlanActionCmd {
     }
 
     @Override
+    protected void addRequestProperties(JsonObject request) {
+        addProperty(request, "mode", FULL_RESEED_MODE);
+        addProperty(request, "forceImmediateCycle", true);
+    }
+
+    @Override
     public String getEventType() {
         return DisasterRecoveryClusterEventTypes.EVENT_DR_PLAN_SYNC;
     }
 
     @Override
     public String getEventDescription() {
-        return "Starting DR sync for plan " + getPlanId();
+        return "Starting full DR resynchronization for plan " + getPlanId();
     }
 }

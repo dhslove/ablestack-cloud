@@ -1,10 +1,21 @@
 # Cross Hypervisor DR Real Failover Cutover Manifest And Rollback Design
 
+> 2026-07-27 후속 계약: `CUTOVER_READY` status의 completed-cycle 증거 검증,
+> bounded retry, target power-on 전 보상 종료, orphan Cutover Session 정리는
+> [577-cross-hypervisor-dr-failover-projection-evidence-and-compensation-design-20260727.md](577-cross-hypervisor-dr-failover-projection-evidence-and-compensation-design-20260727.md)
+> 를 따른다.
+
 - Date: 2026-07-22
 - Status: implementation design; live read-only preflight verified
 - Scope: VMware source to ABLESTACK/KVM real failover
 - Related: 521, 522, 554, 562, 563, 564, 565, 566
 - FTCTL contract: `ablestack-qemu-exec-tools/docs/ftctl/438-ftctl-dr-real-failover-cutover-manifest-contract-design-20260722.md`
+- Reprotect authority addendum: [570-cross-hypervisor-dr-reprotect-canonical-authority-preservation-design-20260723.md](570-cross-hypervisor-dr-reprotect-canonical-authority-preservation-design-20260723.md)
+
+> Normative shared-parser correction (2026-07-28):
+> [579-cross-hypervisor-dr-action-intent-guest-identity-and-failed-test-terminal-convergence-design-20260728.md](579-cross-hypervisor-dr-action-intent-guest-identity-and-failed-test-terminal-convergence-design-20260728.md)
+> requires Test Failover and real Failover to use the same canonical
+> `source_vm()` resolver and manifest validation contract.
 
 ## 1. Purpose
 
@@ -815,3 +826,31 @@ Plan `FAILED_OVER/TARGET`, source `poweredOff`, target `Running`, checkpoint
 | RPO display | age can continue after cutover | freezes cutover RPO; reverse RPO starts with reprotect |
 | Boot validation | Running state is implicit | policy and result are explicit; QGA never silently falls back |
 | Recovery after crash | inferred from mixed runtime text | resumable DB phases plus idempotent Agent acknowledgement |
+
+## 14. Reprotect Authority Preservation Addendum (2026-07-23)
+
+Post-failover authority is durable only when a subsequent asynchronous
+Reprotect or Failback Run cannot erase it. Reprotect must receive the committed
+Cloud generation, cutover session, checkpoint, and target identity as one
+immutable authority specification.
+
+The detailed cross-layer contract is
+[570-cross-hypervisor-dr-reprotect-canonical-authority-preservation-design-20260723.md](570-cross-hypervisor-dr-reprotect-canonical-authority-preservation-design-20260723.md).
+It supersedes any sequence that lets a finite Run read active-side eligibility
+from mutable FTCTL `status.state`.
+
+Cloud must additionally verify the target VM through
+`CheckVirtualMachineCommand` before dispatch. `UserVmVO.State.Running` alone is
+not sufficient. A non-destructive Reprotect failure remains a Run-local error:
+Plan authority stays `FAILED_OVER/TARGET`, the replica remains serving, and the
+protection phase remains `FAILED_OVER_UNPROTECTED` until a durable reverse seed
+completes.
+
+## 2026-07-30 Post-Failover Runtime Convergence Addendum
+
+A successful Cloud cutover acknowledgement is followed by one atomic database
+commit for Plan, Runtime, Cutover Session, Replica, and Cutover Disk audit
+state. TARGET authority uses `scheduler desired STOPPED` and freezes the
+displayed RPO at the selected cutover checkpoint. The detailed successor
+contract is document
+[581-cross-hypervisor-dr-post-failover-runtime-ui-convergence-design-20260730.md](581-cross-hypervisor-dr-post-failover-runtime-ui-convergence-design-20260730.md).

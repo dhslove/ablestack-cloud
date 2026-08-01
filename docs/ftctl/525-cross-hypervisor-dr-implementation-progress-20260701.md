@@ -1,5 +1,8 @@
 # Cross Hypervisor DR Implementation Progress - 2026-07-01
 
+> 2026-07-31 design status: source-isolation internalization design is complete
+> in document 587. Implementation/build/deployment are the next phase.
+
 이 문서는 `524-cross-hypervisor-dr-implementation-smoke-build-plan-20260701.md`의 12단계 구현 진행 결과를 누적한다.
 
 핵심 원칙은 모든 단계에서 UI -> API -> Cloud backend -> DB/runtime state -> API response -> UI refresh 고리가 끊어지지 않게 구현하는 것이다. Agent/ftctl 실제 실행은 후속 단계에서 붙더라도, 해당 단계의 계약과 상태 응답은 반드시 UI까지 되돌아와야 한다.
@@ -881,3 +884,97 @@ implementation unit must replace that path with FTCTL artifact preparation and
 Cloud-managed temporary volume/VM/network lifecycle as defined in:
 
 - [561-cross-hypervisor-dr-cloud-managed-test-failover-lifecycle-design-20260719.md](561-cross-hypervisor-dr-cloud-managed-test-failover-lifecycle-design-20260719.md)
+
+## 2026-07-27 Failback Commit Convergence Corrective Design
+
+Status: implementation and changed-module validation completed; deployment and
+live failback retest are the remaining acceptance steps.
+
+- Plan `2514a846-64a2-4bc7-ba88-38a874410782`은 TARGET VM이 실행 중인데
+  Cloud Plan은 `READY/TARGET`, Replica는 `ERROR/TARGET`, FAILBACK Run과
+  session은 실패, FTCTL scheduler는 generation 15로 실행 중인 모순 상태다.
+- 직접 원인은 worker startup의 `scheduler-start` generation이 commit
+  caller generation을 덮는 경합과 Agent `Script`의 drained stream 재읽기다.
+- 기존 FTCTL failback selftest는 scheduler resume 함수를 stub 처리하므로
+  실제 generation 경합을 검증하지 않는다. origin commit의 targeted test가
+  PASS하는 것을 WSL ext4 preflight로 재확인했다.
+- 다음 구현 단위는 single-generation scheduler bootstrap, commit journal,
+  typed Agent outcome, Backend `COMMIT_VERIFYING`, scheduler-first rollback
+  fence, DB CAS evidence, canonical eligibility/UI 상태다.
+
+상세 설계:
+
+- [575-cross-hypervisor-dr-failback-commit-convergence-and-rollback-fencing-design-20260727.md](575-cross-hypervisor-dr-failback-commit-convergence-and-rollback-fencing-design-20260727.md)
+- qemu `215-dr-failback-commit-generation-and-rollback-fence-design-20260727.md`
+
+## 2026-07-27 Failback Late ACK Corrective Design Status
+
+상태: **설계 및 실환경 read-only Preflight 완료, 구현 대기**
+
+Plan `2514a846-64a2-4bc7-ba88-38a874410782`에서 scheduler generation 21
+ACK와 후속 증분 checkpoint 463은 확인됐지만 Cloud Plan/Run/Session/Replica와
+cache가 terminal 상태로 수렴하지 않았다. 이는 데이터 복제 실패가 아니라
+late ACK reconciliation과 projection transaction 부재다.
+
+구현 대기 항목:
+
+- FTCTL late ACK commit journal reconciliation
+- FTCTL operation/authority status scope 및 checkpoint 단일 스냅샷
+- Agent typed status scope
+- Backend transition reconciler와 실제 power 재검증
+- DB terminal transaction 및 probe lease/index
+- API canonical lifecycle/authority/cycle/cache schema
+- UI transition polling, stale cache 표시 및 terminal action 재평가
+
+구현 완료로 간주하려면 문서 576의 단위/통합/실환경 PASS 조건을 모두 충족해야
+한다. 이 항목은 현재 구현 완료 또는 배포 완료를 의미하지 않는다.
+
+## 2026-07-28 Current Authority Projection Follow-up
+
+문서 578의 구현은 아직 시작하지 않았다. 다음 범위를 하나의 단계로 추적한다.
+
+- current cutover와 historical cutover DAO 분리
+- Failback terminal 시 cutover `FAILED_BACK` 종결
+- canonical authority resolver와 공통 eligibility evaluator
+- Protection View snapshot version 4
+- UI atomic projection/action 갱신
+- Failback lifecycle Run Step 보강
+
+이 단계는 Agent/FTCTL 신규 command를 포함하지 않는다. 구현 전 management
+서버의 디스크 공간과 `mysqld.service`를 정상화해야 한다.
+
+## 2026-07-31 Test Session Blocker Design Status
+
+실환경 plan 38에서 과거 `FAILED/cleanup_required=0/removed=NULL` Test Session과
+async job 2670/2672의 `DR_TEST_SESSION_ACTIVE` 실패를 확인했다. 보호 Plan,
+scheduler, 증분 cycle은 정상이며 요청은 Agent/FTCTL에 도달하지 않았다.
+
+문서 586에 UI async acceptance, 공통 lifecycle policy, open/history DAO,
+terminal soft-close, cache version 8과 재테스트 기준을 설계했다. 이 절은 설계
+완료 상태이며 코드 구현/빌드/배포/기존 session reconcile은 다음 구현 단계다.
+
+## 2026-07-31 Test Session Blocker Implementation Status
+
+문서 586의 우선 구현 범위를 Cloud UI/API/Backend/DB projection에 반영했다.
+
+- 공통 Test Session 차단 정책과 terminal soft-close 구현
+- removed 포함 historical Test Session 조회 구현
+- orchestrator와 action availability 판정 통합
+- UI async job 우선 확인과 typed backend 오류 보존 구현
+- UI API 단위 테스트 5건 PASS
+- DR Maven 대상 테스트 46건 PASS, Checkstyle 위반 0건
+
+이번 결함은 Cloud 접수 전에 차단된 문제이므로 Agent/FTCTL 명령 계약은
+변경하지 않았다. 변경 모듈·UI 배포와 세션 7 정합성 정리는 이 구현 단계의
+배포 검증 항목으로 수행한다.
+
+배포 및 재테스트 준비까지 완료했다.
+
+- Cloud 변경 클래스와 UI 배포 완료
+- 배포 백업: `/root/ftctl-dr-deploy-20260731-142534`
+- Protection View cache version 8 적용
+- 세션 7 conditional soft-close 완료
+- soft-close된 세션의 Run 이력 조회 교정 완료
+- Plan 38 `READY/SOURCE`, scheduler `RUNNING/HEALTHY`
+- `testFailover=true`, 활성 Test Session/Run 0건
+- `mold=active`, `/client/` HTTP 200, `WEB-INF` 보존

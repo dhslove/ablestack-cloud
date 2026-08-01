@@ -17,6 +17,8 @@
 package com.cloud.dr.response;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -25,6 +27,7 @@ import javax.inject.Inject;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.cloudstack.api.response.dr.DrEventResponse;
+import org.apache.cloudstack.api.response.dr.DrActionAvailabilityResponse;
 import org.apache.cloudstack.api.response.dr.DrInventoryOptionResponse;
 import org.apache.cloudstack.api.response.dr.DrPlanResponse;
 import org.apache.cloudstack.api.response.dr.DrPlanInventoryResponse;
@@ -37,9 +40,13 @@ import org.apache.cloudstack.api.response.dr.DrSiteInventoryResponse;
 import org.apache.cloudstack.api.response.dr.DrSiteResponse;
 
 import com.cloud.dr.DrEventVO;
+import com.cloud.dr.DrActionAvailability;
 import com.cloud.dr.DrCutoverSessionVO;
 import com.cloud.dr.DrConstants;
+import com.cloud.dr.DrCurrentAuthorityProjection;
+import com.cloud.dr.DrCurrentAuthorityResolver;
 import com.cloud.dr.DrPlanReadiness;
+import com.cloud.dr.DrPlanActionEvaluation;
 import com.cloud.dr.DrPlanReadinessValidator;
 import com.cloud.dr.DrPlanRuntimeVO;
 import com.cloud.dr.DrProtectionAuthorityService;
@@ -94,6 +101,8 @@ public class DrResponseGenerator extends ManagerBase {
     private DrPlanReadinessValidator drPlanReadinessValidator;
     @Inject
     private DrProtectionAuthorityService drProtectionAuthorityService;
+    @Inject
+    private DrCurrentAuthorityResolver drCurrentAuthorityResolver;
 
     public DrSiteResponse createSiteResponse(DrSiteVO site) {
         DrSiteResponse response = new DrSiteResponse();
@@ -141,6 +150,15 @@ public class DrResponseGenerator extends ManagerBase {
     }
 
     public DrPlanResponse createPlanResponse(DrPlanVO plan, Map<String, Boolean> actionEligibility) {
+        return createPlanResponse(plan, actionEligibility, null);
+    }
+
+    public DrPlanResponse createPlanResponse(DrPlanVO plan, DrPlanActionEvaluation actionEvaluation) {
+        return createPlanResponse(plan, actionEvaluation.getEligibility(), actionEvaluation.getAvailability());
+    }
+
+    public DrPlanResponse createPlanResponse(DrPlanVO plan, Map<String, Boolean> actionEligibility,
+            Map<String, DrActionAvailability> actionAvailability) {
         DrPlanResponse response = new DrPlanResponse();
         response.setObjectName("drplan");
         response.setId(plan.getUuid());
@@ -173,48 +191,21 @@ public class DrResponseGenerator extends ManagerBase {
         response.setTargetReadyRpoSeconds(plan.getTargetReadyRpoSeconds());
         response.setLastRunId(plan.getLastRunId());
         DrRunVO latestRun = drRunDao != null ? drRunDao.findLatestByPlanId(plan.getId()) : null;
-        JsonObject latestRuntime = new JsonObject();
-        String runtimeErrorCode = null;
+        DrRunVO activeRun = drRunDao != null ? drRunDao.findActiveByPlanId(plan.getId()) : null;
         if (latestRun != null) {
             response.setLastRun(createRunResponse(latestRun, null, false));
-            response.setRuntimeProjectionState(latestRun.getProjectionState());
-            latestRuntime = parseObject(latestRun.getLastStatusJson());
-            response.setRuntimeState(firstString(latestRuntime, "state"));
-            response.setRuntimeStep(firstString(latestRuntime, "step"));
-            runtimeErrorCode = resolveRuntimeErrorCode(latestRuntime, latestRun);
-            response.setRuntimeErrorCode(runtimeErrorCode);
-            Integer controlProtocolVersion = firstInteger(latestRuntime, "control_protocol_version");
-            Long controlGeneration = firstLong(latestRuntime, "control_generation");
-            Long controlAckGeneration = firstLong(latestRuntime, "control_ack_generation");
-            response.setRuntimeControlProtocolVersion(controlProtocolVersion);
-            response.setRuntimeControlGeneration(controlGeneration);
-            response.setRuntimeControlAckGeneration(controlAckGeneration);
-            response.setRuntimeControlState(firstString(latestRuntime, "control_state"));
-            response.setRuntimeCycleState(firstString(latestRuntime, "cycle_state"));
-            response.setRuntimeTransitionState(firstString(latestRuntime, "transition_state"));
-            response.setRuntimeCheckpointLeaseState(firstString(latestRuntime, "checkpoint_lease_state"));
-            response.setFailedComponent(firstString(latestRuntime, "failed_component"));
-            response.setDataCommitState(firstString(latestRuntime, "data_commit_state"));
-            response.setDataCopied(firstBoolean(latestRuntime, "data_copied"));
-            response.setMetadataCommitted(firstBoolean(latestRuntime, "metadata_committed"));
-            response.setTargetDurable(firstBoolean(latestRuntime, "target_durable"));
-            response.setCycleRetryMode(firstString(latestRuntime, "cycle_retry_mode"));
-            response.setRuntimeControlReady(controlProtocolVersion != null && controlProtocolVersion >= 2
-                    && controlGeneration != null && controlAckGeneration != null && controlAckGeneration >= controlGeneration);
-            response.setRuntimeProjectionMessage(summarizeError(runtimeErrorCode,
-                    StringUtils.defaultIfBlank(latestRun.getErrorMessage(), latestRun.getCurrentStepName())));
-            response.setSourceDiskMapPath(firstString(latestRuntime, "source_disk_map_path"));
-            response.setTargetDiskMapPath(firstString(latestRuntime, "target_disk_map_path"));
-            response.setDiskMapRole(firstString(latestRuntime, "disk_map_role"));
-            response.setTargetDiskCount(firstInteger(latestRuntime, "target_disk_count"));
-            response.setTargetDiskInvalidCount(firstInteger(latestRuntime, "target_disk_invalid_count"));
-            populateCbtStatus(response, latestRuntime);
-            populateSourceOpenStatus(response, latestRuntime);
-            populateSourceSnapshotStatus(response, latestRuntime);
         }
-        DrCutoverSessionVO cutoverSession = drCutoverSessionDao != null
-                ? drCutoverSessionDao.findLatestActiveByPlanId(plan.getId()) : null;
+        DrProtectionAuthoritySnapshot authority = drProtectionAuthorityService != null
+                ? drProtectionAuthorityService.getAuthority(plan.getId()) : null;
+        JsonObject currentRuntime = resolveCurrentRuntime(authority, activeRun);
+        String runtimeErrorCode = resolveCurrentRuntimeErrorCode(plan, authority, activeRun, currentRuntime);
+        String runtimeErrorMessage = resolveCurrentRuntimeErrorMessage(plan, authority, activeRun,
+                currentRuntime, runtimeErrorCode);
+        populateCurrentRuntime(response, activeRun, currentRuntime, runtimeErrorCode, runtimeErrorMessage);
+        DrCurrentAuthorityProjection currentAuthority = resolveCurrentAuthority(plan);
+        DrCutoverSessionVO cutoverSession = currentAuthority.getCurrentCutoverSession();
         if (cutoverSession != null) {
+            response.setCurrentCutoverSessionId(cutoverSession.getUuid());
             response.setCutoverSessionState(cutoverSession.getState());
             response.setCloudPromotionState(cutoverSession.getCloudPromotionState());
             response.setCutoverTargetPowerState(cutoverSession.getTargetPowerState());
@@ -223,13 +214,23 @@ public class DrResponseGenerator extends ManagerBase {
             response.setCutoverAuthorityGeneration(cutoverSession.getCloudAuthorityGeneration());
             response.setCutoverCompletedAt(cutoverSession.getCompletedAt());
         }
-        response.setProtectionPhase(resolveProtectionPhase(plan, cutoverSession));
-        response.setLastErrorCode(plan.getLastErrorCode());
-        response.setLastErrorMessage(summarizeError(StringUtils.defaultIfBlank(runtimeErrorCode, plan.getLastErrorCode()), plan.getLastErrorMessage()));
+        response.setActiveSide(currentAuthority.getAuthoritySide());
+        response.setOperatingSide(currentAuthority.getAuthoritySide());
+        response.setAuthoritySide(currentAuthority.getAuthoritySide());
+        response.setAuthorityPhase(currentAuthority.getAuthorityPhase());
+        response.setProtectionPhase(currentAuthority.getAuthorityPhase());
+        response.setAuthorityConsistent(currentAuthority.isConsistent());
+        response.setAuthorityInconsistencyCode(currentAuthority.getInconsistencyCode());
+        response.setAuthorityInconsistencyMessage(currentAuthority.getInconsistencyMessage());
+        response.setAuthorityTransitionType(currentAuthority.getTransitionType());
+        response.setAuthorityTransitionState(currentAuthority.getTransitionState());
+        response.setAuthorityTransitionRunId(currentAuthority.getTransitionRunUuid());
+        response.setRequiredCheckpointSequence(currentAuthority.getRequiredCheckpointSequence());
+        response.setLastErrorCode(runtimeErrorCode);
+        response.setLastErrorMessage(runtimeErrorMessage);
         response.setActionEligibility(actionEligibility);
+        response.setActionAvailability(createActionAvailabilityResponses(actionAvailability));
         DrPlanReadiness readiness = null;
-        DrProtectionAuthoritySnapshot authority = drProtectionAuthorityService != null
-                ? drProtectionAuthorityService.getAuthority(plan.getId()) : null;
         if (authority != null && authority.getRuntime() != null) {
             response.setProtectionState(authority.getProtectionState());
             response.setFreshnessState(authority.getFreshnessState());
@@ -265,6 +266,11 @@ public class DrResponseGenerator extends ManagerBase {
             response.setEffectiveState(authority.getProtectionState());
             populateCurrentProtectionControlState(response, authority.getRuntime());
         }
+        if (currentAuthority.getAuthoritySequence() != null) {
+            response.setAuthoritySequence(currentAuthority.getAuthoritySequence());
+        }
+        populateAuthorityAwarePresentation(response, plan, authority, currentAuthority, cutoverSession,
+                runtimeErrorCode, activeRun);
         if (drPlanReadinessValidator != null) {
             readiness = drPlanReadinessValidator.validate(plan);
             response.setReadinessState(readiness.getState());
@@ -283,19 +289,218 @@ public class DrResponseGenerator extends ManagerBase {
             response.setReadinessBlockingReasons(readiness.getBlockingReasons());
             response.setReadinessWarnings(readiness.getWarnings());
             if (authority == null || authority.getRuntime() == null) {
-                response.setEffectiveState(resolveEffectivePlanState(plan, latestRun, latestRuntime, readiness));
+                response.setEffectiveState(resolveEffectivePlanState(plan, activeRun, currentRuntime, readiness));
             }
         } else {
             if (authority == null || authority.getRuntime() == null) {
-                response.setEffectiveState(resolveEffectivePlanState(plan, latestRun, latestRuntime, null));
+                response.setEffectiveState(resolveEffectivePlanState(plan, activeRun, currentRuntime, null));
             }
         }
-        response.setInitialSyncInProgress(isInitialSyncInProgress(latestRun, latestRuntime));
-        response.setTargetMaterializationState(resolveTargetMaterializationState(latestRun, latestRuntime, readiness));
-        response.setTargetMaterializationMessage(resolveTargetMaterializationMessage(latestRun, latestRuntime, readiness));
+        response.setInitialSyncInProgress(isInitialSyncInProgress(activeRun, currentRuntime));
+        response.setTargetMaterializationState(resolveTargetMaterializationState(activeRun, currentRuntime, readiness));
+        response.setTargetMaterializationMessage(resolveTargetMaterializationMessage(activeRun, currentRuntime, readiness));
         response.setCreated(plan.getCreated());
         response.setRemoved(plan.getRemoved());
         return response;
+    }
+
+    private Map<String, DrActionAvailabilityResponse> createActionAvailabilityResponses(
+            Map<String, DrActionAvailability> availability) {
+        Map<String, DrActionAvailabilityResponse> responses =
+                new LinkedHashMap<String, DrActionAvailabilityResponse>();
+        if (availability == null) {
+            return responses;
+        }
+        for (Entry<String, DrActionAvailability> entry : availability.entrySet()) {
+            DrActionAvailability value = entry.getValue();
+            if (value == null) {
+                continue;
+            }
+            DrActionAvailabilityResponse response = new DrActionAvailabilityResponse();
+            response.setObjectName("dractionavailability");
+            response.setApplicable(value.isApplicable());
+            response.setEnabled(value.isEnabled());
+            response.setReasonCode(value.getReasonCode());
+            response.setReasonArgs(value.getReasonArgs());
+            responses.put(entry.getKey(), response);
+        }
+        return responses;
+    }
+
+    private void populateAuthorityAwarePresentation(DrPlanResponse response, DrPlanVO plan,
+            DrProtectionAuthoritySnapshot authority, DrCurrentAuthorityProjection currentAuthority,
+            DrCutoverSessionVO cutoverSession, String runtimeErrorCode, DrRunVO activeRun) {
+        String side = StringUtils.upperCase(currentAuthority.getAuthoritySide());
+        String phase = StringUtils.upperCase(currentAuthority.getAuthorityPhase());
+        boolean target = StringUtils.equals(side, "TARGET");
+        boolean acknowledged = cutoverSession != null
+                && StringUtils.equalsIgnoreCase(cutoverSession.getCloudPromotionState(), "PROMOTED")
+                && StringUtils.equalsIgnoreCase(cutoverSession.getEngineAckState(), "ACKNOWLEDGED");
+        String mode;
+        if (target && StringUtils.contains(phase, "REPROTECT")) {
+            mode = "REVERSE_LIVE";
+        } else if (target && acknowledged) {
+            mode = "CUTOVER_FROZEN";
+        } else if (target) {
+            mode = "CUTOVER_PENDING";
+        } else {
+            mode = "LIVE";
+        }
+        Long displayRpo = null;
+        Date asOf = null;
+        if (StringUtils.equals(mode, "CUTOVER_FROZEN")) {
+            displayRpo = plan.getTargetReadyRpoSeconds() != null
+                    ? plan.getTargetReadyRpoSeconds().longValue() : null;
+            asOf = cutoverSession != null && cutoverSession.getCompletedAt() != null
+                    ? cutoverSession.getCompletedAt() : plan.getTargetReadyAt();
+        } else if (authority != null && authority.getRuntime() != null) {
+            displayRpo = authority.getRpoAgeSeconds();
+            asOf = authority.getRuntime().getLastStatusAt();
+        }
+        response.setRpoEvaluationMode(mode);
+        response.setDisplayRpoSeconds(displayRpo);
+        response.setRpoAsOf(asOf);
+        response.setRpoStatus(displayRpo == null || plan.getRpoSeconds() == null ? "UNKNOWN"
+                : displayRpo <= plan.getRpoSeconds() ? "MET" : "MISSED");
+
+        String protectionState = authority != null ? authority.getProtectionState() : plan.getState();
+        String severity = "NONE";
+        if (!currentAuthority.isConsistent()
+                || StringUtils.isNotBlank(runtimeErrorCode)
+                || StringUtils.equalsAnyIgnoreCase(protectionState, "ERROR", "FAILED")
+                || activeRun != null && StringUtils.equalsIgnoreCase(activeRun.getState(), "FAILED")) {
+            severity = "ERROR";
+        } else if (StringUtils.equalsAnyIgnoreCase(protectionState, "DEGRADED", "RPO_EXCEEDED", "STALE")) {
+            severity = "WARNING";
+        } else if (StringUtils.equalsAnyIgnoreCase(protectionState, "FAILED_OVER_UNPROTECTED")
+                || target && acknowledged) {
+            severity = "INFO";
+        }
+        response.setCurrentSeverity(severity);
+    }
+
+    private JsonObject resolveCurrentRuntime(DrProtectionAuthoritySnapshot authority, DrRunVO activeRun) {
+        if (authority != null && authority.getRuntime() != null) {
+            JsonObject runtime = parseObject(authority.getRuntime().getStatusJson());
+            if (!runtime.entrySet().isEmpty()) {
+                return runtime;
+            }
+        }
+        return parseObject(activeRun != null ? activeRun.getLastStatusJson() : null);
+    }
+
+    private String resolveCurrentRuntimeErrorCode(DrPlanVO plan, DrProtectionAuthoritySnapshot authority,
+            DrRunVO activeRun, JsonObject runtime) {
+        if (!isCurrentProtectionFailure(plan, authority, activeRun, runtime)) {
+            return null;
+        }
+        if (authority != null && StringUtils.isNotBlank(authority.getErrorCode())) {
+            return authority.getErrorCode();
+        }
+        String runtimeErrorCode = firstString(runtime, "error_code");
+        if (StringUtils.isNotBlank(runtimeErrorCode)) {
+            return runtimeErrorCode;
+        }
+        if (isFailedRun(activeRun) && StringUtils.isNotBlank(activeRun.getErrorCode())) {
+            return activeRun.getErrorCode();
+        }
+        return plan.getLastErrorCode();
+    }
+
+    private String resolveCurrentRuntimeErrorMessage(DrPlanVO plan, DrProtectionAuthoritySnapshot authority,
+            DrRunVO activeRun, JsonObject runtime, String errorCode) {
+        if (StringUtils.isBlank(errorCode)) {
+            return null;
+        }
+        String message = authority != null ? authority.getErrorMessage() : null;
+        if (StringUtils.isBlank(message)) {
+            message = firstString(runtime, "error_message");
+        }
+        if (StringUtils.isBlank(message) && activeRun != null) {
+            message = activeRun.getErrorMessage();
+        }
+        if (StringUtils.isBlank(message)) {
+            message = plan.getLastErrorMessage();
+        }
+        return summarizeError(errorCode, message);
+    }
+
+    private boolean isCurrentProtectionFailure(DrPlanVO plan, DrProtectionAuthoritySnapshot authority,
+            DrRunVO activeRun, JsonObject runtime) {
+        if (authority != null && authority.getRuntime() != null) {
+            if (StringUtils.equalsAnyIgnoreCase(authority.getProtectionState(),
+                    DrConstants.PLAN_STATE_ERROR, "DEGRADED")) {
+                return true;
+            }
+            if (StringUtils.equalsIgnoreCase(authority.getProjectionIntegrityState(), "INCONSISTENT")) {
+                return true;
+            }
+            if (StringUtils.equalsIgnoreCase(authority.getSchedulerHealthState(), "FAILED")) {
+                return true;
+            }
+        }
+        if (isFailedRun(activeRun)) {
+            return true;
+        }
+        if (activeRun != null) {
+            String runtimeState = StringUtils.upperCase(firstString(runtime, "state"));
+            return StringUtils.equalsAny(runtimeState, "ERROR", "FAILED")
+                    || StringUtils.isNotBlank(firstString(runtime, "error_code"));
+        }
+        return StringUtils.equalsIgnoreCase(plan.getState(), DrConstants.PLAN_STATE_ERROR)
+                && StringUtils.isNotBlank(plan.getLastErrorCode());
+    }
+
+    private void populateCurrentRuntime(DrPlanResponse response, DrRunVO activeRun, JsonObject runtime,
+            String runtimeErrorCode, String runtimeErrorMessage) {
+        response.setRuntimeProjectionState(activeRun != null ? activeRun.getProjectionState() : null);
+        response.setRuntimeState(firstString(runtime, "state"));
+        response.setRuntimeStep(firstString(runtime, "step"));
+        response.setRuntimeErrorCode(runtimeErrorCode);
+        Integer controlProtocolVersion = firstInteger(runtime, "control_protocol_version");
+        Long controlGeneration = firstLong(runtime, "control_generation");
+        Long controlAckGeneration = firstLong(runtime, "control_ack_generation");
+        response.setRuntimeControlProtocolVersion(controlProtocolVersion);
+        response.setRuntimeControlGeneration(controlGeneration);
+        response.setRuntimeControlAckGeneration(controlAckGeneration);
+        response.setRuntimeControlState(firstString(runtime, "control_state"));
+        response.setRuntimeCycleState(firstString(runtime, "cycle_state"));
+        response.setRuntimeTransitionState(firstString(runtime, "transition_state"));
+        response.setRuntimeCheckpointLeaseState(firstString(runtime, "checkpoint_lease_state"));
+        response.setFailedComponent(firstString(runtime, "failed_component"));
+        response.setDataCommitState(firstString(runtime, "data_commit_state"));
+        response.setDataCopied(firstBoolean(runtime, "data_copied"));
+        response.setMetadataCommitted(firstBoolean(runtime, "metadata_committed"));
+        response.setTargetDurable(firstBoolean(runtime, "target_durable"));
+        response.setCycleRetryMode(firstString(runtime, "cycle_retry_mode"));
+        response.setRuntimeControlReady(controlProtocolVersion != null && controlProtocolVersion >= 2
+                && controlGeneration != null && controlAckGeneration != null
+                && controlAckGeneration >= controlGeneration);
+        response.setRuntimeProjectionMessage(runtimeErrorMessage);
+        response.setSourceDiskMapPath(firstString(runtime, "source_disk_map_path"));
+        response.setTargetDiskMapPath(firstString(runtime, "target_disk_map_path"));
+        response.setDiskMapRole(firstString(runtime, "disk_map_role"));
+        response.setTargetDiskCount(firstInteger(runtime, "target_disk_count"));
+        response.setTargetDiskInvalidCount(firstInteger(runtime, "target_disk_invalid_count"));
+        populateCbtStatus(response, runtime);
+        populateSourceOpenStatus(response, runtime);
+        populateSourceSnapshotStatus(response, runtime);
+    }
+
+    private DrCurrentAuthorityProjection resolveCurrentAuthority(DrPlanVO plan) {
+        if (drCurrentAuthorityResolver != null) {
+            return drCurrentAuthorityResolver.resolve(plan);
+        }
+        DrCutoverSessionVO session = drCutoverSessionDao != null
+                ? drCutoverSessionDao.findLatestActiveByPlanId(plan.getId()) : null;
+        String side = StringUtils.equalsIgnoreCase(plan.getActiveSide(), DrConstants.AUTHORITY_SIDE_TARGET)
+                ? DrConstants.AUTHORITY_SIDE_TARGET : DrConstants.AUTHORITY_SIDE_SOURCE;
+        if (StringUtils.equals(side, DrConstants.AUTHORITY_SIDE_SOURCE)) {
+            session = null;
+        }
+        return new DrCurrentAuthorityProjection(side, resolveProtectionPhase(plan, session),
+                session != null ? session.getCloudAuthorityGeneration() : null,
+                true, null, null, session);
     }
 
     private String resolveProtectionPhase(DrPlanVO plan, DrCutoverSessionVO session) {
@@ -380,7 +585,7 @@ public class DrResponseGenerator extends ManagerBase {
         response.setCreated(run.getCreated());
         response.setSteps(createRunStepResponses(steps));
         response.setProgressPercent(resolveProgress(steps));
-        DrTestSessionVO testSession = drTestSessionDao.findActiveByRunId(run.getId());
+        DrTestSessionVO testSession = drTestSessionDao.findByRunIdIncludingRemoved(run.getId());
         if (testSession != null) {
             response.setTestSessionId(testSession.getUuid());
             response.setTestSessionState(testSession.getState());

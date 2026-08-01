@@ -23,12 +23,14 @@ import javax.inject.Inject;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.cloudstack.api.response.dr.DrEventResponse;
+import org.apache.cloudstack.api.response.dr.DrPlanResponse;
 import org.apache.cloudstack.api.response.dr.DrReplicaResponse;
 import org.apache.cloudstack.api.response.dr.DrRestorePointResponse;
 import org.apache.cloudstack.api.response.dr.DrRunResponse;
 import org.apache.cloudstack.api.response.dr.DrRunStepResponse;
 
 import com.cloud.dr.dao.DrEventDao;
+import com.cloud.dr.dao.DrFailbackSessionDao;
 import com.cloud.dr.dao.DrPlanDao;
 import com.cloud.dr.dao.DrPlanViewCacheDao;
 import com.cloud.dr.dao.DrReplicaDao;
@@ -49,7 +51,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 public class DrProtectionViewServiceImpl extends ManagerBase implements DrProtectionViewService {
-    private static final int SNAPSHOT_VERSION = 2;
+    private static final int SNAPSHOT_VERSION = 10;
     private static final int EVENT_LIMIT = 20;
     private static final Gson GSON = new GsonBuilder().setDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX").serializeNulls().create();
 
@@ -62,15 +64,18 @@ public class DrProtectionViewServiceImpl extends ManagerBase implements DrProtec
     @Inject private DrRestorePointDao drRestorePointDao;
     @Inject private DrEventDao drEventDao;
     @Inject private DrSyncCycleDao drSyncCycleDao;
+    @Inject private DrFailbackSessionDao drFailbackSessionDao;
     @Inject private DrProjectionService drProjectionService;
     @Inject private DrProtectionAuthorityService drProtectionAuthorityService;
     @Inject private DrResponseGenerator drResponseGenerator;
+    @Inject private DrPlanService drPlanService;
 
     @Override
     public DrPlanViewCacheVO getProtectionView(long planId) {
         requirePlan(planId);
         DrPlanViewCacheVO cache = drPlanViewCacheDao.findByPlanId(planId);
-        return cache != null ? cache : rebuildProtectionView(planId);
+        return cache != null && cache.getSnapshotVersion() >= SNAPSHOT_VERSION
+                ? cache : rebuildProtectionView(planId);
     }
 
     @Override
@@ -128,10 +133,17 @@ public class DrProtectionViewServiceImpl extends ManagerBase implements DrProtec
 
         JsonObject snapshot = new JsonObject();
         snapshot.addProperty("version", SNAPSHOT_VERSION);
+        DrPlanActionEvaluation actionEvaluation = drPlanService.getActionEvaluation(planId);
+        DrPlanResponse planProjection = drResponseGenerator.createPlanResponse(plan, actionEvaluation);
+        snapshot.add("planProjection", typedJson(planProjection, DrPlanResponse.class));
+        // Compatibility alias for one release. Version 7 consumers must use planProjection.
         snapshot.add("plan", typedJson(plan, DrPlanVO.class));
         snapshot.add("sourceSite", siteJson(drSiteDao.findById(plan.getSourceSiteId())));
         snapshot.add("targetSite", siteJson(drSiteDao.findById(plan.getTargetSiteId())));
         snapshot.add("currentProtectionRuntime", protectionRuntimeJson(authority));
+        DrFailbackSessionVO failbackSession = drFailbackSessionDao.findLatestActiveByPlanId(planId);
+        snapshot.add("failbackSession", failbackSession == null ? JsonNull.INSTANCE
+                : typedJson(failbackSession, DrFailbackSessionVO.class));
 
         JsonElement activeRunResponse = runJson(activeRun, activeRunSteps);
         JsonArray activeRunStepResponses = runStepJson(activeRunSteps);
@@ -206,6 +218,15 @@ public class DrProtectionViewServiceImpl extends ManagerBase implements DrProtec
         json.addProperty("targetWrittenBytes", cycle.getTargetWrittenBytes());
         json.addProperty("transferPayloadBytes", cycle.getTransferPayloadBytes());
         json.addProperty("incrementalVerified", cycle.getIncrementalVerified());
+        json.addProperty("nbdTeardownState", cycle.getNbdTeardownState());
+        json.addProperty("nbdTeardownStartedAt", formatDate(cycle.getNbdTeardownStartedAt()));
+        json.addProperty("nbdTeardownCompletedAt", formatDate(cycle.getNbdTeardownCompletedAt()));
+        json.addProperty("nbdTeardownDurationMs", cycle.getNbdTeardownDurationMs());
+        json.addProperty("nbdSourceDeviceCount", cycle.getNbdSourceDeviceCount());
+        json.addProperty("nbdTargetDeviceCount", cycle.getNbdTargetDeviceCount());
+        json.addProperty("nbdQuarantinedDeviceCount", cycle.getNbdQuarantinedDeviceCount());
+        json.addProperty("nbdTeardownErrorCode", cycle.getNbdTeardownErrorCode());
+        json.addProperty("nbdTeardownErrorMessage", cycle.getNbdTeardownErrorMessage());
         json.addProperty("sourceCheckpointAt", formatDate(cycle.getSourceCheckpointAt()));
         json.addProperty("targetDurableAt", formatDate(cycle.getTargetDurableAt()));
         json.addProperty("started", formatDate(cycle.getStarted()));
@@ -243,6 +264,10 @@ public class DrProtectionViewServiceImpl extends ManagerBase implements DrProtec
         json.addProperty("protectionState", runtime.getProtectionState());
         json.addProperty("freshnessState", runtime.getFreshnessState());
         json.addProperty("projectionIntegrityState", runtime.getProjectionIntegrityState());
+        json.addProperty("nbdTeardownState", runtime.getNbdTeardownState());
+        json.addProperty("nbdQuarantinedDeviceCount", runtime.getNbdQuarantinedDeviceCount());
+        json.addProperty("nbdTeardownErrorCode", runtime.getNbdTeardownErrorCode());
+        json.addProperty("nbdTeardownErrorMessage", runtime.getNbdTeardownErrorMessage());
         json.addProperty("schedulerState", runtime.getSchedulerState());
         json.addProperty("schedulerDesiredState", runtime.getSchedulerDesiredState());
         json.addProperty("schedulerServiceUnit", runtime.getSchedulerServiceUnit());
@@ -283,6 +308,19 @@ public class DrProtectionViewServiceImpl extends ManagerBase implements DrProtec
             copyField(source, target, "cycle_state", "runtimeCycleState");
             copyField(source, target, "transition_state", "runtimeTransitionState");
             copyField(source, target, "checkpoint_lease_state", "runtimeCheckpointLeaseState");
+            copyField(source, target, "failback_commit_outcome", "failbackCommitOutcome");
+            copyField(source, target, "failback_commit_phase", "failbackCommitPhase");
+            copyField(source, target, "rollback_state", "rollbackState");
+            copyField(source, target, "rollback_generation", "rollbackGeneration");
+            copyField(source, target, "reverse_direction", "reverseDirection");
+            copyField(source, target, "provider_pair", "providerPair");
+            copyField(source, target, "baseline_generation", "reverseBaselineGeneration");
+            copyField(source, target, "baseline_state", "reverseBaselineState");
+            copyField(source, target, "tracker_state", "reverseTrackerState");
+            copyField(source, target, "writer_state", "reverseWriterState");
+            copyField(source, target, "target_written", "reverseTargetWritten");
+            copyField(source, target, "write_verified", "reverseWriteVerified");
+            copyField(source, target, "reverse_guest_compatibility_state", "reverseGuestCompatibilityState");
         } catch (RuntimeException e) {
             logger.warn("Ignoring malformed DR plan runtime status JSON while building protection view", e);
         }

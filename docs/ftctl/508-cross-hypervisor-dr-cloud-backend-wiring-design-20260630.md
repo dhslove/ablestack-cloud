@@ -1,5 +1,8 @@
 # Cross Hypervisor DR Cloud Backend Wiring Design
 
+> 2026-07-31 latest correction: FTCTL_DR source-isolation safety belongs to
+> Failback/Reprotect preflight, not an independent fencing action. See 587.
+
 작성일: 2026-06-30
 
 대상 브랜치: `feature/ftctl-cloud-integration`
@@ -1267,3 +1270,92 @@ Cleanup removes Cloud resources before requesting FTCTL artifact/lease cleanup.
 
 Detailed class boundaries and compensation logic:
 `561-cross-hypervisor-dr-cloud-managed-test-failover-lifecycle-design-20260719.md`.
+
+## 2026-07-27 Failback Late ACK Reconciler Wiring Addendum
+
+`DrFailbackLifecycleServiceImpl`은 UI refresh에 종속된 executor 제출만 사용하지
+않고 5초 주기의 scheduled reconciler를 소유한다.
+`DrFailbackSessionDao.listReconcileCandidates()`가
+`DATA_READY/COMMIT_VERIFYING/PROTECTION_RESUMING` session을 제한 조회하고,
+Plan별 in-flight guard와 DB `lifecycle_version` CAS를 함께 적용한다.
+
+Agent status wiring은 failback operation과 Plan protection authority를 별도
+요청으로 전달한다. Backend는 operation ACK와 authority checkpoint를 검증한
+뒤 `Transaction.execute`에서 Plan/Run/Session/Replica/cache를 terminal
+수렴시킨다. UI refresh는 즉시 probe를 요청할 수 있지만 lifecycle 진행의
+필수 조건이 아니다.
+
+구체 클래스/method, retry, transaction 및 테스트 설계:
+[576-cross-hypervisor-dr-failback-late-ack-and-projection-convergence-design-20260727.md](576-cross-hypervisor-dr-failback-late-ack-and-projection-convergence-design-20260727.md).
+
+## 2026-07-28 Authority Resolver Addendum
+
+`DrResponseGenerator`는 더 이상 cutover DAO를 직접 조회하거나 현재 보호
+단계를 판정하지 않는다. `DrCurrentAuthorityResolver`가 Plan active side,
+current cutover session, protection authority snapshot을 결합하고,
+`DrPlanActionEligibilityEvaluator`가 이 projection을 기준으로 작업 가능
+여부를 계산한다.
+
+Failback terminal transaction은 성공한 과거 cutover session을
+`FAILED_BACK`으로 종결하고 lifecycle Run Step, Plan, Run, Failback Session,
+Replica, cache를 같은 transaction 경계에서 수렴시킨다. 상세 클래스와
+메서드 계약은 문서 578을 따른다.
+
+## 2026-07-30 Current Runtime And Historical Run Addendum
+
+`DrResponseGenerator`는 `findLatestByPlanId()` 결과를 current runtime으로
+사용하지 않는다. current runtime은 `DrProtectionAuthoritySnapshot`의
+`dr_plan_runtime.status_json`을 우선 사용하고, authority가 없을 때만 active
+Run을 fallback으로 사용한다. latest operation Run은 `lastRun` 이력 응답에만
+직렬화한다.
+
+Protection View는 snapshot version 5에서 `planProjection`,
+`currentProtectionRuntime`, `activeRun`, `latestOperationRun`의 의미를
+분리한다. version 4 cache는 조회 시 자동 rebuild하며 DB schema migration은
+필요하지 않다. 상세 helper, cache 및 테스트 계약은
+[580-cross-hypervisor-dr-current-runtime-history-and-darkmode-warning-design-20260730.md](580-cross-hypervisor-dr-current-runtime-history-and-darkmode-warning-design-20260730.md)를
+따른다.
+
+## 2026-07-30 Post-Failover Commit Boundary Addendum
+
+Cloud-owned target promotion은 DB transaction A, Agent `CUTOVER_COMMIT`,
+DB transaction B로 분리한다. ACK 이후 transaction B가 Plan, Runtime,
+Cutover Session, Replica, Cutover Disk를 같은 authority generation으로
+수렴시킨다. 외부 Agent 호출을 DB transaction 안에 두지 않는다. 상세 클래스,
+helper 및 retry 계약은 문서 581을 따른다.
+## 2026-07-30 Failback Transition And Resume Evidence Addendum
+
+Failback terminal predicate는 operation JSON 하나에 모든 필드가 있다고 가정하지
+않는다. Plan active side, Failback Session ACK/commit, Cloud VM 전원 상태,
+`PLAN_AUTHORITY` scheduler/checkpoint를 typed evidence로 합성한다. active
+Failback Session의 `COMMIT_VERIFYING/PROTECTION_RESUMING`은 인식된 정상 권한
+전환이며 severity INFO다. 상세 service, resolver, transaction 계약은 문서 583을
+따른다.
+
+## 2026-07-30 Action Availability Evaluator Addendum
+
+`DrPlanServiceImpl`의 boolean 조건식과 UI의 authority guard를 단일
+`DrPlanActionAvailabilityEvaluator`로 수렴한다. evaluator는 current authority,
+active Run, scheduler/runtime, readiness, test session, release readiness를
+한 Cloud projection에서 읽고 `applicable/enabled/reasonCode`를 계산한다.
+목록 또는 상세 조회 중 Agent/FTCTL을 동기 호출하지 않는다.
+
+기존 `getActionEligibility()`는 evaluator 결과의 `enabled` map으로
+호환 변환한다. action command의 서버 측 실행 검증, `DrPlanResponse`,
+Protection View cache도 같은 evaluator를 사용한다. 상세 class, method,
+cache version 및 test matrix는
+[584-cross-hypervisor-dr-context-action-availability-and-darkmode-design-20260730.md](584-cross-hypervisor-dr-context-action-availability-and-darkmode-design-20260730.md)를
+따른다.
+
+## 2026-07-31 Test Session Lifecycle Policy Addendum
+
+`DrPlanServiceImpl`, `DrPlanActionAvailabilityEvaluator`,
+`DrOrchestratorImpl`은 Test Session 상태를 각각 계산하지 않는다.
+신규 `DrTestSessionLifecyclePolicy/Service`가 open session, cleanup obligation,
+blocking 여부와 terminal soft-close를 단일 판정한다.
+
+`FAILED + cleanup_required=false`는 terminal proof 확인 후 종결하며,
+`CLEANUP_FAILED`와 cleanup obligation이 있는 실패 세션은 새 테스트를
+차단한다. transaction, Plan lock, reconcile 진입점은
+[586-cross-hypervisor-dr-test-session-blocker-and-async-acceptance-design-20260731.md](586-cross-hypervisor-dr-test-session-blocker-and-async-acceptance-design-20260731.md)를
+따른다.

@@ -4,6 +4,17 @@
 방향: `VMWARE_TO_KVM`  
 권장 엔진: `FTCTL_DR`
 
+> 2026-07-31 운영 보정: VMware 원본 격리 해제는 독립 메뉴가 아니다.
+> Failback은 ABLESTACK 대상 VM 정지 확인 뒤 VMware 원본을 시작하고,
+> Reprotect는 VMware 원본을 격리된 reverse target으로 유지한다.
+> vCenter/Agent/FTCTL preflight 계약은 문서 587을 따른다.
+
+> Failover 운영 보완 (2026-07-27): target VM은 완료 복제 checkpoint의 identity,
+> CBT 결과, NBD 정리 증거가 모두 확인된 뒤에만 Cloud가 시작한다. 증거 조회가
+> 일시적으로 불완전하면 시스템이 제한 재시도하며, target 시작 전 준비 실패는
+> source를 자동으로 켜지 않은 채 안전하게 정리한다. target가 이미 시작된
+> 상태에서는 자동 rollback하지 않고 운영자 복구가 필요한 상태로 표시한다.
+
 ## 1. 아키텍처
 
 VMware 운영 VM을 ABLESTACK DR site로 보호하는 방향이다. source VMware VMDK/CBT를 읽고 target ABLESTACK disk(RBD, block, qcow2)에 반영해야 하므로 VMware mover와 ABLESTACK target 준비 로직이 함께 필요하다. V2K는 이관용 도구이므로 이 DR 지속 복제 경로에서는 사용하지 않는다.
@@ -208,3 +219,45 @@ Cloud는 이미 관리 중인 대상 가상머신을 기동하고 부팅을 검�
 세부 manifest, RBD locator, 오류 및 rollback 계약은
 `../567-cross-hypervisor-dr-real-failover-cutover-manifest-and-rollback-design-20260722.md`를
 따른다.
+
+## 현재 권한과 실행 이력 표시
+
+Failback 완료 후 보호 정보에는 현재 운영 사이트인 SOURCE와 재개된 보호
+상태만 표시한다. 이전 Failover의 대상 승격 정보는 현재 권한이 아니라 실행
+이력이다.
+
+과거 Failover/Failback은 `이력` 탭에서 확인하며, 보호 정보의 현재 페일오버
+권한 영역은 TARGET이 실제 운영 측일 때만 표시한다. 작업 메뉴는 backend가
+계산한 최신 가능 여부를 자동 갱신하며 브라우저 재로그인이나 강제 새로고침을
+요구하지 않는 것이 정상이다.
+## 2026-07-30 Failback 상태 해석 보강
+
+Failback 요청은 UI에서 즉시 접수되고 백그라운드에서 실행된다. 접수 직후
+`COMMIT_VERIFYING` 또는 `PROTECTION_RESUMING`이 표시되는 것은 오류가 아니라
+원본 가상머신 기동, DR 가상머신 정지, 원본 방향 보호 재개를 검증하는 단계다.
+완료는 원본 방향의 새 checkpoint가 Failback 기준 checkpoint보다 큰 경우에만
+표시한다. UI가 액션 접수 객체를 즉시 받지 못하면 idempotency key로 작업 이력을
+복원하며 같은 작업을 중복 생성하지 않는다. 기술 계약은 문서 583을 따른다.
+
+## 페일오버 이후 재보호와 페일백
+
+실제 페일오버가 완료되면 ABLESTACK 가상머신이 운영 권한을 가지지만 즉시
+VMware 방향으로 보호되는 것은 아니다. 먼저 **현재 운영 사이트에서 재보호**를
+실행해 최초 역방향 시드와 이후 KVM-to-VMware 증분 복제를 정상화해야 한다.
+
+페일백은 역방향 보호가 최신 상태이고 마지막 변경분 기록, VMware 호환 게스트
+준비, 격리 부팅 검증이 모두 완료된 경우에만 실행한다. 재보호하지 않은 상태의
+직접 페일백은 데이터 손실 방지를 위해 메뉴와 API에서 차단한다. 기술 계약은
+문서 588을 따른다.
+
+## 테스트 페일오버 접수 오류 해석
+
+테스트 페일오버는 먼저 Cloud async job에서 Run 접수 여부를 확인한 뒤
+백그라운드 실행으로 전환된다. `DR_TEST_SESSION_BLOCKING`은 FTCTL 실행 실패가
+아니라 이전 테스트 환경 또는 정리 의무가 남아 요청이 Agent에 전달되지
+않았다는 의미다.
+
+과거 실패 이력만 있고 실제 테스트 VM/artifact가 없으면 backend가 해당
+세션을 종결한 뒤 메뉴를 다시 활성화해야 한다. UI가
+`accepted run could not be confirmed`만 표시하면 실제 async job 오류가
+가려진 결함으로 판정한다. 기술 계약은 문서 586을 따른다.

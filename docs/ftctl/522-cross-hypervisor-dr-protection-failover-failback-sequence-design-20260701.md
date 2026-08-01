@@ -1,5 +1,14 @@
 # Cross Hypervisor DR Protection, Failover, Failback Sequence Design
 
+> 2026-07-31 latest correction: Failback never clears SOURCE production fencing
+> before TARGET stop. Reprotect preserves SOURCE isolation. See document 587.
+
+> Real Failover projection convergence update (2026-07-27):
+> [577-cross-hypervisor-dr-failover-projection-evidence-and-compensation-design-20260727.md](577-cross-hypervisor-dr-failover-projection-evidence-and-compensation-design-20260727.md)
+> requires exact completed-cycle evidence, bounded retry for missing evidence,
+> hard rejection for conflicting evidence, and atomic Run/Session/Plan/Replica
+> convergence when Failover preparation is compensated.
+
 > Normative Test Failover update (2026-07-19):
 > [562-cross-hypervisor-dr-test-artifact-contract-and-projection-isolation-design-20260719.md](562-cross-hypervisor-dr-test-artifact-contract-and-projection-isolation-design-20260719.md)
 > governs the Test Failover sequence. Cloud creates the durable Test Session
@@ -16,6 +25,12 @@
 > defines read-only cutover preflight, planned/disaster source isolation,
 > `CUTOVER_READY`, Cloud target boot validation, promotion, and pre-promotion
 > rollback. It supersedes earlier implicit manifest and promotion sequences.
+>
+> Reprotect authority preservation update (2026-07-23):
+> [570-cross-hypervisor-dr-reprotect-canonical-authority-preservation-design-20260723.md](570-cross-hypervisor-dr-reprotect-canonical-authority-preservation-design-20260723.md)
+> requires a committed TARGET authority snapshot, an Agent-confirmed target
+> `PowerOn` preflight, and operation-only failure semantics. A delegated Run
+> must not derive authority from mutable FTCTL `status.state`.
 
 작성일: 2026-07-01
 
@@ -485,6 +500,25 @@ The normative code-level ordering, DB fields, action truth table, and
 Cloud-to-FTCTL acknowledgement contract are defined in section 13 of
 `567-cross-hypervisor-dr-real-failover-cutover-manifest-and-rollback-design-20260722.md`.
 
+## 2026-07-23 Reprotect Canonical Authority Addendum
+
+Reprotect starts from `FAILED_OVER/TARGET`; it does not restore SOURCE
+authority. The sequence is:
+
+1. Cloud creates a `REPROTECT` Run asynchronously.
+2. Backend validates the committed cutover session and target identity.
+3. Agent confirms that the target VM is actually `PowerOn` on its KVM host.
+4. Cloud sends one immutable authority specification to FTCTL.
+5. FTCTL preserves that authority while it performs reverse-provider preflight.
+6. A durable reverse seed completes before the reverse profile and scheduler
+   become active.
+7. Success yields TARGET-side protected READY state.
+
+Any failure before the reverse seed is operation-only. The Run fails, but the
+Plan remains `FAILED_OVER/TARGET` and is shown as
+`FAILED_OVER_UNPROTECTED`. Detailed fields, errors, and retry behavior are
+defined in document 570.
+
 ## 2026-07-22 Scheduler Recovery Before Transition Addendum
 
 Failover, test failover, test cleanup, failback 같은 transition을 시작하기 전에 Cloud는
@@ -496,3 +530,147 @@ identity ACK, heartbeat, durable Cycle commit이 확인된 뒤 transition eligib
 TARGET/FAILED_OVER Plan에는 forward Scheduler를 자동 시작하지 않는다. 해당 상태는
 오류가 아니라 failback 또는 reprotection이 필요한 권한 상태다. 상세 상태 전이와
 오류 코드는 문서 568을 따른다.
+
+## 2026-07-25 Site-Derived Failback Sequence Addendum
+
+일반 source-controller failback은 `active_side=TARGET`인 Plan에서 시작하며
+복귀 destination은 `source_site_id`로 고정한다. UI가 `current`,
+`original-primary`, `new` 중 하나를 선택하지 않는다.
+
+순서:
+
+1. UI가 read-only failback Preflight를 조회한다.
+2. Backend가 Plan state, active side, source authority, durable checkpoint,
+   양쪽 Site health와 저장 credential 상태를 확인한다.
+3. UI는 route summary와 blocking reason을 표시한다.
+4. 사용자가 reason/acknowledgement를 제출한다.
+5. API가 secret 없는 `dr_run`을 enqueue하고 즉시 반환한다.
+6. dispatch 직전에 Backend가 같은 Preflight를 재실행하고 양쪽 credential을
+   `DrSiteCredentialService`로 resolve한다.
+7. Cloud가 VM/Site lifecycle을 제어하고 Agent/FTCTL에 data-plane action을
+   전달한다.
+8. FTCTL의 reverse copy/finalize 결과를 DB projection으로 UI에 표시한다.
+
+원본 Site가 없거나 source authority가 유실된 경우 이 sequence를 강행하지
+않는다. registered replacement Site를 사용하는 replica-controller recovery
+또는 adopt/reprotect로 분기한다.
+
+세부 클래스, API, DB 보정과 AS-IS/TO-BE는
+[571-cross-hypervisor-dr-site-derived-failback-contract-design-20260725.md](571-cross-hypervisor-dr-site-derived-failback-contract-design-20260725.md)를
+따른다.
+
+## 2026-07-26 Cloud-Owned Failback Lifecycle Sequence Correction
+
+위 순서의 8번은 FTCTL data-plane 완료까지만 의미한다. 전체 failback은 다음
+단계를 추가로 통과해야 한다.
+
+9. FTCTL은 `FAILBACK_DATA_READY/TARGET`을 보고한다.
+10. Cloud가 TARGET VM을 정지하고 실제 `POWERED_OFF`를 확인한다.
+11. Cloud가 SOURCE VM을 기동하고 boot validation `READY`를 확인한다.
+12. Cloud가 Agent를 통해 `dr-failback-commit`을 전달한다.
+13. FTCTL authority ACK 후 Cloud가 하나의 transaction으로 Plan, Replica,
+    Run, Failback session을 `SOURCE/COMPLETED`로 확정한다.
+
+하나라도 확인되지 않으면 Run은 성공이 아니다. 상세 계약은
+[574-cross-hypervisor-dr-cloud-owned-failback-lifecycle-commit-design-20260726.md](574-cross-hypervisor-dr-cloud-owned-failback-lifecycle-commit-design-20260726.md)를
+따른다.
+
+## 2026-07-27 Failback Commit Outcome and Fenced Rollback Correction
+
+13번 FTCTL 응답이 timeout, 빈 출력, parse 실패, `Stream closed`인 경우 이를
+commit 거부로 간주하지 않는다. Cloud는 `COMMIT_VERIFYING`에서 session,
+authority, scheduler generation/ACK를 조회한다.
+
+- `ACKNOWLEDGED`: SOURCE protection resume를 계속한다.
+- `REJECTED`: scheduler를 먼저 fence하고 TARGET service로 rollback한다.
+- `UNKNOWN`: 자동 VM 전환을 금지하고 `COMMIT_UNCERTAIN`으로 잠근다.
+
+rollback 완료 상태는 `READY/TARGET`이 아니라
+`FAILED_OVER_UNPROTECTED/TARGET`이다. 전체 sequence와 오류 우선순위는
+[575-cross-hypervisor-dr-failback-commit-convergence-and-rollback-fencing-design-20260727.md](575-cross-hypervisor-dr-failback-commit-convergence-and-rollback-fencing-design-20260727.md)를
+따른다.
+
+## 2026-07-27 Late ACK Terminal Convergence Sequence
+
+```mermaid
+sequenceDiagram
+    participant R as "Lifecycle Reconciler"
+    participant A as "Mold Agent"
+    participant F as "FTCTL"
+    participant D as "Cloud DB"
+    participant U as "UI"
+
+    R->>A: commit-status(OPERATION, failbackRun)
+    A->>F: reconcile commit journal with control/ACK
+    F-->>A: ACKNOWLEDGED(gen, owner, session)
+    R->>A: dr-status(PLAN_AUTHORITY, plan)
+    A->>F: read status plus one completed checkpoint
+    F-->>A: SOURCE, RUNNING, checkpoint sequence
+    R->>R: verify SOURCE ON and TARGET OFF
+    R->>D: terminal transaction
+    Note over D: Plan READY/SOURCE<br/>Run SUCCEEDED<br/>Session COMPLETED<br/>Replica READY/OFF/SOURCE
+    R->>D: invalidate protection cache
+    U->>D: poll canonical snapshot
+    D-->>U: terminal state and actions
+```
+
+`COMMIT_VERIFYING`에서는 다음 사용자 action을 열지 않는다. terminal transaction
+완료 뒤 eligibility를 다시 계산한다. 세부 예외와 timeout 정책은 문서 576을
+따른다.
+
+## 2026-07-28 Failback Current Authority Closure
+
+Failback terminal transaction에는 과거 Failover의 current authority 종료가
+포함된다.
+
+```text
+Cutover Session FAILED_OVER -> FAILED_BACK
+Plan active side TARGET -> SOURCE
+Replica active side TARGET -> SOURCE
+Target VM POWERED_ON -> POWERED_OFF
+Source VM POWERED_OFF -> POWERED_ON
+Scheduler -> RUNNING
+post-failback checkpoint > failback checkpoint
+```
+
+이후 과거 cutover session은 이력으로만 표시한다. Protection View version 4와
+Plan API는 같은 current authority 및 action eligibility를 반환해야 하며,
+UI는 강제 reload 없이 terminal projection을 적용한다. 상세 설계는 문서
+578을 따른다.
+
+## 2026-07-30 Failover Success Commit Addendum
+
+대상 VM power-on과 boot validation 후 Cloud는 먼저
+`CLOUD_PROMOTED/ACK_PENDING`을 저장하고, Agent의 `CUTOVER_COMMIT` ACK 이후
+`FAILED_OVER/TARGET/FAILED_OVER_UNPROTECTED`를 원자적으로 커밋한다. 이때
+forward scheduler desired state는 `STOPPED`이며 RPO 표시는 Failover 시점에
+고정된다. 상세 순서와 오류 복구는 문서 581을 따른다.
+## 2026-07-30 Failback Post-Commit Sequence Addendum
+
+Failback reverse-final checkpoint `N`은 원본 방향 보호 재개의 baseline이다. 첫
+정방향 cycle은 반드시 `N+1` 이상이어야 하며, 정규 RPO timer를 기다리지 않는
+immediate validation cycle로 생성한다. UI 액션 수락부터 terminal transaction까지
+전체 보강 시퀀스는 문서 583을 따른다.
+
+## 2026-08-01 Reprotect-Before-Failback Sequence Addendum
+
+After Failover, TARGET is authoritative but not yet reverse-protected. The
+valid sequence is `Failover -> Reprotect reverse seed -> reverse incremental
+protection -> final reverse delta -> Failback`. Direct Failback from
+`FAILED_OVER_UNPROTECTED` is blocked.
+
+Cloud commits SOURCE authority only after the FTCTL checkpoint proves a real
+`KVM_TO_VMWARE` write and reverse guest boot readiness. Details are normative
+in
+[588-cross-hypervisor-dr-bidirectional-incremental-replication-and-failback-data-contract-design-20260801.md](588-cross-hypervisor-dr-bidirectional-incremental-replication-and-failback-data-contract-design-20260801.md).
+
+## 2026-07-31 Test Failover Pre-Acceptance Addendum
+
+Test Failover는 Run 생성 전에 Plan lock 안에서 이전 Test Session을
+reconcile하고 blocking 여부를 재검증한다. async job이 이 단계에서 실패하면
+Run/Session/Agent command는 생성하지 않는다. UI는 job 실패 원인을 표시하며
+accepted Run 복구 조회를 수행하지 않는다.
+
+terminal `FAILED + cleanup_required=false` 이력은 soft-close 후 새 테스트를
+허용하고, cleanup obligation 또는 `CLEANUP_FAILED`는 새 테스트를 차단한다.
+상세 상태표와 시퀀스는 문서 586을 따른다.

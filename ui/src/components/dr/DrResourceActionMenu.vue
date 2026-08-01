@@ -25,11 +25,9 @@
       overlayClassName="autogen-action-dropdown">
       <template #overlay>
         <div class="autogen-action-dropdown__content">
-          <action-button
+          <dr-action-menu-content
             :actions="actions"
             :resource="resource"
-            :dataView="true"
-            size="default"
             @exec-action="execAction" />
         </div>
       </template>
@@ -42,12 +40,12 @@
 </template>
 
 <script>
-import ActionButton from '@/components/view/ActionButton'
+import DrActionMenuContent from '@/components/dr/DrActionMenuContent.vue'
 
 export default {
   name: 'DrResourceActionMenu',
   components: {
-    ActionButton
+    DrActionMenuContent
   },
   props: {
     actions: {

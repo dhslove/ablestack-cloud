@@ -1,5 +1,8 @@
 # Cross Hypervisor DR Cloud API Command Design
 
+> 2026-07-31 latest correction: `confirmDrFenceClear` is legacy FTCTL
+> compatibility only. FTCTL_DR rejects it before Run creation. See document 587.
+
 작성일: 2026-06-30
 
 대상 브랜치: `feature/ftctl-cloud-integration`
@@ -1240,3 +1243,120 @@ FTCTL profiles.
 
 Normative request/response contract:
 `561-cross-hypervisor-dr-cloud-managed-test-failover-lifecycle-design-20260719.md`.
+
+## 2026-07-25 Site-Derived Failback API Addendum
+
+`startDrFailback`은 `planid`, idempotency, force, reason, acknowledgement 같은
+non-secret operator intent만 받는다. 다음 legacy parameter는 deprecated 후
+제거하며 `dr_run.request_json`에 저장하지 않는다.
+
+- `failbacktargetmoldtype`
+- `remotemoldapiurl`, `remotemoldapikey`, `remotemoldsecretkey`
+- `targetmoldapiurl`, `targetmoldapikey`, `targetmoldsecretkey`
+
+read-only `getDrFailbackPreflight`는 Plan 기반 active/destination Site, health,
+credential configured/validated summary와 blocking reason을 반환한다. secret,
+password, API key, 내부 credential ID/ref는 응답하지 않는다.
+
+상세 command, response, sanitizer와 migration 계약:
+`571-cross-hypervisor-dr-site-derived-failback-contract-design-20260725.md`.
+
+## 2026-07-27 Failback Commit Outcome API Addendum
+
+Agent/FTCTL commit 결과는 boolean success가 아니라
+`ACKNOWLEDGED`, `REJECTED`, `PENDING`, `UNKNOWN`으로 반환한다. timeout,
+빈 출력, parse 실패, stream 오류는 `UNKNOWN`이며 즉시 rollback을 의미하지
+않는다.
+
+Protection view와 Preflight는 commit attempt, scheduler request/ACK
+generation, rollback state, actual authority/power 및 canonical action
+decision을 같은 snapshot version으로 반환한다. 세부 contract는 문서 575를
+따른다.
+
+## 2026-07-27 Late ACK Canonical Read API Addendum
+
+DR Plan read API는 `effectivestate`로 lifecycle을 숨기지 않고 다음 canonical
+구조를 반환한다.
+
+```json
+{
+  "lifecycle": {"state": "COMMIT_VERIFYING", "terminal": false},
+  "authority": {"activeSide": "SOURCE", "scheduler": "RUNNING"},
+  "operation": {"runId": "...", "commitOutcome": "ACKNOWLEDGED"},
+  "cycle": {"sequence": 463, "producerRunId": "...", "token": "plan:463"},
+  "cache": {"stale": false, "generatedAt": "..."},
+  "actions": {"failback": false, "sync": false}
+}
+```
+
+operation Run과 cycle producer Run이 다른 것은 정상이며 API validator가
+불일치 오류로 처리하지 않는다. 단, 한 cycle의 sequence/token/checkpoint/NBD
+필드는 같은 checkpoint source여야 한다. response와 command DTO 상세는
+[576-cross-hypervisor-dr-failback-late-ack-and-projection-convergence-design-20260727.md](576-cross-hypervisor-dr-failback-late-ack-and-projection-convergence-design-20260727.md)를
+따른다.
+
+## 2026-07-28 Current Authority API Addendum
+
+Plan API의 기존 cutover flat field는 current cutover session 전용이다.
+`active_side=SOURCE`이면 과거 `PROMOTED` session이 존재해도 해당 field를
+비워 반환한다. 과거 세션은 history API에서 조회한다.
+
+Plan response는 `authorityside`, `authorityphase`, `authoritysequence`,
+`authorityconsistent`, `currentcutoversessionid`를 제공한다. Protection View
+snapshot version 4의 `planProjection`은 같은 response builder와 eligibility
+evaluator를 사용한다.
+
+상세 response와 compatibility 계약은 문서 578을 따른다.
+
+## 2026-07-30 Current Runtime API Addendum
+
+Plan response의 `runtimeState`, `runtimeStep`, `runtimeErrorCode`,
+`runtimeProjectionMessage`와 `lastErrorCode/Message`는 current protection
+또는 active Run 전용이다. 최근 종료 Run은 `lastRun`에만 반환하며, 과거
+실패를 current runtime 오류로 복제하지 않는다.
+
+Protection View snapshot version 5도 같은 `DrPlanResponse`를 사용한다.
+필드 추가나 command signature 변경은 없으며 기존 API 호환성을 유지한다.
+상세 필드 의미와 테스트 계약은 문서 580을 따른다.
+
+## 2026-07-30 Post-Failover API Addendum
+
+후속 Protection View version 6은 `rpoevaluationmode`,
+`displayrposeconds`, `rpoasof`, `rpostatus`, `currentseverity`를 typed
+필드로 제공한다. 기존 action command signature는 변경하지 않는다.
+TARGET authority의 상태와 표시 계약은 문서 581을 따른다.
+## 2026-07-30 Failback Accepted Run Contract Addendum
+
+모든 DR start action은 `id`, `planid`, `runtype`, `state`, `accepted`,
+`idempotencykey`, `actioncontractversion`을 포함하는 동일 수락 계약을 제공한다.
+`listDrRuns`는 선택 `idempotencykey` 조회를 지원해 응답 유실이나 재시도 시 이미
+생성된 Run을 복원한다. API는 엔진 종단 완료를 기다리지 않는다. 상세 필드와
+serialization test 기준은 문서 583을 따른다.
+
+## 2026-07-30 Typed Action Availability API Addendum
+
+기존 `actioneligibility: Map<String, Boolean>`은 구버전 UI 호환을 위해
+유지한다. Plan response와 Protection View `planProjection`에는 병렬
+`actionavailability`를 추가한다.
+
+각 작업은 `applicable`, `enabled`, `reasoncode`, 안전한 `reasonargs`를
+반환한다. boolean compatibility 값은 typed availability의 `enabled`에서
+파생하며 두 값이 달라서는 안 된다. API는 label, icon, 메뉴 그룹, 색상 같은
+표현 정보를 반환하지 않는다.
+
+신규 response DTO, reason code, fallback 및 serialization test 계약은
+[584-cross-hypervisor-dr-context-action-availability-and-darkmode-design-20260730.md](584-cross-hypervisor-dr-context-action-availability-and-darkmode-design-20260730.md)를
+따른다.
+
+## 2026-07-31 Test Failover Acceptance Addendum
+
+`StartDrTestFailoverCmd`의 async job은 장시간 Test Failover 완료가 아니라
+Run 접수 성공/실패를 확정한다. 성공 job result는 typed `DrRunResponse`를
+반환하고, 실패 job은 Run을 생성하지 않은 채 `DR_TEST_SESSION_BLOCKING`
+같은 원인 코드를 보존한다.
+
+`actioneligibility`와 `actionavailability`는 동일한 lifecycle resolution에서
+파생한다. Protection View cache의 blocking session reason을 포함하는 최신
+계약은 문서
+[586-cross-hypervisor-dr-test-session-blocker-and-async-acceptance-design-20260731.md](586-cross-hypervisor-dr-test-session-blocker-and-async-acceptance-design-20260731.md)를
+따른다.

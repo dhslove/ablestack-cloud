@@ -21,7 +21,7 @@ import java.util.Map;
 
 public class FtctlDrActionCommand extends Command {
 
-    public static final String ACTION_CONTRACT_VERSION = "2026-07-22";
+    public static final String ACTION_CONTRACT_VERSION = "2026-07-27";
 
     public enum Action {
         SYNC("dr-sync-start"),
@@ -37,6 +37,10 @@ public class FtctlDrActionCommand extends Command {
         REPROTECT("dr-reprotect"),
         TARGET_MATERIALIZED("dr-target-materialized"),
         CUTOVER_COMMIT("dr-cutover-commit"),
+        FAILOVER_ABORT("dr-failover-abort"),
+        FAILBACK_COMMIT("dr-failback-commit"),
+        FAILBACK_COMMIT_STATUS("dr-failback-commit-status"),
+        FAILBACK_ABORT("dr-failback-abort"),
         RELEASE("dr-release");
 
         private final String cliCommand;
@@ -56,6 +60,7 @@ public class FtctlDrActionCommand extends Command {
     private String planUuid;
     private String runUuid;
     private String runType;
+    private String actionIntent;
     private String direction;
     private String role;
     private String sourceWorkerUuid;
@@ -68,8 +73,14 @@ public class FtctlDrActionCommand extends Command {
     private String artifactContractVersion;
     @LogLevel(LogLevel.Log4jLevel.Off)
     private String artifactSpecJson;
+    private String authorityContractVersion;
+    @LogLevel(LogLevel.Log4jLevel.Off)
+    private String authoritySpecJson;
     private String mode;
     private String checkpointRef;
+    private Long resumeBaselineCheckpointSequence;
+    private Long minimumCompletedCheckpointSequence;
+    private boolean forceImmediateCycle;
     @Deprecated
     private Long restorePointId;
     private boolean force;
@@ -139,6 +150,14 @@ public class FtctlDrActionCommand extends Command {
 
     public void setRunType(String runType) {
         this.runType = runType;
+    }
+
+    public String getActionIntent() {
+        return actionIntent;
+    }
+
+    public void setActionIntent(String actionIntent) {
+        this.actionIntent = actionIntent;
     }
 
     public String getDirection() {
@@ -213,6 +232,22 @@ public class FtctlDrActionCommand extends Command {
         this.artifactSpecJson = artifactSpecJson;
     }
 
+    public String getAuthorityContractVersion() {
+        return authorityContractVersion;
+    }
+
+    public void setAuthorityContractVersion(String authorityContractVersion) {
+        this.authorityContractVersion = authorityContractVersion;
+    }
+
+    public String getAuthoritySpecJson() {
+        return authoritySpecJson;
+    }
+
+    public void setAuthoritySpecJson(String authoritySpecJson) {
+        this.authoritySpecJson = authoritySpecJson;
+    }
+
     public String getMode() {
         return mode;
     }
@@ -227,6 +262,30 @@ public class FtctlDrActionCommand extends Command {
 
     public void setCheckpointRef(String checkpointRef) {
         this.checkpointRef = checkpointRef;
+    }
+
+    public Long getResumeBaselineCheckpointSequence() {
+        return resumeBaselineCheckpointSequence;
+    }
+
+    public void setResumeBaselineCheckpointSequence(Long resumeBaselineCheckpointSequence) {
+        this.resumeBaselineCheckpointSequence = resumeBaselineCheckpointSequence;
+    }
+
+    public Long getMinimumCompletedCheckpointSequence() {
+        return minimumCompletedCheckpointSequence;
+    }
+
+    public void setMinimumCompletedCheckpointSequence(Long minimumCompletedCheckpointSequence) {
+        this.minimumCompletedCheckpointSequence = minimumCompletedCheckpointSequence;
+    }
+
+    public boolean isForceImmediateCycle() {
+        return forceImmediateCycle;
+    }
+
+    public void setForceImmediateCycle(boolean forceImmediateCycle) {
+        this.forceImmediateCycle = forceImmediateCycle;
     }
 
     public Long getRestorePointId() {

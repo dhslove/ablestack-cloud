@@ -32,6 +32,7 @@ const listKeys = {
 const objectKeys = {
   getDrSite: ['getdrsiteresponse', 'drsite'],
   getDrPlan: ['getdrplanresponse', 'drplan'],
+  getDrFailbackPreflight: ['getdrfailbackpreflightresponse', 'drfailbackpreflight'],
   getDrProtectionView: ['getdrprotectionviewresponse', 'drprotectionview'],
   getDrRun: ['getdrrunresponse', 'drrun'],
   createDrSite: ['createdrsiteresponse', 'drsite'],
@@ -88,7 +89,10 @@ function extractDrJobObject (jobResult, command) {
 }
 
 function buildDrJobError (result, jobId, command) {
-  const error = new Error(result.jobresult?.errortext || 'Async job failed')
+  const message = result.jobresult?.errortext || 'Async job failed'
+  const error = new Error(message)
+  const codeMatch = String(message).match(/^(DR_[A-Z0-9_]+)(?::|$)/)
+  error.code = codeMatch?.[1] || 'DR_ACTION_ASYNC_JOB_FAILED'
   error.response = { data: { errorresponse: result.jobresult || {} } }
   error.jobid = jobId
   error.command = command
@@ -179,6 +183,11 @@ export function getDrPlan (id) {
   return getAPI('getDrPlan', { id }).then(response => extractDrObject(response, 'getDrPlan'))
 }
 
+export function getDrFailbackPreflight (planId) {
+  return getAPI('getDrFailbackPreflight', { planid: planId })
+    .then(response => extractDrObject(response, 'getDrFailbackPreflight'))
+}
+
 export function getDrProtectionView (planId) {
   return getAPI('getDrProtectionView', { planid: planId }).then(response => extractDrObject(response, 'getDrProtectionView'))
 }
@@ -233,8 +242,64 @@ export function listDrSyncCheckpoints (params = {}) {
   return getAPI('listDrSyncCheckpoints', params).then(response => extractDrList(response, 'listDrSyncCheckpoints'))
 }
 
-export function startDrAction (command, params) {
-  return postAPI(command, params).then(response => extractDrObject(response, command))
+export function normalizeAcceptedDrRun (run = {}) {
+  if (Array.isArray(run)) {
+    return run[0] || {}
+  }
+  if (run?.drrun) {
+    return normalizeAcceptedDrRun(run.drrun)
+  }
+  return run || {}
+}
+
+function hasAcceptedRunIdentity (run, expectedRunType = '') {
+  const runType = String(run?.runtype || run?.runType || '').toUpperCase()
+  return Boolean(run?.id) &&
+    (!expectedRunType || runType === String(expectedRunType).toUpperCase())
+}
+
+export function recoverAcceptedDrRun (planId, idempotencyKey, expectedRunType = '', options = {}) {
+  const maxAttempts = options.maxAttempts || 8
+  const intervalMs = options.intervalMs || 250
+  let attempt = 0
+  const poll = () => listDrRuns({
+    planid: planId,
+    idempotencykey: idempotencyKey
+  }).then(result => {
+    const run = normalizeAcceptedDrRun(result.items)
+    if (hasAcceptedRunIdentity(run, expectedRunType)) {
+      return run
+    }
+    attempt += 1
+    if (attempt >= maxAttempts) {
+      const error = new Error('DR action was submitted, but its accepted run could not be confirmed')
+      error.code = 'DR_ACTION_ACCEPTANCE_UNCONFIRMED'
+      error.retryable = true
+      throw error
+    }
+    return sleep(intervalMs).then(poll)
+  })
+  return poll()
+}
+
+export function startDrAction (command, params, options = {}) {
+  return postAPI(command, params).then(response => {
+    const jobId = extractJobId(response, command)
+    return jobId
+      ? waitForDrJobObject(jobId, command, {
+        intervalMs: options.acceptanceIntervalMs || options.intervalMs,
+        timeoutMs: options.acceptanceTimeoutMs || options.timeoutMs || 30000
+      })
+      : extractDrObject(response, command)
+  }).then(acceptedObject => {
+    const run = normalizeAcceptedDrRun(acceptedObject)
+    const expectedRunType = options.expectedRunType || params?.actionintent || ''
+    if (hasAcceptedRunIdentity(run, expectedRunType) ||
+        !params?.planid || !params?.idempotencykey) {
+      return run
+    }
+    return recoverAcceptedDrRun(params.planid, params.idempotencykey, expectedRunType, options)
+  })
 }
 
 export function normalizeActionEligibility (eligibility = {}) {

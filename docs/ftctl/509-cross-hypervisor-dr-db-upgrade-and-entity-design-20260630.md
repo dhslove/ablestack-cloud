@@ -1216,3 +1216,92 @@ authority for active test resources, and `dr_cutover_session` is not reused.
 
 Exact DDL and index design:
 `561-cross-hypervisor-dr-cloud-managed-test-failover-lifecycle-design-20260719.md`.
+
+## 2026-07-27 Failback Reconciliation Index And Transaction Addendum
+
+`dr_failback_session`의 기존 lifecycle/ACK 컬럼을 재사용한다. management
+restart와 late scheduler ACK 뒤에도 전환 row를 찾을 수 있도록 다음 복합
+인덱스를 clean schema와 모든 활성 Europa upgrade path에 동일하게 추가한다.
+
+```sql
+KEY `i_dr_failback_session_reconcile`
+  (`state`, `last_probe_at`, `removed`, `plan_id`)
+```
+
+upgrade DDL은 `information_schema.statistics`로 인덱스 존재 여부를 확인한 뒤
+실행해 재적용에 안전해야 한다. terminal 수렴은 `Transaction.execute` 안에서
+Plan, Session, Run, Replica 순서로 row lock을 획득하고
+`lifecycle_version` CAS를 검증한다. JVM in-flight set은 DB CAS를 대체하지
+않는다.
+
+상세 candidate query, terminal transaction과 배포 검증은
+[576-cross-hypervisor-dr-failback-late-ack-and-projection-convergence-design-20260727.md](576-cross-hypervisor-dr-failback-late-ack-and-projection-convergence-design-20260727.md)를
+따른다.
+
+## 2026-07-28 Cutover Authority End Addendum
+
+`removed`는 soft-delete이며 current authority flag로 사용하지 않는다.
+`dr_cutover_session`에 `authority_ended_at`,
+`authority_ended_by_run_id`와 plan/state 조회 인덱스를 추가한다. 성공한
+Failback은 current cutover를 `FAILED_BACK`으로 종결한다.
+
+`dr_run_step`에는 `(run_id, step_name, removed)` 조회 인덱스를 추가하고
+Failback lifecycle 단계는 멱등 upsert한다. 기존 data backfill 조건과
+migration preflight는 문서 578을 따른다.
+
+## 2026-07-30 Current Runtime And History Projection Addendum
+
+current runtime과 historical Run 분리는 기존 테이블 의미로 충분하므로 신규
+DDL을 추가하지 않는다.
+
+- `dr_plan_runtime`: 현재 protection/scheduler/replication authority
+- `dr_run`: 종료 작업을 포함한 불변 작업 이력
+- `dr_test_session`: 테스트 자원과 cleanup 감사 이력
+- `dr_plan_view_cache`: version 5 읽기 projection
+
+version 4 cache row는 조회 시 version 5로 자동 rebuild한다. 과거 실패
+Run이나 test session을 삭제 또는 성공으로 변경하지 않는다. 상세 cache
+무효화와 검증 기준은 문서 580을 따른다.
+
+## 2026-07-30 Post-Failover DB Addendum
+
+TARGET authority Runtime은 `FAILED_OVER_UNPROTECTED`, scheduler
+`STOPPED/desired STOPPED/SUPPRESSED`로 backfill한다. 실제 Failover의 디스크
+감사를 위해 `dr_cutover_disk`에 target volume, checkpoint sequence, manifest
+hash typed 컬럼을 보강하고 `(session_id, disk_index)` unique key를 유지한다.
+Protection View version 5 cache는 version 6 조회 시 자동 rebuild한다. 상세 DDL과
+backfill 기준은 문서 581을 따른다.
+## 2026-07-30 Failback Resume Sequence Evidence Addendum
+
+`dr_failback_session`은 `resume_baseline_checkpoint_sequence`,
+`required_post_failback_checkpoint_sequence`, `protection_resume_requested_at`,
+`protection_resume_verified_at`을 typed lifecycle 증거로 저장한다. 신규 Session은
+`required = checkpoint_sequence + 1`을 사용하며 terminal 완료 시
+`post_failback_checkpoint_sequence >= required`를 만족해야 한다. DDL과 migration
+guard는 문서 583을 따른다.
+
+## 2026-07-30 Action Availability Cache Addendum
+
+작업 applicability, enabled, reason은 영구 domain state가 아니라 current
+projection이므로 신규 테이블과 컬럼을 추가하지 않는다.
+`dr_plan_view_cache.snapshot_json`의 `planProjection`에
+`actionavailability`를 포함하고 snapshot version을 `6 -> 7`로 올린다.
+
+version 6 cache는 기존 조회 시 rebuild 경로로 version 7을 생성한다. label,
+icon, group, locale 문장과 dark-mode style은 DB에 저장하지 않는다. 상세 cache
+payload와 호환 기준은
+[584-cross-hypervisor-dr-context-action-availability-and-darkmode-design-20260730.md](584-cross-hypervisor-dr-context-action-availability-and-darkmode-design-20260730.md)를
+따른다.
+
+## 2026-07-31 Test Session Open/History Boundary Addendum
+
+`dr_test_session.removed`는 감사 이력 삭제가 아니라 현재 lifecycle 종결
+시각이다. `FAILED + cleanup_required=false` 세션은 Cloud VM/Test Disk와
+FTCTL artifact/lease terminal proof를 확인한 뒤 soft-close한다.
+
+DAO는 open 조회와 removed 행을 포함하는 historical 조회를 분리한다.
+DB upgrade SQL로 FAILED 행을 일괄 변경하지 않으며 배포 후 backend
+reconciler가 증거 기반으로 보정한다. cache snapshot version 및 상세 데이터
+계약은
+[586-cross-hypervisor-dr-test-session-blocker-and-async-acceptance-design-20260731.md](586-cross-hypervisor-dr-test-session-blocker-and-async-acceptance-design-20260731.md)를
+따른다.

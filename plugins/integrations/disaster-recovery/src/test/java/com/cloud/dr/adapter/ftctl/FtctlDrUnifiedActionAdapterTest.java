@@ -31,7 +31,12 @@ import com.cloud.agent.api.FtctlDrActionCommand;
 import com.cloud.agent.api.FtctlDrCapabilitiesAnswer;
 import com.cloud.agent.api.FtctlDrCapabilitiesCommand;
 import com.cloud.dr.DrConstants;
+import com.cloud.dr.DrFailbackPreflightResult;
+import com.cloud.dr.DrFailbackPreflightService;
 import com.cloud.dr.DrPlanVO;
+import com.cloud.dr.DrReprotectAuthoritySpec;
+import com.cloud.dr.DrReprotectPreflightResult;
+import com.cloud.dr.DrReprotectPreflightService;
 import com.cloud.dr.DrRestorePointVO;
 import com.cloud.dr.DrRunVO;
 import com.cloud.dr.adapter.DrAdapterResult;
@@ -48,6 +53,10 @@ public class FtctlDrUnifiedActionAdapterTest {
     private HostDao hostDao;
     @Mock
     private DrRestorePointDao drRestorePointDao;
+    @Mock
+    private DrReprotectPreflightService drReprotectPreflightService;
+    @Mock
+    private DrFailbackPreflightService drFailbackPreflightService;
 
     @InjectMocks
     private FtctlDrUnifiedActionAdapter adapter;
@@ -56,7 +65,7 @@ public class FtctlDrUnifiedActionAdapterTest {
     public void syncDispatchesToCoordinatorWorkerAndReturnsAcceptedRun() throws Exception {
         DrPlanVO plan = ftctlDrPlan();
         DrRunVO run = run(DrConstants.RUN_TYPE_SYNC,
-                "{\"mode\":\"planned\",\"remoteMoldSecretKey\":\"top-secret\",\"dryRun\":false}");
+                "{\"mode\":\"FULL_RESEED\",\"forceImmediateCycle\":true,\"remoteMoldSecretKey\":\"top-secret\",\"dryRun\":false}");
         ArgumentCaptor<FtctlDrActionCommand> commandCaptor = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
         mockCapabilities();
         Mockito.when(agentManager.send(Mockito.eq(103L), commandCaptor.capture())).thenAnswer(invocation -> {
@@ -83,7 +92,8 @@ public class FtctlDrUnifiedActionAdapterTest {
         Assert.assertEquals("102", command.getTargetWorkerUuid());
         Assert.assertEquals("103", command.getCoordinatorWorkerUuid());
         Assert.assertFalse(command.isWaitForCompletion());
-        Assert.assertEquals("planned", command.getMode());
+        Assert.assertEquals("FULL_RESEED", command.getMode());
+        Assert.assertTrue(command.isForceImmediateCycle());
         Assert.assertTrue(command.getProfileJson().contains("\"engine\":\"FTCTL_DR\""));
         Assert.assertFalse(command.getProfileJson().contains("top-secret"));
         Assert.assertFalse(command.getRequestJson().contains("top-secret"));
@@ -154,6 +164,66 @@ public class FtctlDrUnifiedActionAdapterTest {
         Assert.assertTrue(command.getProfileJson().contains("\"finalSync\":true"));
         Assert.assertTrue(command.getRequestJson().contains("\"restorePointRef\":\"" + checkpoint.getSourceSnapshotRef() + "\""));
         Assert.assertTrue(command.getRequestJson().contains("\"finalSync\":true"));
+    }
+
+    @Test
+    public void reprotectDispatchesImmutableTargetAuthorityContract() throws Exception {
+        DrPlanVO plan = ftctlDrPlan();
+        plan.setState(DrConstants.PLAN_STATE_FAILED_OVER);
+        plan.setActiveSide("TARGET");
+        DrRunVO run = run(DrConstants.RUN_TYPE_REPROTECT, "{}");
+        DrReprotectAuthoritySpec spec = new DrReprotectAuthoritySpec();
+        spec.setPlanUuid(plan.getUuid());
+        spec.setRunUuid(run.getUuid());
+        spec.setExpectedActiveSide("TARGET");
+        spec.setAuthorityGeneration(3L);
+        spec.setCutoverSessionId("cutover-1");
+        spec.setCheckpointSequence(17L);
+        spec.setTargetVmId(256L);
+        spec.setTargetExternalRef("target-vm-uuid");
+        spec.setTargetInstanceName("i-2-256-VM");
+        spec.setTargetPowerState("POWERED_ON");
+        spec.setTargetMaterialized(true);
+        spec.setTargetPromotionState("PROMOTED");
+        Mockito.when(drReprotectPreflightService.validate(plan, run))
+                .thenReturn(DrReprotectPreflightResult.success(spec));
+        ArgumentCaptor<FtctlDrActionCommand> commandCaptor = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
+        mockCapabilities();
+        Mockito.when(agentManager.send(Mockito.eq(103L), commandCaptor.capture())).thenAnswer(invocation -> {
+            FtctlDrActionCommand command = invocation.getArgument(1);
+            return new FtctlDrActionAnswer(command, true, "accepted", FtctlDrActionCommand.Action.REPROTECT,
+                    plan.getUuid(), run.getUuid(), "accepted", true, "REPROTECTING", "worker-started",
+                    10, run.getUuid(), 0L, null, 0, "{\"result\":\"accepted\"}",
+                    "{\"state\":\"REPROTECTING\"}");
+        });
+
+        DrAdapterResult result = adapter.execute(new DrExecutionContext(plan, run));
+
+        Assert.assertTrue(result.isSuccess());
+        FtctlDrActionCommand command = commandCaptor.getValue();
+        Assert.assertEquals(FtctlDrActionCommand.Action.REPROTECT, command.getAction());
+        Assert.assertEquals(DrReprotectAuthoritySpec.CONTRACT_VERSION, command.getAuthorityContractVersion());
+        Assert.assertTrue(command.getAuthoritySpecJson().contains("\"expectedActiveSide\":\"TARGET\""));
+        Assert.assertTrue(command.getAuthoritySpecJson().contains("\"authorityGeneration\":3"));
+        Assert.assertTrue(command.getAuthoritySpecJson().contains("\"targetVmId\":256"));
+    }
+
+    @Test
+    public void failbackStopsBeforeAgentDispatchWhenSitePreflightFails() throws Exception {
+        DrPlanVO plan = ftctlDrPlan();
+        plan.setState(DrConstants.PLAN_STATE_FAILED_OVER);
+        plan.setActiveSide("TARGET");
+        DrRunVO run = run(DrConstants.RUN_TYPE_FAILBACK, "{\"force\":true}");
+        Mockito.when(drFailbackPreflightService.validate(plan)).thenReturn(
+                DrFailbackPreflightResult.failure(DrConstants.ERROR_FAILBACK_CREDENTIAL_NOT_READY,
+                        "destination credential missing", null, null, "CONFIGURED", "MISSING", null));
+        mockCapabilities();
+
+        DrAdapterResult result = adapter.execute(new DrExecutionContext(plan, run));
+
+        Assert.assertFalse(result.isSuccess());
+        Assert.assertEquals(DrConstants.ERROR_FAILBACK_CREDENTIAL_NOT_READY, result.getErrorCode());
+        Mockito.verify(agentManager, Mockito.never()).send(Mockito.eq(103L), Mockito.isA(FtctlDrActionCommand.class));
     }
 
     @Test

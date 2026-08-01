@@ -36,7 +36,12 @@ import com.cloud.agent.api.FtctlDrCapabilitiesCommand;
 import com.cloud.agent.api.FtctlDrStatusAnswer;
 import com.cloud.agent.api.FtctlDrStatusCommand;
 import com.cloud.dr.DrConstants;
+import com.cloud.dr.DrFailbackPreflightResult;
+import com.cloud.dr.DrFailbackPreflightService;
 import com.cloud.dr.DrPlanVO;
+import com.cloud.dr.DrReprotectAuthoritySpec;
+import com.cloud.dr.DrReprotectPreflightResult;
+import com.cloud.dr.DrReprotectPreflightService;
 import com.cloud.dr.DrRestorePointVO;
 import com.cloud.dr.DrResolvedSiteCredential;
 import com.cloud.dr.DrRunVO;
@@ -81,6 +86,10 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
     private DrSiteCredentialService drSiteCredentialService;
     @Inject
     private DrRestorePointDao drRestorePointDao;
+    @Inject
+    private DrReprotectPreflightService drReprotectPreflightService;
+    @Inject
+    private DrFailbackPreflightService drFailbackPreflightService;
 
     @Override
     public String getEngineType() {
@@ -211,9 +220,29 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         if (checkpointValidation != null) {
             return checkpointValidation;
         }
+        if (action == FtctlDrActionCommand.Action.FAILBACK) {
+            DrFailbackPreflightResult failbackPreflight = drFailbackPreflightService.validate(
+                    context.getPlan(), context.getRun());
+            if (!failbackPreflight.isReady()) {
+                return DrAdapterResult.failure(failbackPreflight.getErrorCode(), failbackPreflight.getMessage(),
+                        GSON.toJson(buildExecutionDetails(context, action, coordinatorHostId)));
+            }
+        }
+        DrReprotectPreflightResult reprotectPreflight = null;
+        if (action == FtctlDrActionCommand.Action.REPROTECT) {
+            reprotectPreflight = drReprotectPreflightService.validate(context.getPlan(), context.getRun());
+            if (!reprotectPreflight.isReady()) {
+                return DrAdapterResult.failure(reprotectPreflight.getErrorCode(), reprotectPreflight.getMessage(),
+                        GSON.toJson(buildExecutionDetails(context, action, coordinatorHostId)));
+            }
+        }
         FtctlDrActionCommand command;
         try {
             command = buildActionCommand(context, action);
+            if (reprotectPreflight != null) {
+                command.setAuthorityContractVersion(DrReprotectAuthoritySpec.CONTRACT_VERSION);
+                command.setAuthoritySpecJson(GSON.toJson(reprotectPreflight.getAuthoritySpec()));
+            }
         } catch (IllegalArgumentException e) {
             return DrAdapterResult.failure("DR_TEST_ARTIFACT_SPEC_INVALID", e.getMessage(),
                     GSON.toJson(buildExecutionDetails(context, action, coordinatorHostId)));
@@ -251,6 +280,7 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         command.setActionName(action.name());
         command.setCliCommand(action.getCliCommand());
         command.setRunType(run.getRunType());
+        command.setActionIntent(requestString(request, "actionIntent"));
         command.setDirection(plan.getDirection());
         command.setRole("coordinator");
         command.setSourceWorkerUuid(resolveHostUuid(plan.getSourceWorkerHostId()));
@@ -263,6 +293,7 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
             command.setArtifactSpecJson(buildTestArtifactSpec(plan, run, latestCheckpoint));
         }
         command.setMode(requestString(request, "mode"));
+        command.setForceImmediateCycle(requestBoolean(request, "forceImmediateCycle", false));
         command.setCheckpointRef(latestCheckpoint != null ? latestCheckpoint.getSourceSnapshotRef() : null);
         command.setForce(requestBoolean(request, "force", false));
         command.setDryRun(requestBoolean(request, "dryRun", false));

@@ -6,6 +6,13 @@
 - Normative for: UI, API, Cloud backend, Mold Agent, FTCTL, DB
 - Related: 500, 501, 502, 503, 506, 507, 508, 509, 510, 521, 522, 554, 562, 563
 
+> Normative guest identity and failed-session convergence correction
+> (2026-07-28):
+> [579-cross-hypervisor-dr-action-intent-guest-identity-and-failed-test-terminal-convergence-design-20260728.md](579-cross-hypervisor-dr-action-intent-guest-identity-and-failed-test-terminal-convergence-design-20260728.md)
+> supersedes this document for action-intent correlation, canonical guest
+> identity resolution, pre-artifact guest preflight, and failed Test Session
+> cleanup proof.
+
 > Normative correction (2026-07-19):
 > [562-cross-hypervisor-dr-test-artifact-contract-and-projection-isolation-design-20260719.md](562-cross-hypervisor-dr-test-artifact-contract-and-projection-isolation-design-20260719.md)
 > supersedes this document wherever disk identity is inferred from
@@ -742,3 +749,14 @@ test checkpoint is durable and projected.
 The producer Run, Plan authority, cycle/restore-point attribution, DB fields,
 and delayed-resume error contract are defined in document 565. No direct UI to
 Agent/FTCTL call and no duplicate automatic Resume command are permitted.
+
+## 21. Failed Session Blocking Clarification - 2026-07-31
+
+A failed Test Session blocks a new test only while it has a cleanup obligation
+or lacks terminal cleanup proof. `FAILED` with `cleanup_required=false`, no
+Cloud test resources, and terminal FTCTL evidence is soft-closed and retained
+as history. `CLEANUP_FAILED` always blocks a new test and exposes cleanup retry.
+
+Menu availability and action-time validation must consume the same lifecycle
+resolution. The normative state matrix, transaction boundary, and async
+acceptance flow are defined in document 586.

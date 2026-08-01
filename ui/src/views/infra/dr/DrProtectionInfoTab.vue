@@ -48,6 +48,13 @@
       show-icon
       :message="$t('message.dr.cycle.uncommitted')" />
 
+    <a-alert
+      v-if="nbdRecoveryRequired"
+      type="error"
+      show-icon
+      :message="$t('message.dr.nbd.recovery.required')"
+      :description="nbdRecoveryMessage" />
+
     <section class="cross-dr-protection-info__section">
       <dr-plan-overview
         :plan="protectionPlan"
@@ -82,6 +89,81 @@
       </a-descriptions>
     </section>
 
+    <section v-if="failbackSession && failbackSession.state" class="cross-dr-protection-info__section">
+      <h3>{{ $t('label.dr.failback.lifecycle') }}</h3>
+      <a-descriptions size="small" :column="2" bordered>
+        <a-descriptions-item :label="$t('label.dr.failback.phase')">
+          <dr-status-pill :status="failbackSession.state" />
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.failback.checkpoint')">
+          {{ failbackSession.checkpointsequence || '-' }}
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.replication.direction')">
+          {{ failbackSession.replicationdirection || '-' }}
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.provider.pair')">
+          {{ failbackSession.providerpair || '-' }}
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.baseline.generation')">
+          {{ failbackSession.baselinegeneration || '-' }}
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.baseline.state')">
+          <dr-status-pill :status="failbackSession.baselinestate || 'PENDING'" />
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.tracker.state')">
+          <dr-status-pill :status="failbackSession.trackerstate || 'PENDING'" />
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.writer.state')">
+          <dr-status-pill :status="failbackSession.writerstate || 'PENDING'" />
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.target.write.verified')">
+          {{ failbackSession.targetwritten === true && failbackSession.writeverified === true ? $t('label.yes') : $t('label.no') }}
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.guest.compatibility.state')">
+          <dr-status-pill :status="failbackSession.guestcompatibilitystate || 'PENDING'" />
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.failback.target.power')">
+          <dr-status-pill :status="failbackSession.targetpowerstate || 'UNKNOWN'" />
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.failback.source.power')">
+          <dr-status-pill :status="failbackSession.sourcepowerstate || 'UNKNOWN'" />
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.boot.validation.state')">
+          <dr-status-pill :status="failbackSession.bootvalidationstate || 'PENDING'" />
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.engine.ack.state')">
+          <dr-status-pill :status="failbackSession.engineackstate || 'PENDING'" />
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.failback.post.checkpoint')">
+          {{ failbackSession.postfailbackcheckpointsequence || '-' }}
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.failback.commit.outcome')">
+          <dr-status-pill :status="failbackSession.commitoutcome || 'PENDING'" />
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.failback.scheduler.generation')">
+          {{ generationPair(failbackSession.schedulergeneration, failbackSession.schedulerackgeneration) }}
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.failback.scheduler.state')">
+          <dr-status-pill :status="failbackSession.schedulerstate || 'UNKNOWN'" />
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.failback.rollback.state')">
+          <dr-status-pill :status="failbackSession.rollbackstate || 'NONE'" />
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.failback.commit.verified.at')">
+          {{ failbackSession.commitverifiedat || '-' }}
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.completed')">
+          {{ failbackSession.completedat || '-' }}
+        </a-descriptions-item>
+      </a-descriptions>
+      <a-alert
+        v-if="failbackSession.errorcode"
+        type="error"
+        show-icon
+        :message="failbackSession.errorcode"
+        :description="failbackSession.errormessage || ''" />
+    </section>
+
     <section class="cross-dr-protection-info__section">
       <h3>{{ $t('label.dr.replication.activity') }}</h3>
       <a-descriptions size="small" :column="2" bordered>
@@ -102,6 +184,36 @@
         </a-descriptions-item>
         <a-descriptions-item :label="$t('label.dr.latest.completed.checkpoint')">
           {{ latestCompletedSyncCycle.sequence || '-' }}
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.nbd.teardown.state')">
+          <dr-status-pill :status="currentNbdTeardownState" />
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.nbd.quarantined.devices')">
+          {{ currentProtectionRuntime.nbdquarantineddevicecount || 0 }}
+        </a-descriptions-item>
+      </a-descriptions>
+    </section>
+
+    <section v-if="hasNbdTeardownEvidence" class="cross-dr-protection-info__section">
+      <h3>{{ $t('label.dr.nbd.teardown') }}</h3>
+      <a-descriptions size="small" :column="2" bordered>
+        <a-descriptions-item :label="$t('label.dr.nbd.teardown.state')">
+          <dr-status-pill :status="latestCompletedSyncCycle.nbdteardownstate || currentNbdTeardownState" />
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.nbd.teardown.duration')">
+          {{ formatDuration(latestCompletedSyncCycle.nbdteardowndurationms) }}
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.nbd.source.devices')">
+          {{ latestCompletedSyncCycle.nbdsourcedevicecount ?? '-' }}
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.nbd.target.devices')">
+          {{ latestCompletedSyncCycle.nbdtargetdevicecount ?? '-' }}
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.nbd.teardown.completed.at')">
+          {{ latestCompletedSyncCycle.nbdteardowncompletedat || '-' }}
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.nbd.teardown.error')">
+          {{ latestCompletedSyncCycle.nbdteardownerrorcode || currentProtectionRuntime.nbdteardownerrorcode || '-' }}
         </a-descriptions-item>
       </a-descriptions>
     </section>
@@ -237,6 +349,7 @@ export default {
     currentSyncCycle: { type: Object, default: () => ({}) },
     latestCompletedSyncCycle: { type: Object, default: () => ({}) },
     currentProtectionRuntime: { type: Object, default: () => ({}) },
+    failbackSession: { type: Object, default: () => ({}) },
     replicas: { type: Array, default: () => [] },
     latestCompletedCheckpoint: { type: Object, default: () => ({}) },
     generated: { type: String, default: '' },
@@ -260,8 +373,9 @@ export default {
       return Object.assign({}, this.plan, this.currentProtectionRuntime)
     },
     hasCutoverState () {
-      return Boolean(this.protectionPlan.cutoversessionstate || this.protectionPlan.cloudpromotionstate ||
-        String(this.protectionPlan.operatingside || this.protectionPlan.activeside || '').toUpperCase() === 'TARGET')
+      return Boolean(this.protectionPlan.currentcutoversessionid ||
+        String(this.protectionPlan.authorityside || this.protectionPlan.operatingside ||
+          this.protectionPlan.activeside || '').toUpperCase() === 'TARGET')
     },
     replicationActivityState () {
       if (this.currentRun && this.currentRun.id) {
@@ -298,9 +412,34 @@ export default {
     },
     cycleTargetDurable () {
       return this.plan.targetdurable === true
+    },
+    currentNbdTeardownState () {
+      return this.currentProtectionRuntime.nbdteardownstate ||
+        this.currentSyncCycle.nbdteardownstate ||
+        this.latestCompletedSyncCycle.nbdteardownstate ||
+        'UNKNOWN'
+    },
+    nbdRecoveryRequired () {
+      return String(this.currentNbdTeardownState).toUpperCase() === 'QUARANTINED' ||
+        Number(this.currentProtectionRuntime.nbdquarantineddevicecount || 0) > 0
+    },
+    nbdRecoveryMessage () {
+      return this.currentProtectionRuntime.nbdteardownerrormessage ||
+        this.currentProtectionRuntime.nbdteardownerrorcode ||
+        this.$t('message.dr.nbd.recovery.required.detail')
+    },
+    hasNbdTeardownEvidence () {
+      return Boolean(this.currentProtectionRuntime.nbdteardownstate ||
+        this.latestCompletedSyncCycle.nbdteardownstate)
     }
   },
   methods: {
+    generationPair (generation, acknowledgedGeneration) {
+      const requested = generation === null || generation === undefined ? '-' : generation
+      const acknowledged = acknowledgedGeneration === null || acknowledgedGeneration === undefined
+        ? '-' : acknowledgedGeneration
+      return `${requested} / ${acknowledged}`
+    },
     formatBytes (value) {
       const numeric = Number(value)
       if (!Number.isFinite(numeric) || numeric < 0) return '-'
@@ -318,6 +457,12 @@ export default {
       const numeric = Number(value)
       if (!Number.isFinite(numeric) || numeric <= 0) return '-'
       return new Date(numeric).toLocaleString()
+    },
+    formatDuration (value) {
+      const numeric = Number(value)
+      if (!Number.isFinite(numeric) || numeric < 0) return '-'
+      if (numeric < 1000) return `${numeric} ms`
+      return `${(numeric / 1000).toFixed(numeric < 10000 ? 2 : 1)} s`
     }
   }
 }

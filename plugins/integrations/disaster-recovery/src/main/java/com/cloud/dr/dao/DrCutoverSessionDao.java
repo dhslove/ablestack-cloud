@@ -13,9 +13,13 @@
 // specific language governing permissions and limitations
 // under the License.
 package com.cloud.dr.dao;
+import java.util.List;
 import com.cloud.dr.DrCutoverSessionVO;
 import com.cloud.utils.db.GenericDao;
 public interface DrCutoverSessionDao extends GenericDao<DrCutoverSessionVO, Long> {
     DrCutoverSessionVO findActiveByRunId(long runId);
     DrCutoverSessionVO findLatestActiveByPlanId(long planId);
+    DrCutoverSessionVO findCurrentAuthorityByPlanId(long planId);
+    DrCutoverSessionVO findLatestByPlanId(long planId);
+    List<DrCutoverSessionVO> listHistoryByPlanId(long planId);
 }

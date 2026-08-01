@@ -30,6 +30,8 @@ import org.apache.cloudstack.api.response.ListResponse;
 import org.apache.cloudstack.api.response.dr.DrPlanResponse;
 import org.apache.cloudstack.api.response.dr.DrRunResponse;
 
+import org.apache.commons.lang3.StringUtils;
+
 import com.cloud.dr.DrRunService;
 import com.cloud.dr.DrRunVO;
 import com.cloud.dr.response.DrResponseGenerator;
@@ -48,10 +50,23 @@ public class ListDrRunsCmd extends BaseListCmd {
     @Parameter(name = "planid", type = CommandType.UUID, entityType = DrPlanResponse.class, required = true, description = "the DR plan ID")
     private Long planId;
 
+    @Parameter(name = "idempotencykey", type = CommandType.STRING,
+            description = "optional idempotency key used to recover an accepted DR run")
+    private String idempotencyKey;
+
     @Override
     public void execute() {
         List<DrRunResponse> responses = new ArrayList<DrRunResponse>();
-        for (DrRunVO run : drRunService.listRuns(planId)) {
+        List<DrRunVO> runs = new ArrayList<DrRunVO>();
+        if (StringUtils.isNotBlank(idempotencyKey)) {
+            DrRunVO run = drRunService.findRunByIdempotencyKey(planId, idempotencyKey);
+            if (run != null) {
+                runs.add(run);
+            }
+        } else {
+            runs.addAll(drRunService.listRuns(planId));
+        }
+        for (DrRunVO run : runs) {
             responses.add(drResponseGenerator.createRunResponse(run, drRunService.listRunSteps(run.getId()), false));
         }
         ListResponse<DrRunResponse> response = new ListResponse<DrRunResponse>();

@@ -94,6 +94,15 @@ public class FtctlDrStatusAnswer extends Answer {
     private Long latestCompletedThroughputBps;
     private Long latestCompletedBaselineGeneration;
     private String latestCompletedCycleToken;
+    private String latestCompletedNbdTeardownState;
+    private Long latestCompletedNbdTeardownStartedAtEpochMs;
+    private Long latestCompletedNbdTeardownCompletedAtEpochMs;
+    private Long latestCompletedNbdTeardownDurationMs;
+    private Integer latestCompletedNbdSourceDeviceCount;
+    private Integer latestCompletedNbdTargetDeviceCount;
+    private Integer latestCompletedNbdQuarantinedDeviceCount;
+    private String latestCompletedNbdTeardownErrorCode;
+    private String latestCompletedNbdTeardownErrorMessage;
     private Integer controlProtocolVersion;
     private Long controlGeneration;
     private Long controlAckGeneration;
@@ -103,6 +112,11 @@ public class FtctlDrStatusAnswer extends Answer {
     private String checkpointLeaseState;
     private String guestPreparationState;
     private String guestFamily;
+    private String testSessionState;
+    private String testArtifactsState;
+    private Integer testArtifactCount;
+    private String testCleanupState;
+    private Boolean cleanupRequired;
     private String guestPreparationManifestPath;
     private String manifestSchemaVersion;
     private String manifestSha256;
@@ -121,10 +135,18 @@ public class FtctlDrStatusAnswer extends Answer {
     private String schedulerRecoveryState;
     private String schedulerRecoveryTrigger;
     private String schedulerRecoveredAt;
+    private String nbdTeardownState;
+    private Integer nbdQuarantinedDeviceCount;
+    private String nbdTeardownErrorCode;
+    private String nbdTeardownErrorMessage;
     private String schedulerSessionUuid;
     private Long schedulerLeaseEpoch;
     private Long authoritySequence;
     private Long planCycleSequence;
+    private Long resumeBaselineCheckpointSequence;
+    private Long minimumCompletedCheckpointSequence;
+    private Boolean immediateCyclePending;
+    private String immediateCycleOwnerRun;
     private String schedulerHealth;
     private String replicationActivity;
     private String protectionState;
@@ -138,8 +160,39 @@ public class FtctlDrStatusAnswer extends Answer {
     private String reseedReason;
     private Integer consecutiveAutomaticReseedCount;
     private Integer cycleContractVersion;
+    private String cycleEvidenceState;
+    private String cycleEvidenceCode;
+    private String cycleEvidenceMessage;
+    private String replicationDirection;
+    private String providerPair;
+    private Long reverseBaselineGeneration;
+    private String reverseBaselineState;
+    private String reverseTrackerState;
+    private String reverseWriterState;
+    private Boolean reverseTargetWritten;
+    private Boolean reverseWriteVerified;
+    private String reverseGuestCompatibilityState;
     private FtctlDrCycleSnapshot currentCycle;
     private FtctlDrCycleSnapshot latestCompletedCycle;
+
+    public String getReplicationDirection() { return replicationDirection; }
+    public void setReplicationDirection(String value) { replicationDirection = value; }
+    public String getProviderPair() { return providerPair; }
+    public void setProviderPair(String value) { providerPair = value; }
+    public Long getReverseBaselineGeneration() { return reverseBaselineGeneration; }
+    public void setReverseBaselineGeneration(Long value) { reverseBaselineGeneration = value; }
+    public String getReverseBaselineState() { return reverseBaselineState; }
+    public void setReverseBaselineState(String value) { reverseBaselineState = value; }
+    public String getReverseTrackerState() { return reverseTrackerState; }
+    public void setReverseTrackerState(String value) { reverseTrackerState = value; }
+    public String getReverseWriterState() { return reverseWriterState; }
+    public void setReverseWriterState(String value) { reverseWriterState = value; }
+    public Boolean getReverseTargetWritten() { return reverseTargetWritten; }
+    public void setReverseTargetWritten(Boolean value) { reverseTargetWritten = value; }
+    public Boolean getReverseWriteVerified() { return reverseWriteVerified; }
+    public void setReverseWriteVerified(Boolean value) { reverseWriteVerified = value; }
+    public String getReverseGuestCompatibilityState() { return reverseGuestCompatibilityState; }
+    public void setReverseGuestCompatibilityState(String value) { reverseGuestCompatibilityState = value; }
 
     public FtctlDrStatusAnswer(Command command, boolean success, String details) {
         super(command, success, details);
@@ -657,8 +710,33 @@ public class FtctlDrStatusAnswer extends Answer {
         this.latestCompletedCycleToken = latestCompletedCycleToken;
     }
 
+    public String getLatestCompletedNbdTeardownState() { return latestCompletedNbdTeardownState; }
+    public void setLatestCompletedNbdTeardownState(String value) { latestCompletedNbdTeardownState = value; }
+    public Long getLatestCompletedNbdTeardownStartedAtEpochMs() { return latestCompletedNbdTeardownStartedAtEpochMs; }
+    public void setLatestCompletedNbdTeardownStartedAtEpochMs(Long value) { latestCompletedNbdTeardownStartedAtEpochMs = value; }
+    public Long getLatestCompletedNbdTeardownCompletedAtEpochMs() { return latestCompletedNbdTeardownCompletedAtEpochMs; }
+    public void setLatestCompletedNbdTeardownCompletedAtEpochMs(Long value) { latestCompletedNbdTeardownCompletedAtEpochMs = value; }
+    public Long getLatestCompletedNbdTeardownDurationMs() { return latestCompletedNbdTeardownDurationMs; }
+    public void setLatestCompletedNbdTeardownDurationMs(Long value) { latestCompletedNbdTeardownDurationMs = value; }
+    public Integer getLatestCompletedNbdSourceDeviceCount() { return latestCompletedNbdSourceDeviceCount; }
+    public void setLatestCompletedNbdSourceDeviceCount(Integer value) { latestCompletedNbdSourceDeviceCount = value; }
+    public Integer getLatestCompletedNbdTargetDeviceCount() { return latestCompletedNbdTargetDeviceCount; }
+    public void setLatestCompletedNbdTargetDeviceCount(Integer value) { latestCompletedNbdTargetDeviceCount = value; }
+    public Integer getLatestCompletedNbdQuarantinedDeviceCount() { return latestCompletedNbdQuarantinedDeviceCount; }
+    public void setLatestCompletedNbdQuarantinedDeviceCount(Integer value) { latestCompletedNbdQuarantinedDeviceCount = value; }
+    public String getLatestCompletedNbdTeardownErrorCode() { return latestCompletedNbdTeardownErrorCode; }
+    public void setLatestCompletedNbdTeardownErrorCode(String value) { latestCompletedNbdTeardownErrorCode = value; }
+    public String getLatestCompletedNbdTeardownErrorMessage() { return latestCompletedNbdTeardownErrorMessage; }
+    public void setLatestCompletedNbdTeardownErrorMessage(String value) { latestCompletedNbdTeardownErrorMessage = value; }
+
     public Integer getCycleContractVersion() { return cycleContractVersion; }
     public void setCycleContractVersion(Integer value) { cycleContractVersion = value; }
+    public String getCycleEvidenceState() { return cycleEvidenceState; }
+    public void setCycleEvidenceState(String value) { cycleEvidenceState = value; }
+    public String getCycleEvidenceCode() { return cycleEvidenceCode; }
+    public void setCycleEvidenceCode(String value) { cycleEvidenceCode = value; }
+    public String getCycleEvidenceMessage() { return cycleEvidenceMessage; }
+    public void setCycleEvidenceMessage(String value) { cycleEvidenceMessage = value; }
     public FtctlDrCycleSnapshot getCurrentCycle() { return currentCycle; }
     public void setCurrentCycle(FtctlDrCycleSnapshot value) { currentCycle = value; }
     public FtctlDrCycleSnapshot getLatestCompletedCycle() { return latestCompletedCycle; }
@@ -734,6 +812,46 @@ public class FtctlDrStatusAnswer extends Answer {
 
     public void setGuestFamily(String guestFamily) {
         this.guestFamily = guestFamily;
+    }
+
+    public String getTestSessionState() {
+        return testSessionState;
+    }
+
+    public void setTestSessionState(String testSessionState) {
+        this.testSessionState = testSessionState;
+    }
+
+    public String getTestArtifactsState() {
+        return testArtifactsState;
+    }
+
+    public void setTestArtifactsState(String testArtifactsState) {
+        this.testArtifactsState = testArtifactsState;
+    }
+
+    public Integer getTestArtifactCount() {
+        return testArtifactCount;
+    }
+
+    public void setTestArtifactCount(Integer testArtifactCount) {
+        this.testArtifactCount = testArtifactCount;
+    }
+
+    public String getTestCleanupState() {
+        return testCleanupState;
+    }
+
+    public void setTestCleanupState(String testCleanupState) {
+        this.testCleanupState = testCleanupState;
+    }
+
+    public Boolean getCleanupRequired() {
+        return cleanupRequired;
+    }
+
+    public void setCleanupRequired(Boolean cleanupRequired) {
+        this.cleanupRequired = cleanupRequired;
     }
 
     public String getGuestPreparationManifestPath() {
@@ -826,6 +944,14 @@ public class FtctlDrStatusAnswer extends Answer {
     public void setSchedulerRecoveryTrigger(String value) { schedulerRecoveryTrigger = value; }
     public String getSchedulerRecoveredAt() { return schedulerRecoveredAt; }
     public void setSchedulerRecoveredAt(String value) { schedulerRecoveredAt = value; }
+    public String getNbdTeardownState() { return nbdTeardownState; }
+    public void setNbdTeardownState(String value) { nbdTeardownState = value; }
+    public Integer getNbdQuarantinedDeviceCount() { return nbdQuarantinedDeviceCount; }
+    public void setNbdQuarantinedDeviceCount(Integer value) { nbdQuarantinedDeviceCount = value; }
+    public String getNbdTeardownErrorCode() { return nbdTeardownErrorCode; }
+    public void setNbdTeardownErrorCode(String value) { nbdTeardownErrorCode = value; }
+    public String getNbdTeardownErrorMessage() { return nbdTeardownErrorMessage; }
+    public void setNbdTeardownErrorMessage(String value) { nbdTeardownErrorMessage = value; }
 
     public String getSchedulerSessionUuid() { return schedulerSessionUuid; }
     public void setSchedulerSessionUuid(String value) { schedulerSessionUuid = value; }
@@ -835,6 +961,14 @@ public class FtctlDrStatusAnswer extends Answer {
     public void setAuthoritySequence(Long value) { authoritySequence = value; }
     public Long getPlanCycleSequence() { return planCycleSequence; }
     public void setPlanCycleSequence(Long value) { planCycleSequence = value; }
+    public Long getResumeBaselineCheckpointSequence() { return resumeBaselineCheckpointSequence; }
+    public void setResumeBaselineCheckpointSequence(Long value) { resumeBaselineCheckpointSequence = value; }
+    public Long getMinimumCompletedCheckpointSequence() { return minimumCompletedCheckpointSequence; }
+    public void setMinimumCompletedCheckpointSequence(Long value) { minimumCompletedCheckpointSequence = value; }
+    public Boolean getImmediateCyclePending() { return immediateCyclePending; }
+    public void setImmediateCyclePending(Boolean value) { immediateCyclePending = value; }
+    public String getImmediateCycleOwnerRun() { return immediateCycleOwnerRun; }
+    public void setImmediateCycleOwnerRun(String value) { immediateCycleOwnerRun = value; }
     public String getSchedulerHealth() { return schedulerHealth; }
     public void setSchedulerHealth(String value) { schedulerHealth = value; }
     public String getReplicationActivity() { return replicationActivity; }

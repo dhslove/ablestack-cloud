@@ -1,5 +1,11 @@
 # Cross-Hypervisor DR Cycle Snapshot Consistency Design
 
+> 2026-07-27 후속 계약: operation 전환 중 completed-cycle snapshot의 일부 필드가
+> 사라지는 경우를 포함한 authority 승계, evidence completeness, 제한 재시도
+> 규칙은
+> [577-cross-hypervisor-dr-failover-projection-evidence-and-compensation-design-20260727.md](577-cross-hypervisor-dr-failover-projection-evidence-and-compensation-design-20260727.md)
+> 를 따른다.
+
 Date: 2026-07-18  
 Status: Implemented, built, deployed, and ready for live retest  
 Parent design: `559-cross-hypervisor-dr-incremental-mode-decision-and-cycle-projection-design-20260717.md`

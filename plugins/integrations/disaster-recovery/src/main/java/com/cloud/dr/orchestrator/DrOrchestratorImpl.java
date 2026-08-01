@@ -17,6 +17,8 @@
 package com.cloud.dr.orchestrator;
 
 import java.util.Date;
+import java.util.Locale;
+import java.util.Map;
 
 import javax.inject.Inject;
 
@@ -27,6 +29,7 @@ import com.cloud.dr.DrEventVO;
 import com.cloud.dr.DrPlanVO;
 import com.cloud.dr.DrRunStepVO;
 import com.cloud.dr.DrRunVO;
+import com.cloud.dr.DrTestSessionState;
 import com.cloud.dr.DrTestSessionVO;
 import com.cloud.dr.dao.DrEventDao;
 import com.cloud.dr.dao.DrPlanDao;
@@ -39,6 +42,8 @@ import com.cloud.utils.db.Transaction;
 import com.cloud.utils.db.TransactionCallback;
 import com.cloud.utils.db.TransactionStatus;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
 
 public class DrOrchestratorImpl extends ManagerBase implements DrOrchestrator {
@@ -65,6 +70,7 @@ public class DrOrchestratorImpl extends ManagerBase implements DrOrchestrator {
     @Override
     public DrRunVO createRun(final long planId, final String runType, final String idempotencyKey, final Long requestedByUserId, final Long asyncJobId,
             final String requestJson) {
+        validateRequestContainsNoSecrets(runType, requestJson);
         return Transaction.execute(new TransactionCallback<DrRunVO>() {
             @Override
             public DrRunVO doInTransaction(TransactionStatus status) {
@@ -72,6 +78,7 @@ public class DrOrchestratorImpl extends ManagerBase implements DrOrchestrator {
                 if (StringUtils.isNotBlank(idempotencyKey)) {
                     DrRunVO existing = drRunDao.findByPlanIdAndIdempotencyKey(planId, idempotencyKey);
                     if (existing != null) {
+                        validateIdempotentRun(existing, runType, requestJson);
                         return existing;
                     }
                 }
@@ -109,6 +116,66 @@ public class DrOrchestratorImpl extends ManagerBase implements DrOrchestrator {
         });
     }
 
+    void validateIdempotentRun(DrRunVO existing, String requestedRunType, String requestedJson) {
+        String existingIntent = requestActionIntent(existing.getRequestJson());
+        String requestedIntent = requestActionIntent(requestedJson);
+        if (!StringUtils.equalsIgnoreCase(existing.getRunType(), requestedRunType)
+                || (StringUtils.isNotBlank(existingIntent) && StringUtils.isNotBlank(requestedIntent)
+                && !StringUtils.equalsIgnoreCase(existingIntent, requestedIntent))) {
+            throw new InvalidParameterValueException(DrConstants.ERROR_ACTION_IDEMPOTENCY_CONFLICT
+                    + ": idempotency key is already bound to another DR action");
+        }
+    }
+
+    private String requestActionIntent(String requestJson) {
+        if (StringUtils.isBlank(requestJson)) {
+            return null;
+        }
+        try {
+            JsonElement parsed = JsonParser.parseString(requestJson);
+            return parsed.isJsonObject() && parsed.getAsJsonObject().has("actionIntent")
+                    ? parsed.getAsJsonObject().get("actionIntent").getAsString() : null;
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    void validateRequestContainsNoSecrets(String runType, String requestJson) {
+        if (!StringUtils.equals(runType, DrConstants.RUN_TYPE_FAILBACK) || StringUtils.isBlank(requestJson)) {
+            return;
+        }
+        try {
+            rejectSecretKeys(JsonParser.parseString(requestJson));
+        } catch (InvalidParameterValueException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            throw new InvalidParameterValueException("Invalid DR action request JSON");
+        }
+    }
+
+    private void rejectSecretKeys(JsonElement element) {
+        if (element == null || element.isJsonNull() || element.isJsonPrimitive()) {
+            return;
+        }
+        if (element.isJsonArray()) {
+            JsonArray values = element.getAsJsonArray();
+            for (JsonElement value : values) {
+                rejectSecretKeys(value);
+            }
+            return;
+        }
+        for (Map.Entry<String, JsonElement> entry : element.getAsJsonObject().entrySet()) {
+            String normalized = entry.getKey().replace("_", "").replace("-", "")
+                    .toLowerCase(Locale.ROOT);
+            if (normalized.contains("password") || normalized.contains("secret")
+                    || normalized.contains("token") || normalized.endsWith("apikey")) {
+                throw new InvalidParameterValueException(DrConstants.ERROR_ACTION_SECRET_INPUT_FORBIDDEN
+                        + ": DR action requests must not contain credentials");
+            }
+            rejectSecretKeys(entry.getValue());
+        }
+    }
+
     private void createRequestedTestSession(DrPlanVO plan, DrRunVO run, String requestJson) {
         if (!StringUtils.equals(run.getRunType(), DrConstants.RUN_TYPE_TEST_FAILOVER)) {
             return;
@@ -118,8 +185,9 @@ public class DrOrchestratorImpl extends ManagerBase implements DrOrchestrator {
             return;
         }
         DrTestSessionVO active = drTestSessionDao.findActiveByPlanId(plan.getId());
-        if (active != null && !StringUtils.equalsAny(active.getState(), "CLEANED", "CLEANUP_FAILED")) {
-            throw new InvalidParameterValueException("DR_TEST_SESSION_ACTIVE: another Cloud-managed test session is active");
+        if (DrTestSessionState.blocksNewTest(active)) {
+            throw new InvalidParameterValueException(DrConstants.ERROR_TEST_SESSION_BLOCKING
+                    + ": another Cloud-managed test session requires completion or cleanup");
         }
         JsonObject request = parseRequest(requestJson);
         session = new DrTestSessionVO(plan.getId(), run.getId(), "REQUESTED");

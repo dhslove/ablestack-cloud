@@ -7,6 +7,12 @@
 - Related: 521, 522, 561, 562
 - FTCTL companion: `ablestack-qemu-exec-tools/docs/ftctl/435-ftctl-dr-test-artifact-canonical-locator-and-failure-contract-design-20260719.md`
 
+> Normative failed-operation correction (2026-07-28):
+> [579-cross-hypervisor-dr-action-intent-guest-identity-and-failed-test-terminal-convergence-design-20260728.md](579-cross-hypervisor-dr-action-intent-guest-identity-and-failed-test-terminal-convergence-design-20260728.md)
+> extends this successful-session convergence contract with canonical guest
+> identity, owned checkpoint lease release, worker terminal state, and
+> `FAILED` versus `cleanup_required` separation.
+
 ## 1. Decision
 
 Test Failover has two different successful outcomes that must coexist:
@@ -675,3 +681,14 @@ the test environment. Protection convergence then requires matching scheduler
 control ACK, released checkpoint lease, and a newer durable cycle projected by
 the long-lived producer. A terminal cleanup Run must not suppress or own this
 projection. Document 565 is normative for the code split and timeout states.
+
+## 19. Terminal Failure Closure And History - 2026-07-31
+
+`FAILED` is an execution result, while `cleanup_required` is the resource
+obligation. When terminal cleanup proof is complete and no Cloud test resource
+remains, the Test Session is soft-closed even though the Run and session state
+remain FAILED for audit. Historical response paths must include soft-removed
+sessions; current projection paths must use open sessions only.
+
+Document 586 supersedes any interpretation that every unremoved FAILED row is
+an active Test Session.

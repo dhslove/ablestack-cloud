@@ -49,7 +49,7 @@ public class DisableDrPlanCmd extends BaseAsyncCmd {
     public void execute() throws ServerApiException {
         try {
             DrPlanVO plan = drPlanService.disablePlan(id);
-            DrPlanResponse response = drResponseGenerator.createPlanResponse(plan, drPlanService.getActionEligibility(plan.getId()));
+            DrPlanResponse response = drResponseGenerator.createPlanResponse(plan, drPlanService.getActionEvaluation(plan.getId()));
             response.setResponseName(getCommandName());
             setResponseObject(response);
         } catch (RuntimeException e) {

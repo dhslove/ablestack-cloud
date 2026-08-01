@@ -40,6 +40,10 @@ public class DrCutoverDiskVO implements InternalIdentity {
     @Column(name = "writable_ref") private String writableRef;
     @Column(name = "rollback_ref") private String rollbackRef;
     private String state;
+    @Column(name = "target_volume_id") private Long targetVolumeId;
+    @Column(name = "target_volume_uuid") private String targetVolumeUuid;
+    @Column(name = "checkpoint_sequence") private Long checkpointSequence;
+    @Column(name = "manifest_sha256") private String manifestSha256;
     @Column(name = "details_json", length = 16777215) private String detailsJson;
     @Temporal(TemporalType.TIMESTAMP) private Date created = new Date();
     @Temporal(TemporalType.TIMESTAMP) private Date updated = new Date();
@@ -49,12 +53,25 @@ public class DrCutoverDiskVO implements InternalIdentity {
     @Override public long getId() { return id; }
     public long getSessionId() { return sessionId; }
     public int getDiskIndex() { return diskIndex; }
+    public String getProvider() { return provider; }
+    public String getCheckpointRef() { return checkpointRef; }
+    public String getWritableRef() { return writableRef; }
+    public String getRollbackRef() { return rollbackRef; }
+    public String getState() { return state; }
+    public Long getTargetVolumeId() { return targetVolumeId; }
+    public String getTargetVolumeUuid() { return targetVolumeUuid; }
+    public Long getCheckpointSequence() { return checkpointSequence; }
+    public String getManifestSha256() { return manifestSha256; }
     public Date getRemoved() { return removed; }
     public void setProvider(String value) { provider = value; }
     public void setCheckpointRef(String value) { checkpointRef = value; }
     public void setWritableRef(String value) { writableRef = value; }
     public void setRollbackRef(String value) { rollbackRef = value; }
     public void setState(String value) { state = value; }
+    public void setTargetVolumeId(Long value) { targetVolumeId = value; }
+    public void setTargetVolumeUuid(String value) { targetVolumeUuid = value; }
+    public void setCheckpointSequence(Long value) { checkpointSequence = value; }
+    public void setManifestSha256(String value) { manifestSha256 = value; }
     public void setDetailsJson(String value) { detailsJson = value; }
     public void markUpdated() { updated = new Date(); }
     public void setRemoved(Date value) { removed = value; }

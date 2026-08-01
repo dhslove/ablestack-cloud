@@ -23,6 +23,8 @@ import com.cloud.agent.api.FtctlCheckAnswer;
 import com.cloud.agent.api.FtctlCheckCommand;
 import com.cloud.agent.api.FtctlEventsAnswer;
 import com.cloud.agent.api.FtctlEventsCommand;
+import com.cloud.agent.api.FtctlDrActionAnswer;
+import com.cloud.agent.api.FtctlDrActionCommand;
 import com.cloud.agent.api.FtctlDrStatusAnswer;
 import com.cloud.agent.api.FtctlDrStatusCommand;
 import com.cloud.agent.api.FtctlHealthAnswer;
@@ -115,6 +117,72 @@ public class LibvirtFtctlCommandWrappersTest {
             Mockito.verify(script).add("--profile", "vm-uuid");
             Mockito.verify(script).add("--force");
             Mockito.verify(script).add("--json");
+        }
+    }
+
+    @Test
+    public void testDrFailbackCommitVerifiesDurableAcknowledgementAfterNonZeroExit() {
+        LibvirtFtctlDrActionCommandWrapper wrapper = new LibvirtFtctlDrActionCommandWrapper();
+        FtctlDrActionCommand command = new FtctlDrActionCommand(
+                FtctlDrActionCommand.Action.FAILBACK_COMMIT, "plan-a", "run-a");
+        command.setContextParam("failbackSessionId", "session-a");
+        command.setContextParam("checkpointSequence", "7");
+        command.setContextParam("authorityGeneration", "9");
+        command.setContextParam("targetPowerState", "POWERED_OFF");
+        command.setContextParam("sourcePowerState", "POWERED_ON");
+        command.setContextParam("bootValidationState", "POWER_STATE_VALIDATED");
+
+        AtomicInteger index = new AtomicInteger();
+        try (MockedConstruction<Script> scripts = Mockito.mockConstruction(Script.class, (mock, context) -> {
+            int current = index.getAndIncrement();
+            if (current == 0) {
+                Mockito.when(mock.execute(Mockito.any())).thenReturn(
+                        "{\"result\":\"unknown\",\"error_code\":\"DR_FAILBACK_COMMIT_ACK_TIMEOUT\"}");
+                Mockito.when(mock.getExitValue()).thenReturn(21);
+            } else {
+                Mockito.when(mock.execute(Mockito.any())).thenReturn(
+                        "{\"result\":\"ok\",\"state\":\"SYNCING\",\"step\":\"protection-resuming\","
+                                + "\"failback_commit_outcome\":\"ACKNOWLEDGED\"}");
+                Mockito.when(mock.getExitValue()).thenReturn(0);
+            }
+        })) {
+            FtctlDrActionAnswer answer = (FtctlDrActionAnswer) wrapper.execute(command, resource);
+
+            Assert.assertTrue(answer.getResult());
+            Assert.assertTrue(answer.getStatusJson().contains("\"failback_commit_outcome\":\"ACKNOWLEDGED\""));
+            Assert.assertEquals(2, scripts.constructed().size());
+            Mockito.verify(scripts.constructed().get(0)).add("dr-failback-commit");
+            Mockito.verify(scripts.constructed().get(1)).add("dr-failback-commit-status");
+            Mockito.verify(scripts.constructed().get(1)).add("--session-id");
+            Mockito.verify(scripts.constructed().get(1)).add("session-a");
+        }
+    }
+
+    @Test
+    public void testDrFailbackAbortPassesRollbackPhaseAndPowerEvidence() {
+        LibvirtFtctlDrActionCommandWrapper wrapper = new LibvirtFtctlDrActionCommandWrapper();
+        FtctlDrActionCommand command = new FtctlDrActionCommand(
+                FtctlDrActionCommand.Action.FAILBACK_ABORT, "plan-a", "run-a");
+        command.setContextParam("failbackSessionId", "session-a");
+        command.setContextParam("rollbackPhase", "prepare");
+        command.setContextParam("targetPowerState", "POWERED_OFF");
+        command.setContextParam("sourcePowerState", "POWERED_ON");
+
+        try (MockedConstruction<Script> scripts = Mockito.mockConstruction(Script.class, (mock, context) -> {
+            Mockito.when(mock.execute(Mockito.any())).thenReturn(
+                    "{\"result\":\"ok\",\"rollback_state\":\"FENCED\"}");
+            Mockito.when(mock.getExitValue()).thenReturn(0);
+        })) {
+            FtctlDrActionAnswer answer = (FtctlDrActionAnswer) wrapper.execute(command, resource);
+
+            Assert.assertTrue(answer.getResult());
+            Script script = scripts.constructed().get(0);
+            Mockito.verify(script).add("--phase");
+            Mockito.verify(script).add("prepare");
+            Mockito.verify(script).add("--target-power-state");
+            Mockito.verify(script).add("POWERED_OFF");
+            Mockito.verify(script).add("--source-power-state");
+            Mockito.verify(script).add("POWERED_ON");
         }
     }
 
@@ -390,6 +458,13 @@ public class LibvirtFtctlCommandWrappersTest {
                 + "\"latest_completed_checkpoint_sequence\":6,\"latest_completed_checkpoint_ref\":\"ftctl:plan-a:sync-run:6\","
                 + "\"latest_completed_producer_run_uuid\":\"sync-run\","
                 + "\"latest_completed_checkpoint_state\":\"READY\",\"latest_completed_target_ready_rpo_seconds\":18,"
+                + "\"latest_completed_nbd_teardown_state\":\"DRAINED\","
+                + "\"latest_completed_nbd_teardown_started_at_ms\":1782867901000,"
+                + "\"latest_completed_nbd_teardown_completed_at_ms\":1782867902000,"
+                + "\"latest_completed_nbd_teardown_duration_ms\":1000,"
+                + "\"latest_completed_nbd_source_device_count\":1,"
+                + "\"latest_completed_nbd_target_device_count\":1,"
+                + "\"latest_completed_nbd_quarantined_device_count\":0,"
                 + "\"control_protocol_version\":2,\"control_generation\":9,\"control_ack_generation\":9,"
                 + "\"control_state\":\"RUNNING\",\"cycle_state\":\"IDLE\",\"transition_state\":\"COMPLETED\","
                 + "\"checkpoint_lease_state\":\"RELEASED\","
@@ -429,6 +504,11 @@ public class LibvirtFtctlCommandWrappersTest {
             Assert.assertEquals("sync-run", statusAnswer.getLatestCompletedProducerRunUuid());
             Assert.assertEquals("READY", statusAnswer.getLatestCompletedCheckpointState());
             Assert.assertEquals(Integer.valueOf(18), statusAnswer.getLatestCompletedTargetReadyRpoSeconds());
+            Assert.assertEquals("DRAINED", statusAnswer.getLatestCompletedNbdTeardownState());
+            Assert.assertEquals(Long.valueOf(1000), statusAnswer.getLatestCompletedNbdTeardownDurationMs());
+            Assert.assertEquals(Integer.valueOf(1), statusAnswer.getLatestCompletedNbdSourceDeviceCount());
+            Assert.assertEquals(Integer.valueOf(1), statusAnswer.getLatestCompletedNbdTargetDeviceCount());
+            Assert.assertEquals(Integer.valueOf(0), statusAnswer.getLatestCompletedNbdQuarantinedDeviceCount());
             Assert.assertEquals(Integer.valueOf(2), statusAnswer.getControlProtocolVersion());
             Assert.assertEquals(Long.valueOf(9), statusAnswer.getControlGeneration());
             Assert.assertEquals(Long.valueOf(9), statusAnswer.getControlAckGeneration());
@@ -459,7 +539,10 @@ public class LibvirtFtctlCommandWrappersTest {
         FtctlDrStatusCommand command = new FtctlDrStatusCommand("plan-a", null,
                 FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY);
         String output = "{\"command\":\"dr-status\",\"result\":\"ok\",\"plan_uuid\":\"plan-a\"," +
-                "\"status_scope\":\"PLAN_AUTHORITY\",\"state\":\"READY\",\"step\":\"checkpoint-ready\",\"progress\":100}";
+                "\"status_scope\":\"PLAN_AUTHORITY\",\"state\":\"FAILED_OVER\",\"active_side\":\"TARGET\"," +
+                "\"step\":\"cloud-promotion-committed\",\"progress\":100,\"scheduler_state\":\"STOPPED\"," +
+                "\"scheduler_desired_state\":\"STOPPED\",\"scheduler_health\":\"SUPPRESSED\"," +
+                "\"replication_activity\":\"STOPPED\",\"engine_ack_state\":\"ACKNOWLEDGED\"}";
 
         try (MockedConstruction<Script> scripts = Mockito.mockConstruction(Script.class, (mock, context) -> {
             Mockito.when(mock.execute(Mockito.any())).thenReturn(output);
@@ -469,6 +552,10 @@ public class LibvirtFtctlCommandWrappersTest {
 
             Assert.assertTrue(answer.getResult());
             Assert.assertEquals("PLAN_AUTHORITY", answer.getStatusScope());
+            Assert.assertEquals("FAILED_OVER", answer.getState());
+            Assert.assertEquals("STOPPED", answer.getSchedulerDesiredState());
+            Assert.assertEquals("SUPPRESSED", answer.getSchedulerHealth());
+            Assert.assertEquals("STOPPED", answer.getReplicationActivity());
             Mockito.verify(scripts.constructed().get(0), Mockito.never()).add("--run");
         }
     }
@@ -491,7 +578,34 @@ public class LibvirtFtctlCommandWrappersTest {
         })) {
             FtctlDrStatusAnswer answer = (FtctlDrStatusAnswer) wrapper.execute(command, resource);
             Assert.assertFalse(answer.getResult());
-            Assert.assertEquals("DR_STATUS_CYCLE_SNAPSHOT_INCOHERENT", answer.getErrorCode());
+            Assert.assertEquals("DR_STATUS_CYCLE_EVIDENCE_CONFLICT", answer.getErrorCode());
+            Assert.assertEquals("CONFLICT", answer.getCycleEvidenceState());
+            Assert.assertFalse(Boolean.TRUE.equals(answer.getRetryable()));
+        }
+    }
+
+    @Test
+    public void testDrStatusWrapperRejectsIncrementalCycleWithoutNbdDrainEvidence() {
+        LibvirtFtctlDrStatusCommandWrapper wrapper = new LibvirtFtctlDrStatusCommandWrapper();
+        FtctlDrStatusCommand command = new FtctlDrStatusCommand("plan-a", "run-a");
+        String output = "{\"command\":\"dr-status\",\"result\":\"ok\",\"plan_uuid\":\"plan-a\","
+                + "\"run_uuid\":\"run-a\",\"state\":\"READY\","
+                + "\"latest_completed_checkpoint_sequence\":7,\"latest_completed_checkpoint_state\":\"READY\","
+                + "\"latest_completed_cycle_token\":\"plan-a:7\","
+                + "\"latest_completed_baseline_generation\":7,"
+                + "\"latest_completed_changed_bytes\":4096,\"latest_completed_target_written_bytes\":4096,"
+                + "\"latest_completed_effective_mode\":\"CBT_INCREMENTAL\","
+                + "\"latest_completed_incremental_verified\":true}";
+
+        try (MockedConstruction<Script> scripts = Mockito.mockConstruction(Script.class, (mock, context) -> {
+            Mockito.when(mock.execute(Mockito.any())).thenReturn(output);
+            Mockito.when(mock.getExitValue()).thenReturn(0);
+        })) {
+            FtctlDrStatusAnswer answer = (FtctlDrStatusAnswer) wrapper.execute(command, resource);
+            Assert.assertFalse(answer.getResult());
+            Assert.assertEquals("DR_STATUS_CYCLE_EVIDENCE_INCOMPLETE", answer.getErrorCode());
+            Assert.assertEquals("INCOMPLETE", answer.getCycleEvidenceState());
+            Assert.assertTrue(Boolean.TRUE.equals(answer.getRetryable()));
         }
     }
 

@@ -699,3 +699,35 @@ verified incremental or valid no-change checkpoint.
 
 The complete corrective contract is normative in
 `559-cross-hypervisor-dr-incremental-mode-decision-and-cycle-projection-design-20260717.md`.
+
+## 23. 2026-07-23 NBD Teardown Commit-Gate Addendum
+
+Transferred-byte evidence and target flush are necessary but not sufficient for
+a completed VMware-to-ABLESTACK incremental cycle. Live validation found that
+immediate `qemu-nbd` and `nbd-client` disconnect can race with asynchronous
+udev/partition reads and produce sector-zero kernel I/O errors.
+
+The normative correction is:
+
+```text
+569-cross-hypervisor-dr-nbd-deterministic-drain-and-cycle-observability-design-20260723.md
+```
+
+`incrementalVerified=true`, a new committed changeId, and a new baseline
+generation now additionally require `nbdTeardownState=DRAINED`. If target data
+was flushed but teardown failed, the cycle is
+`NBD_TEARDOWN_FAILED/TARGET_DURABLE_CLEANUP_PENDING`, the previous committed
+baseline remains authoritative, and only cleanup-only recovery is allowed.
+
+## 2026-08-01 Directional Tracking Addendum
+
+VMware CBT is authoritative only while VMware is the replication source. It
+cannot describe writes made after KVM becomes active. Reverse protection uses
+a KVM-native immutable baseline and changed-extent tracker, then writes those
+extents into VMware staging disks through VDDK.
+
+Metrics must expose `tracker_type`, `source_generation`, `from_checkpoint`,
+`to_checkpoint`, `changed_bytes`, `source_read_bytes`,
+`target_written_bytes`, and `direction`. A reverse cycle that only advances a
+VMware CBT change ID is invalid. See
+[588-cross-hypervisor-dr-bidirectional-incremental-replication-and-failback-data-contract-design-20260801.md](588-cross-hypervisor-dr-bidirectional-incremental-replication-and-failback-data-contract-design-20260801.md).

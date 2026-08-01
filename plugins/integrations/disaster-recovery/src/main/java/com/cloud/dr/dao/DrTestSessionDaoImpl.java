@@ -11,6 +11,7 @@ import com.cloud.utils.db.SearchCriteria;
 public class DrTestSessionDaoImpl extends GenericDaoBase<DrTestSessionVO, Long> implements DrTestSessionDao {
     private final SearchBuilder<DrTestSessionVO> activeByRun;
     private final SearchBuilder<DrTestSessionVO> activeByPlan;
+    private final SearchBuilder<DrTestSessionVO> byRun;
 
     public DrTestSessionDaoImpl() {
         activeByRun = createSearchBuilder();
@@ -21,6 +22,9 @@ public class DrTestSessionDaoImpl extends GenericDaoBase<DrTestSessionVO, Long> 
         activeByPlan.and("planId", activeByPlan.entity().getPlanId(), SearchCriteria.Op.EQ);
         activeByPlan.and("removed", activeByPlan.entity().getRemoved(), SearchCriteria.Op.NULL);
         activeByPlan.done();
+        byRun = createSearchBuilder();
+        byRun.and("runId", byRun.entity().getRunId(), SearchCriteria.Op.EQ);
+        byRun.done();
     }
 
     @Override public DrTestSessionVO findActiveByRunId(long runId) {
@@ -33,5 +37,11 @@ public class DrTestSessionDaoImpl extends GenericDaoBase<DrTestSessionVO, Long> 
         SearchCriteria<DrTestSessionVO> sc = activeByPlan.create();
         sc.setParameters("planId", planId);
         return findOneBy(sc);
+    }
+
+    @Override public DrTestSessionVO findByRunIdIncludingRemoved(long runId) {
+        SearchCriteria<DrTestSessionVO> sc = byRun.create();
+        sc.setParameters("runId", runId);
+        return findOneIncludingRemovedBy(sc);
     }
 }

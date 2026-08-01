@@ -44,6 +44,28 @@ public final class DrTestSessionState {
                 CLOUD_VM_CREATING, CLOUD_VM_STARTING);
     }
 
+    public static boolean blocksNewTest(DrTestSessionVO session) {
+        if (session == null || session.getRemoved() != null) {
+            return false;
+        }
+        if (session.isCleanupRequired() || StringUtils.equals(session.getState(), CLEANUP_FAILED)) {
+            return true;
+        }
+        if (StringUtils.equals(session.getState(), FAILED)) {
+            return session.getTargetVmId() != null;
+        }
+        return !StringUtils.equals(session.getState(), CLEANED);
+    }
+
+    public static boolean canSoftCloseFailedSession(DrTestSessionVO session, boolean terminalCleanupProof) {
+        return session != null
+                && session.getRemoved() == null
+                && StringUtils.equals(session.getState(), FAILED)
+                && !session.isCleanupRequired()
+                && session.getTargetVmId() == null
+                && terminalCleanupProof;
+    }
+
     private static boolean isBeforeCloudMaterialization(String state) {
         return StringUtils.equalsAny(state, null, REQUESTED, PREPARING, ARTIFACTS_READY);
     }

@@ -12,6 +12,7 @@ package com.cloud.dr.dao;
 
 import java.util.List;
 
+import com.cloud.dr.DrConstants;
 import com.cloud.dr.DrCutoverSessionVO;
 import com.cloud.utils.db.DB;
 import com.cloud.utils.db.GenericDaoBase;
@@ -38,15 +39,42 @@ public class DrCutoverSessionDaoImpl extends GenericDaoBase<DrCutoverSessionVO, 
 
     @Override
     public DrCutoverSessionVO findLatestActiveByPlanId(long planId) {
+        return findCurrentAuthorityByPlanId(planId);
+    }
+
+    @Override
+    public DrCutoverSessionVO findCurrentAuthorityByPlanId(long planId) {
         SearchCriteria<DrCutoverSessionVO> sc = activeByPlan.create();
         sc.setParameters("planId", planId);
         List<DrCutoverSessionVO> sessions = listBy(sc);
         DrCutoverSessionVO latest = null;
         for (DrCutoverSessionVO session : sessions) {
-            if (latest == null || session.getId() > latest.getId()) {
+            if (session.getAuthorityEndedAt() == null && !isTerminalAuthorityState(session.getState())
+                    && (latest == null || session.getId() > latest.getId())) {
                 latest = session;
             }
         }
         return latest;
+    }
+
+    @Override
+    public DrCutoverSessionVO findLatestByPlanId(long planId) {
+        List<DrCutoverSessionVO> sessions = listHistoryByPlanId(planId);
+        return sessions.isEmpty() ? null : sessions.get(0);
+    }
+
+    @Override
+    public List<DrCutoverSessionVO> listHistoryByPlanId(long planId) {
+        SearchCriteria<DrCutoverSessionVO> sc = activeByPlan.create();
+        sc.setParameters("planId", planId);
+        List<DrCutoverSessionVO> sessions = listBy(sc);
+        sessions.sort((left, right) -> Long.compare(right.getId(), left.getId()));
+        return sessions;
+    }
+
+    private boolean isTerminalAuthorityState(String state) {
+        return DrConstants.CUTOVER_STATE_FAILED_BACK.equalsIgnoreCase(state)
+                || DrConstants.CUTOVER_STATE_SUPERSEDED.equalsIgnoreCase(state)
+                || "ABORTED".equalsIgnoreCase(state);
     }
 }

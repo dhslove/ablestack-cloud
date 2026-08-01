@@ -16,6 +16,7 @@
 // under the License.
 package com.cloud.hypervisor.kvm.resource.wrapper;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.util.Locale;
@@ -43,6 +44,21 @@ public class LibvirtFtctlDrActionCommandWrapper extends CommandWrapper<FtctlDrAc
     private static final int DEFAULT_TIMEOUT_SECONDS = 45;
     private static final Pattern SHA1_FINGERPRINT_PATTERN = Pattern.compile("(?i)(?:SHA1\\s+)?Fingerprint\\s*=\\s*([0-9A-F:]+)");
 
+    private static final class FtctlDrAllLinesParser extends OutputInterpreter.AllLinesParser {
+        @Override
+        public String processError(BufferedReader reader) throws IOException {
+            String lines = getLines();
+            if (StringUtils.isNotBlank(lines)) {
+                return lines;
+            }
+            try {
+                return super.processError(reader);
+            } catch (IOException e) {
+                return e.getMessage();
+            }
+        }
+    }
+
     @Override
     public Answer execute(FtctlDrActionCommand command, LibvirtComputingResource serverResource) {
         ActionDescriptor action = resolveAction(command);
@@ -59,19 +75,93 @@ public class LibvirtFtctlDrActionCommandWrapper extends CommandWrapper<FtctlDrAc
         if (StringUtils.isBlank(command.getRunUuid())) {
             return new FtctlDrActionAnswer(command, false, "Missing DR run UUID");
         }
+        String actionContractError = validateActionContract(command);
+        if (StringUtils.isNotBlank(actionContractError)) {
+            return new FtctlDrActionAnswer(command, false, actionContractError, command.getAction(),
+                    command.getPlanUuid(), command.getRunUuid(), "error", false, "REJECTED",
+                    "action-contract-validation", 0, null, null, "DR_ACTION_INTENT_MISMATCH",
+                    20, actionContractError, null);
+        }
 
         File profileFile = null;
         File artifactSpecFile = null;
+        File authoritySpecFile = null;
         try {
             profileFile = LibvirtFtctlDrCommandHelper.writeProfileJson(command.getPlanUuid(), enrichProfileJson(command.getProfileJson(), serverResource));
             validateArtifactSpec(command);
+            validateAuthoritySpec(command);
             artifactSpecFile = LibvirtFtctlDrCommandHelper.writeArtifactSpecJson(command.getRunUuid(), command.getArtifactSpecJson());
-            return executeFtctl(command, action, profileFile, artifactSpecFile);
+            authoritySpecFile = LibvirtFtctlDrCommandHelper.writeAuthoritySpecJson(command.getRunUuid(), command.getAuthoritySpecJson());
+            return executeFtctl(command, action, profileFile, artifactSpecFile, authoritySpecFile);
         } catch (IOException e) {
             return new FtctlDrActionAnswer(command, false, "Unable to prepare FTCTL_DR command contract: " + e.getMessage());
         } finally {
             LibvirtFtctlDrCommandHelper.deleteQuietly(profileFile);
             LibvirtFtctlDrCommandHelper.deleteQuietly(artifactSpecFile);
+            LibvirtFtctlDrCommandHelper.deleteQuietly(authoritySpecFile);
+        }
+    }
+
+    private String validateActionContract(FtctlDrActionCommand command) {
+        if (StringUtils.isNotBlank(command.getActionIntent())
+                && !StringUtils.equalsIgnoreCase(command.getActionIntent(), command.getRunType())) {
+            return "DR_ACTION_INTENT_MISMATCH: action intent does not match run type";
+        }
+        String expectedRunType = expectedRunType(command.getAction());
+        if (StringUtils.isNotBlank(expectedRunType)
+                && !StringUtils.equalsIgnoreCase(expectedRunType, command.getRunType())) {
+            return "DR_ACTION_INTENT_MISMATCH: FTCTL action does not match run type";
+        }
+        return null;
+    }
+
+    private String expectedRunType(FtctlDrActionCommand.Action action) {
+        if (action == null) {
+            return null;
+        }
+        switch (action) {
+            case SYNC:
+                return "SYNC";
+            case RECOVER_SYNC:
+                return "RECOVER_SYNC";
+            case PAUSE_SYNC:
+                return "PAUSE_SYNC";
+            case RESUME_SYNC:
+                return "RESUME_SYNC";
+            case TEST_PREPARE:
+            case TEST_FAILOVER:
+                return "TEST_FAILOVER";
+            case TEST_CLEANUP:
+            case TEST_ARTIFACT_CLEANUP:
+                return "TEST_CLEANUP";
+            case FAILOVER:
+                return "FAILOVER";
+            case FAILBACK:
+                return "FAILBACK";
+            case REPROTECT:
+                return "REPROTECT";
+            case RELEASE:
+                return "RELEASE";
+            default:
+                return null;
+        }
+    }
+
+    private void validateAuthoritySpec(FtctlDrActionCommand command) throws IOException {
+        if (command.getAction() != FtctlDrActionCommand.Action.REPROTECT) {
+            return;
+        }
+        if (!StringUtils.equals("2026-07-23", command.getAuthorityContractVersion())) {
+            throw new IOException("DR_REPROTECT_AUTHORITY_INVALID: authority contract version 2026-07-23 is required");
+        }
+        JsonObject spec = LibvirtFtctlWrapperHelper.parseJsonObject(command.getAuthoritySpecJson());
+        if (spec == null
+                || !StringUtils.equals("TARGET", LibvirtFtctlDrCommandHelper.getString(spec, "expectedActiveSide"))
+                || LibvirtFtctlDrCommandHelper.getLong(spec, "authorityGeneration") == null
+                || LibvirtFtctlDrCommandHelper.getLong(spec, "checkpointSequence") == null
+                || LibvirtFtctlDrCommandHelper.getLong(spec, "targetVmId") == null
+                || StringUtils.isBlank(LibvirtFtctlDrCommandHelper.getString(spec, "cutoverSessionId"))) {
+            throw new IOException("DR_REPROTECT_AUTHORITY_INVALID: committed target authority fields are required");
         }
     }
 
@@ -255,13 +345,15 @@ public class LibvirtFtctlDrActionCommandWrapper extends CommandWrapper<FtctlDrAc
         return new ActionDescriptor(cliCommand);
     }
 
-    private FtctlDrActionAnswer executeFtctl(FtctlDrActionCommand command, ActionDescriptor action, File profileFile, File artifactSpecFile) {
+    private FtctlDrActionAnswer executeFtctl(FtctlDrActionCommand command, ActionDescriptor action, File profileFile,
+            File artifactSpecFile, File authoritySpecFile) {
         final long timeout = (long) (command.getWait() > 0 ? command.getWait() : DEFAULT_TIMEOUT_SECONDS) * 1000;
         Script script = new Script("ablestack_vm_ftctl", timeout, logger);
         script.add(action.getCliCommand());
         LibvirtFtctlDrCommandHelper.addPlanRunArgs(script, command.getPlanUuid(), command.getRunUuid());
         LibvirtFtctlDrCommandHelper.addProfileJsonArg(script, profileFile);
         LibvirtFtctlDrCommandHelper.addArtifactSpecJsonArg(script, artifactSpecFile);
+        LibvirtFtctlDrCommandHelper.addAuthoritySpecJsonArg(script, authoritySpecFile);
         if (StringUtils.isNotBlank(command.getRole())) {
             script.add("--role");
             script.add(command.getRole());
@@ -288,21 +380,35 @@ public class LibvirtFtctlDrActionCommandWrapper extends CommandWrapper<FtctlDrAc
         addContextArg(script, command, "targetVolumeMapJson", "--target-volume-map-json");
         addContextArg(script, command, "targetReadyRpoSeconds", "--target-ready-rpo-seconds");
         addContextArg(script, command, "cutoverSessionId", "--session-id");
+        addContextArg(script, command, "failbackSessionId", "--session-id");
         addContextArg(script, command, "checkpointSequence", "--checkpoint-sequence");
         addContextArg(script, command, "authorityGeneration", "--authority-generation");
+        addLongArg(script, command.getResumeBaselineCheckpointSequence(), "--resume-baseline-checkpoint-sequence");
+        addLongArg(script, command.getMinimumCompletedCheckpointSequence(), "--minimum-completed-checkpoint-sequence");
+        if (command.isForceImmediateCycle()) {
+            script.add("--force-immediate-cycle");
+        }
         addContextArg(script, command, "targetPowerState", "--target-power-state");
+        addContextArg(script, command, "sourcePowerState", "--source-power-state");
         addContextArg(script, command, "bootValidationState", "--boot-validation-state");
+        addContextArg(script, command, "rollbackPhase", "--phase");
         if (!command.isWaitForCompletion()) {
             script.add("--wait=false");
         }
         script.add("--json");
 
-        OutputInterpreter.AllLinesParser parser = new OutputInterpreter.AllLinesParser();
+        OutputInterpreter.AllLinesParser parser = new FtctlDrAllLinesParser();
         String result = script.execute(parser);
         String output = LibvirtFtctlWrapperHelper.getOutput(result, parser);
         JsonObject payload = LibvirtFtctlWrapperHelper.parseJsonObject(output);
         int exitValue = script.getExitValue();
         boolean success = exitValue == 0;
+        if (!success && command.getAction() == FtctlDrActionCommand.Action.FAILBACK_COMMIT) {
+            FtctlDrActionAnswer verified = probeFailbackCommitStatus(command);
+            if (verified != null) {
+                return verified;
+            }
+        }
         if (!success && !command.isWaitForCompletion() && shouldProbeStatus(result, output)) {
             FtctlDrActionAnswer accepted = probeAcceptedStatus(command);
             if (accepted != null) {
@@ -336,12 +442,51 @@ public class LibvirtFtctlDrActionCommandWrapper extends CommandWrapper<FtctlDrAc
         }
     }
 
+    private void addLongArg(Script script, Long value, String option) {
+        if (value != null) {
+            script.add(option);
+            script.add(String.valueOf(value));
+        }
+    }
+
     private boolean shouldProbeStatus(String result, String output) {
         return StringUtils.isBlank(output)
                 || StringUtils.containsIgnoreCase(result, "timed out")
                 || StringUtils.containsIgnoreCase(output, "timed out")
                 || StringUtils.containsIgnoreCase(result, "timeout")
-                || StringUtils.containsIgnoreCase(output, "timeout");
+                || StringUtils.containsIgnoreCase(output, "timeout")
+                || StringUtils.containsIgnoreCase(result, "stream closed")
+                || StringUtils.containsIgnoreCase(output, "stream closed");
+    }
+
+    private FtctlDrActionAnswer probeFailbackCommitStatus(FtctlDrActionCommand command) {
+        Script script = new Script("ablestack_vm_ftctl", 10000, logger);
+        script.add(FtctlDrActionCommand.Action.FAILBACK_COMMIT_STATUS.getCliCommand());
+        LibvirtFtctlDrCommandHelper.addPlanRunArgs(script, command.getPlanUuid(), command.getRunUuid());
+        addContextArg(script, command, "failbackSessionId", "--session-id");
+        script.add("--json");
+
+        OutputInterpreter.AllLinesParser parser = new FtctlDrAllLinesParser();
+        String result = script.execute(parser);
+        String output = LibvirtFtctlWrapperHelper.getOutput(result, parser);
+        JsonObject payload = LibvirtFtctlWrapperHelper.parseSingleJsonObject(output);
+        if (script.getExitValue() != 0 || payload == null) {
+            return null;
+        }
+        String outcome = LibvirtFtctlDrCommandHelper.getString(payload, "failback_commit_outcome");
+        boolean acknowledged = StringUtils.equalsIgnoreCase(outcome, "ACKNOWLEDGED");
+        return new FtctlDrActionAnswer(command, acknowledged,
+                StringUtils.defaultIfBlank(output, "FTCTL_DR failback commit status"),
+                command.getAction(), command.getPlanUuid(), command.getRunUuid(),
+                LibvirtFtctlDrCommandHelper.getString(payload, "result"),
+                acknowledged,
+                LibvirtFtctlDrCommandHelper.getString(payload, "state"),
+                LibvirtFtctlDrCommandHelper.getString(payload, "step"),
+                LibvirtFtctlDrCommandHelper.getInteger(payload, "progress"),
+                command.getRunUuid(),
+                LibvirtFtctlDrCommandHelper.getLong(payload, "events_offset"),
+                LibvirtFtctlDrCommandHelper.getString(payload, "error_code"),
+                script.getExitValue(), output, payload.toString());
     }
 
     private FtctlDrActionAnswer probeAcceptedStatus(FtctlDrActionCommand command) {
@@ -352,7 +497,7 @@ public class LibvirtFtctlDrActionCommandWrapper extends CommandWrapper<FtctlDrAc
         script.add("0");
         script.add("--json");
 
-        OutputInterpreter.AllLinesParser parser = new OutputInterpreter.AllLinesParser();
+        OutputInterpreter.AllLinesParser parser = new FtctlDrAllLinesParser();
         String result = script.execute(parser);
         String output = LibvirtFtctlWrapperHelper.getOutput(result, parser);
         JsonObject payload = LibvirtFtctlWrapperHelper.parseSingleJsonObject(output);

@@ -236,7 +236,7 @@ public class CreateDrPlanCmd extends BaseAsyncCmd {
                         CallContext.current().getCallingUserId(), null, buildInitialSyncRequestJson());
                 created = drPlanService.getPlan(created.getId());
             }
-            DrPlanResponse response = drResponseGenerator.createPlanResponse(created, drPlanService.getActionEligibility(created.getId()));
+            DrPlanResponse response = drResponseGenerator.createPlanResponse(created, drPlanService.getActionEvaluation(created.getId()));
             response.setResponseName(getCommandName());
             setResponseObject(response);
         } catch (ServerApiException e) {

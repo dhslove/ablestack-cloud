@@ -820,3 +820,25 @@ Site inventory 조회와 DR Site 대화상자 UX의 상세 설계는 [530-cross-
 7. credential clear/delete는 `credential.markRemoved(); update()`를 사용하지 않는다. `state=CLEARED` 저장 후 `drSiteCredentialDao.remove(id)`를 호출하고 `findByIdIncludingRemoved(id).removed != null`을 검증한다.
 8. `MOLD_API` credential 검증은 CloudStack API signed request를 사용하며, 서명 알고리즘은 backend 고정값 `HmacSHA256`이다. UI/API는 서명 알고리즘을 입력받지 않고, history에는 secret 없이 `authAlgorithm=HmacSHA256` 같은 non-secret 진단값만 기록한다.
 9. `discoverDrSiteInventory`가 생성 전 Mold inventory를 조회할 때 받는 `moldsecretkey`는 write-only transient input이다. 이 값은 `dr_site_credential`에 저장하지 않고, response/log/history에도 남기지 않는다.
+
+## 18. 2026-07-25 Failback credential 적용
+
+Site credential 관리 원칙은 Site 생성/수정과 health check뿐 아니라
+Failback action에도 동일하게 적용한다.
+
+1. UI는 Failback 시 Mold/vCenter credential을 다시 입력받지 않는다.
+2. Backend는 `plan.target_site_id`를 active Site,
+   `plan.source_site_id`를 normal destination Site로 해석한다.
+3. 양쪽 credential은 `DrSiteCredentialService.resolveCredential()`로
+   실행 시점에 resolve한다.
+4. action request와 `dr_run.request_json`에는 secret/API key/password를
+   저장하지 않는다.
+5. Agent/ftctl은 Cloud가 만든 runtime credential만 root-only
+   `credentials.json`으로 사용하고 durable profile/log/status는 redaction한다.
+6. credential이 없거나 stale/disconnected면 DR Site 수정/검증을 요구한다.
+7. 신규 Site는 먼저 등록하고 health/credential/inventory/mapping을 검증한
+   후 별도 replica-controller recovery workflow에서 사용한다.
+
+상세 코드 수준 계약과 기존 Run 보정 SQL은
+`571-cross-hypervisor-dr-site-derived-failback-contract-design-20260725.md`를
+따른다.

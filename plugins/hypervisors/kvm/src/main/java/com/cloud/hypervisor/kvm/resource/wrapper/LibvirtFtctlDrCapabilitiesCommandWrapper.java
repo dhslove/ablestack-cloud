@@ -193,6 +193,9 @@ public class LibvirtFtctlDrCapabilitiesCommandWrapper extends CommandWrapper<Ftc
         actions.put("REPROTECT", "dr-reprotect");
         actions.put("TARGET_MATERIALIZED", "dr-target-materialized");
         actions.put("CUTOVER_COMMIT", "dr-cutover-commit");
+        actions.put("FAILOVER_ABORT", "dr-failover-abort");
+        actions.put("FAILBACK_COMMIT", "dr-failback-commit");
+        actions.put("FAILBACK_ABORT", "dr-failback-abort");
         actions.put("RELEASE", "dr-release");
         return Collections.unmodifiableMap(actions);
     }

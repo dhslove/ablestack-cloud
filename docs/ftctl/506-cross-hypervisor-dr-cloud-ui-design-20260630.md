@@ -1,5 +1,9 @@
 # Cross Hypervisor DR Cloud UI Design
 
+> 2026-07-31 latest correction: FTCTL_DR UI hides the standalone
+> `원본 사이트 격리 해제 확인` action. Source isolation is read-only preflight
+> evidence inside Failback/Reprotect. See document 587.
+
 작성일: 2026-06-30
 
 대상 브랜치: `feature/ftctl-cloud-integration`
@@ -3046,3 +3050,125 @@ names are diagnostic engine fields and are never presented as the test VM.
 
 Normative UI fields and action gating:
 `561-cross-hypervisor-dr-cloud-managed-test-failover-lifecycle-design-20260719.md`.
+
+## 2026-07-25 Site-Derived Failback UI Addendum
+
+일반 source-controller Failback modal은 DR Plan에 등록된 Site 경로를
+읽기 전용으로 표시한다. 다음 입력은 제거한다.
+
+- failback target Mold type
+- remote Mold API URL/key/secret
+- target Mold API URL/key/secret
+
+modal은 active Site, original/source destination Site, Site health,
+credential validation summary, latest durable sync, source isolation, reason,
+acknowledgement만 표시하거나 입력받는다. credential 오류는 modal에서
+재입력받지 않고 DR Site 수정 화면으로 안내한다.
+
+`DrPlanList.vue`의 상세 변경과 Preflight response 계약은
+`571-cross-hypervisor-dr-site-derived-failback-contract-design-20260725.md`를
+따른다.
+
+## 2026-07-27 Failback Commit Convergence UI Addendum
+
+페일백 commit 응답이 불확실하거나 안전 rollback이 수행된 경우 UI는 Plan의
+보호 상태, 최근 작업, 실제 서비스 위치를 분리해 표시한다.
+
+- `COMMIT_VERIFYING`: 커밋 결과 확인 중, 일반 action 잠금
+- `FAILED_TARGET_ACTIVE`: 페일백 실패, DR 대상에서 서비스 유지
+- `COMMIT_UNCERTAIN`: 실제 실행 위치 확인 필요
+
+목록과 상세의 action gating은 자체 조건식이 아니라 protection snapshot의
+canonical action decision을 사용한다. `READY/TARGET`은 정상 상태로 표시하지
+않는다. 상세 필드와 polling 규칙은 문서 575를 따른다.
+
+## 2026-07-27 Late ACK and Cache Freshness UI Addendum
+
+상세 화면은 `effectivestate=READY`만으로 failback 완료를 표시하지 않는다.
+다음 정보를 별도 필드와 badge로 표현한다.
+
+- lifecycle: `COMMIT_VERIFYING`, `COMPLETED`, `ROLLED_BACK`
+- protection: `READY`, `FAILED_OVER_UNPROTECTED`
+- serving side: `SOURCE`, `TARGET`, `UNKNOWN`
+- cache freshness: 생성 시각, stale 여부, 마지막 refresh 오류
+
+전환 상태는 5초, 안정 상태는 30초 polling을 사용한다. stale cache가 있더라도
+기존 데이터를 지우거나 전체 skeleton으로 되돌리지 않고 stale 표시와 마지막
+정상 snapshot을 유지한다. canonical terminal snapshot이 도착하기 전에는
+충돌 action을 활성화하지 않는다. 상세 UI 계약은 문서 576을 따른다.
+
+## 2026-07-28 Current Authority And Eligibility Projection Addendum
+
+Failover/Failback 이후 보호 화면은 과거 cutover field의 존재 여부로 현재
+권한을 판단하지 않는다. `authorityside`, `authorityphase`,
+`currentcutoversessionid`가 current 표시의 기준이다.
+
+Protection View snapshot version 4의 `planProjection`을 원자 적용하고
+`actioneligibility`도 같은 객체에서 교체한다. version 3 raw Plan cache 또는
+authority sequence가 낮은 snapshot은 최신 `getDrPlan` projection을 덮지
+않는다. backend eligibility가 없으면 action은 fail-closed한다.
+
+상세 계약은
+[578-cross-hypervisor-dr-current-authority-and-ui-eligibility-projection-design-20260728.md](578-cross-hypervisor-dr-current-authority-and-ui-eligibility-projection-design-20260728.md)를
+따른다.
+
+## 2026-07-30 Current Warning And Dark-Mode Addendum
+
+보호 정보 상단 경고는 `runtimeerrorcode` 문자열의 존재 여부만으로 표시하지
+않는다. current protection이 `ERROR/DEGRADED`, projection integrity가
+`INCONSISTENT`, 또는 active Run이 실패하는 경우에만 표시한다. 최근 종료
+Run의 실패는 이력이며 현재 경고의 입력이 아니다.
+
+`.cross-dr-risk`는 공통 `--cross-dr-warning-*` 토큰을 사용하고 alert의
+message, description, icon 전체에 다크모드 색상을 적용한다. 오류 코드는
+i18n 문장의 보조 정보로 표시한다. 상세 computed, template, CSS, 시각 검증은
+[580-cross-hypervisor-dr-current-runtime-history-and-darkmode-warning-design-20260730.md](580-cross-hypervisor-dr-current-runtime-history-and-darkmode-warning-design-20260730.md)를
+따른다.
+
+## 2026-07-30 Post-Failover UI Convergence Addendum
+
+실제 Failover가 성공한 TARGET authority에서 `FAILED_OVER_UNPROTECTED`는 오류가
+아니라 재보호 필요 상태로 표시한다. `DEGRADED` 문자열만으로 일반 `오류`를
+표시하지 않으며, RPO는 Failover 시점 값으로 고정한다. 목록과 상세 화면은
+Protection View version 6의 typed severity/RPO mode를 공통 resolver로 사용한다.
+상세 설계는
+[581-cross-hypervisor-dr-post-failover-runtime-ui-convergence-design-20260730.md](581-cross-hypervisor-dr-post-failover-runtime-ui-convergence-design-20260730.md)를
+따른다.
+## 2026-07-30 Failback Action Acceptance Addendum
+
+DR action UI는 start API 응답의 포장 형태를 직접 추론하지 않는다. 공통
+normalizer가 direct/nested/async-job 응답을 `DrRun`으로 변환하고, Run이 즉시
+보이지 않으면 동일 `idempotencykey`로 bounded lookup한다. 빈 `runtype`은 실행
+실패가 아니며, 복원된 non-empty 타입이 요청과 다를 때만 contract error다.
+Failback 권한 전환 중에는 typed `authoritytransitionstate`를 INFO로 표시한다.
+상세 계약은 문서 583을 따른다.
+
+## 2026-07-30 Context Action Menu And Dark-Mode Addendum
+
+DR Plan 목록 우클릭과 상세 작업 메뉴는 공통 `ActionButton` 세로 목록을
+사용하지 않고 동일한 DR action catalog와 semantic menu를 사용한다. UI는
+backend가 반환한 `actionavailability`의 `applicable`, `enabled`,
+`reasoncode`를 표현하며 current authority를 자체 재판정하지 않는다.
+
+상태 반대편 작업은 숨기고, 현재 단계에 의미가 있지만 선행 조건이 부족한
+작업만 비활성 사유와 함께 표시한다. Pause/Resume, Test Failover/Test Cleanup,
+Failover/Failback/Reprotect는 current state에 맞게 교체한다.
+
+다크모드는 `.cross-dr-action-menu` 전용 token과 selector를 사용한다. 비활성
+항목은 투명 배경과 낮은 명도 text를 사용하며 전역 `@disabled-bgColor`를
+변경하지 않는다. 상세 component, locale, 접근성 및 시각 회귀 기준은
+[584-cross-hypervisor-dr-context-action-availability-and-darkmode-design-20260730.md](584-cross-hypervisor-dr-context-action-availability-and-darkmode-design-20260730.md)를
+따른다.
+
+## 2026-07-31 Async Action Acceptance Addendum
+
+DR action UI는 `BaseAsyncCmd` 최초 응답의 `jobid`를 먼저
+`queryAsyncJobResult`로 확인한다. job 실패 시 실제 `errortext`를 표시하고
+Run 복구 조회를 수행하지 않는다. idempotency key 기반 `listDrRuns` 복구는
+job 성공 후 typed Run 객체가 누락된 경우에만 사용한다.
+
+Test Failover 활성 여부는 backend의 공통 Test Session lifecycle 판정을
+사용하며 UI가 과거 `FAILED` 이력으로 자체 추론하지 않는다. 상세 흐름과
+오류 표시는
+[586-cross-hypervisor-dr-test-session-blocker-and-async-acceptance-design-20260731.md](586-cross-hypervisor-dr-test-session-blocker-and-async-acceptance-design-20260731.md)를
+따른다.

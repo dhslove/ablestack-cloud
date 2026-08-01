@@ -657,6 +657,19 @@ CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'scheduler_recover
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'scheduler_recovery_error_code', 'varchar(128) NULL AFTER `scheduler_recovery_attempts`');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'scheduler_recovery_error_message', 'varchar(4096) NULL AFTER `scheduler_recovery_error_code`');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'scheduler_recovered_at', 'datetime NULL AFTER `scheduler_recovery_error_message`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'nbd_teardown_state', 'varchar(32) NULL AFTER `projection_integrity_sequence`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'nbd_quarantined_device_count', 'int unsigned NOT NULL DEFAULT 0 AFTER `nbd_teardown_state`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'nbd_teardown_error_code', 'varchar(128) NULL AFTER `nbd_quarantined_device_count`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'nbd_teardown_error_message', 'varchar(4096) NULL AFTER `nbd_teardown_error_code`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_sync_cycle', 'nbd_teardown_state', 'varchar(32) NULL AFTER `throughput_bps`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_sync_cycle', 'nbd_teardown_started_at', 'datetime NULL AFTER `nbd_teardown_state`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_sync_cycle', 'nbd_teardown_completed_at', 'datetime NULL AFTER `nbd_teardown_started_at`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_sync_cycle', 'nbd_teardown_duration_ms', 'bigint unsigned NULL AFTER `nbd_teardown_completed_at`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_sync_cycle', 'nbd_source_device_count', 'int unsigned NULL AFTER `nbd_teardown_duration_ms`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_sync_cycle', 'nbd_target_device_count', 'int unsigned NULL AFTER `nbd_source_device_count`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_sync_cycle', 'nbd_quarantined_device_count', 'int unsigned NOT NULL DEFAULT 0 AFTER `nbd_target_device_count`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_sync_cycle', 'nbd_teardown_error_code', 'varchar(128) NULL AFTER `nbd_quarantined_device_count`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_sync_cycle', 'nbd_teardown_error_message', 'varchar(4096) NULL AFTER `nbd_teardown_error_code`');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_sync_cycle', 'scheduler_session_uuid', 'varchar(40) NULL AFTER `engine_run_uuid`');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_sync_cycle', 'scheduler_lease_epoch', 'bigint unsigned NULL AFTER `scheduler_session_uuid`');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_sync_cycle', 'authority_sequence', 'bigint unsigned NULL AFTER `scheduler_lease_epoch`');
@@ -666,6 +679,8 @@ ALTER TABLE `cloud`.`dr_plan_view_cache`
     ADD COLUMN IF NOT EXISTS `last_refresh_error_code` varchar(255) DEFAULT NULL AFTER `last_error`,
     ADD COLUMN IF NOT EXISTS `last_refresh_error_message` varchar(4096) DEFAULT NULL AFTER `last_refresh_error_code`,
     ADD COLUMN IF NOT EXISTS `last_refresh_failed_at` datetime DEFAULT NULL AFTER `last_refresh_error_message`;
+
+CALL `cloud`.`IDEMPOTENT_ADD_KEY`('i_dr_plan_runtime__nbd_teardown_state', 'cloud.dr_plan_runtime', '(`nbd_teardown_state`, `updated`)');
 
 ALTER TABLE `cloud`.`dr_event`
     ADD INDEX IF NOT EXISTS `i_dr_event__plan_created_id` (`plan_id`, `created`, `id`);
@@ -849,36 +864,69 @@ CREATE TABLE IF NOT EXISTS `cloud`.`dr_cutover_session` (
   `target_power_on_at` datetime DEFAULT NULL, `boot_validated_at` datetime DEFAULT NULL,
   `engine_ack_state` varchar(32) DEFAULT NULL, `engine_ack_at` datetime DEFAULT NULL,
   `cloud_authority_generation` bigint unsigned DEFAULT NULL, `completed_at` datetime DEFAULT NULL,
+  `authority_ended_at` datetime DEFAULT NULL, `authority_ended_by_run_id` bigint unsigned DEFAULT NULL,
   `cleanup_required` tinyint(1) NOT NULL DEFAULT 0, `details_json` mediumtext,
   `error_code` varchar(128) DEFAULT NULL, `error_message` varchar(1024) DEFAULT NULL,
   `created` datetime NOT NULL, `updated` datetime NOT NULL, `removed` datetime DEFAULT NULL,
   PRIMARY KEY (`id`), UNIQUE KEY `uk_dr_cutover_session_uuid` (`uuid`),
   KEY `idx_dr_cutover_session_plan_active` (`plan_id`,`removed`), KEY `idx_dr_cutover_session_run` (`run_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-ALTER TABLE `cloud`.`dr_cutover_session`
-  ADD COLUMN IF NOT EXISTS `source_fence_state` varchar(32) DEFAULT NULL AFTER `boot_validation_state`,
-  ADD COLUMN IF NOT EXISTS `source_power_state` varchar(32) DEFAULT NULL AFTER `source_fence_state`,
-  ADD COLUMN IF NOT EXISTS `manifest_schema_version` varchar(64) DEFAULT NULL AFTER `source_power_state`,
-  ADD COLUMN IF NOT EXISTS `manifest_sha256` varchar(64) DEFAULT NULL AFTER `manifest_schema_version`,
-  ADD COLUMN IF NOT EXISTS `target_disk_count` int unsigned DEFAULT NULL AFTER `manifest_sha256`,
-  ADD COLUMN IF NOT EXISTS `scheduler_recovery_state` varchar(32) DEFAULT NULL AFTER `target_disk_count`,
-  ADD COLUMN IF NOT EXISTS `cloud_promotion_state` varchar(32) DEFAULT NULL AFTER `scheduler_recovery_state`,
-  ADD COLUMN IF NOT EXISTS `target_power_state` varchar(32) DEFAULT NULL AFTER `cloud_promotion_state`,
-  ADD COLUMN IF NOT EXISTS `target_power_on_at` datetime DEFAULT NULL AFTER `target_power_state`,
-  ADD COLUMN IF NOT EXISTS `boot_validated_at` datetime DEFAULT NULL AFTER `target_power_on_at`,
-  ADD COLUMN IF NOT EXISTS `engine_ack_state` varchar(32) DEFAULT NULL AFTER `boot_validated_at`,
-  ADD COLUMN IF NOT EXISTS `engine_ack_at` datetime DEFAULT NULL AFTER `engine_ack_state`,
-  ADD COLUMN IF NOT EXISTS `cloud_authority_generation` bigint unsigned DEFAULT NULL AFTER `engine_ack_at`,
-  ADD COLUMN IF NOT EXISTS `completed_at` datetime DEFAULT NULL AFTER `cloud_authority_generation`;
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_cutover_session', 'source_fence_state', 'varchar(32) DEFAULT NULL AFTER boot_validation_state');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_cutover_session', 'source_power_state', 'varchar(32) DEFAULT NULL AFTER source_fence_state');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_cutover_session', 'manifest_schema_version', 'varchar(64) DEFAULT NULL AFTER source_power_state');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_cutover_session', 'manifest_sha256', 'varchar(64) DEFAULT NULL AFTER manifest_schema_version');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_cutover_session', 'target_disk_count', 'int unsigned DEFAULT NULL AFTER manifest_sha256');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_cutover_session', 'scheduler_recovery_state', 'varchar(32) DEFAULT NULL AFTER target_disk_count');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_cutover_session', 'cloud_promotion_state', 'varchar(32) DEFAULT NULL AFTER scheduler_recovery_state');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_cutover_session', 'target_power_state', 'varchar(32) DEFAULT NULL AFTER cloud_promotion_state');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_cutover_session', 'target_power_on_at', 'datetime DEFAULT NULL AFTER target_power_state');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_cutover_session', 'boot_validated_at', 'datetime DEFAULT NULL AFTER target_power_on_at');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_cutover_session', 'engine_ack_state', 'varchar(32) DEFAULT NULL AFTER boot_validated_at');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_cutover_session', 'engine_ack_at', 'datetime DEFAULT NULL AFTER engine_ack_state');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_cutover_session', 'cloud_authority_generation', 'bigint unsigned DEFAULT NULL AFTER engine_ack_at');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_cutover_session', 'completed_at', 'datetime DEFAULT NULL AFTER cloud_authority_generation');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_cutover_session', 'authority_ended_at', 'datetime DEFAULT NULL AFTER completed_at');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_cutover_session', 'authority_ended_by_run_id', 'bigint unsigned DEFAULT NULL AFTER authority_ended_at');
+CALL `cloud`.`IDEMPOTENT_ADD_KEY`('idx_dr_cutover_session_plan_state_active', 'cloud.dr_cutover_session', '(`plan_id`,`state`,`removed`,`id`)');
+CALL `cloud`.`IDEMPOTENT_ADD_KEY`('idx_dr_cutover_session_authority_end_run', 'cloud.dr_cutover_session', '(`authority_ended_by_run_id`)');
+CALL `cloud`.`IDEMPOTENT_ADD_KEY`('i_dr_run_step__run_name_removed', 'cloud.dr_run_step', '(`run_id`,`step_name`,`removed`)');
+UPDATE `cloud`.`dr_cutover_session` cutover
+JOIN `cloud`.`dr_plan` plan ON plan.id = cutover.plan_id AND plan.removed IS NULL
+JOIN (
+  SELECT plan_id, MAX(id) AS run_id
+  FROM `cloud`.`dr_run`
+  WHERE run_type = 'FAILBACK' AND state = 'SUCCEEDED' AND removed IS NULL
+  GROUP BY plan_id
+) latest_failback ON latest_failback.plan_id = cutover.plan_id
+JOIN `cloud`.`dr_run` failback_run ON failback_run.id = latest_failback.run_id
+SET cutover.state = 'FAILED_BACK',
+    cutover.authority_ended_at = failback_run.completed,
+    cutover.authority_ended_by_run_id = failback_run.id,
+    cutover.updated = NOW()
+WHERE cutover.removed IS NULL
+  AND cutover.authority_ended_at IS NULL
+  AND cutover.cloud_promotion_state = 'PROMOTED'
+  AND cutover.engine_ack_state = 'ACKNOWLEDGED'
+  AND plan.active_side = 'SOURCE'
+  AND failback_run.completed > COALESCE(cutover.completed_at, cutover.created);
 CREATE TABLE IF NOT EXISTS `cloud`.`dr_cutover_disk` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT, `session_id` bigint unsigned NOT NULL,
   `disk_index` int unsigned NOT NULL, `provider` varchar(32) NOT NULL,
   `checkpoint_ref` varchar(1024) NOT NULL, `writable_ref` varchar(1024) DEFAULT NULL,
   `rollback_ref` varchar(1024) DEFAULT NULL, `state` varchar(64) NOT NULL,
+  `target_volume_id` bigint unsigned DEFAULT NULL, `target_volume_uuid` varchar(40) DEFAULT NULL,
+  `checkpoint_sequence` bigint unsigned DEFAULT NULL, `manifest_sha256` varchar(64) DEFAULT NULL,
   `details_json` mediumtext, `created` datetime NOT NULL, `updated` datetime NOT NULL, `removed` datetime DEFAULT NULL,
   PRIMARY KEY (`id`), UNIQUE KEY `uk_dr_cutover_disk_session_index` (`session_id`,`disk_index`),
-  KEY `idx_dr_cutover_disk_session_active` (`session_id`,`removed`)
+  KEY `idx_dr_cutover_disk_session_active` (`session_id`,`removed`),
+  KEY `idx_dr_cutover_disk_target_volume` (`target_volume_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+ALTER TABLE `cloud`.`dr_cutover_disk`
+  ADD COLUMN IF NOT EXISTS `target_volume_id` bigint unsigned DEFAULT NULL AFTER `state`,
+  ADD COLUMN IF NOT EXISTS `target_volume_uuid` varchar(40) DEFAULT NULL AFTER `target_volume_id`,
+  ADD COLUMN IF NOT EXISTS `checkpoint_sequence` bigint unsigned DEFAULT NULL AFTER `target_volume_uuid`,
+  ADD COLUMN IF NOT EXISTS `manifest_sha256` varchar(64) DEFAULT NULL AFTER `checkpoint_sequence`,
+  ADD KEY IF NOT EXISTS `idx_dr_cutover_disk_target_volume` (`target_volume_id`);
 CREATE TABLE IF NOT EXISTS `cloud`.`dr_test_session` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT, `uuid` varchar(40) NOT NULL,
   `plan_id` bigint unsigned NOT NULL, `run_id` bigint unsigned NOT NULL, `cleanup_run_id` bigint unsigned DEFAULT NULL,
@@ -905,3 +953,80 @@ CREATE TABLE IF NOT EXISTS `cloud`.`dr_test_disk` (
   PRIMARY KEY (`id`), UNIQUE KEY `uk_dr_test_disk_session_index` (`session_id`,`disk_index`), KEY `idx_dr_test_disk_volume` (`target_volume_id`),
   CONSTRAINT `fk_dr_test_disk_session` FOREIGN KEY (`session_id`) REFERENCES `dr_test_session` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Failback routes and credentials are derived from registered DR sites.
+UPDATE `cloud`.`dr_run`
+SET `request_json` = JSON_REMOVE(`request_json`,
+  '$.failbackTargetMoldType',
+  '$.remoteMoldApiUrl', '$.remoteMoldApiKey', '$.remoteMoldSecretKey',
+  '$.targetMoldApiUrl', '$.targetMoldApiKey', '$.targetMoldSecretKey')
+WHERE `run_type` = 'FAILBACK'
+  AND `request_json` IS NOT NULL
+  AND JSON_VALID(`request_json`);
+
+CREATE TABLE IF NOT EXISTS `cloud`.`dr_failback_session` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT, `uuid` varchar(40) NOT NULL,
+  `plan_id` bigint unsigned NOT NULL, `run_id` bigint unsigned NOT NULL,
+  `engine_session_id` varchar(255) NOT NULL, `checkpoint_sequence` bigint unsigned DEFAULT NULL,
+  `authority_generation` bigint unsigned DEFAULT NULL, `state` varchar(64) NOT NULL,
+  `target_power_state` varchar(32), `source_power_state` varchar(32),
+  `boot_validation_state` varchar(64), `engine_ack_state` varchar(32),
+  `commit_attempt_id` varchar(64), `commit_outcome` varchar(32),
+  `scheduler_generation` bigint unsigned, `scheduler_ack_generation` bigint unsigned,
+  `scheduler_state` varchar(32), `rollback_state` varchar(32),
+  `rollback_generation` bigint unsigned, `lifecycle_version` bigint unsigned NOT NULL DEFAULT 0,
+  `resume_baseline_checkpoint_sequence` bigint unsigned DEFAULT NULL,
+  `required_post_failback_checkpoint_sequence` bigint unsigned DEFAULT NULL,
+  `post_failback_checkpoint_sequence` bigint unsigned DEFAULT NULL,
+  `replication_direction` varchar(32) DEFAULT NULL,
+  `provider_pair` varchar(64) DEFAULT NULL,
+  `baseline_generation` bigint unsigned DEFAULT NULL,
+  `baseline_state` varchar(32) DEFAULT NULL,
+  `tracker_state` varchar(32) DEFAULT NULL,
+  `writer_state` varchar(32) DEFAULT NULL,
+  `target_written` tinyint(1) DEFAULT NULL,
+  `write_verified` tinyint(1) DEFAULT NULL,
+  `guest_compatibility_state` varchar(64) DEFAULT NULL,
+  `data_ready_at` datetime, `target_stopped_at` datetime, `source_powered_on_at` datetime,
+  `boot_validated_at` datetime, `engine_ack_at` datetime,
+  `commit_requested_at` datetime, `commit_verified_at` datetime,
+  `protection_resume_requested_at` datetime, `protection_resume_verified_at` datetime,
+  `rollback_requested_at` datetime, `rollback_verified_at` datetime, `last_probe_at` datetime,
+  `completed_at` datetime,
+  `details_json` mediumtext, `error_code` varchar(128), `error_message` varchar(1024),
+  `created` datetime NOT NULL, `updated` datetime NOT NULL, `removed` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`), UNIQUE KEY `uk_dr_failback_session_uuid` (`uuid`),
+  UNIQUE KEY `uk_dr_failback_session_run` (`run_id`),
+  KEY `idx_dr_failback_session_plan_active` (`plan_id`,`removed`),
+  KEY `idx_dr_failback_session_reconcile` (`state`,`last_probe_at`,`removed`,`plan_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+ALTER TABLE `cloud`.`dr_failback_session`
+  ADD COLUMN `commit_attempt_id` varchar(64) DEFAULT NULL AFTER `engine_ack_state`,
+  ADD COLUMN `commit_outcome` varchar(32) DEFAULT NULL AFTER `commit_attempt_id`,
+  ADD COLUMN `scheduler_generation` bigint unsigned DEFAULT NULL AFTER `commit_outcome`,
+  ADD COLUMN `scheduler_ack_generation` bigint unsigned DEFAULT NULL AFTER `scheduler_generation`,
+  ADD COLUMN `scheduler_state` varchar(32) DEFAULT NULL AFTER `scheduler_ack_generation`,
+  ADD COLUMN `rollback_state` varchar(32) DEFAULT NULL AFTER `scheduler_state`,
+  ADD COLUMN `rollback_generation` bigint unsigned DEFAULT NULL AFTER `rollback_state`,
+  ADD COLUMN `lifecycle_version` bigint unsigned NOT NULL DEFAULT 0 AFTER `rollback_generation`,
+  ADD COLUMN `resume_baseline_checkpoint_sequence` bigint unsigned DEFAULT NULL AFTER `lifecycle_version`,
+  ADD COLUMN `required_post_failback_checkpoint_sequence` bigint unsigned DEFAULT NULL AFTER `resume_baseline_checkpoint_sequence`,
+  ADD COLUMN `commit_requested_at` datetime DEFAULT NULL AFTER `engine_ack_at`,
+  ADD COLUMN `commit_verified_at` datetime DEFAULT NULL AFTER `commit_requested_at`,
+  ADD COLUMN `protection_resume_requested_at` datetime DEFAULT NULL AFTER `commit_verified_at`,
+  ADD COLUMN `protection_resume_verified_at` datetime DEFAULT NULL AFTER `protection_resume_requested_at`,
+  ADD COLUMN `rollback_requested_at` datetime DEFAULT NULL AFTER `commit_verified_at`,
+  ADD COLUMN `rollback_verified_at` datetime DEFAULT NULL AFTER `rollback_requested_at`,
+  ADD COLUMN `last_probe_at` datetime DEFAULT NULL AFTER `rollback_verified_at`,
+  ADD INDEX `idx_dr_failback_session_reconcile` (`state`,`last_probe_at`,`removed`,`plan_id`);
+
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_failback_session', 'replication_direction', 'varchar(32) NULL AFTER `post_failback_checkpoint_sequence`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_failback_session', 'provider_pair', 'varchar(64) NULL AFTER `replication_direction`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_failback_session', 'baseline_generation', 'bigint unsigned NULL AFTER `provider_pair`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_failback_session', 'baseline_state', 'varchar(32) NULL AFTER `baseline_generation`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_failback_session', 'tracker_state', 'varchar(32) NULL AFTER `baseline_state`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_failback_session', 'writer_state', 'varchar(32) NULL AFTER `tracker_state`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_failback_session', 'target_written', 'tinyint(1) NULL AFTER `writer_state`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_failback_session', 'write_verified', 'tinyint(1) NULL AFTER `target_written`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_failback_session', 'guest_compatibility_state', 'varchar(64) NULL AFTER `write_verified`');

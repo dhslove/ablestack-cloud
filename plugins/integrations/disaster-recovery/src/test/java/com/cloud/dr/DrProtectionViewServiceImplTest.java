@@ -6,8 +6,10 @@
 package com.cloud.dr;
 
 import java.util.Collections;
+import java.util.HashMap;
 
 import org.apache.cloudstack.api.response.dr.DrRunResponse;
+import org.apache.cloudstack.api.response.dr.DrPlanResponse;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -18,6 +20,7 @@ import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnitRunner;
 
 import com.cloud.dr.dao.DrEventDao;
+import com.cloud.dr.dao.DrFailbackSessionDao;
 import com.cloud.dr.dao.DrPlanDao;
 import com.cloud.dr.dao.DrPlanViewCacheDao;
 import com.cloud.dr.dao.DrReplicaDao;
@@ -43,9 +46,11 @@ public class DrProtectionViewServiceImplTest {
     @Mock private DrRestorePointDao drRestorePointDao;
     @Mock private DrEventDao drEventDao;
     @Mock private DrSyncCycleDao drSyncCycleDao;
+    @Mock private DrFailbackSessionDao drFailbackSessionDao;
     @Mock private DrProjectionService drProjectionService;
     @Mock private DrProtectionAuthorityService drProtectionAuthorityService;
     @Mock private DrResponseGenerator drResponseGenerator;
+    @Mock private DrPlanService drPlanService;
 
     @InjectMocks private DrProtectionViewServiceImpl service;
 
@@ -55,6 +60,16 @@ public class DrProtectionViewServiceImplTest {
         Mockito.when(plan.getSourceSiteId()).thenReturn(1L);
         Mockito.when(plan.getTargetSiteId()).thenReturn(2L);
         Mockito.when(drPlanDao.findById(PLAN_ID)).thenReturn(plan);
+        HashMap<String, Boolean> eligibility = new HashMap<>();
+        eligibility.put("testFailover", true);
+        HashMap<String, DrActionAvailability> availability = new HashMap<>();
+        availability.put("testFailover", new DrActionAvailability(true, true, null, Collections.emptyMap()));
+        DrPlanActionEvaluation actionEvaluation = new DrPlanActionEvaluation(eligibility, availability);
+        Mockito.when(drPlanService.getActionEvaluation(PLAN_ID)).thenReturn(actionEvaluation);
+        DrPlanResponse planResponse = new DrPlanResponse();
+        planResponse.setId("plan-38");
+        planResponse.setActionEligibility(eligibility);
+        Mockito.when(drResponseGenerator.createPlanResponse(plan, actionEvaluation)).thenReturn(planResponse);
 
         DrRunVO cleanup = Mockito.mock(DrRunVO.class);
         Mockito.when(cleanup.getId()).thenReturn(84L);
@@ -94,6 +109,9 @@ public class DrProtectionViewServiceImplTest {
         completedCycle.setEffectiveMode("NO_CHANGE");
         completedCycle.setChangedBytes(0L);
         completedCycle.setIncrementalVerified(true);
+        completedCycle.setNbdTeardownState("DRAINED");
+        completedCycle.setNbdTeardownDurationMs(85L);
+        runtime.setNbdTeardownState("DRAINED");
         DrSyncCycleVO staleActiveCycle = new DrSyncCycleVO(PLAN_ID, "producer-run", 154L);
         staleActiveCycle.setState("TRANSFERRING");
         Mockito.when(drSyncCycleDao.findActiveByPlanId(PLAN_ID)).thenReturn(staleActiveCycle);
@@ -106,7 +124,10 @@ public class DrProtectionViewServiceImplTest {
         DrPlanViewCacheVO cache = service.rebuildProtectionView(PLAN_ID);
         JsonObject snapshot = JsonParser.parseString(cache.getSnapshotJson()).getAsJsonObject();
 
-        Assert.assertEquals(2, cache.getSnapshotVersion());
+        Assert.assertEquals(8, cache.getSnapshotVersion());
+        Assert.assertTrue(snapshot.has("planProjection"));
+        Assert.assertTrue(snapshot.getAsJsonObject("planProjection")
+                .getAsJsonObject("actioneligibility").get("testFailover").getAsBoolean());
         Assert.assertTrue(snapshot.get("activeRun").isJsonNull());
         Assert.assertEquals("TEST_CLEANUP",
                 snapshot.getAsJsonObject("latestOperationRun").get("runtype").getAsString());
@@ -117,6 +138,12 @@ public class DrProtectionViewServiceImplTest {
         Assert.assertTrue(snapshot.get("currentSyncCycle").isJsonNull());
         Assert.assertEquals(189L,
                 snapshot.getAsJsonObject("latestCompletedSyncCycle").get("sequence").getAsLong());
+        Assert.assertEquals("DRAINED",
+                snapshot.getAsJsonObject("latestCompletedSyncCycle").get("nbdTeardownState").getAsString());
+        Assert.assertEquals(85L,
+                snapshot.getAsJsonObject("latestCompletedSyncCycle").get("nbdTeardownDurationMs").getAsLong());
+        Assert.assertEquals("DRAINED",
+                snapshot.getAsJsonObject("currentProtectionRuntime").get("nbdTeardownState").getAsString());
         Assert.assertEquals(snapshot.get("latestOperationRun"), snapshot.get("latestRun"));
     }
 }

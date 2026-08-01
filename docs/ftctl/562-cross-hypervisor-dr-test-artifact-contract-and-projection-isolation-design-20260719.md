@@ -7,6 +7,11 @@
 - Related: 521, 522, 523, 554, 561, 563
 - FTCTL companion: `ablestack-qemu-exec-tools/docs/ftctl/435-ftctl-dr-test-artifact-canonical-locator-and-failure-contract-design-20260719.md`
 
+> Normative guest identity and failed-cleanup update (2026-07-28):
+> [579-cross-hypervisor-dr-action-intent-guest-identity-and-failed-test-terminal-convergence-design-20260728.md](579-cross-hypervisor-dr-action-intent-guest-identity-and-failed-test-terminal-convergence-design-20260728.md)
+> requires pre-artifact canonical guest inspection and separates failed
+> operation history from the actual cleanup-required flag.
+
 > Normative terminal convergence update (2026-07-20):
 > [563-cross-hypervisor-dr-test-failover-terminal-convergence-design-20260720.md](563-cross-hypervisor-dr-test-failover-terminal-convergence-design-20260720.md)
 > governs monotonic Cloud Test Session state, direct Run completion after Cloud

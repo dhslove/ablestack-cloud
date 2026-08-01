@@ -20,13 +20,17 @@ public class FtctlDrStatusCommand extends Command {
 
     public enum StatusScope {
         PLAN_AUTHORITY,
-        OPERATION
+        OPERATION,
+        TRANSITION_PREFLIGHT
     }
 
     private String planUuid;
     private String runUuid;
     private Long eventsOffset;
     private StatusScope statusScope;
+    private String transitionOperation;
+    private String expectedAuthoritySide;
+    private Long expectedAuthorityGeneration;
 
     public FtctlDrStatusCommand() {
     }
@@ -61,6 +65,30 @@ public class FtctlDrStatusCommand extends Command {
 
     public void setEventsOffset(Long eventsOffset) {
         this.eventsOffset = eventsOffset;
+    }
+
+    public String getTransitionOperation() {
+        return transitionOperation;
+    }
+
+    public void setTransitionOperation(String transitionOperation) {
+        this.transitionOperation = transitionOperation;
+    }
+
+    public String getExpectedAuthoritySide() {
+        return expectedAuthoritySide;
+    }
+
+    public void setExpectedAuthoritySide(String expectedAuthoritySide) {
+        this.expectedAuthoritySide = expectedAuthoritySide;
+    }
+
+    public Long getExpectedAuthorityGeneration() {
+        return expectedAuthorityGeneration;
+    }
+
+    public void setExpectedAuthorityGeneration(Long expectedAuthorityGeneration) {
+        this.expectedAuthorityGeneration = expectedAuthorityGeneration;
     }
 
     @Override

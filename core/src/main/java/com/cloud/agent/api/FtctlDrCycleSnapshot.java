@@ -38,6 +38,15 @@ public class FtctlDrCycleSnapshot {
     private Long throughputBps;
     private String sourceCheckpointAt;
     private String targetDurableAt;
+    private String nbdTeardownState;
+    private Long nbdTeardownStartedAtEpochMs;
+    private Long nbdTeardownCompletedAtEpochMs;
+    private Long nbdTeardownDurationMs;
+    private Integer nbdSourceDeviceCount;
+    private Integer nbdTargetDeviceCount;
+    private Integer nbdQuarantinedDeviceCount;
+    private String nbdTeardownErrorCode;
+    private String nbdTeardownErrorMessage;
 
     public String getPlanUuid() { return planUuid; }
     public void setPlanUuid(String value) { planUuid = value; }
@@ -79,4 +88,22 @@ public class FtctlDrCycleSnapshot {
     public void setSourceCheckpointAt(String value) { sourceCheckpointAt = value; }
     public String getTargetDurableAt() { return targetDurableAt; }
     public void setTargetDurableAt(String value) { targetDurableAt = value; }
+    public String getNbdTeardownState() { return nbdTeardownState; }
+    public void setNbdTeardownState(String value) { nbdTeardownState = value; }
+    public Long getNbdTeardownStartedAtEpochMs() { return nbdTeardownStartedAtEpochMs; }
+    public void setNbdTeardownStartedAtEpochMs(Long value) { nbdTeardownStartedAtEpochMs = value; }
+    public Long getNbdTeardownCompletedAtEpochMs() { return nbdTeardownCompletedAtEpochMs; }
+    public void setNbdTeardownCompletedAtEpochMs(Long value) { nbdTeardownCompletedAtEpochMs = value; }
+    public Long getNbdTeardownDurationMs() { return nbdTeardownDurationMs; }
+    public void setNbdTeardownDurationMs(Long value) { nbdTeardownDurationMs = value; }
+    public Integer getNbdSourceDeviceCount() { return nbdSourceDeviceCount; }
+    public void setNbdSourceDeviceCount(Integer value) { nbdSourceDeviceCount = value; }
+    public Integer getNbdTargetDeviceCount() { return nbdTargetDeviceCount; }
+    public void setNbdTargetDeviceCount(Integer value) { nbdTargetDeviceCount = value; }
+    public Integer getNbdQuarantinedDeviceCount() { return nbdQuarantinedDeviceCount; }
+    public void setNbdQuarantinedDeviceCount(Integer value) { nbdQuarantinedDeviceCount = value; }
+    public String getNbdTeardownErrorCode() { return nbdTeardownErrorCode; }
+    public void setNbdTeardownErrorCode(String value) { nbdTeardownErrorCode = value; }
+    public String getNbdTeardownErrorMessage() { return nbdTeardownErrorMessage; }
+    public void setNbdTeardownErrorMessage(String value) { nbdTeardownErrorMessage = value; }
 }
