@@ -54,6 +54,7 @@ function legacyApplicable (key, resource, currentRun) {
   const schedulerDesired = String(resource?.schedulerdesiredstate || resource?.schedulerDesiredState || '').toUpperCase()
   const source = authoritySide(resource) !== 'TARGET'
   const target = !source || ['FAILED_OVER', 'FAILED_OVER_UNPROTECTED'].includes(state)
+  const unprotected = state === 'UNPROTECTED'
   const testing = state === 'TESTING' || resource?.testsessionactive === true || resource?.testSessionActive === true
   const ftctlDr = String(resource?.enginebindingtype || resource?.engineBindingType || '').toUpperCase() === 'FTCTL_DR'
 
@@ -62,7 +63,7 @@ function legacyApplicable (key, resource, currentRun) {
     case 'delete':
       return true
     case 'sync':
-      return source && state !== 'PAUSED'
+      return source && !unprotected && state !== 'PAUSED'
     case 'recoversync':
       return source && (resource?.recoverysyncrequired === true || resource?.recoverySyncRequired === true)
     case 'pausesync':
@@ -70,7 +71,7 @@ function legacyApplicable (key, resource, currentRun) {
     case 'resumesync':
       return source && (schedulerDesired === 'PAUSED' || state === 'PAUSED')
     case 'testfailover':
-      return source && !testing
+      return source && !unprotected && !testing
     case 'stoptestfailover':
       return testing
     case 'failover':
@@ -81,7 +82,7 @@ function legacyApplicable (key, resource, currentRun) {
     case 'adoptreplica':
       return !ftctlDr
     case 'releaseprotection':
-      return ftctlDr && (
+      return ftctlDr && !unprotected && (
         resource?.releaseready === true ||
         resource?.releaseReady === true ||
         resource?.engineaccepted === true ||

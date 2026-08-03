@@ -24,6 +24,7 @@ public class FtctlDrCapabilitiesCommand extends Command {
     private String runUuid;
     private List<String> requiredActions = new ArrayList<String>();
     private List<String> requiredCliCommands = new ArrayList<String>();
+    private List<String> requiredFeatures = new ArrayList<String>();
 
     public FtctlDrCapabilitiesCommand() {
     }
@@ -63,6 +64,11 @@ public class FtctlDrCapabilitiesCommand extends Command {
 
     public void setRequiredCliCommands(List<String> requiredCliCommands) {
         this.requiredCliCommands = requiredCliCommands == null ? new ArrayList<String>() : requiredCliCommands;
+    }
+
+    public List<String> getRequiredFeatures() { return requiredFeatures; }
+    public void setRequiredFeatures(List<String> values) {
+        requiredFeatures = values == null ? new ArrayList<String>() : values;
     }
 
     @Override

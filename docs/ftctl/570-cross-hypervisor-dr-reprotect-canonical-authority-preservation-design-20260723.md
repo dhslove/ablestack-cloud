@@ -1,5 +1,10 @@
 # Cross Hypervisor DR Reprotect Canonical Authority Preservation Design
 
+> 2026-08-03 최신 후속 규약:
+> [589-cross-hypervisor-dr-reprotect-preflight-and-release-terminal-convergence-design-20260803.md](589-cross-hypervisor-dr-reprotect-preflight-and-release-terminal-convergence-design-20260803.md)
+> 는 typed transition preflight v2, Agent 배포 계약 검증, Release의 authority
+> 보존과 `UNPROTECTED` terminal convergence를 정의한다. 충돌 시 589를 우선한다.
+
 - Date: 2026-07-23
 - Status: detailed implementation design; live read-only preflight verified
 - Scope: VMware to ABLESTACK failover followed by reverse reprotection

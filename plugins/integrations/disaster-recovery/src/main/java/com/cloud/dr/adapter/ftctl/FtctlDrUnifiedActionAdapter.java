@@ -450,6 +450,15 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         requiredCliCommands.add(action.getCliCommand());
         requiredCliCommands.add("dr-status");
         command.setRequiredCliCommands(requiredCliCommands);
+        List<String> requiredFeatures = new ArrayList<String>();
+        if (action == FtctlDrActionCommand.Action.FAILBACK
+                || action == FtctlDrActionCommand.Action.REPROTECT) {
+            requiredFeatures.add("dr-transition-preflight-v2");
+        }
+        if (action == FtctlDrActionCommand.Action.RELEASE) {
+            requiredFeatures.add("dr-release-tombstone-v1");
+        }
+        command.setRequiredFeatures(requiredFeatures);
         try {
             Answer answer = agentManager.send(hostId, command);
             JsonObject details = buildExecutionDetails(context, action, hostId);

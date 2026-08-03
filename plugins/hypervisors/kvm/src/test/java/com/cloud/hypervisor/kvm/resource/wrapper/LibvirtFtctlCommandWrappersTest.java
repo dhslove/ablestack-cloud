@@ -561,6 +561,59 @@ public class LibvirtFtctlCommandWrappersTest {
     }
 
     @Test
+    public void testDrTransitionPreflightWrapperAcceptsOnlyV2TypedContract() {
+        LibvirtFtctlDrStatusCommandWrapper wrapper = new LibvirtFtctlDrStatusCommandWrapper();
+        FtctlDrStatusCommand command = new FtctlDrStatusCommand("plan-a", null,
+                FtctlDrStatusCommand.StatusScope.TRANSITION_PREFLIGHT);
+        command.setTransitionOperation("reprotect");
+        command.setExpectedAuthoritySide("TARGET");
+        command.setExpectedAuthorityGeneration(7L);
+        String output = "{\"command\":\"dr-transition-preflight\",\"schema_version\":2,"
+                + "\"contract_version\":\"dr-transition-preflight-v2\","
+                + "\"status_scope\":\"TRANSITION_PREFLIGHT\",\"result\":\"ok\","
+                + "\"ready\":true,\"retryable\":false,\"plan_uuid\":\"plan-a\","
+                + "\"operation\":\"reprotect\",\"expected_authority\":\"TARGET\","
+                + "\"active_side\":\"TARGET\",\"expected_generation\":7,"
+                + "\"authority_generation\":7,\"target_power_state\":\"POWERED_ON\","
+                + "\"source_fence_state\":\"ACKNOWLEDGED\","
+                + "\"source_power_state\":\"POWERED_OFF\","
+                + "\"checked_at_epoch_ms\":1777777777000,\"exit_code\":0}";
+
+        try (MockedConstruction<Script> scripts = Mockito.mockConstruction(Script.class, (mock, context) -> {
+            Mockito.when(mock.execute(Mockito.any())).thenReturn(output);
+            Mockito.when(mock.getExitValue()).thenReturn(0);
+        })) {
+            FtctlDrStatusAnswer answer = (FtctlDrStatusAnswer) wrapper.execute(command, resource);
+            Assert.assertTrue(answer.getResult());
+            Assert.assertTrue(answer.getTransitionReady());
+            Assert.assertEquals("dr-transition-preflight-v2", answer.getTransitionContractVersion());
+            Assert.assertEquals("TARGET", answer.getTransitionActiveSide());
+            Assert.assertEquals(Long.valueOf(7L), answer.getTransitionAuthorityGeneration());
+        }
+    }
+
+    @Test
+    public void testDrTransitionPreflightWrapperRejectsGenericStatusPayload() {
+        LibvirtFtctlDrStatusCommandWrapper wrapper = new LibvirtFtctlDrStatusCommandWrapper();
+        FtctlDrStatusCommand command = new FtctlDrStatusCommand("plan-a", null,
+                FtctlDrStatusCommand.StatusScope.TRANSITION_PREFLIGHT);
+        command.setTransitionOperation("failback");
+        command.setExpectedAuthoritySide("TARGET");
+        command.setExpectedAuthorityGeneration(7L);
+        String output = "{\"command\":\"dr-status\",\"result\":\"ok\","
+                + "\"plan_uuid\":\"plan-a\",\"state\":\"FAILED_OVER\"}";
+
+        try (MockedConstruction<Script> scripts = Mockito.mockConstruction(Script.class, (mock, context) -> {
+            Mockito.when(mock.execute(Mockito.any())).thenReturn(output);
+            Mockito.when(mock.getExitValue()).thenReturn(0);
+        })) {
+            FtctlDrStatusAnswer answer = (FtctlDrStatusAnswer) wrapper.execute(command, resource);
+            Assert.assertFalse(answer.getResult());
+            Assert.assertEquals("DR_AGENT_TRANSITION_PREFLIGHT_CONTRACT_MISMATCH", answer.getErrorCode());
+        }
+    }
+
+    @Test
     public void testDrStatusWrapperRejectsMixedCompletedCycleGeneration() {
         LibvirtFtctlDrStatusCommandWrapper wrapper = new LibvirtFtctlDrStatusCommandWrapper();
         FtctlDrStatusCommand command = new FtctlDrStatusCommand("plan-a", "run-a");

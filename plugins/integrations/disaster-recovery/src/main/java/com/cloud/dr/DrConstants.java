@@ -23,6 +23,8 @@ public final class DrConstants {
     public static final String ERROR_SOURCE_ISOLATION_NOT_READY = "DR_SOURCE_ISOLATION_NOT_READY";
     public static final String ERROR_TRANSITION_TARGET_NOT_SERVING = "DR_TRANSITION_TARGET_NOT_SERVING";
     public static final String ERROR_TRANSITION_ENGINE_PREFLIGHT_FAILED = "DR_TRANSITION_ENGINE_PREFLIGHT_FAILED";
+    public static final String ERROR_AGENT_TRANSITION_PREFLIGHT_CONTRACT_MISMATCH =
+            "DR_AGENT_TRANSITION_PREFLIGHT_CONTRACT_MISMATCH";
     public static final String ERROR_TEST_SESSION_BLOCKING = "DR_TEST_SESSION_BLOCKING";
     public static final String ENGINE_TYPE_FTCTL = "FTCTL";
     public static final String ENGINE_BINDING_TYPE_FTCTL = "FTCTL";
@@ -79,6 +81,7 @@ public final class DrConstants {
     public static final String PLAN_STATE_ERROR = "ERROR";
     public static final String PLAN_STATE_FAILED_OVER = "FAILED_OVER";
     public static final String PLAN_STATE_COMMIT_VERIFYING = "COMMIT_VERIFYING";
+    public static final String PLAN_STATE_UNPROTECTED = "UNPROTECTED";
 
     public static final String CUTOVER_STATE_FAILED_BACK = "FAILED_BACK";
     public static final String CUTOVER_STATE_SUPERSEDED = "SUPERSEDED";

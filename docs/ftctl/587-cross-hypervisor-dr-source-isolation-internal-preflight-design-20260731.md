@@ -1,5 +1,10 @@
 # 587. Cross-Hypervisor DR Source Isolation Internal Preflight Design
 
+> 2026-08-03 최신 후속 규약:
+> [589-cross-hypervisor-dr-reprotect-preflight-and-release-terminal-convergence-design-20260803.md](589-cross-hypervisor-dr-reprotect-preflight-and-release-terminal-convergence-design-20260803.md)
+> 는 내부 preflight를 JSON 재파싱이 아닌 typed Agent Answer와 v2
+> scope/version 계약으로 강화한다. 충돌 시 589를 우선한다.
+
 ## 1. 목적과 결정
 
 Cross-Hypervisor `FTCTL_DR`의 일반 사용자 메뉴에서
@@ -388,4 +393,3 @@ sequenceDiagram
 | FTCTL | fence mutation과 전환 경계 모호 | mutation 없는 read-only preflight |
 | DB | evidence 형식 분산 | 표준 Run step evidence |
 | 안전성 | 사용자가 순서를 우회 가능 | Backend가 순서와 split-brain guard 강제 |
-

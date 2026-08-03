@@ -42,6 +42,8 @@ public class LibvirtFtctlDrStatusCommandWrapper extends CommandWrapper<FtctlDrSt
     private static final String ERROR_STATUS_IDENTITY_MISMATCH = "DR_STATUS_IDENTITY_MISMATCH";
     private static final String ERROR_STATUS_PAYLOAD_TOO_LARGE = "DR_STATUS_PAYLOAD_TOO_LARGE";
     private static final String ERROR_STATUS_TYPE_MISMATCH = "DR_STATUS_TYPE_MISMATCH";
+    private static final String ERROR_TRANSITION_PREFLIGHT_CONTRACT_MISMATCH =
+            "DR_AGENT_TRANSITION_PREFLIGHT_CONTRACT_MISMATCH";
     private static final String ERROR_STATUS_CYCLE_SNAPSHOT_INCOHERENT = "DR_STATUS_CYCLE_SNAPSHOT_INCOHERENT";
     private static final String ERROR_STATUS_CYCLE_EVIDENCE_INCOMPLETE = "DR_STATUS_CYCLE_EVIDENCE_INCOMPLETE";
     private static final String ERROR_STATUS_CYCLE_EVIDENCE_CONFLICT = "DR_STATUS_CYCLE_EVIDENCE_CONFLICT";
@@ -298,6 +300,28 @@ public class LibvirtFtctlDrStatusCommandWrapper extends CommandWrapper<FtctlDrSt
 
     private Answer transitionPreflightAnswer(FtctlDrStatusCommand command, JsonObject payload,
             String output, int exitValue) {
+        String returnedCommand = LibvirtFtctlDrCommandHelper.getString(payload, "command");
+        Integer schemaVersion = LibvirtFtctlDrCommandHelper.getInteger(payload, "schema_version");
+        String contractVersion = LibvirtFtctlDrCommandHelper.getString(payload, "contract_version");
+        String statusScope = LibvirtFtctlDrCommandHelper.getString(payload, "status_scope");
+        String operation = LibvirtFtctlDrCommandHelper.getString(payload, "operation");
+        String expectedAuthority = LibvirtFtctlDrCommandHelper.getString(payload, "expected_authority");
+        Long expectedGeneration = LibvirtFtctlDrCommandHelper.getLong(payload, "expected_generation");
+        if (!StringUtils.equals(returnedCommand, "dr-transition-preflight")
+                || schemaVersion == null
+                || schemaVersion != FtctlDrStatusCommand.TRANSITION_PREFLIGHT_SCHEMA_VERSION
+                || !StringUtils.equals(contractVersion,
+                        FtctlDrStatusCommand.TRANSITION_PREFLIGHT_CONTRACT_VERSION)
+                || !StringUtils.equals(statusScope,
+                        FtctlDrStatusCommand.StatusScope.TRANSITION_PREFLIGHT.name())
+                || !StringUtils.equalsIgnoreCase(operation, command.getTransitionOperation())
+                || !StringUtils.equalsIgnoreCase(expectedAuthority,
+                        StringUtils.defaultIfBlank(command.getExpectedAuthoritySide(), "TARGET"))
+                || (command.getExpectedAuthorityGeneration() != null
+                        && !command.getExpectedAuthorityGeneration().equals(expectedGeneration))) {
+            return validationAnswer(command, ERROR_TRANSITION_PREFLIGHT_CONTRACT_MISMATCH,
+                    "FTCTL_DR transition preflight v2 contract did not match the request", exitValue);
+        }
         Boolean ready = LibvirtFtctlDrCommandHelper.getBoolean(payload, "ready");
         if (ready == null) {
             return validationAnswer(command, ERROR_STATUS_TYPE_MISMATCH,
@@ -316,6 +340,24 @@ public class LibvirtFtctlDrStatusCommandWrapper extends CommandWrapper<FtctlDrSt
                 command.getEventsOffset(), errorCode, exitValue, output, payload.toString());
         answer.setStatusScope(FtctlDrStatusCommand.StatusScope.TRANSITION_PREFLIGHT.name());
         answer.setErrorMessage(message);
+        answer.setRetryable(LibvirtFtctlDrCommandHelper.getBoolean(payload, "retryable"));
+        answer.setTransitionReady(ready);
+        answer.setTransitionSchemaVersion(schemaVersion);
+        answer.setTransitionContractVersion(contractVersion);
+        answer.setTransitionOperation(operation);
+        answer.setTransitionExpectedAuthority(expectedAuthority);
+        answer.setTransitionActiveSide(LibvirtFtctlDrCommandHelper.getString(payload, "active_side"));
+        answer.setTransitionExpectedGeneration(expectedGeneration);
+        answer.setTransitionAuthorityGeneration(
+                LibvirtFtctlDrCommandHelper.getLong(payload, "authority_generation"));
+        answer.setTransitionTargetPowerState(
+                LibvirtFtctlDrCommandHelper.getString(payload, "target_power_state"));
+        answer.setTransitionSourceFenceState(
+                LibvirtFtctlDrCommandHelper.getString(payload, "source_fence_state"));
+        answer.setTransitionSourcePowerState(
+                LibvirtFtctlDrCommandHelper.getString(payload, "source_power_state"));
+        answer.setTransitionCheckedAtEpochMs(
+                LibvirtFtctlDrCommandHelper.getLong(payload, "checked_at_epoch_ms"));
         return answer;
     }
 

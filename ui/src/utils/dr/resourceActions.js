@@ -106,7 +106,8 @@ const runtimePlanActions = [
     api: 'startDrReprotect',
     command: 'startDrReprotect',
     icon: 'retweet-outlined',
-    label: 'label.dr.action.reprotect'
+    label: 'label.dr.action.reprotect',
+    modal: true
   },
   {
     key: 'adoptreplica',

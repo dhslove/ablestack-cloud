@@ -25,7 +25,7 @@
 
 <script>
 const successStates = ['READY', 'CONNECTED', 'CONFIGURED', 'TARGET_READY', 'SUCCEEDED', 'ENABLED', 'ACTIVE']
-const warningStates = ['DEGRADED', 'RPO_EXCEEDED', 'STALE', 'PAUSED', 'DISABLED', 'FAILBACK_READY', 'FAILED_OVER_UNPROTECTED', 'RETRYING', 'DR_PROJECTION_STALE', 'DR_ENGINE_BUSY_RETRYABLE', 'COMMIT_VERIFYING', 'COMMIT_UNCERTAIN', 'ROLLBACK_FENCING']
+const warningStates = ['DEGRADED', 'RPO_EXCEEDED', 'STALE', 'PAUSED', 'DISABLED', 'UNPROTECTED', 'FAILBACK_READY', 'FAILED_OVER_UNPROTECTED', 'RETRYING', 'DR_PROJECTION_STALE', 'DR_ENGINE_BUSY_RETRYABLE', 'COMMIT_VERIFYING', 'COMMIT_UNCERTAIN', 'ROLLBACK_FENCING']
 const errorStates = ['ERROR', 'FAILED', 'DISCONNECTED', 'FENCED', 'DR_ENGINE_WORKER_STALLED', 'DR_ENGINE_WORKER_FAILED']
 const infoStates = ['SYNCING', 'MATERIALIZING', 'RUNNING', 'QUEUED', 'CREATED', 'TESTING', 'REPROTECTING', 'PREPARING', 'DISPATCHING', 'ACCEPTED']
 
@@ -42,6 +42,10 @@ export default {
       return String(this.status || 'UNKNOWN').toUpperCase()
     },
     displayText () {
+      const key = `label.dr.state.${this.normalizedStatus.toLowerCase()}`
+      if (typeof this.$te === 'function' && this.$te(key)) {
+        return this.$t(key)
+      }
       return this.normalizedStatus.replace(/_/g, ' ')
     },
     statusClass () {

@@ -1,5 +1,10 @@
 # 584. Cross Hypervisor DR Context Action Availability and Dark-Mode Design
 
+> 2026-08-03 최신 후속 규약:
+> [589-cross-hypervisor-dr-reprotect-preflight-and-release-terminal-convergence-design-20260803.md](589-cross-hypervisor-dr-reprotect-preflight-and-release-terminal-convergence-design-20260803.md)
+> 는 `UNPROTECTED` 상태의 메뉴를 보호 다시 구성/삭제/이력으로 제한하고,
+> 강제 Release를 정상 Release와 분리한다.
+
 > 2026-07-31 latest correction: `confirmFenceClear` is not applicable to
 > FTCTL_DR and is absent from user action catalogs. See document 587.
 

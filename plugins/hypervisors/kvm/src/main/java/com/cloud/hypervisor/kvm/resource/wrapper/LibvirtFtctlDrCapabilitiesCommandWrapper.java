@@ -51,15 +51,18 @@ public class LibvirtFtctlDrCapabilitiesCommandWrapper extends CommandWrapper<Ftc
         CapabilitySnapshot snapshot = readCapabilities();
         List<String> missingCliCommands = missing(command.getRequiredCliCommands(), snapshot.supportedCliCommands);
         List<String> missingActions = missingActions(command.getRequiredActions(), snapshot.supportedCliCommands);
-        boolean success = missingCliCommands.isEmpty() && missingActions.isEmpty();
+        List<String> missingFeatures = missing(command.getRequiredFeatures(), snapshot.supportedFeatures);
+        boolean success = missingCliCommands.isEmpty() && missingActions.isEmpty() && missingFeatures.isEmpty();
         String details = success ? "FTCTL_DR capabilities satisfy requested action contract"
-                : "FTCTL_DR capability mismatch: missing actions=" + missingActions + ", missing commands=" + missingCliCommands;
+                : "FTCTL_DR capability mismatch: missing actions=" + missingActions + ", missing commands="
+                        + missingCliCommands + ", missing features=" + missingFeatures;
         FtctlDrCapabilitiesAnswer answer = new FtctlDrCapabilitiesAnswer(command, success, details,
                 command.getPlanUuid(), command.getRunUuid(), snapshot.supportedActions, snapshot.supportedCliCommands,
                 missingActions, missingCliCommands, snapshot.ftctlVersion, snapshot.runtimeSchemaVersion,
                 snapshot.capabilitiesJson);
         answer.setActionContractVersion(FtctlDrActionCommand.ACTION_CONTRACT_VERSION);
         answer.setSupportedFeatures(snapshot.supportedFeatures);
+        answer.setMissingFeatures(missingFeatures);
         answer.setActionCommandCodeSource(codeSource(FtctlDrActionCommand.class));
         answer.setWrapperCodeSource(codeSource(getClass()));
         if (StringUtils.contains(answer.getActionCommandCodeSource(), "cloud-plugin-hypervisor-kvm")) {

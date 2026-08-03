@@ -1,5 +1,10 @@
 # 588. Cross Hypervisor DR Bidirectional Incremental Replication And Failback Data Contract Design
 
+> 2026-08-03 최신 후속 규약:
+> [589-cross-hypervisor-dr-reprotect-preflight-and-release-terminal-convergence-design-20260803.md](589-cross-hypervisor-dr-reprotect-preflight-and-release-terminal-convergence-design-20260803.md)
+> 는 역방향 보호 시작 전 Agent/FTCTL 계약 버전을 검증하고, Release가 현재 VM과
+> authority를 변경하지 않는 terminal 규약을 추가한다.
+
 - Date: 2026-08-01
 - Status: code-level design; implementation pending
 - Scope: UI, API, Cloud backend, Agent, FTCTL contract, DB, VMware <-> KVM Failover/Reprotect/Failback

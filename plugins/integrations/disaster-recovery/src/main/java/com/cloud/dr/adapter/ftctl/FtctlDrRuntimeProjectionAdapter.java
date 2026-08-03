@@ -179,6 +179,14 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             return handleStatusBoundaryFailure(plan, projectionRun, authorityStatus, authorityDetails,
                     "FTCTL_DR authority status failed validation; last-good projection was retained");
         }
+        JsonObject authorityRuntime = parseObject(authorityStatus.getStatusJson());
+        if (isReleasedRuntime(authorityStatus, authorityRuntime)) {
+            cleanupReleasedProjection(plan, authorityStatus, authorityRuntime);
+            reconcileAcceptedRunFromStatus(plan, authorityStatus, authorityRuntime);
+            authorityDetails.addProperty("releaseTerminalCommitted", true);
+            return DrAdapterResult.success("FTCTL_DR release terminal projection committed",
+                    GSON.toJson(authorityDetails));
+        }
         FtctlDrCycleSnapshot latestCompletedCycle = latestCompletedCycle(authorityStatus);
         if (!isCoherentCycleSnapshot(plan, authorityStatus, latestCompletedCycle)) {
             markProjectionIntegrityFailure(plan, latestCompletedCycle, "DR_STATUS_CYCLE_SNAPSHOT_INCOHERENT");
@@ -186,7 +194,6 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                     "FTCTL_DR completed cycle snapshot was not coherent; last-good projection was retained",
                     GSON.toJson(authorityDetails), STATUS_REFRESH_WAIT_SECONDS);
         }
-        JsonObject authorityRuntime = parseObject(authorityStatus.getStatusJson());
         DrRunVO protectionProducerRun = resolveProtectionProducerRun(plan, authorityStatus, authorityRuntime);
         projectProtectionAuthority(plan, protectionProducerRun, authorityStatus, authorityRuntime);
         upsertRestorePointFromStatus(plan, protectionProducerRun, authorityStatus, authorityRuntime);
@@ -763,12 +770,12 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         JsonObject runtime = parseObject(status.getStatusJson());
         DrCutoverSessionVO cutoverSession = upsertCutoverSession(plan, projectionRun, status, runtime);
         DrFailbackSessionVO failbackSession = drFailbackLifecycleService.reconcile(plan, projectionRun, runtime);
-        if (isFiniteOperationRun(projectionRun)) {
+        if (isReleasedRuntime(status, runtime)) {
+            cleanupReleasedProjection(plan, status, runtime);
             reconcileAcceptedRunFromStatus(plan, status, runtime);
             return;
         }
-        if (isReleasedRuntime(status, runtime)) {
-            cleanupReleasedProjection(plan, status, runtime);
+        if (isFiniteOperationRun(projectionRun)) {
             reconcileAcceptedRunFromStatus(plan, status, runtime);
             return;
         }
@@ -1258,8 +1265,16 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         removeActiveReplicas(plan, runtimeJson);
         removeActiveRestorePoints(plan);
 
-        plan.setState(DrConstants.PLAN_STATE_NEW);
-        plan.setActiveSide("SOURCE");
+        String releasedAuthority = StringUtils.upperCase(
+                StringUtils.defaultIfBlank(stringValue(runtime, "active_side"), plan.getActiveSide()),
+                Locale.ROOT);
+        if (!StringUtils.equalsAny(releasedAuthority,
+                DrConstants.AUTHORITY_SIDE_SOURCE, DrConstants.AUTHORITY_SIDE_TARGET)) {
+            releasedAuthority = DrConstants.AUTHORITY_SIDE_SOURCE;
+        }
+        plan.setState(DrConstants.PLAN_STATE_UNPROTECTED);
+        plan.setAdminState(DrConstants.ADMIN_STATE_DISABLED);
+        plan.setActiveSide(releasedAuthority);
         plan.setTargetReadyAt(null);
         plan.setTargetReadyRpoSeconds(null);
         plan.setLastTargetDurableAt(null);
@@ -1267,6 +1282,18 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         plan.setLastErrorMessage(null);
         plan.markUpdated();
         drPlanDao.update(plan.getId(), plan);
+
+        DrPlanRuntimeVO planRuntime = drPlanRuntimeDao != null
+                ? drPlanRuntimeDao.findByPlanId(plan.getId()) : null;
+        if (planRuntime != null) {
+            planRuntime.setSchedulerState("STOPPED");
+            planRuntime.setSchedulerDesiredState("STOPPED");
+            planRuntime.setCurrentCycleState("IDLE");
+            planRuntime.setProtectionState("UNPROTECTED");
+            planRuntime.setReplicationActivityState("IDLE");
+            planRuntime.markUpdated();
+            drPlanRuntimeDao.update(planRuntime.getId(), planRuntime);
+        }
     }
 
     private void removeActiveReplicas(DrPlanVO plan, String detailsJson) {

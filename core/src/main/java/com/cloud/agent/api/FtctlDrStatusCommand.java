@@ -18,6 +18,9 @@ package com.cloud.agent.api;
 
 public class FtctlDrStatusCommand extends Command {
 
+    public static final int TRANSITION_PREFLIGHT_SCHEMA_VERSION = 2;
+    public static final String TRANSITION_PREFLIGHT_CONTRACT_VERSION = "dr-transition-preflight-v2";
+
     public enum StatusScope {
         PLAN_AUTHORITY,
         OPERATION,

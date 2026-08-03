@@ -130,6 +130,48 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     }
 
     @Test
+    public void releaseTombstoneConvergesPlanToDisabledUnprotectedWithoutChangingAuthority() {
+        DrPlanVO plan = new DrPlanVO("release-plan", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
+        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
+        plan.setCoordinatorWorkerHostId(103L);
+        plan.setState(DrConstants.PLAN_STATE_FAILED_OVER);
+        plan.setAdminState(DrConstants.ADMIN_STATE_ENABLED);
+        plan.setActiveSide(DrConstants.AUTHORITY_SIDE_TARGET);
+        DrPlanRuntimeVO planRuntime = new DrPlanRuntimeVO(plan.getId());
+        String statusJson = "{\"command\":\"dr-status\",\"result\":\"ok\","
+                + "\"plan_uuid\":\"release-plan\",\"state\":\"RELEASED\","
+                + "\"step\":\"release-completed\",\"active_side\":\"TARGET\","
+                + "\"protection_state\":\"UNPROTECTED\",\"scheduler_state\":\"STOPPED\"}";
+        Mockito.when(agentManager.easySend(Mockito.eq(103L), Mockito.any(FtctlDrStatusCommand.class)))
+                .thenAnswer(invocation -> {
+                    FtctlDrStatusCommand command = invocation.getArgument(1);
+                    FtctlDrStatusAnswer answer = new FtctlDrStatusAnswer(command, true, "ok",
+                            plan.getUuid(), null, "ok", "RELEASED", "release-completed", 100,
+                            null, null, null, null, null, 0, null, statusJson);
+                    answer.setStatusScope("PLAN_AUTHORITY");
+                    answer.setProtectionState("UNPROTECTED");
+                    return answer;
+                });
+        Mockito.when(drPlanRuntimeDao.findByPlanId(plan.getId())).thenReturn(planRuntime);
+        Mockito.when(drReplicaDao.listActiveByPlanId(plan.getId())).thenReturn(Collections.emptyList());
+        Mockito.when(drRestorePointDao.listActiveByPlanId(plan.getId())).thenReturn(Collections.emptyList());
+
+        DrAdapterResult result = adapter.refreshPlanProjection(plan);
+
+        Assert.assertTrue(result.isSuccess());
+        Assert.assertEquals(DrConstants.PLAN_STATE_UNPROTECTED, plan.getState());
+        Assert.assertEquals(DrConstants.ADMIN_STATE_DISABLED, plan.getAdminState());
+        Assert.assertEquals(DrConstants.AUTHORITY_SIDE_TARGET, plan.getActiveSide());
+        Assert.assertEquals("STOPPED", planRuntime.getSchedulerState());
+        Assert.assertEquals("UNPROTECTED", planRuntime.getProtectionState());
+        Mockito.verify(drPlanDao).update(plan.getId(), plan);
+        Mockito.verify(drSyncCycleDao, Mockito.never()).findLatestCompletedByPlanId(plan.getId());
+        Mockito.verify(drFailbackLifecycleService, Mockito.never())
+                .reconcile(Mockito.any(), Mockito.any(), Mockito.any());
+    }
+
+    @Test
     public void refreshPlanProjectionCompletesTestFailoverWithoutDowngradingActiveSession() {
         DrPlanVO plan = new DrPlanVO("ftctl-dr-plan", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
         plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);

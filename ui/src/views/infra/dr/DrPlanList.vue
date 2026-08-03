@@ -865,6 +865,16 @@
           type="warning"
           show-icon
           :message="$t('message.dr.full.resync.confirm')" />
+        <a-alert
+          v-if="isReprotectAction"
+          type="info"
+          show-icon
+          :message="$t('message.dr.reprotect.preflight.automatic')" />
+        <a-alert
+          v-if="isReleaseAction"
+          type="warning"
+          show-icon
+          :message="$t('message.dr.release.effects')" />
         <a-form-item
           v-if="isFailoverAction || isReleaseAction || isFailbackAction"
           :label="$t('label.dr.action.force')">
@@ -1158,7 +1168,7 @@ export default {
         { value: 'VMWARE_PHASE1', label: 'label.dr.engine.vmware.phase1' },
         { value: 'V2K', label: 'label.dr.engine.v2k.migration.only', disabled: true }
       ],
-      planStates: ['CREATED', 'ENABLED', 'SYNCING', 'READY', 'TESTING', 'FAILED_OVER', 'FAILED_OVER_UNPROTECTED', 'FAILBACK_READY', 'COMMIT_VERIFYING', 'REPROTECTING', 'PAUSED', 'ERROR'],
+      planStates: ['CREATED', 'ENABLED', 'SYNCING', 'READY', 'TESTING', 'FAILED_OVER', 'FAILED_OVER_UNPROTECTED', 'FAILBACK_READY', 'COMMIT_VERIFYING', 'REPROTECTING', 'PAUSED', 'UNPROTECTED', 'ERROR'],
       columns: [
         { key: 'name', title: this.$t('label.name'), dataIndex: 'name', sorter: this.sortBy('name') },
         { key: 'state', title: this.$t('label.state'), dataIndex: 'state', sorter: this.sortBy('state') },
@@ -1521,6 +1531,9 @@ export default {
     },
     isReleaseAction () {
       return this.selectedAction.command === 'releaseDrProtection'
+    },
+    isReprotectAction () {
+      return this.selectedAction.command === 'startDrReprotect'
     },
     pageSizeOptions () {
       return this.device === 'desktop' ? ['20', '50', '100', '200'] : ['10', '20', '50', '100', '200']
@@ -2883,7 +2896,7 @@ export default {
       this.executePlanAction(action, target, {})
     },
     requiresActionModal (action) {
-      return ['startDrSync', 'startDrTestFailover', 'startDrFailover', 'startDrFailback', 'adoptDrReplica', 'releaseDrProtection', 'cancelDrRun', 'stopDrTestFailover'].includes(action.command)
+      return ['startDrSync', 'startDrTestFailover', 'startDrFailover', 'startDrFailback', 'startDrReprotect', 'adoptDrReplica', 'releaseDrProtection', 'cancelDrRun', 'stopDrTestFailover'].includes(action.command)
     },
     openActionModal (action, plan) {
       this.selectedAction = Object.freeze(Object.assign({}, action))

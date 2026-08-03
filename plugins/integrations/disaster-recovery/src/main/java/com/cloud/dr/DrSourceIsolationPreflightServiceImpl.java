@@ -27,8 +27,6 @@ import com.cloud.vm.UserVmVO;
 import com.cloud.vm.VirtualMachine.PowerState;
 import com.cloud.vm.dao.UserVmDao;
 import com.google.gson.Gson;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 
 public class DrSourceIsolationPreflightServiceImpl extends ManagerBase
         implements DrSourceIsolationPreflightService {
@@ -120,10 +118,23 @@ public class DrSourceIsolationPreflightServiceImpl extends ManagerBase
         command.setExpectedAuthoritySide(DrConstants.AUTHORITY_SIDE_TARGET);
         command.setExpectedAuthorityGeneration(cutover.getCloudAuthorityGeneration());
         Answer engineProbe = agentManager.easySend(coordinatorHostId, command);
-        String evidenceJson = engineProbe instanceof FtctlDrStatusAnswer
-                ? ((FtctlDrStatusAnswer) engineProbe).getStatusJson() : null;
-        if (!(engineProbe instanceof FtctlDrStatusAnswer) || !engineProbe.getResult()
-                || !engineReady(evidenceJson)) {
+        FtctlDrStatusAnswer engineAnswer = engineProbe instanceof FtctlDrStatusAnswer
+                ? (FtctlDrStatusAnswer) engineProbe : null;
+        String evidenceJson = engineAnswer != null ? engineAnswer.getStatusJson() : null;
+        if (engineAnswer == null
+                || !FtctlDrStatusCommand.TRANSITION_PREFLIGHT_CONTRACT_VERSION.equals(
+                        engineAnswer.getTransitionContractVersion())) {
+            return failure(DrConstants.ERROR_AGENT_TRANSITION_PREFLIGHT_CONTRACT_MISMATCH,
+                    engineProbe != null ? engineProbe.getDetails()
+                            : "FTCTL_DR transition preflight returned no typed answer",
+                    normalizedOperation, cutover.getCloudAuthorityGeneration(), sourceFenceState,
+                    sourcePowerState, "POWERED_ON", evidenceJson);
+        }
+        if (!engineProbe.getResult() || !Boolean.TRUE.equals(engineAnswer.getTransitionReady())
+                || !StringUtils.equalsIgnoreCase(engineAnswer.getTransitionActiveSide(),
+                        DrConstants.AUTHORITY_SIDE_TARGET)
+                || !cutover.getCloudAuthorityGeneration().equals(
+                        engineAnswer.getTransitionAuthorityGeneration())) {
             return failure(DrConstants.ERROR_TRANSITION_ENGINE_PREFLIGHT_FAILED,
                     engineProbe != null ? engineProbe.getDetails()
                             : "FTCTL_DR transition preflight returned no answer",
@@ -133,21 +144,6 @@ public class DrSourceIsolationPreflightServiceImpl extends ManagerBase
         return DrSourceIsolationPreflightResult.success(normalizedOperation,
                 cutover.getCloudAuthorityGeneration(), sourceFenceState, sourcePowerState,
                 "POWERED_ON", evidenceJson);
-    }
-
-    private boolean engineReady(String statusJson) {
-        if (StringUtils.isBlank(statusJson)) {
-            return false;
-        }
-        try {
-            JsonObject payload = JsonParser.parseString(statusJson).getAsJsonObject();
-            return payload.has("ready") && payload.get("ready").getAsBoolean()
-                    && StringUtils.equalsIgnoreCase(
-                            payload.has("active_side") ? payload.get("active_side").getAsString() : null,
-                            DrConstants.AUTHORITY_SIDE_TARGET);
-        } catch (RuntimeException e) {
-            return false;
-        }
     }
 
     private DrReplicaVO servingTargetReplica(long planId) {

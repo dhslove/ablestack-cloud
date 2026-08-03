@@ -57,6 +57,18 @@ public class FtctlDrStatusAnswer extends Answer {
     private Integer workerExitCode;
     private Boolean retryable;
     private Integer retryAfterSeconds;
+    private Boolean transitionReady;
+    private Integer transitionSchemaVersion;
+    private String transitionContractVersion;
+    private String transitionOperation;
+    private String transitionExpectedAuthority;
+    private String transitionActiveSide;
+    private Long transitionExpectedGeneration;
+    private Long transitionAuthorityGeneration;
+    private String transitionTargetPowerState;
+    private String transitionSourceFenceState;
+    private String transitionSourcePowerState;
+    private Long transitionCheckedAtEpochMs;
     private Long currentCheckpointSequence;
     private String currentCheckpointCycleType;
     private String currentCheckpointRequestedMode;
@@ -462,6 +474,31 @@ public class FtctlDrStatusAnswer extends Answer {
     public void setRetryable(Boolean retryable) {
         this.retryable = retryable;
     }
+
+    public Boolean getTransitionReady() { return transitionReady; }
+    public void setTransitionReady(Boolean value) { transitionReady = value; }
+    public Integer getTransitionSchemaVersion() { return transitionSchemaVersion; }
+    public void setTransitionSchemaVersion(Integer value) { transitionSchemaVersion = value; }
+    public String getTransitionContractVersion() { return transitionContractVersion; }
+    public void setTransitionContractVersion(String value) { transitionContractVersion = value; }
+    public String getTransitionOperation() { return transitionOperation; }
+    public void setTransitionOperation(String value) { transitionOperation = value; }
+    public String getTransitionExpectedAuthority() { return transitionExpectedAuthority; }
+    public void setTransitionExpectedAuthority(String value) { transitionExpectedAuthority = value; }
+    public String getTransitionActiveSide() { return transitionActiveSide; }
+    public void setTransitionActiveSide(String value) { transitionActiveSide = value; }
+    public Long getTransitionExpectedGeneration() { return transitionExpectedGeneration; }
+    public void setTransitionExpectedGeneration(Long value) { transitionExpectedGeneration = value; }
+    public Long getTransitionAuthorityGeneration() { return transitionAuthorityGeneration; }
+    public void setTransitionAuthorityGeneration(Long value) { transitionAuthorityGeneration = value; }
+    public String getTransitionTargetPowerState() { return transitionTargetPowerState; }
+    public void setTransitionTargetPowerState(String value) { transitionTargetPowerState = value; }
+    public String getTransitionSourceFenceState() { return transitionSourceFenceState; }
+    public void setTransitionSourceFenceState(String value) { transitionSourceFenceState = value; }
+    public String getTransitionSourcePowerState() { return transitionSourcePowerState; }
+    public void setTransitionSourcePowerState(String value) { transitionSourcePowerState = value; }
+    public Long getTransitionCheckedAtEpochMs() { return transitionCheckedAtEpochMs; }
+    public void setTransitionCheckedAtEpochMs(Long value) { transitionCheckedAtEpochMs = value; }
 
     public Integer getRetryAfterSeconds() {
         return retryAfterSeconds;

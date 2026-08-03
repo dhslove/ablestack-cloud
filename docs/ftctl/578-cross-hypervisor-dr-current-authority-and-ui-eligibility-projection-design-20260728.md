@@ -1,5 +1,10 @@
 # 578. Cross Hypervisor DR Current Authority and UI Eligibility Projection Design
 
+> 2026-08-03 최신 후속 규약:
+> [589-cross-hypervisor-dr-reprotect-preflight-and-release-terminal-convergence-design-20260803.md](589-cross-hypervisor-dr-reprotect-preflight-and-release-terminal-convergence-design-20260803.md)
+> 는 보호 해제 후에도 Release 직전 authority를 보존하고 Plan/runtime/cache를
+> `UNPROTECTED/DISABLED`로 원자적으로 수렴시킨다. 충돌 시 589를 우선한다.
+
 > 2026-07-28 후속 규약:
 > [579-cross-hypervisor-dr-action-intent-guest-identity-and-failed-test-terminal-convergence-design-20260728.md](579-cross-hypervisor-dr-action-intent-guest-identity-and-failed-test-terminal-convergence-design-20260728.md)
 > 는 현재 권한 projection을 유지하면서 Test Failover 실패 이력과 실제 cleanup
