@@ -49,6 +49,11 @@ class ManagementRpmUpgradeLifecycleTest(unittest.TestCase):
             with self.subTest(table=table):
                 self.assertEqual(source.count(f"'cloud.{table}', 'created', 'created'"), 1)
 
+    def test_diplo_backup_external_id_change_is_idempotent(self):
+        source = (ROOT / "engine/schema/src/main/resources/META-INF/db/schema-Diplo-After.sql").read_text()
+        self.assertNotIn("extenal_id", source)
+        self.assertIn("'cloud.backups',\n    'external_id',\n    'external_id'", source)
+
     def test_branch_release_requires_one_kvm_systemvm_image(self):
         source = (ROOT / ".github/workflows/branch-dev-release.yml").read_text()
         self.assertIn("build-systemvm-kvm:", source)

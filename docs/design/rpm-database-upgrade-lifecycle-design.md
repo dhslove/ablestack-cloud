@@ -17,6 +17,7 @@ must also contain one KVM System VM image built from the same source commit.
 | Service recovery | Post-transaction enables the service but does not start it. | Post-transaction restores the enabled state and starts a service that was active before the update. |
 | Database update | Packaged SQL is not executed until an operator starts the management server later. | The RPM transaction starts the new management server, which executes `DatabaseUpgradeChecker` before serving requests. A failed start fails the scriptlet and prints service status. |
 | Same-version schema convergence | `CREATE TABLE IF NOT EXISTS` does not update columns in an existing table. | Diplo after-upgrade SQL reapplies the complete `created` column definition for all six Storage Service tables. |
+| Legacy backup column convergence | Diplo after-upgrade SQL refers to the misspelled `backups.extenal_id`, producing an error on every startup even when `external_id` is already correct. | The migration uses `IDEMPOTENT_CHANGE_COLUMN` on `backups.external_id`, so startup is repeatable and error-free. |
 | Fresh install | The package enables the service but does not start it before DB configuration exists. | Existing behavior is retained. Automatic start applies only to an update of a previously active service. |
 | System VM release | The release job downloads a System VM artifact, but an empty or missing image can reach asset assembly. | Release assembly requires exactly one non-empty KVM `qcow2.bz2` image from the same source commit. VMware OVA is not built. |
 
@@ -56,6 +57,9 @@ datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
 The calls use the existing `cloud.IDEMPOTENT_CHANGE_COLUMN` procedure and are
 safe when the desired definition is already present.
 
+The same procedure converges `backups.external_id` to `varchar(4096)` without
+referring to the obsolete misspelling `extenal_id`.
+
 ## Build and deployment gates
 
 The origin branch development release must use:
@@ -86,4 +90,5 @@ but the release image gate still proves that the branch remains buildable.
    `DEFAULT CURRENT_TIMESTAMP`.
 7. Confirm a second same-version update is idempotent and leaves the management
    service and login page healthy.
-8. Confirm the branch release retains the KVM System VM image and checksums.
+8. Confirm the startup log has no schema error for `backups.external_id`.
+9. Confirm the branch release retains the KVM System VM image and checksums.
