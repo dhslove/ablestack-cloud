@@ -201,15 +201,17 @@ jobs:
             const tag = process.env.DEV_RELEASE_TAG;
             const { owner, repo } = context.repo;
 
-            try {
-              const release = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
-              await github.rest.repos.deleteRelease({ owner, repo, release_id: release.data.id });
-              core.info(`Deleted existing release for ${tag}`);
-            } catch (error) {
-              if (error.status !== 404) {
-                throw error;
-              }
-              core.info(`No existing release found for ${tag}`);
+            const releases = await github.paginate(
+              github.rest.repos.listReleases,
+              { owner, repo, per_page: 100 }
+            );
+            const matchingReleases = releases.filter((release) => release.tag_name === tag);
+            for (const release of matchingReleases) {
+              await github.rest.repos.deleteRelease({ owner, repo, release_id: release.id });
+              core.info(`Deleted ${release.draft ? 'draft' : 'published'} release ${release.id} for ${tag}`);
+            }
+            if (matchingReleases.length === 0) {
+              core.info(`No existing draft or published release found for ${tag}`);
             }
 
             try {

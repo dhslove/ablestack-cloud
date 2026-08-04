@@ -66,6 +66,7 @@ The origin branch development release must use:
 - KVM System VM build only
 - one non-empty `qcow2.bz2` System VM image
 - a whitespace-free System VM image name with a regenerated and verified release checksum
+- replacement of any prior draft or published branch release before uploading new assets
 - RPM and System VM assets built from the same resolved commit SHA
 
 If System VM source files changed, deployment is not complete until the newly
