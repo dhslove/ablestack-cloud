@@ -431,12 +431,23 @@ install -D tools/whisker/LICENSE ${RPM_BUILD_ROOT}%{_defaultdocdir}/%{name}-inte
 [ ${RPM_BUILD_ROOT} != "/" ] && rm -rf ${RPM_BUILD_ROOT}
 
 %preun management
-/usr/bin/systemctl stop cloudstack-management || true
-/usr/bin/systemctl disable cloudstack-management || true
+if [ "$1" == "0" ] ; then
+    /usr/bin/systemctl stop cloudstack-management || true
+    /usr/bin/systemctl disable cloudstack-management || true
+else
+    /usr/bin/systemctl stop cloudstack-management || true
+fi
 
 %pre management
 id cloud > /dev/null 2>&1 || /usr/sbin/useradd -M -U -c "CloudStack unprivileged user" \
      -r -s /bin/sh -d %{_localstatedir}/cloudstack/management cloud|| true
+
+management_upgrade_state=/run/cloudstack-management-rpm-upgrade
+rm -f "${management_upgrade_state}.was-active" "${management_upgrade_state}.was-enabled"
+if [ "$1" == "2" ] ; then
+    /usr/bin/systemctl is-active --quiet cloudstack-management && touch "${management_upgrade_state}.was-active" || true
+    /usr/bin/systemctl is-enabled --quiet cloudstack-management && touch "${management_upgrade_state}.was-enabled" || true
+fi
 
 rm -rf %{_localstatedir}/cache/cloudstack
 
@@ -463,7 +474,9 @@ pip3 install %{_datadir}/%{name}-management/setup/wheel/six-1.15.0-py2.py3-none-
 
 pip3 install urllib3
 
-/usr/bin/systemctl enable cloudstack-management > /dev/null 2>&1 || true
+if [ "$1" == "1" ] ; then
+    /usr/bin/systemctl enable cloudstack-management > /dev/null 2>&1 || true
+fi
 /usr/bin/systemctl enable --now rngd > /dev/null 2>&1 || true
 
 grep -s -q "db.cloud.driver=jdbc:mysql" "%{_sysconfdir}/%{name}/management/db.properties" || sed -i -e "\$adb.cloud.driver=jdbc:mysql" "%{_sysconfdir}/%{name}/management/db.properties"
@@ -497,6 +510,28 @@ if [ -f "/usr/share/cloudstack-common/scripts/installer/cloudstack-help-text" ];
     sed -i "s,^ACS_VERSION=.*,ACS_VERSION=%{_maventag},g" /usr/share/cloudstack-common/scripts/installer/cloudstack-help-text
     /usr/share/cloudstack-common/scripts/installer/cloudstack-help-text management
 fi
+
+management_upgrade_state=/run/cloudstack-management-rpm-upgrade
+/usr/bin/systemctl daemon-reload
+
+if [ -f "${management_upgrade_state}.was-enabled" ] ; then
+    /usr/bin/systemctl enable cloudstack-management > /dev/null 2>&1 || true
+fi
+
+if [ -f "${management_upgrade_state}.was-active" ] ; then
+    echo "Restarting CloudStack management server to apply packaged database upgrades"
+    if ! /usr/bin/systemctl start cloudstack-management ; then
+        /usr/bin/systemctl --no-pager status cloudstack-management || true
+        exit 1
+    fi
+    sleep 10
+    if ! /usr/bin/systemctl is-active --quiet cloudstack-management ; then
+        /usr/bin/systemctl --no-pager status cloudstack-management || true
+        exit 1
+    fi
+fi
+
+rm -f "${management_upgrade_state}.was-active" "${management_upgrade_state}.was-enabled"
 
 %preun agent
 /sbin/service cloudstack-agent stop || true

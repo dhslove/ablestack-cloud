@@ -201,3 +201,32 @@ CREATE TABLE IF NOT EXISTS `cloud`.`storage_identity_domain` (
   KEY `idx_storage_identity_domain__instance_id` (`instance_id`),
   KEY `idx_storage_identity_domain__domain_name` (`domain_name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
+
+-- CREATE TABLE IF NOT EXISTS does not converge existing Diplo installations.
+-- Re-apply the complete definition of the created columns on every management
+-- startup so same-version RPM updates also repair installations created before
+-- the default was introduced.
+CALL `cloud`.`IDEMPOTENT_CHANGE_COLUMN`(
+  'cloud.storage_service_instance', 'created', 'created',
+  'datetime NOT NULL DEFAULT CURRENT_TIMESTAMP'
+);
+CALL `cloud`.`IDEMPOTENT_CHANGE_COLUMN`(
+  'cloud.storage_service_protocol', 'created', 'created',
+  'datetime NOT NULL DEFAULT CURRENT_TIMESTAMP'
+);
+CALL `cloud`.`IDEMPOTENT_CHANGE_COLUMN`(
+  'cloud.storage_file_share', 'created', 'created',
+  'datetime NOT NULL DEFAULT CURRENT_TIMESTAMP'
+);
+CALL `cloud`.`IDEMPOTENT_CHANGE_COLUMN`(
+  'cloud.storage_block_target', 'created', 'created',
+  'datetime NOT NULL DEFAULT CURRENT_TIMESTAMP'
+);
+CALL `cloud`.`IDEMPOTENT_CHANGE_COLUMN`(
+  'cloud.storage_access_rule', 'created', 'created',
+  'datetime NOT NULL DEFAULT CURRENT_TIMESTAMP'
+);
+CALL `cloud`.`IDEMPOTENT_CHANGE_COLUMN`(
+  'cloud.storage_identity_domain', 'created', 'created',
+  'datetime NOT NULL DEFAULT CURRENT_TIMESTAMP'
+);

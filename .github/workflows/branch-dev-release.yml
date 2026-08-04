@@ -241,6 +241,15 @@ jobs:
           find download/systemvm -type f \
             \( -name '*.qcow2.bz2' -o -name 'SYSTEMVM-*' \) \
             -exec cp {} release-assets/ \;
+          mapfile -t systemvm_images < <(find release-assets -maxdepth 1 -type f -name '*.qcow2.bz2' -print)
+          if [ "${#systemvm_images[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one KVM System VM qcow2.bz2 image, found ${#systemvm_images[@]}"
+            exit 1
+          fi
+          if [ ! -s "${systemvm_images[0]}" ]; then
+            echo "::error::KVM System VM image is empty: ${systemvm_images[0]}"
+            exit 1
+          fi
           cat > release-assets/DEV-RELEASE.txt <<EOF
           Release tag: ${DEV_RELEASE_TAG}
           Release name: ${DEV_RELEASE_NAME}
@@ -250,6 +259,7 @@ jobs:
           Package version: ${{ needs.metadata.outputs.package_version }}
           Package mode: ${{ inputs.pack }}
           System VM: KVM x86_64 qcow2.bz2
+          System VM source commit: ${{ needs.metadata.outputs.source_commit_sha }}
           Timestamp: ${{ needs.metadata.outputs.timestamp_value }}
           GitHub run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           EOF
