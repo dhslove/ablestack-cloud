@@ -65,6 +65,7 @@ The origin branch development release must use:
 - Rocky 9.7 RPM build
 - KVM System VM build only
 - one non-empty `qcow2.bz2` System VM image
+- a whitespace-free System VM image name with a regenerated and verified release checksum
 - RPM and System VM assets built from the same resolved commit SHA
 
 If System VM source files changed, deployment is not complete until the newly

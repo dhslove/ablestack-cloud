@@ -75,8 +75,8 @@ done
 #
 set -e
 
-CREATE_DATE=$(date +"%G%m%e%H%M")
-CREATE_DATE_FMT=$(date +"%G-%m-%e %H:%M")
+CREATE_DATE=$(date +"%G%m%d%H%M")
+CREATE_DATE_FMT=$(date +"%G-%m-%d %H:%M")
 
 ###
 ### Configuration

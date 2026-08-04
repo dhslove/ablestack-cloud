@@ -54,7 +54,13 @@ class ManagementRpmUpgradeLifecycleTest(unittest.TestCase):
         self.assertIn("build-systemvm-kvm:", source)
         self.assertIn("templates: kvm", source)
         self.assertIn("Expected exactly one KVM System VM qcow2.bz2 image", source)
+        self.assertIn("KVM System VM image name contains whitespace", source)
+        self.assertIn("sha256sum -c SYSTEMVM-SHA256SUMS", source)
         self.assertNotIn("build-systemvm-vmware", source)
+
+        appliance_build = (ROOT / "tools/appliance/build.sh").read_text()
+        self.assertIn('CREATE_DATE=$(date +"%G%m%d%H%M")', appliance_build)
+        self.assertNotIn('CREATE_DATE=$(date +"%G%m%e%H%M")', appliance_build)
 
 
 if __name__ == "__main__":

@@ -250,6 +250,16 @@ jobs:
             echo "::error::KVM System VM image is empty: ${systemvm_images[0]}"
             exit 1
           fi
+          systemvm_image_name=$(basename "${systemvm_images[0]}")
+          if [[ "$systemvm_image_name" =~ [[:space:]] ]]; then
+            echo "::error::KVM System VM image name contains whitespace: $systemvm_image_name"
+            exit 1
+          fi
+          (
+            cd release-assets
+            sha256sum "$systemvm_image_name" > SYSTEMVM-SHA256SUMS
+            sha256sum -c SYSTEMVM-SHA256SUMS
+          )
           cat > release-assets/DEV-RELEASE.txt <<EOF
           Release tag: ${DEV_RELEASE_TAG}
           Release name: ${DEV_RELEASE_NAME}
