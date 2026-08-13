@@ -300,11 +300,6 @@ CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_restore_point', 'duration_ms', 'b
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_restore_point', 'throughput_bps', 'bigint unsigned NULL AFTER `duration_ms`');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_restore_point', 'baseline_generation', 'bigint unsigned NULL AFTER `throughput_bps`');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_restore_point', 'cycle_token', 'varchar(255) NULL AFTER `baseline_generation`');
-UPDATE `cloud`.`dr_restore_point` rp
-JOIN (SELECT `plan_id`, MAX(`id`) AS `run_id` FROM `cloud`.`dr_run` WHERE `removed` IS NULL GROUP BY `plan_id`) latest_run
-  ON latest_run.`plan_id` = rp.`plan_id`
-SET rp.`run_id` = latest_run.`run_id`
-WHERE rp.`removed` IS NULL AND rp.`run_id` IS NULL;
 UPDATE `cloud`.`dr_restore_point`
 SET `checkpoint_sequence` = CAST(SUBSTRING_INDEX(`source_snapshot_ref`, ':', -1) AS UNSIGNED),
     `checkpoint_cycle_type` = IF(CAST(SUBSTRING_INDEX(`source_snapshot_ref`, ':', -1) AS UNSIGNED) = 1, 'full-seed', 'incremental')
@@ -487,6 +482,12 @@ CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_run', 'last_status_json', 'medium
 CALL `cloud`.`IDEMPOTENT_ADD_KEY`('i_dr_run__plan_created', 'cloud.dr_run', '(`plan_id`, `created`)');
 CALL `cloud`.`IDEMPOTENT_ADD_KEY`('i_dr_run__plan_state_completed', 'cloud.dr_run', '(`plan_id`, `state`, `completed`)');
 CALL `cloud`.`IDEMPOTENT_ADD_KEY`('i_dr_run_step__run_order', 'cloud.dr_run_step', '(`run_id`, `step_order`)');
+
+UPDATE `cloud`.`dr_restore_point` rp
+JOIN (SELECT `plan_id`, MAX(`id`) AS `run_id` FROM `cloud`.`dr_run` WHERE `removed` IS NULL GROUP BY `plan_id`) latest_run
+  ON latest_run.`plan_id` = rp.`plan_id`
+SET rp.`run_id` = latest_run.`run_id`
+WHERE rp.`removed` IS NULL AND rp.`run_id` IS NULL;
 
 CREATE TABLE IF NOT EXISTS `cloud`.`dr_event` (
     `id` bigint unsigned NOT NULL AUTO_INCREMENT,
