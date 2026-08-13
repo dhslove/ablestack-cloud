@@ -10,8 +10,9 @@ It is an operational handoff document, not a place to store credentials.
 
 | Component | Repository | Branch | Build source commit | GitHub Actions run |
 |---|---|---|---|---|
-| Cloud | `dhslove/ablestack-cloud` | `feature/ftctl-cloud-integration` | `6d4cd27c92cf74e19219523d0cb5eeeb90c767ac` | `31669628452` |
-| FTCTL | `dhslove/ablestack-qemu-exec-tools` | `feature/ftctl-cloud-integration` | `0c8cb99debb18994bedb0f50b989491c721689a3` | `31667802879` |
+| Cloud | `dhslove/ablestack-cloud` | `feature/ftctl-cloud-integration` | `8020879482572b7248111efaf710ef19014676b4` | `31673957028` |
+| FTCTL | `dhslove/ablestack-qemu-exec-tools` | `feature/ftctl-cloud-integration` | `84468e78cb8878384902e195ee164ba9d92596f6` | `31671559609` |
+| QEMU exec tools and V2K | `dhslove/ablestack-qemu-exec-tools` | `feature/ftctl-cloud-integration` | `84468e78cb8878384902e195ee164ba9d92596f6` | `31671626742` |
 
 The Cloud workflow is `ABLESTACK Branch Development Release`. The FTCTL
 workflow is `FTCTL Branch Development Release`. Both releases use the label
@@ -75,6 +76,61 @@ their names through GitHub Actions, but cannot retrieve or display their values.
 
 ## Deployment Result
 
+### Cloud build and dual-cluster deployment
+
+GitHub Actions run `31673957028` completed successfully from commit
+`8020879482572b7248111efaf710ef19014676b4`. The deployed Cloud package version
+on both management servers and all six compute hosts is
+`4.23.0.0-Mold.Europa.202608130629.1`.
+
+| Package | SHA256 |
+|---|---|
+| `cloudstack-common` | `d697fbb62f16977c78c821a757bd9bc56dd1e720a536ad99c0c3ab82af0772cf` |
+| `cloudstack-management` | `018674e64b0458138d7e7f311476487f948d8636cbb997f6f40eee0b2e8d0a9a` |
+| `cloudstack-ui` | `13a46ed339be8b0b032042d571590607f658e4bcab569ca7930a43ef2a9a3b19` |
+| `cloudstack-usage` | `5213577aaa66e9cd5972bed483a1d36c7c97f977697d040e02b6d5f77db23a97` |
+| `cloudstack-agent` | `eabb5861ca5355dcf691b7b0bebe7ccee6719c6cf38c6e822d741da64896329e` |
+
+The 22 cluster used native `rpm -Uvh --replacepkgs`. The 32 cluster has direct
+RPM usage intentionally masked and used `aspkg -Uvh --replacepkgs`. Do not
+interpret the direct `rpm usage is blocked` message on the 32 cluster as a
+host or package failure.
+
+Management backups were created before deployment:
+
+- 22 cluster: `/root/cloud-dual-dr-backup-20260813-142848`
+- 32 cluster: `/root/cloud-dual-dr-backup-20260813-142901`
+
+Compute-host agent backups were created under
+`/root/cloud-agent-dual-dr-backup-20260813-142933` or the matching per-host
+timestamped directory before package replacement.
+
+The 32 management package post-install cleanup incorrectly classified three
+new package-owned JARs as unmanaged and moved them to
+`/var/lib/cloudstack/management/legacy-lib/20260813T071239Z`. This caused
+`ClassNotFoundException: org.apache.cloudstack.ServerDaemon`. The exact
+package files `cloudstack-4.23.0.0-Mold.Europa-202608130629.jar`,
+`cloud-plugin-storage-volume-linstor-4.23.0.0-Mold.Europa-202608130629.jar`,
+and `cloud-plugin-storage-volume-storpool-4.23.0.0-Mold.Europa-202608130629.jar`
+were restored to `/usr/share/cloudstack-management/lib` before restarting
+`mold`. For future upgrades, check `aspkg -V cloudstack-management` and
+`management-server.err` immediately if the package succeeds but
+`org.apache.cloudstack.ServerDaemon` is missing. Restore only package-owned
+files of the installed build; never copy a JAR from a different release.
+
+Post-deployment verification passed on both management servers:
+
+- `mold` and `mold-usage` are active.
+- `/client/` returns HTTP 200.
+- `/usr/share/cloudstack-management/webapp/WEB-INF` remains present.
+- Active UI bundles contain `blockingLoadingState`, `fetchSyncProgress`, and
+  `extractJobId`.
+- Both databases contain 21 DR tables and report all three KVM routing hosts
+  connected.
+
+All six compute hosts report the deployed Cloud agent version, active
+`mold-agent`, and active `ablestack-vm-ftctl.timer`.
+
 ### Build compatibility correction
 
 - The first Cloud branch release run (`31667802778`) generated the System VM artifact but failed while generating the RPM API documentation.
@@ -83,26 +139,42 @@ their names through GitHub Actions, but cannot retrieve or display their values.
 - Deployment preflight then found that the 4.22-to-4.23 and Europa after-upgrade paths re-added failback lifecycle columns and their reconciliation index with a non-idempotent `ALTER TABLE`. This is unsafe for the 32 cluster, whose DR schema had already been applied while it was on 4.22.
 - Both schema paths now use the project-standard `IDEMPOTENT_ADD_COLUMN` and `IDEMPOTENT_ADD_KEY` procedures. This applies to the run dispatch fields, view-cache diagnostics, event index, cutover-disk fields, and failback lifecycle fields instead of only the last failback block.
 - The complete corrected set was executed twice against six isolated tables on the 32 management DB. The second pass retained the expected schema without duplicate-object errors: run 17 columns/2 indexes, run-step 2 columns/1 index, view-cache 4 columns, event 3 columns/1 index, cutover-disk 5 columns/1 index, and failback-session 23 columns/1 index. The procedure and all six test tables were removed afterward.
+- A fresh-schema preflight then found that the restore-point backfill queried
+  `dr_run` before that table was created. Both the 4.22-to-4.23 and Europa
+  after-upgrade scripts now create and extend `dr_run` and `dr_run_step` before
+  executing that backfill. The corrected Europa script was applied twice to
+  the 22 management DB, which had no DR schema. Both passes succeeded and
+  produced 21 DR tables with the expected 32-column `dr_run` contract.
 - The superseded run `31669628452` was cancelled before deployment and replaced with a build from the corrected schema commit.
 
 ### QEMU, FTCTL, and V2K build and deployment
 
 | Artifact | GitHub Actions evidence | Package | SHA256 |
 |---|---|---|---|
-| FTCTL branch RPM | run `31667802879`, artifact `ftctl-branch-rpm-31667802879` | `ablestack_vm_ftctl-0.9.5-1.noarch.rpm` | `53e4947dd05e0afbb1c7ac700845a74e1a376ac8f4fc5a951317bd8b6a454211` |
-| QEMU exec tools | run `31668261623`, Rocky 9.7 artifact | `ablestack-qemu-exec-tools-0.9.5-1.el9.el9.noarch.rpm` | `0c3647b555fcbd412a53c95a851bb2c1cb3b72c336c1329b9c70591658ba725a` |
-| V2K | run `31668261623`, Rocky 9.7 V2K artifact | `ablestack_v2k-0.9.5-1.el9.el9.noarch.rpm` | `39f47cbc8df56ed0bc5c88f5bd56d26dbb4ef84150762c82244073ef6545cd88` |
+| FTCTL branch RPM | run `31671559609`, artifact `ftctl-branch-rpm-31671559609` | `ablestack_vm_ftctl-0.9.5-1.noarch.rpm` | `7b4c4bc293078e66d3344ad95e59947bb27ad876db1c44d15c7fe44f3dc22931` |
+| FTCTL Rocky 9.7 RPM | run `31671626742`, artifact `ftctl-rpm-package-rocky9.7` | `ablestack_vm_ftctl-0.9.5-1.noarch.rpm` | `8aad3cda252d598df52edf4fecbd64a3882be8c54e7ef05f6be755a2eae16e08` |
+| QEMU exec tools | run `31671626742`, artifact `rpm-package-9.7` | `ablestack-qemu-exec-tools-0.9.5-1.el9.el9.noarch.rpm` | `89fe8e79d8b38dd9088f5280e2d0e8cf55fb1189596dffda06cc06beba246784` |
+| V2K | run `31671626742`, artifact `v2k-rpm-package-rocky9.7` | `ablestack_v2k-0.9.5-1.el9.el9.noarch.rpm` | `46c3f7cffdb044d97a4e612f48a76065f0506fe44ae1235f077260edba9aed0e` |
 
-The three packages were installed on `10.10.22.1` through `.3` and
-`10.10.32.1` through `.3`. All six hosts reported the same package versions,
-an active `mold-agent`, an active `ablestack-vm-ftctl.timer`, and the installed
-`dr_runtime.sh` SHA256
-`1985cf5a4cabf99df3ef44042a03c4426a40dcaee7ec462a899affaf04f3134e`.
-The persistent DR scheduler on `10.10.32.2` was preserved across deployment.
+The Rocky 9.7 packages were installed on `10.10.22.1` through `.3` and
+`10.10.32.1` through `.3`. All six hosts reported an active `mold-agent`, an
+active `ablestack-vm-ftctl.timer`, the V2K `govc` runtime, and the VMware mover
+`--device-key` marker from commit `84468e7`.
 
-The FTCTL build commit precedes documentation-only commit `44446c1`. No QEMU,
-FTCTL, or V2K runtime source changed in that documentation commit, so the
-deployed executable artifacts remain current.
+The package restart preflight used the existing 32-cluster plan
+`ef73f5f3-9740-4bbd-8c9a-74a972e5f19f`. The prior package rejected its legacy
+numeric `cbtDiskId=2000`. The corrected package resolved the persisted
+`sourceDiskKey=2000`, completed checkpoint 763 as `CBT_INCREMENTAL` with
+206,241,792 changed and written bytes, and completed checkpoint 765 after the
+V2K update with 6,946,816 changed bytes. The scheduler remained `RUNNING` and
+`HEALTHY`, protection returned to `READY`, and no FTCTL error remained.
+
+After the final Cloud agent deployment and scheduler restart, checkpoint 776
+also completed as `CBT_INCREMENTAL` with 9,240,576 changed and written bytes.
+Cloud DB state was `READY`/`ENABLED` without an error, while `dr-status`
+reported scheduler `RUNNING`, a live scheduler PID, durable target data,
+materialized target resources, and one valid target disk. This is the final
+runtime regression baseline for the 32 cluster.
 
 ### GitHub environment registration
 
@@ -110,5 +182,14 @@ deployed executable artifacts remain current.
 - All secret names in the GitHub Secret Contract are present in both environments.
 - Authenticated SSH was verified for all eight ABLESTACK endpoints and an authenticated vCenter session was verified over HTTPS.
 
-This section is updated after the GitHub Actions builds, dual-cluster
-deployment, and post-deployment verification complete.
+## Retest Handoff
+
+Both clusters are ready for DR test-plan creation and execution. The 32
+cluster also retains the running regression plan above. Before starting a new
+test, verify the selected plan has no active run or stale lock and confirm the
+target VM and storage names do not collide with the retained plan.
+
+The next operator action is to create or select a DR plan in the desired
+cluster UI and start the test from that UI. Build, package, service, schema,
+credential-registration, vCenter-connectivity, and one live incremental-cycle
+verification are complete; no additional server-side preparation is required.
