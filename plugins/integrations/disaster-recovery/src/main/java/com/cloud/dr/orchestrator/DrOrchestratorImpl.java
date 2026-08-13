@@ -26,12 +26,15 @@ import org.apache.commons.lang3.StringUtils;
 
 import com.cloud.dr.DrConstants;
 import com.cloud.dr.DrEventVO;
+import com.cloud.dr.DrFailbackSessionVO;
+import com.cloud.dr.DrFailbackRouteContract;
 import com.cloud.dr.DrPlanVO;
 import com.cloud.dr.DrRunStepVO;
 import com.cloud.dr.DrRunVO;
 import com.cloud.dr.DrTestSessionState;
 import com.cloud.dr.DrTestSessionVO;
 import com.cloud.dr.dao.DrEventDao;
+import com.cloud.dr.dao.DrFailbackSessionDao;
 import com.cloud.dr.dao.DrPlanDao;
 import com.cloud.dr.dao.DrRunDao;
 import com.cloud.dr.dao.DrRunStepDao;
@@ -61,6 +64,8 @@ public class DrOrchestratorImpl extends ManagerBase implements DrOrchestrator {
     private DrRunExecutor drRunExecutor;
     @Inject
     private DrTestSessionDao drTestSessionDao;
+    @Inject
+    private DrFailbackSessionDao drFailbackSessionDao;
 
     @Override
     public DrRunVO createRun(final long planId, final String runType, final String idempotencyKey, final Long requestedByUserId, final Long asyncJobId) {
@@ -96,6 +101,7 @@ public class DrOrchestratorImpl extends ManagerBase implements DrOrchestrator {
                 run = drRunDao.persist(run);
 
                 createRequestedTestSession(plan, run, requestJson);
+                createRequestedFailbackSession(plan, run, requestJson);
 
                 DrRunStepVO step = new DrRunStepVO(run.getId(), INITIAL_STEP, 0);
                 step.setState(DrConstants.STEP_STATE_QUEUED);
@@ -200,6 +206,29 @@ public class DrOrchestratorImpl extends ManagerBase implements DrOrchestrator {
         session.setCleanupRequired(false);
         session.setDetailsJson(requestJson);
         drTestSessionDao.persist(session);
+    }
+
+    private void createRequestedFailbackSession(DrPlanVO plan, DrRunVO run, String requestJson) {
+        if (!StringUtils.equals(run.getRunType(), DrConstants.RUN_TYPE_FAILBACK)
+                || drFailbackSessionDao.findActiveByRunId(run.getId()) != null) {
+            return;
+        }
+        String engineSessionId = plan.getUuid() + ":" + run.getUuid();
+        DrFailbackSessionVO session = new DrFailbackSessionVO(plan.getId(), run.getId(),
+                engineSessionId, "REQUESTED");
+        session.setAcceptanceState("SUBMITTED");
+        session.setTargetPowerState("POWERED_ON");
+        session.setSourcePowerState("POWERED_OFF");
+        session.setEngineAckState("PENDING");
+        session.setCommitOutcome("PENDING");
+        session.setRollbackState("NONE");
+        session.setOperationIntent(DrConstants.OPERATION_INTENT_FAILBACK_FINAL);
+        session.setRequestedMode("AUTO");
+        DrFailbackRouteContract route = DrFailbackRouteContract.forPlan(plan);
+        session.setReplicationDirection(route.getReplicationDirection());
+        session.setProviderPair(route.getProviderPair());
+        session.setDetailsJson(requestJson);
+        drFailbackSessionDao.persist(session);
     }
 
     private JsonObject parseRequest(String requestJson) {

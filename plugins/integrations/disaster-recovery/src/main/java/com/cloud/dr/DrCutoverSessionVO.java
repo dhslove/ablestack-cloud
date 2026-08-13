@@ -61,6 +61,11 @@ public class DrCutoverSessionVO implements InternalIdentity {
     @Column(name = "engine_ack_state") private String engineAckState;
     @Temporal(TemporalType.TIMESTAMP) @Column(name = "engine_ack_at") private Date engineAckAt;
     @Column(name = "cloud_authority_generation") private Long cloudAuthorityGeneration;
+    @Column(name = "commit_contract_version") private String commitContractVersion;
+    @Column(name = "engine_session_id") private String engineSessionId;
+    @Column(name = "commit_attempt_id") private String commitAttemptId;
+    @Column(name = "commit_envelope_sha256") private String commitEnvelopeSha256;
+    @Column(name = "commit_state") private String commitState;
     @Temporal(TemporalType.TIMESTAMP) @Column(name = "completed_at") private Date completedAt;
     @Temporal(TemporalType.TIMESTAMP) @Column(name = "authority_ended_at") private Date authorityEndedAt;
     @Column(name = "authority_ended_by_run_id") private Long authorityEndedByRunId;
@@ -102,6 +107,11 @@ public class DrCutoverSessionVO implements InternalIdentity {
     public String getEngineAckState() { return engineAckState; }
     public Date getEngineAckAt() { return engineAckAt; }
     public Long getCloudAuthorityGeneration() { return cloudAuthorityGeneration; }
+    public String getCommitContractVersion() { return commitContractVersion; }
+    public String getEngineSessionId() { return engineSessionId; }
+    public String getCommitAttemptId() { return commitAttemptId; }
+    public String getCommitEnvelopeSha256() { return commitEnvelopeSha256; }
+    public String getCommitState() { return commitState; }
     public Date getCompletedAt() { return completedAt; }
     public Date getAuthorityEndedAt() { return authorityEndedAt; }
     public Long getAuthorityEndedByRunId() { return authorityEndedByRunId; }
@@ -133,6 +143,11 @@ public class DrCutoverSessionVO implements InternalIdentity {
     public void setEngineAckState(String value) { engineAckState = value; }
     public void setEngineAckAt(Date value) { engineAckAt = value; }
     public void setCloudAuthorityGeneration(Long value) { cloudAuthorityGeneration = value; }
+    public void setCommitContractVersion(String value) { commitContractVersion = value; }
+    public void setEngineSessionId(String value) { engineSessionId = value; }
+    public void setCommitAttemptId(String value) { commitAttemptId = value; }
+    public void setCommitEnvelopeSha256(String value) { commitEnvelopeSha256 = value; }
+    public void setCommitState(String value) { commitState = value; }
     public void setCompletedAt(Date value) { completedAt = value; }
     public void setAuthorityEndedAt(Date value) { authorityEndedAt = value; }
     public void setAuthorityEndedByRunId(Long value) { authorityEndedByRunId = value; }

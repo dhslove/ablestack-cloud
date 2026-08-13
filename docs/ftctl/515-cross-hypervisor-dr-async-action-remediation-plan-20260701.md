@@ -1,5 +1,31 @@
 # Cross Hypervisor DR Async Action Remediation Plan
 
+> 2026-08-06 forward Failover completion correction: document
+> [599](599-cross-hypervisor-dr-forward-cutover-commit-contract-and-authority-convergence-design-20260806.md)
+> keeps the UI/API request start-only while the backend recovers a lost engine
+> ACK through a durable attempt and status query.
+
+> 2026-08-05 Failback terminal-convergence correction: document
+> [595](595-cross-hypervisor-dr-failback-route-contract-and-terminal-convergence-design-20260805.md)
+> keeps lifecycle gate failure asynchronous and converges engine abort,
+> Session, Run, Plan, authority, cache, and retry availability.
+
+> 2026-08-05 live-worker correction: document
+> [594](594-cross-hypervisor-dr-live-worker-and-terminal-reconciliation-design-20260805.md)
+> keeps accepted work asynchronous and prevents provisional observations from
+> closing the Run or admitting a duplicate mutation.
+
+> 2026-08-04 Failback preflight refresh update:
+> [592-cross-hypervisor-dr-failback-live-runtime-preflight-and-ux-convergence-design-20260804.md](592-cross-hypervisor-dr-failback-live-runtime-preflight-and-ux-convergence-design-20260804.md)
+> keeps destructive Failback start-only and adds an asynchronous live
+> preflight refresh plus immediate cached read so the modal never owns a
+> long-running vCenter/VDDK request.
+>
+> 2026-08-03 normative plan-mutation update:
+> [590-cross-hypervisor-dr-plan-async-mutation-and-target-resource-ownership-design-20260803.md](590-cross-hypervisor-dr-plan-async-mutation-and-target-resource-ownership-design-20260803.md)
+> separates UI/API admission acceptance from terminal mutation results and
+> removes nested read projections from async create/update responses.
+
 > 2026-07-31 latest correction: source-isolation lookup is read-only;
 > Failback/Reprotect remain asynchronous Runs. See document 587.
 
@@ -521,6 +547,15 @@ Failback API가 Run을 즉시 반환하는 원칙은 유지한다. 다만 최초
 상세 async retry/backoff, terminal 판정과 AS-IS/TO-BE는
 [576-cross-hypervisor-dr-failback-late-ack-and-projection-convergence-design-20260727.md](576-cross-hypervisor-dr-failback-late-ack-and-projection-convergence-design-20260727.md)를
 따른다.
+
+## 2026-08-06 Data Evidence Publication Grace Addendum
+
+Failback evidence publication uses scheduled reconciliation rather than sleep or
+request-thread polling. `FAILBACK_DATA_READY` with incomplete typed evidence is
+an intermediate state, not terminal failure and not authority-transition
+permission. Five probes or 15 seconds form the bounded grace period. The UI
+continues polling Cloud projection and never contacts Agent or FTCTL directly.
+Document 596 defines the full sequence.
 
 ## 2026-07-31 Async Acceptance Ordering Addendum
 

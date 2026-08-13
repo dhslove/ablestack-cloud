@@ -7,6 +7,8 @@ package com.cloud.dr;
 
 import java.util.Date;
 
+import javax.inject.Provider;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -19,6 +21,8 @@ import org.mockito.junit.MockitoJUnitRunner;
 import com.cloud.dr.dao.DrPlanDao;
 import com.cloud.dr.dao.DrRestorePointDao;
 import com.cloud.dr.dao.DrSiteDao;
+import com.cloud.dr.adapter.ftctl.FtctlDrUnifiedActionAdapter;
+import com.cloud.agent.api.FtctlDrReversePreflightAnswer;
 
 @RunWith(MockitoJUnitRunner.class)
 public class DrFailbackPreflightServiceImplTest {
@@ -27,6 +31,10 @@ public class DrFailbackPreflightServiceImplTest {
     @Mock private DrRestorePointDao drRestorePointDao;
     @Mock private DrSiteCredentialService drSiteCredentialService;
     @Mock private DrSourceIsolationPreflightService drSourceIsolationPreflightService;
+    @Mock private DrCurrentAuthorityResolver drCurrentAuthorityResolver;
+    @Mock private Provider<FtctlDrUnifiedActionAdapter> ftctlDrUnifiedActionAdapterProvider;
+    @Mock private FtctlDrUnifiedActionAdapter ftctlDrUnifiedActionAdapter;
+    @Mock private FtctlDrReversePreflightAnswer reversePreflightAnswer;
 
     @InjectMocks
     private DrFailbackPreflightServiceImpl service;
@@ -52,11 +60,22 @@ public class DrFailbackPreflightServiceImplTest {
         Mockito.when(drRestorePointDao.findLatestTargetReadyByPlanId(plan.getId())).thenReturn(checkpoint);
         Mockito.when(drSiteCredentialService.hasUsableCredential(sourceSite)).thenReturn(true);
         Mockito.when(drSiteCredentialService.hasUsableCredential(targetSite)).thenReturn(true);
+        Mockito.when(drCurrentAuthorityResolver.resolve(plan)).thenReturn(authority("TARGET", true));
         Mockito.when(drSourceIsolationPreflightService.validate(
                 Mockito.eq(plan), Mockito.isNull(), Mockito.eq(DrConstants.RUN_TYPE_FAILBACK)))
                 .thenReturn(DrSourceIsolationPreflightResult.success(
                         DrConstants.RUN_TYPE_FAILBACK, 3L, "ACKNOWLEDGED",
                         "POWERED_OFF", "POWERED_ON", "{\"ready\":true}"));
+        Mockito.when(ftctlDrUnifiedActionAdapterProvider.get()).thenReturn(ftctlDrUnifiedActionAdapter);
+        Mockito.when(ftctlDrUnifiedActionAdapter.probeReversePreflight(plan, null))
+                .thenReturn(reversePreflightAnswer);
+        Mockito.when(reversePreflightAnswer.getResult()).thenReturn(true);
+        Mockito.when(reversePreflightAnswer.getReady()).thenReturn(Boolean.TRUE);
+        Mockito.when(reversePreflightAnswer.getOperationIntent()).thenReturn("FAILBACK_FINAL");
+        Mockito.when(reversePreflightAnswer.getRequestedMode()).thenReturn("AUTO");
+        Mockito.when(reversePreflightAnswer.getEffectiveMode()).thenReturn("FULL_REVERSE_SEED");
+        Mockito.when(reversePreflightAnswer.getStatusEvidenceContractVersion()).thenReturn(1);
+        Mockito.when(reversePreflightAnswer.getStatusEvidencePublicationReady()).thenReturn(Boolean.TRUE);
     }
 
     @Test
@@ -72,11 +91,22 @@ public class DrFailbackPreflightServiceImplTest {
     @Test
     public void rejectsFailbackWhenTargetAuthorityIsNotCommitted() {
         plan.setActiveSide("SOURCE");
+        Mockito.when(drCurrentAuthorityResolver.resolve(plan)).thenReturn(authority("SOURCE", true));
 
         DrFailbackPreflightResult result = service.validate(plan);
 
         Assert.assertFalse(result.isReady());
         Assert.assertEquals(DrConstants.ERROR_FAILBACK_REQUIRES_TARGET_ACTIVE, result.getErrorCode());
+    }
+
+    @Test
+    public void acceptsRetryWhenFailedOperationRetainsCommittedTargetAuthority() {
+        plan.setState(DrConstants.PLAN_STATE_ERROR);
+
+        DrFailbackPreflightResult result = service.validate(plan);
+
+        Assert.assertTrue(result.isReady());
+        Assert.assertSame(targetSite, result.getActiveSite());
     }
 
     @Test
@@ -106,9 +136,25 @@ public class DrFailbackPreflightServiceImplTest {
         Assert.assertNotNull(result.getTransitionPreflight());
     }
 
+    @Test
+    public void blocksFailbackWhenHostCannotPublishDurableEvidence() {
+        Mockito.when(reversePreflightAnswer.getStatusEvidencePublicationReady()).thenReturn(Boolean.FALSE);
+
+        DrFailbackPreflightResult result = service.validate(plan);
+
+        Assert.assertFalse(result.isReady());
+        Assert.assertEquals("DR_FAILBACK_DATA_EVIDENCE_CONTRACT_UNSUPPORTED", result.getErrorCode());
+        Assert.assertEquals("REVERSE_DATA", result.getFailureStage());
+    }
+
     private DrSiteVO site(String name, String siteType, String hypervisorType) {
         DrSiteVO site = new DrSiteVO(name, siteType, hypervisorType);
         site.setHealthState(DrConstants.HEALTH_CONNECTED);
         return site;
+    }
+
+    private DrCurrentAuthorityProjection authority(String side, boolean consistent) {
+        return new DrCurrentAuthorityProjection(side, "FAILED_OVER_UNPROTECTED", 3L,
+                consistent, null, null, null);
     }
 }

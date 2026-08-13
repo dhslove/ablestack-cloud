@@ -6,6 +6,13 @@
 - Affected layers: UI, Cloud API, Cloud backend, Mold Agent, FTCTL, Cloud DB
 - Related: 501, 520, 521, 523, 542, 545, 549, 550, 553, 554, 556, 557, 558, 559
 
+> Live progress note (2026-08-10): this document remains normative for
+> completed-cycle CBT and transfer metrics. In-flight progress transport,
+> staleness, Cloud projection, and UI presentation are defined by
+> `601-cross-hypervisor-dr-live-transfer-progress-projection-design-20260810.md`
+> and qemu document
+> `442-ftctl-dr-live-transfer-progress-contract-design-20260810.md`.
+
 ## 1. Purpose And Normative Priority
 
 This document closes two correctness gaps in the current VMware DR path.

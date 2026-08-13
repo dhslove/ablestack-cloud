@@ -13,6 +13,7 @@ import com.cloud.utils.db.Filter;
 import com.cloud.utils.db.GenericDaoBase;
 import com.cloud.utils.db.SearchBuilder;
 import com.cloud.utils.db.SearchCriteria;
+import com.cloud.utils.db.UpdateBuilder;
 
 @DB
 public class DrFailbackSessionDaoImpl extends GenericDaoBase<DrFailbackSessionVO, Long> implements DrFailbackSessionDao {
@@ -20,9 +21,10 @@ public class DrFailbackSessionDaoImpl extends GenericDaoBase<DrFailbackSessionVO
     private final SearchBuilder<DrFailbackSessionVO> activeByPlan;
     private final SearchBuilder<DrFailbackSessionVO> reconcileCandidates;
     private static final String[] RECONCILE_STATES = {
-            "DATA_READY", "TARGET_STOPPING", "TARGET_STOPPED", "SOURCE_STARTING",
+            "REQUESTED", "DISPATCHED", "ENGINE_ACCEPTED", "REVERSE_PREFLIGHT", "REVERSE_SYNCING",
+            "DATA_READY", "DATA_EVIDENCE_PENDING", "TARGET_STOPPING", "TARGET_STOPPED", "SOURCE_STARTING",
             "SOURCE_BOOT_VALIDATING", "AUTHORITY_COMMITTING", "COMMIT_VERIFYING",
-            "PROTECTION_RESUMING"
+            "PROTECTION_RESUMING", "ABORTING", "ROLLBACK_FAILED"
     };
 
     public DrFailbackSessionDaoImpl() {
@@ -83,5 +85,16 @@ public class DrFailbackSessionDaoImpl extends GenericDaoBase<DrFailbackSessionVO
             }
         }
         return candidates;
+    }
+
+    @Override
+    public void clearFailureMetadata(long sessionId) {
+        DrFailbackSessionVO update = createForUpdate();
+        UpdateBuilder builder = getUpdateBuilder(update);
+        builder.set(update, "failurePhase", null);
+        builder.set(update, "failedComponent", null);
+        builder.set(update, "errorCode", null);
+        builder.set(update, "errorMessage", null);
+        update(sessionId, builder, update);
     }
 }

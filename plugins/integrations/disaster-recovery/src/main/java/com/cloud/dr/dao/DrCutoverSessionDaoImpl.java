@@ -58,6 +58,17 @@ public class DrCutoverSessionDaoImpl extends GenericDaoBase<DrCutoverSessionVO, 
     }
 
     @Override
+    public DrCutoverSessionVO findCommittedTargetAuthorityByPlanId(long planId) {
+        DrCutoverSessionVO authority = findCurrentAuthorityByPlanId(planId);
+        if (authority == null || !DrConstants.PLAN_STATE_FAILED_OVER.equalsIgnoreCase(authority.getState())
+                || !"ACKNOWLEDGED".equalsIgnoreCase(authority.getEngineAckState())
+                || authority.getCloudAuthorityGeneration() == null) {
+            return null;
+        }
+        return authority;
+    }
+
+    @Override
     public DrCutoverSessionVO findLatestByPlanId(long planId) {
         List<DrCutoverSessionVO> sessions = listHistoryByPlanId(planId);
         return sessions.isEmpty() ? null : sessions.get(0);

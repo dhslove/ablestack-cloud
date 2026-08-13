@@ -1,5 +1,40 @@
 # Cross Hypervisor DR Full Implementation Work Plan
 
+> 2026-08-10 implementation addendum: complete the powered-on VMware CBT
+> activation state machine before further failover/failback validation. Required
+> order is FTCTL disk-evidence authority, snapshot cleanup/retry, Agent field
+> preservation, Backend/API asynchronous projection, UI state mapping, builds,
+> deployment, failed-run cleanup, full seed, and one verified incremental cycle.
+> Detailed design:
+> `600-cross-hypervisor-dr-vmware-cbt-activation-convergence-design-20260810.md`.
+
+> 2026-08-05 current P0 correction: implement document
+> [595](595-cross-hypervisor-dr-failback-route-contract-and-terminal-convergence-design-20260805.md)
+> and FTCTL companion 452 before the next Failback retest. Route v2, the
+> production-tuple gate test, and atomic failure convergence precede cleanup.
+
+> 2026-08-05 priority update: implement document
+> [594](594-cross-hypervisor-dr-live-worker-and-terminal-reconciliation-design-20260805.md)
+> P0 items before the next destructive Failback retest.
+
+> 2026-08-04 P0 live-runtime gate correction:
+> [592-cross-hypervisor-dr-failback-live-runtime-preflight-and-ux-convergence-design-20260804.md](592-cross-hypervisor-dr-failback-live-runtime-preflight-and-ux-convergence-design-20260804.md)
+> must be implemented before another live Failback retry. The target Agent
+> domain gate, vCenter source observation, stage API, action-time revalidation,
+> FTCTL projection boundary, and UI stage rendering precede paired retest.
+>
+> 2026-08-04 P0 Failback correction:
+> [591-cross-hypervisor-dr-failback-initial-reverse-seed-and-early-failure-convergence-design-20260804.md](591-cross-hypervisor-dr-failback-initial-reverse-seed-and-early-failure-convergence-design-20260804.md)
+> revision 2 must be completed before another live Failback retry. The order is
+> FTCTL mode selector/preflight, Agent contract, Cloud session/lifecycle/DB,
+> UI readiness, paired deployment, initial full reverse seed, then a measured
+> second incremental cycle.
+>
+> 2026-08-03 implementation priority update:
+> [590-cross-hypervisor-dr-plan-async-mutation-and-target-resource-ownership-design-20260803.md](590-cross-hypervisor-dr-plan-async-mutation-and-target-resource-ownership-design-20260803.md)
+> is the normative P0-P8 plan for async plan mutation safety and target VM,
+> volume, and artifact ownership integrity.
+
 작성일: 2026-07-01
 
 대상 브랜치: `feature/ftctl-cloud-integration`
@@ -445,6 +480,8 @@ RTO를 줄이기 위한 필수 구현:
 | [524-cross-hypervisor-dr-implementation-smoke-build-plan-20260701.md](524-cross-hypervisor-dr-implementation-smoke-build-plan-20260701.md) | 구현, 스모크 검증, Maven/UI/GitHub Actions 빌드 완료까지의 단계별 실행 계획 |
 | [534-cross-hypervisor-dr-sync-readiness-and-materialization-contract-design-20260706.md](534-cross-hypervisor-dr-sync-readiness-and-materialization-contract-design-20260706.md) | sync accepted, target materialization, restore point, RPO 기반 READY 판정 계약 |
 | [554-cross-hypervisor-dr-vmware-to-kvm-cutover-and-virtio-bootstrap-design-20260714.md](554-cross-hypervisor-dr-vmware-to-kvm-cutover-and-virtio-bootstrap-design-20260714.md) | VMware to KVM guest preparation, VirtIO, transient test VM, 실제 Failover boot gate |
+| [590-cross-hypervisor-dr-plan-async-mutation-and-target-resource-ownership-design-20260803.md](590-cross-hypervisor-dr-plan-async-mutation-and-target-resource-ownership-design-20260803.md) | plan create/update 비동기 응답 분리, target VM/volume/artifact claim, Agent 실측, FTCTL manifest v2 계약 |
+| [591-cross-hypervisor-dr-failback-initial-reverse-seed-and-early-failure-convergence-design-20260804.md](591-cross-hypervisor-dr-failback-initial-reverse-seed-and-early-failure-convergence-design-20260804.md) | 최초 역방향 전체 시드 선택, Failback 데이터 Preflight, typed terminal error 및 TARGET authority 보존 계약 |
 
 ## 14. 2026-07-14 추가 구현 단계
 

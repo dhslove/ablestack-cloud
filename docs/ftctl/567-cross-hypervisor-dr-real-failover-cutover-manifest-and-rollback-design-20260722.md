@@ -1,5 +1,10 @@
 # Cross Hypervisor DR Real Failover Cutover Manifest And Rollback Design
 
+> 2026-08-06 normative terminal-commit correction:
+> [599-cross-hypervisor-dr-forward-cutover-commit-contract-and-authority-convergence-design-20260806.md](599-cross-hypervisor-dr-forward-cutover-commit-contract-and-authority-convergence-design-20260806.md)
+> requires a typed V2 envelope and forbids Cloud TARGET authority before FTCTL
+> ACK. This supersedes any earlier sequence that writes Plan TARGET first.
+
 > 2026-07-27 후속 계약: `CUTOVER_READY` status의 completed-cycle 증거 검증,
 > bounded retry, target power-on 전 보상 종료, orphan Cutover Session 정리는
 > [577-cross-hypervisor-dr-failover-projection-evidence-and-compensation-design-20260727.md](577-cross-hypervisor-dr-failover-projection-evidence-and-compensation-design-20260727.md)

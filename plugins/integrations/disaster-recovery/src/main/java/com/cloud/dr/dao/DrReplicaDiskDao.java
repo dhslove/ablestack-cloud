@@ -25,4 +25,6 @@ public interface DrReplicaDiskDao extends GenericDao<DrReplicaDiskVO, Long> {
     List<DrReplicaDiskVO> listActiveByReplicaId(long replicaId);
 
     DrReplicaDiskVO findActiveByReplicaIdAndSourceVolumeId(long replicaId, long sourceVolumeId);
+
+    List<DrReplicaDiskVO> listByTargetVolumeId(long targetVolumeId);
 }

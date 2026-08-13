@@ -32,13 +32,46 @@
       <dr-status-pill :status="effectiveRunState" />
     </div>
 
-    <a-progress
-      v-if="hasProgress"
-      :percent="progress"
-      :status="progressStatus"
-      size="small" />
+    <div v-if="hasProgress" class="cross-dr-run-progress__workflow">
+      <div class="cross-dr-run-progress__workflow-label">
+        <span>{{ $t('label.dr.operation.progress') }}</span>
+        <span>{{ progress }}%</span>
+      </div>
+      <a-progress
+        :percent="progress"
+        :status="progressStatus"
+        size="small" />
+    </div>
     <div v-else class="cross-dr-run-progress__unknown">
       {{ $t('message.dr.progress.waiting') }}
+    </div>
+
+    <div v-if="showTransferPanel" class="cross-dr-transfer-progress">
+      <div class="cross-dr-transfer-progress__head">
+        <span>{{ $t('label.dr.transfer.progress') }}</span>
+        <span v-if="hasTransferProgress">{{ transferPercent }}%</span>
+      </div>
+      <a-progress
+        v-if="hasTransferProgress"
+        :percent="transferPercent"
+        :status="transferProgressStatus"
+        :aria-valuenow="transferPercent"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        size="small" />
+      <div v-else class="cross-dr-transfer-progress__preparing">
+        {{ $t('message.dr.transfer.progress.preparing') }}
+      </div>
+      <div v-if="hasTransferProgress" class="cross-dr-transfer-progress__meta">
+        <span>{{ formatBytes(transferBytesProcessed) }} / {{ formatBytes(transferBytesTotal) }}</span>
+        <span>{{ formatRate(transferThroughputBps) }}</span>
+        <span>{{ $t('label.dr.transfer.eta') }}: {{ formatDuration(transferEtaSeconds) }}</span>
+        <span v-if="transferDiskCount > 0">{{ $t('label.dr.transfer.disk') }}: {{ transferCurrentDisk }}/{{ transferDiskCount }}</span>
+        <span>{{ transferPhase || '-' }} / {{ transferMode || '-' }}</span>
+      </div>
+      <div v-if="transferProgressStale" class="cross-dr-transfer-progress__stale">
+        {{ $t('message.dr.transfer.progress.stale') }}
+      </div>
     </div>
 
     <div v-if="retryNotice" class="cross-dr-run-progress__notice">
@@ -87,6 +120,10 @@ export default {
     steps: {
       type: Array,
       default: () => []
+    },
+    runtime: {
+      type: Object,
+      default: () => ({})
     }
   },
   computed: {
@@ -126,13 +163,24 @@ export default {
       if (!this.run.retryable && String(this.run.state || '').toUpperCase() !== 'RETRYING') {
         return ''
       }
+      if (this.hasTransferProgress && !this.transferProgressStale &&
+        ['PREPARING', 'COPYING', 'VERIFYING'].includes(String(this.transferValue.transferactivitystate || '').toUpperCase())) {
+        return ''
+      }
       const reason = this.run.errormessage || this.errorText || 'FTCTL engine is busy'
       const meta = this.retryMeta ? ` (${this.retryMeta})` : ''
       return this.$t('message.dr.retry.scheduled', { reason, meta })
     },
     cbtNotice () {
       const fields = []
-      if (this.run.runtimecbtenabled === true || this.run.runtimecbtenabled === 'true') {
+      const lifecycle = String(this.run.runtimecbtlifecyclestate || '').toUpperCase()
+      if (lifecycle === 'ACTIVE') {
+        fields.push(this.$t('label.dr.cbt.active'))
+      } else if (lifecycle === 'CONFIGURED_PENDING_ACTIVATION') {
+        fields.push(this.$t('label.dr.cbt.pending.activation'))
+      } else if (lifecycle === 'CONFIG_REQUIRED') {
+        fields.push(this.$t('label.dr.cbt.configuration.required'))
+      } else if (this.run.runtimecbtenabled === true || this.run.runtimecbtenabled === 'true') {
         fields.push(this.$t('label.dr.cbt.enabled'))
       } else if (this.run.runtimecbtenabled === false || this.run.runtimecbtenabled === 'false') {
         fields.push(this.$t('label.dr.cbt.disabled'))
@@ -168,10 +216,18 @@ export default {
     },
     progress () {
       const value = Number(this.run.progresspercent)
-      if (!Number.isFinite(value)) {
-        return this.stateProgress
+      const authoritative = Number.isFinite(value)
+        ? Math.max(0, Math.min(100, Math.round(value)))
+        : this.stateProgress
+      return Math.max(authoritative, this.transferWorkflowFloor)
+    },
+    transferWorkflowFloor () {
+      const runType = String(this.run.runtype || this.run.runType || '').toUpperCase()
+      const runState = String(this.run.state || '').toUpperCase()
+      if (runType !== 'SYNC' || !this.hasTransferProgress || ['SUCCEEDED', 'FAILED', 'CANCELED'].includes(runState)) {
+        return 0
       }
-      return Math.max(0, Math.min(100, Math.round(value)))
+      return 70 + Math.round(this.transferPercent * 25 / 100)
     },
     stateProgress () {
       const state = String(this.run.state || '').toUpperCase()
@@ -214,6 +270,51 @@ export default {
       }
       return 'active'
     },
+    transferValue () {
+      const runValue = this.run || {}
+      const runtimeValue = this.runtime || {}
+      const runValid = this.isValidTransferValue(runValue)
+      const runtimeValid = this.isValidTransferValue(runtimeValue)
+      if (runValid && runtimeValid) {
+        return this.compareTransferValues(runtimeValue, runValue) >= 0 ? runtimeValue : runValue
+      }
+      if (runtimeValid) return runtimeValue
+      if (runValid) return runValue
+      return Object.assign({}, runtimeValue, runValue)
+    },
+    hasTransferProgress () {
+      return Number(this.transferValue.transferprogressschemaversion || 0) >= 2 &&
+        Number(this.transferValue.transferbytestotal || 0) > 0
+    },
+    transferExpected () {
+      const step = String(this.run.runtimestep || this.run.currentstep || '').toUpperCase()
+      const phase = String(this.transferValue.transferphase || '').toUpperCase()
+      const activity = String(this.transferValue.transferactivitystate || '').toUpperCase()
+      return step.includes('TRANSFER') || phase === 'TRANSFER' || ['PREPARING', 'COPYING', 'VERIFYING'].includes(activity)
+    },
+    showTransferPanel () {
+      return this.hasTransferProgress || this.transferExpected
+    },
+    transferPercent () {
+      const value = Number(this.transferValue.transferpercent)
+      if (Number.isFinite(value)) {
+        return Math.max(0, Math.min(100, Math.round(value)))
+      }
+      const total = this.transferBytesTotal
+      return total > 0 ? Math.max(0, Math.min(100, Math.round(this.transferBytesProcessed * 100 / total))) : 0
+    },
+    transferBytesTotal () { return Number(this.transferValue.transferbytestotal || 0) },
+    transferBytesProcessed () { return Number(this.transferValue.transferbytesprocessed || this.transferValue.transferpayloadbytes || 0) },
+    transferThroughputBps () { return Number(this.transferValue.transferthroughputbps || 0) },
+    transferEtaSeconds () { return Number(this.transferValue.transferetaseconds || 0) },
+    transferCurrentDisk () { return Number(this.transferValue.transfercurrentdiskindex || 0) + 1 },
+    transferDiskCount () { return Number(this.transferValue.transferdiskcount || 0) },
+    transferPhase () { return this.transferValue.transferphase || this.transferValue.transferactivitystate || '' },
+    transferMode () { return this.transferValue.transfermode || '' },
+    transferProgressStale () { return this.transferValue.transferprogressstale === true || this.transferValue.transferprogressstale === 'true' },
+    transferProgressStatus () {
+      return this.transferProgressStale ? 'exception' : (this.transferPercent >= 100 ? 'success' : 'active')
+    },
     normalizedSteps () {
       return this.steps.length ? this.steps : (this.run.steps || [])
     },
@@ -224,6 +325,44 @@ export default {
         return 'FAILED'
       }
       return this.run.state || runtime || 'UNKNOWN'
+    }
+  },
+  methods: {
+    isValidTransferValue (value) {
+      return Number(value && value.transferprogressschemaversion || 0) >= 2 &&
+        Number(value && value.transferbytestotal || 0) > 0
+    },
+    compareTransferValues (left, right) {
+      const leftCycle = Number(left && left.transfercyclesequence || 0)
+      const rightCycle = Number(right && right.transfercyclesequence || 0)
+      if (leftCycle !== rightCycle) return leftCycle - rightCycle
+      const leftSample = Number(left && left.transfersamplesequence || 0)
+      const rightSample = Number(right && right.transfersamplesequence || 0)
+      if (leftSample !== rightSample) return leftSample - rightSample
+      return Number(left && left.transferprogresssampleepochms || 0) -
+        Number(right && right.transferprogresssampleepochms || 0)
+    },
+    formatBytes (value) {
+      let bytes = Number(value || 0)
+      if (!Number.isFinite(bytes) || bytes < 0) return '-'
+      const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB']
+      let index = 0
+      while (bytes >= 1024 && index < units.length - 1) {
+        bytes /= 1024
+        index += 1
+      }
+      return `${bytes.toFixed(index === 0 ? 0 : 1)} ${units[index]}`
+    },
+    formatRate (value) {
+      return `${this.formatBytes(value)}/s`
+    },
+    formatDuration (seconds) {
+      const value = Number(seconds || 0)
+      if (!Number.isFinite(value) || value <= 0) return '-'
+      if (value < 60) return `${Math.ceil(value)}s`
+      const minutes = Math.floor(value / 60)
+      const remain = Math.ceil(value % 60)
+      return `${minutes}m ${remain}s`
     }
   }
 }
@@ -266,8 +405,57 @@ export default {
   gap: 4px 12px;
 }
 
+.cross-dr-run-progress__workflow {
+  margin-top: 10px;
+}
+
+.cross-dr-run-progress__workflow-label {
+  display: flex;
+  justify-content: space-between;
+  color: var(--cross-dr-text-secondary, rgba(0, 0, 0, 0.45));
+  font-size: 12px;
+}
+
 .cross-dr-run-progress__unknown {
   margin-top: 10px;
+}
+
+.cross-dr-transfer-progress {
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid var(--cross-dr-border, #e8e8e8);
+  border-radius: 6px;
+  background: var(--cross-dr-surface-muted, #fafafa);
+}
+
+.cross-dr-transfer-progress__head,
+.cross-dr-transfer-progress__meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px 12px;
+}
+
+.cross-dr-transfer-progress__head {
+  color: var(--cross-dr-text, rgba(0, 0, 0, 0.85));
+  font-weight: 600;
+}
+
+.cross-dr-transfer-progress__meta {
+  color: var(--cross-dr-text-secondary, rgba(0, 0, 0, 0.45));
+  font-size: 12px;
+}
+
+.cross-dr-transfer-progress__stale {
+  margin-top: 6px;
+  color: var(--cross-dr-warning-text, #874d00);
+  font-size: 12px;
+}
+
+.cross-dr-transfer-progress__preparing {
+  margin-top: 6px;
+  color: var(--cross-dr-text-secondary, rgba(0, 0, 0, 0.45));
+  font-size: 12px;
 }
 
 .cross-dr-run-progress__notice {

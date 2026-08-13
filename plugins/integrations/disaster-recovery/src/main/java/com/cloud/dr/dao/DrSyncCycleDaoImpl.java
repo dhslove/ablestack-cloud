@@ -5,6 +5,7 @@
 // to you under the Apache License, Version 2.0.
 package com.cloud.dr.dao;
 
+import java.util.Date;
 import java.util.List;
 
 import com.cloud.dr.DrSyncCycleVO;
@@ -13,6 +14,7 @@ import com.cloud.utils.db.Filter;
 import com.cloud.utils.db.GenericDaoBase;
 import com.cloud.utils.db.SearchBuilder;
 import com.cloud.utils.db.SearchCriteria;
+import com.cloud.utils.db.UpdateBuilder;
 
 @DB
 public class DrSyncCycleDaoImpl extends GenericDaoBase<DrSyncCycleVO, Long> implements DrSyncCycleDao {
@@ -20,6 +22,7 @@ public class DrSyncCycleDaoImpl extends GenericDaoBase<DrSyncCycleVO, Long> impl
     private final SearchBuilder<DrSyncCycleVO> byPlanSearch;
     private final SearchBuilder<DrSyncCycleVO> activeByPlanSearch;
     private final SearchBuilder<DrSyncCycleVO> completedByPlanSearch;
+    private final SearchBuilder<DrSyncCycleVO> incompleteBeforeSequenceSearch;
 
     private static final String[] ACTIVE_STATES = {
             "PREPARING", "SNAPSHOTTING", "TRANSFERRING", "COMMITTING", "RETRYING", "RUNNING"
@@ -48,6 +51,13 @@ public class DrSyncCycleDaoImpl extends GenericDaoBase<DrSyncCycleVO, Long> impl
         completedByPlanSearch.and("completed", completedByPlanSearch.entity().getCompleted(), SearchCriteria.Op.NNULL);
         completedByPlanSearch.and("removed", completedByPlanSearch.entity().getRemoved(), SearchCriteria.Op.NULL);
         completedByPlanSearch.done();
+
+        incompleteBeforeSequenceSearch = createSearchBuilder();
+        incompleteBeforeSequenceSearch.and("planId", incompleteBeforeSequenceSearch.entity().getPlanId(), SearchCriteria.Op.EQ);
+        incompleteBeforeSequenceSearch.and("sequence", incompleteBeforeSequenceSearch.entity().getSequence(), SearchCriteria.Op.LT);
+        incompleteBeforeSequenceSearch.and("completed", incompleteBeforeSequenceSearch.entity().getCompleted(), SearchCriteria.Op.NULL);
+        incompleteBeforeSequenceSearch.and("removed", incompleteBeforeSequenceSearch.entity().getRemoved(), SearchCriteria.Op.NULL);
+        incompleteBeforeSequenceSearch.done();
     }
 
     @Override
@@ -80,6 +90,26 @@ public class DrSyncCycleDaoImpl extends GenericDaoBase<DrSyncCycleVO, Long> impl
         sc.setParameters("planId", planId);
         List<DrSyncCycleVO> rows = listBy(sc, new Filter(DrSyncCycleVO.class, "sequence", false, 0L, 1L));
         return rows != null && !rows.isEmpty() ? rows.get(0) : null;
+    }
+
+    @Override
+    public List<DrSyncCycleVO> listIncompleteBeforeSequence(long planId, long sequence, int limit) {
+        SearchCriteria<DrSyncCycleVO> sc = incompleteBeforeSequenceSearch.create();
+        sc.setParameters("planId", planId);
+        sc.setParameters("sequence", sequence);
+        return listBy(sc, new Filter(DrSyncCycleVO.class, "sequence", true, 0L, (long) Math.max(1, limit)));
+    }
+
+    @Override
+    public void terminalize(long cycleId, String state, String commitState, Date completedAt) {
+        DrSyncCycleVO update = createForUpdate();
+        UpdateBuilder builder = getUpdateBuilder(update);
+        builder.set(update, "state", state);
+        builder.set(update, "commitState", commitState);
+        builder.set(update, "completed", completedAt != null ? completedAt : new Date());
+        builder.set(update, "errorCode", null);
+        builder.set(update, "errorMessage", null);
+        update(cycleId, builder, update);
     }
 
     @Override

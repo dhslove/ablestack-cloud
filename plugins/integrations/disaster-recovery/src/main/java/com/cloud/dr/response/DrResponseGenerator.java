@@ -60,12 +60,16 @@ import com.cloud.dr.DrSiteHealthCheckVO;
 import com.cloud.dr.DrSiteCredentialService;
 import com.cloud.dr.DrSiteCredentialVO;
 import com.cloud.dr.DrSiteVO;
+import com.cloud.dr.DrSyncCycleVO;
+import com.cloud.dr.DrSyncWorkflowProgress;
 import com.cloud.dr.DrTestSessionVO;
 import com.cloud.dr.dao.DrPlanDao;
 import com.cloud.dr.dao.DrCutoverSessionDao;
 import com.cloud.dr.dao.DrRunDao;
 import com.cloud.dr.dao.DrRunStepDao;
+import com.cloud.dr.dao.DrReplicaDao;
 import com.cloud.dr.dao.DrSiteDao;
+import com.cloud.dr.dao.DrSyncCycleDao;
 import com.cloud.dr.dao.DrTestSessionDao;
 import com.cloud.dr.inventory.DrInventoryOption;
 import com.cloud.dr.inventory.DrPlanInventoryResult;
@@ -103,6 +107,10 @@ public class DrResponseGenerator extends ManagerBase {
     private DrProtectionAuthorityService drProtectionAuthorityService;
     @Inject
     private DrCurrentAuthorityResolver drCurrentAuthorityResolver;
+    @Inject
+    private DrReplicaDao drReplicaDao;
+    @Inject
+    private DrSyncCycleDao drSyncCycleDao;
 
     public DrSiteResponse createSiteResponse(DrSiteVO site) {
         DrSiteResponse response = new DrSiteResponse();
@@ -211,6 +219,7 @@ public class DrResponseGenerator extends ManagerBase {
             response.setCutoverTargetPowerState(cutoverSession.getTargetPowerState());
             response.setCutoverBootValidationState(cutoverSession.getBootValidationState());
             response.setEngineAckState(cutoverSession.getEngineAckState());
+            response.setCutoverCommitState(cutoverSession.getCommitState());
             response.setCutoverAuthorityGeneration(cutoverSession.getCloudAuthorityGeneration());
             response.setCutoverCompletedAt(cutoverSession.getCompletedAt());
         }
@@ -252,6 +261,30 @@ public class DrResponseGenerator extends ManagerBase {
             response.setReplicationActivity(authority.getReplicationActivityState());
             response.setActiveWorkerRunUuid(authority.getActiveWorkerRunUuid());
             response.setWorkerHeartbeatAt(authority.getWorkerHeartbeatAt());
+            response.setWorkerIdentityState(authority.getRuntime().getWorkerIdentityState());
+            response.setWorkerLivenessState(authority.getRuntime().getWorkerLivenessState());
+            response.setTransferActivityState(authority.getRuntime().getTransferActivityState());
+            response.setTransferPayloadBytes(authority.getRuntime().getTransferPayloadBytes());
+            response.setTransferProgressSchemaVersion(authority.getRuntime().getTransferProgressSchemaVersion());
+            response.setTransferCycleSequence(authority.getRuntime().getTransferCycleSequence());
+            response.setTransferSampleSequence(authority.getRuntime().getTransferSampleSequence());
+            response.setTransferPhase(authority.getRuntime().getTransferPhase());
+            response.setTransferMode(authority.getRuntime().getTransferMode());
+            response.setTransferBytesTotal(authority.getRuntime().getTransferBytesTotal());
+            response.setTransferBytesProcessed(authority.getRuntime().getTransferBytesProcessed());
+            response.setTransferSourceReadBytes(authority.getRuntime().getTransferSourceReadBytes());
+            response.setTransferTargetWrittenBytes(authority.getRuntime().getTransferTargetWrittenBytes());
+            response.setTransferVerifiedBytes(authority.getRuntime().getTransferVerifiedBytes());
+            response.setTransferPercent(authority.getRuntime().getTransferPercent());
+            response.setTransferThroughputBps(authority.getRuntime().getTransferThroughputBps());
+            response.setTransferEtaSeconds(authority.getRuntime().getTransferEtaSeconds());
+            response.setTransferCurrentDiskIndex(authority.getRuntime().getTransferCurrentDiskIndex());
+            response.setTransferDiskCount(authority.getRuntime().getTransferDiskCount());
+            response.setTransferProgressEstimated(authority.getRuntime().getTransferProgressEstimated());
+            response.setTransferProgressSampledAt(authority.getRuntime().getTransferProgressSampledAt());
+            response.setTransferProgressStale(authority.getRuntime().getTransferProgressStale());
+            projectLatestCompletedTransferSummary(response, plan, authority.getRuntime());
+            response.setReconciliationState(authority.getRuntime().getReconciliationState());
             response.setOwnerMatched(authority.isOwnerMatched());
             response.setNormalCutoverReady(authority.isNormalCutoverReady());
             response.setNormalCutoverReason(authority.getNormalCutoverReason());
@@ -299,9 +332,49 @@ public class DrResponseGenerator extends ManagerBase {
         response.setInitialSyncInProgress(isInitialSyncInProgress(activeRun, currentRuntime));
         response.setTargetMaterializationState(resolveTargetMaterializationState(activeRun, currentRuntime, readiness));
         response.setTargetMaterializationMessage(resolveTargetMaterializationMessage(activeRun, currentRuntime, readiness));
+        List<DrReplicaVO> planReplicas = drReplicaDao != null ? drReplicaDao.listActiveByPlanId(plan.getId()) : null;
+        DrReplicaVO planReplica = planReplicas != null && !planReplicas.isEmpty() ? planReplicas.get(0) : null;
+        if (planReplica != null) {
+            response.setTargetOwnershipState(planReplica.getOwnershipState());
+            response.setTargetOwnershipGeneration(planReplica.getOwnershipGeneration());
+            response.setTargetMaterializationDigest(planReplica.getMaterializationDigest());
+            response.setTargetPowerStateObservedAt(planReplica.getPowerStateObservedAt());
+        }
         response.setCreated(plan.getCreated());
         response.setRemoved(plan.getRemoved());
         return response;
+    }
+
+    private void projectLatestCompletedTransferSummary(DrPlanResponse response, DrPlanVO plan,
+            DrPlanRuntimeVO runtime) {
+        if (drSyncCycleDao == null || runtime == null
+                || !StringUtils.equalsIgnoreCase(runtime.getReplicationActivityState(), "IDLE")
+                || runtime.getLatestCompletedCycleSequence() == null) {
+            return;
+        }
+        DrSyncCycleVO cycle = drSyncCycleDao.findLatestCompletedByPlanId(plan.getId());
+        if (cycle == null || cycle.getSequence() != runtime.getLatestCompletedCycleSequence().longValue()) {
+            return;
+        }
+        response.setTransferActivityState("IDLE");
+        response.setTransferCycleSequence(cycle.getSequence());
+        response.setTransferSampleSequence(cycle.getSequence());
+        response.setTransferPhase("COMPLETED");
+        response.setTransferMode(cycle.getEffectiveMode());
+        response.setTransferBytesTotal(cycle.getVirtualBytes());
+        response.setTransferBytesProcessed(cycle.getTransferPayloadBytes());
+        response.setTransferSourceReadBytes(cycle.getSourceReadBytes());
+        response.setTransferTargetWrittenBytes(cycle.getTargetWrittenBytes());
+        response.setTransferVerifiedBytes(cycle.getTargetWrittenBytes());
+        response.setTransferPayloadBytes(cycle.getTransferPayloadBytes());
+        response.setTransferPercent(100D);
+        response.setTransferThroughputBps(cycle.getThroughputBps());
+        response.setTransferEtaSeconds(0L);
+        response.setTransferCurrentDiskIndex(null);
+        response.setTransferDiskCount(null);
+        response.setTransferProgressEstimated(cycle.getMetricsEstimated());
+        response.setTransferProgressSampledAt(cycle.getCompleted());
+        response.setTransferProgressStale(false);
     }
 
     private Map<String, DrActionAvailabilityResponse> createActionAvailabilityResponses(
@@ -567,6 +640,36 @@ public class DrResponseGenerator extends ManagerBase {
         populateSourceSnapshotStatus(response, runtime);
         response.setWorkerState(firstString(runtime, "worker_state"));
         response.setWorkerExitCode(firstInteger(runtime, "worker_exit_code"));
+        response.setWorkerIdentityState(firstString(runtime, "worker_identity_state"));
+        response.setWorkerLivenessState(firstString(runtime, "worker_liveness_state"));
+        response.setTransferActivityState(firstString(runtime, "transfer_activity_state"));
+        response.setTransferPayloadBytes(firstLong(runtime, "transfer_payload_bytes"));
+        response.setTransferProgressSchemaVersion(firstInteger(runtime, "transfer_progress_schema_version"));
+        response.setTransferCycleSequence(firstLong(runtime, "transfer_cycle_sequence"));
+        response.setTransferSampleSequence(firstLong(runtime, "transfer_sample_sequence"));
+        response.setTransferPhase(firstString(runtime, "transfer_phase"));
+        response.setTransferMode(firstString(runtime, "transfer_mode"));
+        response.setTransferBytesTotal(firstLong(runtime, "transfer_bytes_total"));
+        response.setTransferBytesProcessed(firstLong(runtime, "transfer_bytes_processed"));
+        response.setTransferSourceReadBytes(firstLong(runtime, "transfer_source_read_bytes"));
+        response.setTransferTargetWrittenBytes(firstLong(runtime, "transfer_target_written_bytes"));
+        response.setTransferVerifiedBytes(firstLong(runtime, "transfer_verified_bytes"));
+        response.setTransferPercent(firstDouble(runtime, "transfer_percent"));
+        response.setTransferThroughputBps(firstLong(runtime, "transfer_throughput_bps"));
+        response.setTransferEtaSeconds(firstLong(runtime, "transfer_eta_seconds"));
+        response.setTransferCurrentDiskIndex(firstInteger(runtime, "transfer_current_disk_index"));
+        response.setTransferDiskCount(firstInteger(runtime, "transfer_disk_count"));
+        response.setTransferProgressEstimated(firstBoolean(runtime, "transfer_progress_estimated"));
+        Long transferSampleEpochMs = firstLong(runtime, "transfer_progress_sample_epoch_ms");
+        response.setTransferProgressSampledAt(transferSampleEpochMs != null && transferSampleEpochMs > 0
+                ? new Date(transferSampleEpochMs) : null);
+        response.setTransferProgressStale(firstBoolean(runtime, "transfer_progress_stale"));
+        response.setReconciliationRequired(firstBoolean(runtime, "reconciliation_required"));
+        response.setTerminalSource(firstString(runtime, "terminal_source"));
+        response.setTerminalVersion(firstInteger(runtime, "terminal_version"));
+        response.setTerminalPublicationPending(firstBoolean(runtime, "terminal_publication_pending"));
+        response.setTerminalPublicationPendingSince(firstString(runtime, "terminal_publication_pending_since"));
+        response.setFailurePhase(firstString(runtime, "failure_phase"));
         response.setRetryable(run.isRetryable());
         response.setRetryCount(run.getRetryCount());
         response.setRetryAfterSeconds(run.getRetryAfterSeconds());
@@ -584,7 +687,7 @@ public class DrResponseGenerator extends ManagerBase {
         response.setCompleted(run.getCompleted());
         response.setCreated(run.getCreated());
         response.setSteps(createRunStepResponses(steps));
-        response.setProgressPercent(resolveProgress(steps));
+        response.setProgressPercent(resolveProgress(run, steps, runtime));
         DrTestSessionVO testSession = drTestSessionDao.findByRunIdIncludingRemoved(run.getId());
         if (testSession != null) {
             response.setTestSessionId(testSession.getUuid());
@@ -691,7 +794,9 @@ public class DrResponseGenerator extends ManagerBase {
     private void populateCbtStatus(DrPlanResponse response, JsonObject runtime) {
         JsonObject cbtStatus = firstObject(runtime, "cbt_status");
         response.setRuntimeCbtEnabled(firstBoolean(cbtStatus, "enabled"));
-        response.setRuntimeCbtDiskId(StringUtils.defaultIfBlank(firstString(cbtStatus, "cbtDiskId"), firstString(cbtStatus, "sourceDiskRef")));
+        response.setRuntimeCbtLifecycleState(firstString(cbtStatus, "lifecycleState"));
+        response.setRuntimeCbtVmConfigSignal(firstString(cbtStatus, "vmConfigSignal"));
+        response.setRuntimeCbtDiskId(firstCbtDiskId(cbtStatus));
         response.setRuntimeCbtMessage(firstString(cbtStatus, "message"));
         response.setRuntimeCbtGovcBin(firstString(cbtStatus, "govcBin"));
         response.setRuntimeCbtCheckedAtEpochMs(firstLong(cbtStatus, "checkedAtEpochMs"));
@@ -700,7 +805,9 @@ public class DrResponseGenerator extends ManagerBase {
     private void populateCbtStatus(DrRunResponse response, JsonObject runtime) {
         JsonObject cbtStatus = firstObject(runtime, "cbt_status");
         response.setRuntimeCbtEnabled(firstBoolean(cbtStatus, "enabled"));
-        response.setRuntimeCbtDiskId(StringUtils.defaultIfBlank(firstString(cbtStatus, "cbtDiskId"), firstString(cbtStatus, "sourceDiskRef")));
+        response.setRuntimeCbtLifecycleState(firstString(cbtStatus, "lifecycleState"));
+        response.setRuntimeCbtVmConfigSignal(firstString(cbtStatus, "vmConfigSignal"));
+        response.setRuntimeCbtDiskId(firstCbtDiskId(cbtStatus));
         response.setRuntimeCbtMessage(firstString(cbtStatus, "message"));
         response.setRuntimeCbtGovcBin(firstString(cbtStatus, "govcBin"));
         response.setRuntimeCbtCheckedAtEpochMs(firstLong(cbtStatus, "checkedAtEpochMs"));
@@ -781,6 +888,19 @@ public class DrResponseGenerator extends ManagerBase {
         }
     }
 
+    private String firstCbtDiskId(JsonObject cbtStatus) {
+        String direct = StringUtils.defaultIfBlank(firstString(cbtStatus, "cbtDiskId"), firstString(cbtStatus, "sourceDiskRef"));
+        if (StringUtils.isNotBlank(direct) || cbtStatus == null || !cbtStatus.has("disks") || !cbtStatus.get("disks").isJsonArray()) {
+            return direct;
+        }
+        JsonArray disks = cbtStatus.getAsJsonArray("disks");
+        if (disks.size() == 0 || !disks.get(0).isJsonObject()) {
+            return null;
+        }
+        JsonObject disk = disks.get(0).getAsJsonObject();
+        return StringUtils.defaultIfBlank(firstString(disk, "cbtDiskId"), firstString(disk, "diskId"));
+    }
+
     private Integer firstInteger(JsonObject object, String key) {
         if (object == null || !object.has(key) || object.get(key).isJsonNull()) {
             return null;
@@ -798,6 +918,17 @@ public class DrResponseGenerator extends ManagerBase {
         }
         try {
             return object.get(key).getAsLong();
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    private Double firstDouble(JsonObject object, String key) {
+        if (object == null || !object.has(key) || object.get(key).isJsonNull()) {
+            return null;
+        }
+        try {
+            return object.get(key).getAsDouble();
         } catch (RuntimeException e) {
             return null;
         }
@@ -976,6 +1107,10 @@ public class DrResponseGenerator extends ManagerBase {
         response.setHypervisorType(replica.getHypervisorType());
         response.setActiveSide(replica.getActiveSide());
         response.setRuntimeStateJson(replica.getRuntimeStateJson());
+        response.setOwnershipState(replica.getOwnershipState());
+        response.setOwnershipGeneration(replica.getOwnershipGeneration());
+        response.setMaterializationDigest(replica.getMaterializationDigest());
+        response.setPowerStateObservedAt(replica.getPowerStateObservedAt());
         response.setCreated(replica.getCreated());
         return response;
     }
@@ -1029,12 +1164,30 @@ public class DrResponseGenerator extends ManagerBase {
         return responses;
     }
 
-    private Integer resolveProgress(List<DrRunStepVO> steps) {
-        if (steps == null || steps.isEmpty()) {
-            return null;
+    private Integer resolveProgress(DrRunVO run, List<DrRunStepVO> steps, JsonObject runtime) {
+        Integer progress = null;
+        if (steps != null) {
+            for (DrRunStepVO step : steps) {
+                if (step != null && step.getProgress() != null) {
+                    progress = progress == null ? step.getProgress() : Math.max(progress, step.getProgress());
+                }
+            }
         }
-        DrRunStepVO last = steps.get(steps.size() - 1);
-        return last.getProgress();
+        if (run != null && StringUtils.equalsAny(run.getState(), DrConstants.RUN_STATE_SUCCEEDED,
+                DrConstants.RUN_STATE_FAILED, DrConstants.RUN_STATE_CANCELED)) {
+            return 100;
+        }
+        Integer schemaVersion = firstInteger(runtime, "transfer_progress_schema_version");
+        if (!isActiveSyncRun(run) || schemaVersion == null || schemaVersion < 2) {
+            return progress;
+        }
+        Boolean durableCheckpointPresent = firstBoolean(runtime, "restore_point_present");
+        Boolean targetVmPresent = firstBoolean(runtime, "target_vm_present");
+        boolean targetMaterializing = Boolean.TRUE.equals(durableCheckpointPresent)
+                && !Boolean.TRUE.equals(targetVmPresent);
+        return DrSyncWorkflowProgress.resolve(progress, firstDouble(runtime, "transfer_percent"),
+                firstLong(runtime, "transfer_bytes_processed"), firstLong(runtime, "transfer_bytes_total"),
+                targetMaterializing);
     }
 
     private String summarizeError(String errorCode, String message) {
@@ -1077,6 +1230,12 @@ public class DrResponseGenerator extends ManagerBase {
         }
         if (StringUtils.equalsIgnoreCase(errorCode, DrConstants.ERROR_CBT_LOCAL_COMMIT_FAILED)) {
             return "Disk data was copied, but the local cycle metadata commit failed. No completed checkpoint was published.";
+        }
+        if (StringUtils.equalsIgnoreCase(errorCode, DrConstants.ERROR_REVERSE_SNAPSHOT_OPEN_FAILED)) {
+            return "FTCTL could not open the immutable reverse-replication RBD snapshot for reading. Verify the snapshot reference and the host qemu-nbd RBD support before retrying.";
+        }
+        if (StringUtils.equalsIgnoreCase(errorCode, DrConstants.ERROR_TERMINAL_PUBLICATION_TIMEOUT)) {
+            return "FTCTL exited without publishing an authoritative terminal result within the allowed grace period. Inspect the failback worker log before retrying.";
         }
         return sanitizeApiString(errorCode, MAX_API_MESSAGE_LENGTH);
     }

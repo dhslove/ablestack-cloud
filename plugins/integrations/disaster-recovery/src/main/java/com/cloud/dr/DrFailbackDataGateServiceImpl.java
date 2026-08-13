@@ -14,12 +14,24 @@ public class DrFailbackDataGateServiceImpl extends ManagerBase implements DrFail
             return DrFailbackDataGateResult.blocked("DR_FAILBACK_DATA_EVIDENCE_MISSING",
                     "Failback replication evidence is unavailable");
         }
-        if (!StringUtils.equals(session.getReplicationDirection(), "ABLESTACK_TO_VMWARE")
-                || !StringUtils.equals(session.getProviderPair(), "ABLESTACK_TO_VMWARE")) {
-            return DrFailbackDataGateResult.blocked("DR_FAILBACK_DIRECTION_MISMATCH",
-                    "Failback requires an ABLESTACK_TO_VMWARE reverse checkpoint");
+        DrFailbackDataEvidence evidence = DrFailbackDataEvidence.from(session);
+        if (!evidence.isComplete()) {
+            return DrFailbackDataGateResult.blocked("DR_FAILBACK_DATA_EVIDENCE_INCOMPLETE",
+                    "Durable reverse-data evidence is still being published: "
+                            + StringUtils.join(evidence.getMissingFields(), ','));
         }
-        if (session.getBaselineGeneration() == null || session.getBaselineGeneration() < 1
+        DrFailbackRouteContract expectedRoute = DrFailbackRouteContract.forPlan(plan);
+        DrFailbackRouteContract actualRoute = DrFailbackRouteContract.normalize(
+                session.getReplicationDirection(), session.getProviderPair(), null);
+        if (!actualRoute.directionMatches(expectedRoute)) {
+            return DrFailbackDataGateResult.blocked("DR_FAILBACK_ROUTE_DIRECTION_INVALID",
+                    "Failback reverse checkpoint direction does not match the DR plan");
+        }
+        if (!actualRoute.providerPairMatches(expectedRoute)) {
+            return DrFailbackDataGateResult.blocked("DR_FAILBACK_ROUTE_PROVIDER_INVALID",
+                    "Failback reverse checkpoint provider path does not match the DR plan");
+        }
+        if (session.getBaselineGeneration() < 1
                 || !StringUtils.equals(session.getBaselineState(), "LOCAL_DURABLE")
                 || !StringUtils.equals(session.getTrackerState(), "LOCAL_DURABLE")) {
             return DrFailbackDataGateResult.blocked("DR_FAILBACK_BASELINE_NOT_DURABLE",

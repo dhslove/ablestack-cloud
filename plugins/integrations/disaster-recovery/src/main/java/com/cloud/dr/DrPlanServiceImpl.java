@@ -289,6 +289,11 @@ public class DrPlanServiceImpl extends ManagerBase implements DrPlanService {
                         || planRuntime.getNbdQuarantinedDeviceCount() > 0);
         boolean recoverSyncRequired = nbdRecoveryRequired
                 || isRecoverSyncRequired(plan, planRuntime, sourceAuthority);
+        boolean runtimeReconciliationRequired = planRuntime != null
+                && (StringUtils.equalsAnyIgnoreCase(planRuntime.getReconciliationState(),
+                        "RECONCILING", "DEAD_CONFIRMING")
+                        || planRuntime.getOwnedProcessCount() > 0
+                        && !StringUtils.equalsIgnoreCase(planRuntime.getReconciliationState(), "TERMINAL"));
         DrProtectionAuthoritySnapshot authority = ftctlDrPlan && drProtectionAuthorityService != null
                 ? drProtectionAuthorityService.getAuthority(planId) : null;
         boolean normalCutoverReady = !ftctlDrPlan || (authority != null && authority.isNormalCutoverReady());
@@ -330,6 +335,10 @@ public class DrPlanServiceImpl extends ManagerBase implements DrPlanService {
             eligibility.put("recoverSync", enabled && !activeRun && hasEngine && ftctlDrPlan);
             eligibility.put("cancelRun", activeRun);
         }
+        if (runtimeReconciliationRequired) {
+            eligibility.replaceAll((action, allowed) -> false);
+            eligibility.put("cancelRun", activeRun);
+        }
         DrPlanActionAvailabilityContext context = new DrPlanActionAvailabilityContext();
         context.planEnabled = enabled;
         context.activeRun = activeRun;
@@ -353,6 +362,7 @@ public class DrPlanServiceImpl extends ManagerBase implements DrPlanService {
         context.ftctlReleaseReady = ftctlDrReleaseReady;
         context.lifecycleTransition = lifecycleTransition;
         context.nbdRecoveryRequired = nbdRecoveryRequired;
+        context.runtimeReconciliationRequired = runtimeReconciliationRequired;
         return new DrPlanActionEvaluation(eligibility,
                 ACTION_AVAILABILITY_EVALUATOR.evaluate(eligibility, context));
     }

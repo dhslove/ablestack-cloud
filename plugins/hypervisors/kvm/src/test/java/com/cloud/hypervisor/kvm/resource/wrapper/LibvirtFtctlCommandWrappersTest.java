@@ -125,12 +125,20 @@ public class LibvirtFtctlCommandWrappersTest {
         LibvirtFtctlDrActionCommandWrapper wrapper = new LibvirtFtctlDrActionCommandWrapper();
         FtctlDrActionCommand command = new FtctlDrActionCommand(
                 FtctlDrActionCommand.Action.FAILBACK_COMMIT, "plan-a", "run-a");
-        command.setContextParam("failbackSessionId", "session-a");
-        command.setContextParam("checkpointSequence", "7");
-        command.setContextParam("authorityGeneration", "9");
-        command.setContextParam("targetPowerState", "POWERED_OFF");
-        command.setContextParam("sourcePowerState", "POWERED_ON");
-        command.setContextParam("bootValidationState", "POWER_STATE_VALIDATED");
+        command.setRunType("FAILBACK");
+        command.setActionIntent("FAILBACK");
+        command.setFailbackCommitContractVersion("DR_FAILBACK_COMMIT_V1");
+        command.setFailbackSessionId("session-a");
+        command.setFailbackCheckpointSequence(7L);
+        command.setFailbackAuthorityGeneration(9L);
+        command.setFailbackBaselineGeneration(8L);
+        command.setFailbackEvidenceRunUuid("run-a");
+        command.setFailbackCommitAttemptId("attempt-a");
+        command.setFailbackCommitEnvelopeSha256(
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+        command.setFailbackTargetPowerState("POWERED_OFF");
+        command.setFailbackSourcePowerState("POWERED_ON");
+        command.setFailbackBootValidationState("POWER_STATE_VALIDATED");
 
         AtomicInteger index = new AtomicInteger();
         try (MockedConstruction<Script> scripts = Mockito.mockConstruction(Script.class, (mock, context) -> {
@@ -159,14 +167,69 @@ public class LibvirtFtctlCommandWrappersTest {
     }
 
     @Test
+    public void testDrCutoverCommitPassesTypedEnvelopeAndVerifiesDurableAcknowledgement() {
+        LibvirtFtctlDrActionCommandWrapper wrapper = new LibvirtFtctlDrActionCommandWrapper();
+        FtctlDrActionCommand command = new FtctlDrActionCommand(
+                FtctlDrActionCommand.Action.CUTOVER_COMMIT, "plan-a", "run-a");
+        command.setCutoverCommitContractVersion("DR_CUTOVER_COMMIT_V2");
+        command.setCutoverEngineSessionId("plan-a:run-a");
+        command.setCutoverCloudSessionId("cloud-session-a");
+        command.setCutoverCheckpointSequence(43L);
+        command.setCutoverManifestSha256("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+        command.setCutoverAuthorityGeneration(43L);
+        command.setCutoverCommitAttemptId("attempt-a");
+        command.setCutoverCommitEnvelopeSha256("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+        command.setCutoverTargetVmId(266L);
+        command.setCutoverTargetExternalRef("target-uuid-a");
+        command.setCutoverTargetPowerState("POWERED_ON");
+        command.setCutoverBootValidationState("POWER_STATE_VALIDATED");
+        command.setCutoverSourceFenceState("ACKNOWLEDGED");
+        command.setCutoverSourcePowerState("POWERED_OFF");
+
+        AtomicInteger index = new AtomicInteger();
+        try (MockedConstruction<Script> scripts = Mockito.mockConstruction(Script.class, (mock, context) -> {
+            if (index.getAndIncrement() == 0) {
+                Mockito.when(mock.execute(Mockito.any())).thenReturn("timed out waiting for FTCTL cutover commit");
+                Mockito.when(mock.getExitValue()).thenReturn(21);
+            } else {
+                Mockito.when(mock.execute(Mockito.any())).thenReturn(
+                        "{\"result\":\"ok\",\"state\":\"FAILED_OVER\",\"active_side\":\"TARGET\","
+                                + "\"commit_state\":\"ACKNOWLEDGED\",\"commit_outcome\":\"ACKNOWLEDGED\"}");
+                Mockito.when(mock.getExitValue()).thenReturn(0);
+            }
+        })) {
+            FtctlDrActionAnswer answer = (FtctlDrActionAnswer) wrapper.execute(command, resource);
+
+            Assert.assertTrue(answer.getResult());
+            Assert.assertEquals(2, scripts.constructed().size());
+            Script commit = scripts.constructed().get(0);
+            Mockito.verify(commit).add("dr-cutover-commit");
+            Mockito.verify(commit).add("--engine-session-id");
+            Mockito.verify(commit).add("plan-a:run-a");
+            Mockito.verify(commit).add("--cloud-session-id");
+            Mockito.verify(commit).add("cloud-session-a");
+            Mockito.verify(commit).add("--checkpoint-sequence");
+            Mockito.verify(commit, Mockito.times(2)).add("43");
+            Mockito.verify(commit).add("--target-vm-id");
+            Mockito.verify(commit).add("266");
+            Mockito.verify(commit).add("--source-fence-state");
+            Mockito.verify(commit).add("ACKNOWLEDGED");
+            Script status = scripts.constructed().get(1);
+            Mockito.verify(status).add("dr-cutover-commit-status");
+            Mockito.verify(status).add("--commit-attempt-id");
+            Mockito.verify(status).add("attempt-a");
+        }
+    }
+
+    @Test
     public void testDrFailbackAbortPassesRollbackPhaseAndPowerEvidence() {
         LibvirtFtctlDrActionCommandWrapper wrapper = new LibvirtFtctlDrActionCommandWrapper();
         FtctlDrActionCommand command = new FtctlDrActionCommand(
                 FtctlDrActionCommand.Action.FAILBACK_ABORT, "plan-a", "run-a");
         command.setContextParam("failbackSessionId", "session-a");
         command.setContextParam("rollbackPhase", "prepare");
-        command.setContextParam("targetPowerState", "POWERED_OFF");
-        command.setContextParam("sourcePowerState", "POWERED_ON");
+        command.setFailbackTargetPowerState("POWERED_OFF");
+        command.setFailbackSourcePowerState("POWERED_ON");
 
         try (MockedConstruction<Script> scripts = Mockito.mockConstruction(Script.class, (mock, context) -> {
             Mockito.when(mock.execute(Mockito.any())).thenReturn(
@@ -447,7 +510,18 @@ public class LibvirtFtctlCommandWrappersTest {
         FtctlDrStatusCommand command = new FtctlDrStatusCommand("plan-a", "cleanup-run");
         String mixedOutput = "{\"command\":\"dr-status\",\"result\":\"ok\",\"plan_uuid\":\"plan-a\",\"run_uuid\":\"cleanup-run\",\"status_scope\":\"OPERATION\","
                 + "\"state\":\"ERROR\",\"step\":\"replication-cycle-failed\","
-                + "\"progress\":100,\"worker_state\":\"FAILED\",\"worker_exit_code\":68,"
+                + "\"progress\":100,\"worker_state\":\"FAILED\",\"worker_pid\":3981802,"
+                + "\"worker_start_ticks\":177777,\"worker_pid_alive\":false,\"worker_exit_code\":68,"
+                + "\"driver_exit_code\":83,\"failure_phase\":\"REVERSE_TRANSFER\","
+                + "\"terminal_source\":\"ENGINE_TERMINAL\",\"terminal_version\":1,"
+                + "\"worker_identity_state\":\"MATCHED\",\"worker_liveness_state\":\"ALIVE\","
+                + "\"worker_launch_nonce\":\"launch-a\",\"worker_generation\":4,"
+                + "\"transfer_activity_state\":\"COPYING\",\"transfer_payload_bytes\":1048576,"
+                + "\"owned_process_count\":3,\"reconciliation_required\":false,"
+                + "\"runtime_endpoints_drained\":false,\"terminal_authoritative\":true,"
+                + "\"terminal_publication_pending\":false,\"terminal_publication_pending_since\":\"2026-08-05T01:02:03+0900\","
+                + "\"baseline_file_state\":\"MISSING_EXPECTED\",\"source_disk_probe_state\":\"READY\","
+                + "\"target_writer_probe_state\":\"FAILED\","
                 + "\"error_code\":\"DR_CBT_METRICS_INVALID\","
                 + "\"error_message\":\"Disk data copied, but cycle metadata validation failed\","
                 + "\"failed_component\":\"vmware-mover\",\"data_commit_state\":\"DATA_COPIED_METADATA_FAILED\","
@@ -486,7 +560,28 @@ public class LibvirtFtctlCommandWrappersTest {
             Assert.assertEquals("ERROR", statusAnswer.getState());
             Assert.assertEquals("replication-cycle-failed", statusAnswer.getStep());
             Assert.assertEquals("FAILED", statusAnswer.getWorkerState());
+            Assert.assertEquals(Long.valueOf(177777), statusAnswer.getWorkerStartTicks());
+            Assert.assertEquals(Boolean.FALSE, statusAnswer.getWorkerPidAlive());
             Assert.assertEquals(Integer.valueOf(68), statusAnswer.getWorkerExitCode());
+            Assert.assertEquals(Integer.valueOf(83), statusAnswer.getDriverExitCode());
+            Assert.assertEquals("REVERSE_TRANSFER", statusAnswer.getFailurePhase());
+            Assert.assertEquals("ENGINE_TERMINAL", statusAnswer.getTerminalSource());
+            Assert.assertEquals(Integer.valueOf(1), statusAnswer.getTerminalVersion());
+            Assert.assertEquals("MATCHED", statusAnswer.getWorkerIdentityState());
+            Assert.assertEquals("ALIVE", statusAnswer.getWorkerLivenessState());
+            Assert.assertEquals("launch-a", statusAnswer.getWorkerLaunchNonce());
+            Assert.assertEquals(Long.valueOf(4), statusAnswer.getWorkerGeneration());
+            Assert.assertEquals("COPYING", statusAnswer.getTransferActivityState());
+            Assert.assertEquals(Long.valueOf(1048576), statusAnswer.getTransferPayloadBytes());
+            Assert.assertEquals(Integer.valueOf(3), statusAnswer.getOwnedProcessCount());
+            Assert.assertEquals(Boolean.FALSE, statusAnswer.getReconciliationRequired());
+            Assert.assertEquals(Boolean.FALSE, statusAnswer.getRuntimeEndpointsDrained());
+            Assert.assertEquals(Boolean.TRUE, statusAnswer.getTerminalAuthoritative());
+            Assert.assertEquals(Boolean.FALSE, statusAnswer.getTerminalPublicationPending());
+            Assert.assertEquals("2026-08-05T01:02:03+0900", statusAnswer.getTerminalPublicationPendingSince());
+            Assert.assertEquals("MISSING_EXPECTED", statusAnswer.getBaselineFileState());
+            Assert.assertEquals("READY", statusAnswer.getSourceDiskProbeState());
+            Assert.assertEquals("FAILED", statusAnswer.getTargetWriterProbeState());
             Assert.assertEquals("DR_CBT_METRICS_INVALID", statusAnswer.getErrorCode());
             Assert.assertEquals("Disk data copied, but cycle metadata validation failed", statusAnswer.getErrorMessage());
             Assert.assertEquals("vmware-mover", statusAnswer.getFailedComponent());

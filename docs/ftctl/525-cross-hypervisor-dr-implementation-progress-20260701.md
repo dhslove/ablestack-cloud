@@ -1,5 +1,34 @@
 # Cross Hypervisor DR Implementation Progress - 2026-07-01
 
+> 2026-08-10 current pending corrective scope: document
+> [600](600-cross-hypervisor-dr-vmware-cbt-activation-convergence-design-20260810.md)
+> records the powered-on VMware CBT activation false-negative. Live preflight
+> proved CTK creation, a valid per-disk change ID, and successful
+> `QueryChangedDiskAreas`; temporary snapshots were removed. Detailed design is
+> complete. Code implementation, tests, builds, deployment, failed-run cleanup,
+> full-seed retest, and one incremental-cycle verification remain pending.
+
+> 2026-08-06 current pending corrective scope: document
+> [599](599-cross-hypervisor-dr-forward-cutover-commit-contract-and-authority-convergence-design-20260806.md)
+> records the forward cutover command-field loss and premature TARGET projection.
+> The design and non-destructive preflight are complete; implementation, build,
+> paired deployment, existing-session recovery, and retest remain pending.
+
+> 2026-08-05 current pending corrective scope: document
+> [595](595-cross-hypervisor-dr-failback-route-contract-and-terminal-convergence-design-20260805.md)
+> records the post-transfer route-contract and session-only terminal defect.
+> Document 594 is implemented and deployed; document 595 and FTCTL companion
+> 452 are designed and live-preflight verified but not yet implemented.
+
+> 2026-08-04 design status: live-runtime Failback preflight convergence is
+> designed in document 592 with qemu companion 449. Implementation, focused
+> tests, changed-module builds, paired deployment, target VM reconciliation,
+> and live retest remain pending.
+
+> 2026-08-03 design status: async plan mutation and target resource ownership
+> hardening is designed in document 590. Its P0-P8 implementation, build,
+> deployment, collision reconciliation, and clean retest remain pending.
+
 > 2026-07-31 design status: source-isolation internalization design is complete
 > in document 587. Implementation/build/deployment are the next phase.
 

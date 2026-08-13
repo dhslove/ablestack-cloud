@@ -3,7 +3,7 @@
 // distributed with this work for additional information.
 
 import { getAPI, postAPI } from '@/api'
-import { normalizeAcceptedDrRun, startDrAction } from '@/api/dr'
+import { createDrPlan, normalizeAcceptedDrRun, startDrAction, waitForDrMutation } from '@/api/dr'
 
 jest.mock('@/api', () => ({
   getAPI: jest.fn(),
@@ -137,5 +137,47 @@ describe('DR action acceptance contract', () => {
 
     expect(getAPI).toHaveBeenCalledTimes(1)
     expect(getAPI).toHaveBeenCalledWith('queryAsyncJobResult', { jobId: 'job-2674' })
+  })
+
+  test('returns plan mutation admission without waiting for terminal completion', async () => {
+    postAPI.mockResolvedValue({
+      createdrplanresponse: { jobid: 'job-create-1' }
+    })
+
+    const admission = await createDrPlan({ name: 'plan-1' })
+
+    expect(admission).toMatchObject({
+      admitted: true,
+      command: 'createDrPlan',
+      jobid: 'job-create-1'
+    })
+    expect(getAPI).not.toHaveBeenCalled()
+  })
+
+  test('resolves the primitive plan mutation result in the background', async () => {
+    getAPI.mockResolvedValue({
+      queryasyncjobresultresponse: {
+        jobstatus: 1,
+        jobresult: {
+          createdrplanresponse: {
+            drplanmutation: {
+              id: 'plan-uuid-1',
+              operation: 'CREATE',
+              initialrunid: 'run-uuid-1'
+            }
+          }
+        }
+      }
+    })
+
+    await expect(waitForDrMutation({
+      admitted: true,
+      command: 'createDrPlan',
+      jobid: 'job-create-1'
+    }, { intervalMs: 1 })).resolves.toEqual({
+      id: 'plan-uuid-1',
+      operation: 'CREATE',
+      initialrunid: 'run-uuid-1'
+    })
   })
 })

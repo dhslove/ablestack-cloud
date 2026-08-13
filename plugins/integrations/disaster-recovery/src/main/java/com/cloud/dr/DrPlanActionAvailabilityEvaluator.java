@@ -39,6 +39,7 @@ class DrPlanActionAvailabilityEvaluator {
     static final String RELEASE_NOT_READY = "DR_ACTION_RELEASE_NOT_READY";
     static final String TRANSITION_IN_PROGRESS = "DR_ACTION_TRANSITION_IN_PROGRESS";
     static final String NOT_ELIGIBLE = "DR_ACTION_NOT_ELIGIBLE";
+    static final String RUNTIME_RECONCILIATION_REQUIRED = "DR_ACTION_RUNTIME_RECONCILIATION_REQUIRED";
 
     Map<String, DrActionAvailability> evaluate(Map<String, Boolean> eligibility,
             DrPlanActionAvailabilityContext context) {
@@ -85,6 +86,9 @@ class DrPlanActionAvailabilityEvaluator {
     private String reasonCode(String action, DrPlanActionAvailabilityContext context) {
         if (context.lifecycleTransition) {
             return TRANSITION_IN_PROGRESS;
+        }
+        if (context.runtimeReconciliationRequired && !"cancelRun".equals(action)) {
+            return RUNTIME_RECONCILIATION_REQUIRED;
         }
         if (context.activeRun && !"cancelRun".equals(action)) {
             return ACTIVE_RUN;

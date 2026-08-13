@@ -1,5 +1,9 @@
 ﻿# Cross Hypervisor DR Operator Guide
 
+> 2026-08-06 VMware -> ABLESTACK 실제 Failover 최종 권한 확정은 문서 599의
+> typed cutover commit, FTCTL ACK, ACK 후 Cloud terminal transaction 순서를
+> 따른다. 대상 VM Running만으로 Failover 완료를 판정하지 않는다.
+
 문서 기준일: 2026-07-01
 검토 기준 소스: Cloud `bb8857cbc3`, ftctl/qemu-exec-tools `a25443d`
 
@@ -510,6 +514,11 @@ sequenceDiagram
 
 문서 기준일: 2026-07-01  
 방향: `VMWARE_TO_KVM`  
+
+> 2026-08-10 CBT 보완: 실행 중인 원본 VM은 CBT 설정 저장 직후의 VM
+> 요약 Boolean만으로 실패 처리하지 않는다. 정상 최초 복제 스냅샷에서
+> 선택한 디스크별 change ID와 CBT 질의 성공을 확인해 활성 상태를
+> 판정한다. 이 과정은 비동기이며 원본 VM을 자동 종료하지 않는다.
 권장 엔진: `FTCTL_DR`
 
 ## 1. 아키텍처

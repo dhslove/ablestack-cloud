@@ -854,7 +854,7 @@
       :title="actionModalTitle"
       :loading="actionPreflightLoading"
       :confirm-loading="actionSubmitting"
-      :ok-disabled="isFailbackAction && (!failbackPreflight.ready || actionPreflightLoading)"
+      :ok-disabled="isFailbackAction && (!canSubmitFailback || actionPreflightLoading)"
       :danger="selectedAction.danger"
       @cancel="closeActionModal"
       @ok="submitActionModal">
@@ -959,10 +959,10 @@
           <a-alert
             class="cross-dr-failback-alert"
             show-icon
-            :type="failbackPreflight.ready ? 'success' : 'error'"
+            :type="actionPreflightLoading ? 'info' : (failbackPreflight.ready ? 'success' : 'error')"
             :message="failbackPreflight.ready
               ? $t('message.dr.failback.preflight.ready')
-              : (failbackPreflight.message || $t('message.dr.failback.preflight.not.ready'))" />
+              : failbackPreflightMessage()" />
           <a-descriptions
             class="cross-dr-failback-route"
             size="small"
@@ -998,19 +998,12 @@
                 <span v-if="failbackPreflight.checkpointreadyat">{{ failbackPreflight.checkpointreadyat }}</span>
               </div>
             </a-descriptions-item>
-            <a-descriptions-item :label="$t('label.dr.failback.source.isolation')">
-              <div class="cross-dr-failback-site__statuses">
-                <dr-status-pill :status="failbackPreflight.sourcefencestate || failbackPreflight.sourcepowerstate || 'UNKNOWN'" />
-                <span>{{ failbackPreflight.sourcepowerstate || '-' }}</span>
-              </div>
-            </a-descriptions-item>
-            <a-descriptions-item :label="$t('label.dr.failback.engine.preflight')">
-              <div class="cross-dr-failback-site__statuses">
-                <dr-status-pill :status="failbackPreflight.enginepreflightready ? 'READY' : 'ERROR'" />
-                <span>{{ failbackPreflight.authoritygeneration || '-' }}</span>
-              </div>
-            </a-descriptions-item>
           </a-descriptions>
+          <a-alert
+            class="cross-dr-failback-alert"
+            show-icon
+            type="info"
+            :message="$t('message.dr.failback.reverse.mode.auto')" />
         </template>
         <a-form-item
           v-if="isAdoptAction"
@@ -1058,7 +1051,7 @@ import SearchFilter from '@/components/view/SearchFilter'
 import SearchView from '@/components/view/SearchView'
 import Status from '@/components/widgets/Status'
 import TooltipLabel from '@/components/widgets/TooltipLabel'
-import { createDrPlan, deleteDrPlan, discoverDrPlanInventory, getDrFailbackPreflight, getDrPlan, getDrProtectionView, listDrPlans, listDrReplicas, listDrRuns, listDrSites, previewDrPlanSpec, refreshDrProtectionView, startDrAction, updateDrPlan } from '@/api/dr'
+import { createDrPlan, deleteDrPlan, discoverDrPlanInventory, getDrFailbackPreflight, getDrPlan, getDrProtectionView, listDrPlans, listDrReplicas, listDrRuns, listDrSites, previewDrPlanSpec, refreshDrProtectionView, startDrAction, updateDrPlan, waitForDrMutation } from '@/api/dr'
 import { DEFAULT_DR_PLAN_ACTIVE_SECTIONS, DR_PLAN_DIALOG_SECTIONS, drPlanSectionForValidation } from '@/utils/dr/planDialogSections'
 import { isActiveDrRun, isActiveDrSyncCycle, resolveDrPlanState } from '@/utils/dr/planState'
 import { buildDrPlanActions } from '@/utils/dr/resourceActions'
@@ -1122,7 +1115,7 @@ export default {
       actionForm: this.defaultActionForm(),
       runtimePollTimer: null,
       runtimePollInFlight: false,
-      activeRuntimePollIntervalMs: 5000,
+      activeRuntimePollIntervalMs: 2000,
       steadyProtectionPollIntervalMs: 10000,
       searchQuery: '',
       searchParams: {},
@@ -1525,6 +1518,9 @@ export default {
     },
     isFailbackAction () {
       return this.selectedAction.command === 'startDrFailback'
+    },
+    canSubmitFailback () {
+      return this.failbackPreflight.ready === true
     },
     isAdoptAction () {
       return this.selectedAction.command === 'adoptDrReplica'
@@ -2611,16 +2607,25 @@ export default {
         return
       }
       this.createLoading = true
-      this.ensureExecutionReadyForImmediateSync().then(() => createDrPlan(this.buildPlanPayload())).then(plan => {
-        this.upsertPlan(plan)
+      this.ensureExecutionReadyForImmediateSync().then(() => createDrPlan(this.buildPlanPayload())).then(admission => {
         notification.success({
           message: this.$t('label.dr.plan.add'),
-          description: this.createForm.startsync
-            ? this.$t('message.dr.create.sync.accepted')
-            : (plan.name || plan.id || this.$t('label.success'))
+          description: this.$t('message.dr.create.sync.accepted')
         })
         this.closeCreateModal()
-        return this.fetchList({ retain: [plan] })
+        this.createLoading = false
+        return waitForDrMutation(admission).then(result => {
+          if (!result?.id) return this.fetchList()
+          return getDrPlan(result.id).then(plan => {
+            this.upsertPlan(plan)
+            return this.fetchList({ retain: [plan] })
+          })
+        }).catch(error => {
+          notification.error({
+            message: this.$t('label.dr.plan.add'),
+            description: this.errorMessage(error)
+          })
+        })
       }).catch(error => {
         notification.error({
           message: this.$t('label.dr.plan.add'),
@@ -2640,14 +2645,25 @@ export default {
         return
       }
       this.createLoading = true
-      updateDrPlan(this.editingPlan.id, this.buildPlanPayload()).then(plan => {
-        this.upsertPlan(plan)
+      updateDrPlan(this.editingPlan.id, this.buildPlanPayload()).then(admission => {
         notification.success({
           message: this.$t('label.dr.plan.edit'),
-          description: plan.name || plan.id || this.$t('label.success')
+          description: this.$t('label.success')
         })
         this.closeCreateModal()
-        return this.fetchData()
+        this.createLoading = false
+        return waitForDrMutation(admission).then(result => {
+          if (!result?.id) return this.fetchData()
+          return getDrPlan(result.id).then(plan => {
+            this.upsertPlan(plan)
+            return this.fetchData()
+          })
+        }).catch(error => {
+          notification.error({
+            message: this.$t('label.dr.plan.edit'),
+            description: this.errorMessage(error)
+          })
+        })
       }).catch(error => {
         notification.error({
           message: this.$t('label.dr.plan.edit'),
@@ -3014,6 +3030,17 @@ export default {
     failbackSiteValue (side, field) {
       const prefix = side === 'active' ? 'active' : 'destination'
       return this.failbackPreflight[`${prefix}${field}`] || '-'
+    },
+    failbackPreflightMessage () {
+      const errorCode = String(this.failbackPreflight.errorcode || '').toLowerCase()
+      if (errorCode) {
+        const key = `message.dr.preflight.${errorCode}`
+        const localized = this.$t(key)
+        if (localized !== key) {
+          return localized
+        }
+      }
+      return this.failbackPreflight.message || this.$t('message.dr.failback.preflight.not.ready')
     },
     loadActionNetworks (plan) {
       const configuredNetworkId = this.readJsonValue(plan.mappingjson, 'target.networks.0.networkId') ||

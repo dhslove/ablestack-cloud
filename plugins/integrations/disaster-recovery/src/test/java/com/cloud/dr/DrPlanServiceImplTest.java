@@ -127,7 +127,7 @@ public class DrPlanServiceImplTest {
         Assert.assertFalse(eligibility.get("testFailover"));
         Assert.assertFalse(eligibility.get("stopTestFailover"));
         Assert.assertTrue(eligibility.get("failover"));
-        Assert.assertTrue(eligibility.get("confirmFenceClear"));
+        Assert.assertFalse(eligibility.get("confirmFenceClear"));
         Assert.assertTrue(eligibility.get("failback"));
         Assert.assertTrue(eligibility.get("reprotect"));
         Assert.assertTrue(eligibility.get("adoptReplica"));

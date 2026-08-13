@@ -1,5 +1,10 @@
 # Cross Hypervisor DR Protection, Failover, Failback Sequence Design
 
+> 2026-08-06 forward cutover terminal ordering: document
+> [599](599-cross-hypervisor-dr-forward-cutover-commit-contract-and-authority-convergence-design-20260806.md)
+> requires target power/boot evidence, typed FTCTL commit ACK, and only then the
+> atomic Cloud TARGET terminal transaction.
+
 > 2026-07-31 latest correction: Failback never clears SOURCE production fencing
 > before TARGET stop. Reprotect preserves SOURCE isolation. See document 587.
 

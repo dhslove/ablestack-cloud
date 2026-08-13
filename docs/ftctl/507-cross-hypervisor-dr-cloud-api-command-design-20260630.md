@@ -1,5 +1,35 @@
 # Cross Hypervisor DR Cloud API Command Design
 
+> 2026-08-06 forward cutover commit correction: document
+> [599](599-cross-hypervisor-dr-forward-cutover-commit-contract-and-authority-convergence-design-20260806.md)
+> keeps Failover asynchronous, exposes the engine-ACK-pending phase explicitly,
+> and forbids a terminal TARGET response before durable FTCTL acknowledgement.
+
+> 2026-08-05 Failback route and terminal-convergence correction: document
+> [595](595-cross-hypervisor-dr-failback-route-contract-and-terminal-convergence-design-20260805.md)
+> separates topology direction from provider pair and requires list/detail
+> APIs to expose one canonical Run terminal after a Cloud lifecycle failure.
+
+> 2026-08-05 live-worker correction: document
+> [594](594-cross-hypervisor-dr-live-worker-and-terminal-reconciliation-design-20260805.md)
+> adds non-terminal reconciliation fields and blocks duplicate actions while an
+> engine transfer remains live.
+
+> 2026-08-04 normative live-runtime preflight API update:
+> [592-cross-hypervisor-dr-failback-live-runtime-preflight-and-ux-convergence-design-20260804.md](592-cross-hypervisor-dr-failback-live-runtime-preflight-and-ux-convergence-design-20260804.md)
+> adds async refresh plus cached read, stage responses, nullable engine
+> readiness, runtime-drift evidence, and actual reverse mode/probe fields.
+>
+> 2026-08-04 normative Failback preflight update:
+> Document 591 revision 2 adds reverse baseline/mode/disk/writer evidence to
+> `getDrFailbackPreflight` while keeping `startDrFailback` start-only.
+>
+> 2026-08-03 normative mutation-response update:
+> [590-cross-hypervisor-dr-plan-async-mutation-and-target-resource-ownership-design-20260803.md](590-cross-hypervisor-dr-plan-async-mutation-and-target-resource-ownership-design-20260803.md)
+> separates primitive-only create/update mutation responses from full DR plan
+> read projections. Earlier text that returns full `DrPlanResponse` from an
+> async mutation is superseded.
+
 > 2026-07-31 latest correction: `confirmDrFenceClear` is legacy FTCTL
 > compatibility only. FTCTL_DR rejects it before Run creation. See document 587.
 
@@ -1347,6 +1377,15 @@ serialization test 기준은 문서 583을 따른다.
 신규 response DTO, reason code, fallback 및 serialization test 계약은
 [584-cross-hypervisor-dr-context-action-availability-and-darkmode-design-20260730.md](584-cross-hypervisor-dr-context-action-availability-and-darkmode-design-20260730.md)를
 따른다.
+
+## 2026-08-06 Failback Evidence Capability API Addendum
+
+`getDrFailbackPreflight` now has two explicit meanings: it validates whether an
+operation may start, and it verifies that the installed FTCTL can later publish
+the post-transfer evidence contract required by Cloud. It does not claim that a
+future final delta has already completed. The response adds evidence contract
+version, publication readiness, and one user-safe blocking reason. The async
+`startDrFailback` response remains start-only. Document 596 is normative.
 
 ## 2026-07-31 Test Failover Acceptance Addendum
 

@@ -6,12 +6,15 @@
 package com.cloud.dr;
 
 import javax.inject.Inject;
+import javax.inject.Provider;
 
 import org.apache.commons.lang3.StringUtils;
 
 import com.cloud.dr.dao.DrPlanDao;
 import com.cloud.dr.dao.DrRestorePointDao;
 import com.cloud.dr.dao.DrSiteDao;
+import com.cloud.dr.adapter.ftctl.FtctlDrUnifiedActionAdapter;
+import com.cloud.agent.api.FtctlDrReversePreflightAnswer;
 import com.cloud.utils.component.ManagerBase;
 
 public class DrFailbackPreflightServiceImpl extends ManagerBase implements DrFailbackPreflightService {
@@ -25,6 +28,10 @@ public class DrFailbackPreflightServiceImpl extends ManagerBase implements DrFai
     private DrSiteCredentialService drSiteCredentialService;
     @Inject
     private DrSourceIsolationPreflightService drSourceIsolationPreflightService;
+    @Inject
+    private DrCurrentAuthorityResolver drCurrentAuthorityResolver;
+    @Inject
+    private Provider<FtctlDrUnifiedActionAdapter> ftctlDrUnifiedActionAdapterProvider;
 
     @Override
     public DrFailbackPreflightResult validate(long planId) {
@@ -46,8 +53,10 @@ public class DrFailbackPreflightServiceImpl extends ManagerBase implements DrFai
         DrSiteVO destinationSite = drSiteDao.findById(plan.getSourceSiteId());
         DrRestorePointVO checkpoint = drRestorePointDao.findLatestTargetReadyByPlanId(plan.getId());
 
-        if (!StringUtils.equals(DrConstants.PLAN_STATE_FAILED_OVER, plan.getState())
-                || !StringUtils.equalsIgnoreCase("TARGET", plan.getActiveSide())) {
+        DrCurrentAuthorityProjection authority = drCurrentAuthorityResolver.resolve(plan);
+        if (authority == null || !authority.isConsistent()
+                || !StringUtils.equalsIgnoreCase(DrConstants.AUTHORITY_SIDE_TARGET,
+                        authority.getAuthoritySide())) {
             return failure(DrConstants.ERROR_FAILBACK_REQUIRES_TARGET_ACTIVE,
                     "Failback requires committed TARGET authority", activeSite, destinationSite, checkpoint);
         }
@@ -70,10 +79,16 @@ public class DrFailbackPreflightServiceImpl extends ManagerBase implements DrFai
         if (!transitionPreflight.isReady()) {
             return failure(transitionPreflight.getErrorCode(), transitionPreflight.getMessage(),
                     activeSite, destinationSite, checkpoint)
-                    .withTransitionPreflight(transitionPreflight);
+                    .withTransitionPreflight(transitionPreflight)
+                    .appendReverseNotRun();
         }
-        return DrFailbackPreflightResult.success(activeSite, destinationSite, checkpoint)
-                .withTransitionPreflight(transitionPreflight);
+        DrFailbackPreflightResult result = DrFailbackPreflightResult.success(
+                activeSite, destinationSite, checkpoint).withTransitionPreflight(transitionPreflight);
+        FtctlDrUnifiedActionAdapter adapter = ftctlDrUnifiedActionAdapterProvider != null
+                ? ftctlDrUnifiedActionAdapterProvider.get() : null;
+        FtctlDrReversePreflightAnswer reverse = adapter != null
+                ? adapter.probeReversePreflight(plan, run) : null;
+        return result.withReversePreflight(reverse);
     }
 
     private boolean siteReady(DrSiteVO site) {

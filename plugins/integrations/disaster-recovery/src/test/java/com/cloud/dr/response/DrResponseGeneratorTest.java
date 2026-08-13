@@ -5,10 +5,12 @@
 package com.cloud.dr.response;
 
 import java.util.Collections;
+import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.apache.cloudstack.api.response.dr.DrPlanResponse;
+import org.apache.cloudstack.api.response.dr.DrRunResponse;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -25,10 +27,13 @@ import com.cloud.dr.DrPlanRuntimeVO;
 import com.cloud.dr.DrProtectionAuthorityService;
 import com.cloud.dr.DrProtectionAuthoritySnapshot;
 import com.cloud.dr.DrRunVO;
+import com.cloud.dr.DrRunStepVO;
+import com.cloud.dr.DrSyncCycleVO;
 import com.cloud.dr.dao.DrCutoverSessionDao;
 import com.cloud.dr.dao.DrPlanDao;
 import com.cloud.dr.dao.DrRunDao;
 import com.cloud.dr.dao.DrSiteDao;
+import com.cloud.dr.dao.DrSyncCycleDao;
 import com.cloud.dr.dao.DrTestSessionDao;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
@@ -43,6 +48,7 @@ public class DrResponseGeneratorTest {
     @Mock private DrRunDao drRunDao;
     @Mock private DrTestSessionDao drTestSessionDao;
     @Mock private DrCutoverSessionDao drCutoverSessionDao;
+    @Mock private DrSyncCycleDao drSyncCycleDao;
     @Mock private DrProtectionAuthorityService drProtectionAuthorityService;
 
     @InjectMocks
@@ -138,7 +144,9 @@ public class DrResponseGeneratorTest {
         DrRunVO activeRun = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_SYNC);
         activeRun.setState(DrConstants.RUN_STATE_RUNNING);
         activeRun.setLastStatusJson("{\"state\":\"SYNCING\",\"step\":\"incremental-transfer\","
-                + "\"control_protocol_version\":4,\"control_generation\":8,\"control_ack_generation\":8}");
+                + "\"control_protocol_version\":4,\"control_generation\":8,\"control_ack_generation\":8,"
+                + "\"cbt_status\":{\"enabled\":false,\"lifecycleState\":\"CONFIGURED_PENDING_ACTIVATION\","
+                + "\"vmConfigSignal\":\"FALSE\",\"disks\":[{\"cbtDiskId\":\"scsi0:0\"}]}}" );
 
         Mockito.when(drRunDao.findLatestByPlanId(plan.getId())).thenReturn(activeRun);
         Mockito.when(drRunDao.findActiveByPlanId(plan.getId())).thenReturn(activeRun);
@@ -152,6 +160,10 @@ public class DrResponseGeneratorTest {
         Assert.assertEquals("incremental-transfer", json.get("runtimestep").getAsString());
         Assert.assertTrue(json.get("runtimecontrolready").getAsBoolean());
         Assert.assertTrue(json.get("initialsyncinprogress").getAsBoolean());
+        Assert.assertEquals("CONFIGURED_PENDING_ACTIVATION", json.get("runtimecbtlifecyclestate").getAsString());
+        Assert.assertEquals("FALSE", json.get("runtimecbtvmconfigsignal").getAsString());
+        Assert.assertEquals("scsi0:0", json.get("runtimecbtdiskid").getAsString());
+        Assert.assertFalse(json.get("runtimecbtenabled").getAsBoolean());
         Assert.assertFalse(json.has("runtimeerrorcode"));
     }
 
@@ -179,6 +191,61 @@ public class DrResponseGeneratorTest {
         Assert.assertFalse(testFailover.get("enabled").getAsBoolean());
         Assert.assertEquals("DR_ACTION_TARGET_NOT_READY",
                 testFailover.get("reasoncode").getAsString());
+    }
+
+    @Test
+    public void liveTransferRaisesWholeOperationProgressAbovePhaseLocalValue() {
+        DrRunVO run = new DrRunVO(42L, DrConstants.RUN_TYPE_SYNC);
+        run.setState(DrConstants.RUN_STATE_RUNNING);
+        run.setLastStatusJson("{\"state\":\"SYNCING\",\"step\":\"full-reseed-transfer\"," +
+                "\"transfer_progress_schema_version\":2,\"transfer_percent\":22," +
+                "\"transfer_bytes_processed\":220,\"transfer_bytes_total\":1000}");
+        DrRunStepVO runtimeStep = new DrRunStepVO(run.getId(), "runtime-projection", 30);
+        runtimeStep.setState(DrConstants.STEP_STATE_RUNNING);
+        runtimeStep.setProgress(1);
+
+        DrRunResponse response = generator.createRunResponse(run, Collections.singletonList(runtimeStep), true);
+        JsonObject json = JsonParser.parseString(GSON.toJson(response)).getAsJsonObject();
+
+        Assert.assertEquals(76, json.get("progresspercent").getAsInt());
+        Assert.assertEquals(22D, json.get("transferpercent").getAsDouble(), 0D);
+    }
+
+    @Test
+    public void idlePlanListUsesMatchingLatestCompletedCycleInsteadOfStaleRuntimeSample() {
+        DrPlanVO plan = new DrPlanVO("plan", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
+        plan.setState(DrConstants.PLAN_STATE_READY);
+        DrPlanRuntimeVO runtime = readyRuntime(plan.getId());
+        runtime.setReplicationActivityState("IDLE");
+        runtime.setLatestCompletedCycleSequence(477L);
+        runtime.setTransferCycleSequence(352L);
+        runtime.setTransferMode("FULL_RESEED");
+        runtime.setTransferBytesTotal(107374182400L);
+        runtime.setTransferPayloadBytes(107374182400L);
+
+        DrSyncCycleVO cycle = new DrSyncCycleVO(plan.getId(), "run-477", 477L);
+        cycle.setEffectiveMode("CBT_INCREMENTAL");
+        cycle.setVirtualBytes(107374182400L);
+        cycle.setSourceReadBytes(8949399552L);
+        cycle.setTargetWrittenBytes(8949399552L);
+        cycle.setTransferPayloadBytes(8949399552L);
+        cycle.setThroughputBps(208246644L);
+        cycle.setMetricsEstimated(false);
+        cycle.setCompleted(new Date(1776112929000L));
+
+        Mockito.when(drProtectionAuthorityService.getAuthority(plan.getId()))
+                .thenReturn(new DrProtectionAuthoritySnapshot(runtime, true));
+        Mockito.when(drSyncCycleDao.findLatestCompletedByPlanId(plan.getId())).thenReturn(cycle);
+
+        DrPlanResponse response = generator.createPlanResponse(plan, Collections.emptyMap());
+        JsonObject json = JsonParser.parseString(GSON.toJson(response)).getAsJsonObject();
+
+        Assert.assertEquals(477L, json.get("transfercyclesequence").getAsLong());
+        Assert.assertEquals("CBT_INCREMENTAL", json.get("transfermode").getAsString());
+        Assert.assertEquals(8949399552L, json.get("transferpayloadbytes").getAsLong());
+        Assert.assertEquals(8949399552L, json.get("transfersourcereadbytes").getAsLong());
+        Assert.assertEquals(100D, json.get("transferpercent").getAsDouble(), 0D);
+        Assert.assertEquals("COMPLETED", json.get("transferphase").getAsString());
     }
 
     private DrPlanRuntimeVO readyRuntime(long planId) {

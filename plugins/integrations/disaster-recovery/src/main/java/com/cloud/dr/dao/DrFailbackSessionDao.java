@@ -13,4 +13,5 @@ public interface DrFailbackSessionDao extends GenericDao<DrFailbackSessionVO, Lo
     DrFailbackSessionVO findActiveByRunId(long runId);
     DrFailbackSessionVO findLatestActiveByPlanId(long planId);
     List<DrFailbackSessionVO> listReconcileCandidates(Date probeBefore, int limit);
+    void clearFailureMetadata(long sessionId);
 }

@@ -1,5 +1,35 @@
 # Cross Hypervisor DR Cloud Backend Wiring Design
 
+> 2026-08-06 forward cutover authority correction: document
+> [599](599-cross-hypervisor-dr-forward-cutover-commit-contract-and-authority-convergence-design-20260806.md)
+> moves Plan/Replica TARGET promotion after FTCTL ACK and defines typed envelope,
+> status recovery, and one terminal transaction.
+
+> 2026-08-05 Failback route and failure-saga correction: document
+> [595](595-cross-hypervisor-dr-failback-route-contract-and-terminal-convergence-design-20260805.md)
+> defines the typed route tuple and atomic Session/Run/Plan/replica/cache
+> convergence that replaces session-only `failSession()` handling.
+
+> 2026-08-05 live-worker correction: document
+> [594](594-cross-hypervisor-dr-live-worker-and-terminal-reconciliation-design-20260805.md)
+> places a typed runtime-observation classifier before terminal projection and
+> preserves TARGET authority during reconciliation.
+
+> 2026-08-04 normative live-runtime preflight update:
+> [592-cross-hypervisor-dr-failback-live-runtime-preflight-and-ux-convergence-design-20260804.md](592-cross-hypervisor-dr-failback-live-runtime-preflight-and-ux-convergence-design-20260804.md)
+> splits authority, source runtime, target runtime, FTCTL transition, and
+> reverse-data stages and repeats safety probes under the Plan transition lock.
+>
+> 2026-08-04 normative Failback lifecycle update:
+> Document 591 revision 2 separates operation intent from transfer mode,
+> initializes direction/mode before dispatch, gates lifecycle on `DATA_READY`,
+> and preserves the first typed terminal error.
+>
+> 2026-08-03 normative target-ownership update:
+> [590-cross-hypervisor-dr-plan-async-mutation-and-target-resource-ownership-design-20260803.md](590-cross-hypervisor-dr-plan-async-mutation-and-target-resource-ownership-design-20260803.md)
+> requires transactional VM, volume, and artifact claims before target
+> materialization. Name/path-only target reuse is forbidden.
+
 > 2026-07-31 latest correction: FTCTL_DR source-isolation safety belongs to
 > Failback/Reprotect preflight, not an independent fencing action. See 587.
 
@@ -1346,6 +1376,15 @@ Protection View cache도 같은 evaluator를 사용한다. 상세 class, method,
 cache version 및 test matrix는
 [584-cross-hypervisor-dr-context-action-availability-and-darkmode-design-20260730.md](584-cross-hypervisor-dr-context-action-availability-and-darkmode-design-20260730.md)를
 따른다.
+
+## 2026-08-06 Failback Evidence Reconciliation Addendum
+
+After FTCTL reports Data Ready, backend wiring persists one typed
+`DrFailbackDataEvidence` tuple before it invokes the Cloud lifecycle gate. A
+temporarily incomplete publication enters `DATA_EVIDENCE_PENDING` and is
+re-probed by the scheduled reconciler without blocking the API thread. Null
+evidence, explicit non-durability, and inconsistent lineage use separate error
+codes. Target shutdown is unreachable from the pending state. See document 596.
 
 ## 2026-07-31 Test Session Lifecycle Policy Addendum
 

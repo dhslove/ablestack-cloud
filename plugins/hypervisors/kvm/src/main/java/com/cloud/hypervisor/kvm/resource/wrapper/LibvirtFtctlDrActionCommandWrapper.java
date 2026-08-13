@@ -112,6 +112,36 @@ public class LibvirtFtctlDrActionCommandWrapper extends CommandWrapper<FtctlDrAc
                 && !StringUtils.equalsIgnoreCase(expectedRunType, command.getRunType())) {
             return "DR_ACTION_INTENT_MISMATCH: FTCTL action does not match run type";
         }
+        if (command.getAction() == FtctlDrActionCommand.Action.FAILBACK_COMMIT
+                || command.getAction() == FtctlDrActionCommand.Action.FAILBACK_COMMIT_STATUS) {
+            if (!StringUtils.equals("DR_FAILBACK_COMMIT_V1", command.getFailbackCommitContractVersion())
+                    || StringUtils.isAnyBlank(command.getFailbackSessionId(),
+                            command.getFailbackCommitAttemptId(), command.getFailbackCommitEnvelopeSha256())
+                    || command.getFailbackCheckpointSequence() == null
+                    || command.getFailbackAuthorityGeneration() == null
+                    || command.getFailbackBaselineGeneration() == null) {
+                return "DR_FAILBACK_COMMIT_CONTRACT_INVALID: typed failback commit envelope is incomplete";
+            }
+        }
+        if (command.getAction() == FtctlDrActionCommand.Action.CUTOVER_COMMIT) {
+            if (!StringUtils.equals("DR_CUTOVER_COMMIT_V2", command.getCutoverCommitContractVersion())
+                    || StringUtils.isAnyBlank(command.getCutoverEngineSessionId(), command.getCutoverCloudSessionId(),
+                            command.getCutoverManifestSha256(), command.getCutoverCommitAttemptId(),
+                            command.getCutoverCommitEnvelopeSha256(), command.getCutoverTargetExternalRef(),
+                            command.getCutoverTargetPowerState(), command.getCutoverBootValidationState(),
+                            command.getCutoverSourceFenceState(), command.getCutoverSourcePowerState())
+                    || command.getCutoverCheckpointSequence() == null
+                    || command.getCutoverAuthorityGeneration() == null
+                    || command.getCutoverTargetVmId() == null) {
+                return "DR_CUTOVER_COMMIT_CONTRACT_INVALID: typed cutover commit envelope is incomplete";
+            }
+        }
+        if (command.getAction() == FtctlDrActionCommand.Action.CUTOVER_COMMIT_STATUS
+                && (!StringUtils.equals("DR_CUTOVER_COMMIT_V2", command.getCutoverCommitContractVersion())
+                        || StringUtils.isAnyBlank(command.getCutoverEngineSessionId(),
+                                command.getCutoverCommitAttemptId(), command.getCutoverCommitEnvelopeSha256()))) {
+            return "DR_CUTOVER_COMMIT_CONTRACT_INVALID: typed cutover commit status identity is incomplete";
+        }
         return null;
     }
 
@@ -379,18 +409,39 @@ public class LibvirtFtctlDrActionCommandWrapper extends CommandWrapper<FtctlDrAc
         addContextArg(script, command, "targetNetworkId", "--target-network-id");
         addContextArg(script, command, "targetVolumeMapJson", "--target-volume-map-json");
         addContextArg(script, command, "targetReadyRpoSeconds", "--target-ready-rpo-seconds");
+        addContextArg(script, command, "materializationSpecJson", "--materialization-spec-json");
+        addContextArg(script, command, "materializationSpecSha256", "--materialization-spec-sha256");
         addContextArg(script, command, "cutoverSessionId", "--session-id");
-        addContextArg(script, command, "failbackSessionId", "--session-id");
-        addContextArg(script, command, "checkpointSequence", "--checkpoint-sequence");
-        addContextArg(script, command, "authorityGeneration", "--authority-generation");
+        addStringArg(script, command.getCutoverCommitContractVersion(), "--commit-contract-version");
+        addStringArg(script, command.getCutoverEngineSessionId(), "--engine-session-id");
+        addStringArg(script, command.getCutoverCloudSessionId(), "--cloud-session-id");
+        addLongArg(script, command.getCutoverCheckpointSequence(), "--checkpoint-sequence");
+        addStringArg(script, command.getCutoverManifestSha256(), "--manifest-sha256");
+        addLongArg(script, command.getCutoverAuthorityGeneration(), "--authority-generation");
+        addStringArg(script, command.getCutoverCommitAttemptId(), "--commit-attempt-id");
+        addStringArg(script, command.getCutoverCommitEnvelopeSha256(), "--commit-envelope-sha256");
+        addLongArg(script, command.getCutoverTargetVmId(), "--target-vm-id");
+        addStringArg(script, command.getCutoverTargetExternalRef(), "--target-external-ref");
+        addStringArg(script, command.getCutoverTargetPowerState(), "--target-power-state");
+        addStringArg(script, command.getCutoverBootValidationState(), "--boot-validation-state");
+        addStringArg(script, command.getCutoverSourceFenceState(), "--source-fence-state");
+        addStringArg(script, command.getCutoverSourcePowerState(), "--source-power-state");
+        addStringArg(script, command.getFailbackCommitContractVersion(), "--commit-contract-version");
+        addStringArg(script, command.getFailbackSessionId(), "--session-id");
+        addLongArg(script, command.getFailbackCheckpointSequence(), "--checkpoint-sequence");
+        addLongArg(script, command.getFailbackAuthorityGeneration(), "--authority-generation");
+        addLongArg(script, command.getFailbackBaselineGeneration(), "--baseline-generation");
+        addStringArg(script, command.getFailbackEvidenceRunUuid(), "--evidence-run");
+        addStringArg(script, command.getFailbackCommitAttemptId(), "--commit-attempt-id");
+        addStringArg(script, command.getFailbackCommitEnvelopeSha256(), "--commit-envelope-sha256");
         addLongArg(script, command.getResumeBaselineCheckpointSequence(), "--resume-baseline-checkpoint-sequence");
         addLongArg(script, command.getMinimumCompletedCheckpointSequence(), "--minimum-completed-checkpoint-sequence");
         if (command.isForceImmediateCycle()) {
             script.add("--force-immediate-cycle");
         }
-        addContextArg(script, command, "targetPowerState", "--target-power-state");
-        addContextArg(script, command, "sourcePowerState", "--source-power-state");
-        addContextArg(script, command, "bootValidationState", "--boot-validation-state");
+        addStringArg(script, command.getFailbackTargetPowerState(), "--target-power-state");
+        addStringArg(script, command.getFailbackSourcePowerState(), "--source-power-state");
+        addStringArg(script, command.getFailbackBootValidationState(), "--boot-validation-state");
         addContextArg(script, command, "rollbackPhase", "--phase");
         if (!command.isWaitForCompletion()) {
             script.add("--wait=false");
@@ -403,7 +454,15 @@ public class LibvirtFtctlDrActionCommandWrapper extends CommandWrapper<FtctlDrAc
         JsonObject payload = LibvirtFtctlWrapperHelper.parseJsonObject(output);
         int exitValue = script.getExitValue();
         boolean success = exitValue == 0;
-        if (!success && command.getAction() == FtctlDrActionCommand.Action.FAILBACK_COMMIT) {
+        if (!success && command.getAction() == FtctlDrActionCommand.Action.CUTOVER_COMMIT
+                && shouldProbeStatus(result, output)) {
+            FtctlDrActionAnswer verified = probeCutoverCommitStatus(command);
+            if (verified != null) {
+                return verified;
+            }
+        }
+        if (!success && command.getAction() == FtctlDrActionCommand.Action.FAILBACK_COMMIT
+                && shouldProbeStatus(result, output)) {
             FtctlDrActionAnswer verified = probeFailbackCommitStatus(command);
             if (verified != null) {
                 return verified;
@@ -449,6 +508,13 @@ public class LibvirtFtctlDrActionCommandWrapper extends CommandWrapper<FtctlDrAc
         }
     }
 
+    private void addStringArg(Script script, String value, String option) {
+        if (StringUtils.isNotBlank(value)) {
+            script.add(option);
+            script.add(value);
+        }
+    }
+
     private boolean shouldProbeStatus(String result, String output) {
         return StringUtils.isBlank(output)
                 || StringUtils.containsIgnoreCase(result, "timed out")
@@ -463,7 +529,10 @@ public class LibvirtFtctlDrActionCommandWrapper extends CommandWrapper<FtctlDrAc
         Script script = new Script("ablestack_vm_ftctl", 10000, logger);
         script.add(FtctlDrActionCommand.Action.FAILBACK_COMMIT_STATUS.getCliCommand());
         LibvirtFtctlDrCommandHelper.addPlanRunArgs(script, command.getPlanUuid(), command.getRunUuid());
-        addContextArg(script, command, "failbackSessionId", "--session-id");
+        addStringArg(script, command.getFailbackCommitContractVersion(), "--commit-contract-version");
+        addStringArg(script, command.getFailbackSessionId(), "--session-id");
+        addStringArg(script, command.getFailbackCommitAttemptId(), "--commit-attempt-id");
+        addStringArg(script, command.getFailbackCommitEnvelopeSha256(), "--commit-envelope-sha256");
         script.add("--json");
 
         OutputInterpreter.AllLinesParser parser = new FtctlDrAllLinesParser();
@@ -484,6 +553,37 @@ public class LibvirtFtctlDrActionCommandWrapper extends CommandWrapper<FtctlDrAc
                 LibvirtFtctlDrCommandHelper.getString(payload, "step"),
                 LibvirtFtctlDrCommandHelper.getInteger(payload, "progress"),
                 command.getRunUuid(),
+                LibvirtFtctlDrCommandHelper.getLong(payload, "events_offset"),
+                LibvirtFtctlDrCommandHelper.getString(payload, "error_code"),
+                script.getExitValue(), output, payload.toString());
+    }
+
+    private FtctlDrActionAnswer probeCutoverCommitStatus(FtctlDrActionCommand command) {
+        Script script = new Script("ablestack_vm_ftctl", 10000, logger);
+        script.add(FtctlDrActionCommand.Action.CUTOVER_COMMIT_STATUS.getCliCommand());
+        LibvirtFtctlDrCommandHelper.addPlanRunArgs(script, command.getPlanUuid(), command.getRunUuid());
+        addStringArg(script, command.getCutoverCommitContractVersion(), "--commit-contract-version");
+        addStringArg(script, command.getCutoverEngineSessionId(), "--engine-session-id");
+        addStringArg(script, command.getCutoverCommitAttemptId(), "--commit-attempt-id");
+        addStringArg(script, command.getCutoverCommitEnvelopeSha256(), "--commit-envelope-sha256");
+        script.add("--json");
+
+        OutputInterpreter.AllLinesParser parser = new FtctlDrAllLinesParser();
+        String result = script.execute(parser);
+        String output = LibvirtFtctlWrapperHelper.getOutput(result, parser);
+        JsonObject payload = LibvirtFtctlWrapperHelper.parseSingleJsonObject(output);
+        if (script.getExitValue() != 0 || payload == null) {
+            return null;
+        }
+        String outcome = LibvirtFtctlDrCommandHelper.getString(payload, "commit_outcome");
+        boolean acknowledged = StringUtils.equalsIgnoreCase(outcome, "ACKNOWLEDGED");
+        return new FtctlDrActionAnswer(command, acknowledged,
+                StringUtils.defaultIfBlank(output, "FTCTL_DR cutover commit status"),
+                command.getAction(), command.getPlanUuid(), command.getRunUuid(),
+                LibvirtFtctlDrCommandHelper.getString(payload, "result"), acknowledged,
+                LibvirtFtctlDrCommandHelper.getString(payload, "state"),
+                LibvirtFtctlDrCommandHelper.getString(payload, "commit_state"),
+                acknowledged ? 100 : 95, command.getRunUuid(),
                 LibvirtFtctlDrCommandHelper.getLong(payload, "events_offset"),
                 LibvirtFtctlDrCommandHelper.getString(payload, "error_code"),
                 script.getExitValue(), output, payload.toString());

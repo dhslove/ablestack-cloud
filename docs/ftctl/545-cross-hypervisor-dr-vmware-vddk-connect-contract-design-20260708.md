@@ -578,6 +578,12 @@ Observed state before the test:
 | Check | Result |
 | --- | --- |
 | `config.changeTrackingEnabled` | `true` |
+
+> 2026-08-10 clarification: this property is retained as a diagnostic signal,
+> not a standalone hard gate. Authoritative readiness requires selected-disk
+> ExtraConfig, a non-empty snapshot change ID, and successful CBT query evidence
+> as specified by
+> `600-cross-hypervisor-dr-vmware-cbt-activation-convergence-design-20260810.md`.
 | active VMware snapshot | none |
 | active backing path | `[3-host-local-disk] test1/test1.vmdk` |
 

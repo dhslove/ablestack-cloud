@@ -16,6 +16,8 @@
 // under the License.
 package com.cloud.dr;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
@@ -31,6 +33,7 @@ import org.apache.cloudstack.managed.context.ManagedContextRunnable;
 
 import com.cloud.dr.cluster.DisasterRecoveryClusterService;
 import com.cloud.dr.dao.DrPlanDao;
+import com.cloud.dr.dao.DrRunDao;
 import com.cloud.utils.component.ManagerBase;
 import com.cloud.utils.concurrency.NamedThreadFactory;
 import com.cloud.utils.db.GlobalLock;
@@ -42,13 +45,16 @@ public class DrProjectionScheduler extends ManagerBase implements Configurable {
     public static final ConfigKey<Boolean> DrProjectionSchedulerEnabled = new ConfigKey<>("Advanced", Boolean.class,
             "dr.projection.scheduler.enabled", "true", "Enable periodic DR runtime projection and protection view caching.", false);
     public static final ConfigKey<Integer> DrProjectionSchedulerInterval = new ConfigKey<>("Advanced", Integer.class,
-            "dr.projection.scheduler.interval", "10", "DR runtime projection interval in seconds.", false);
+            "dr.projection.scheduler.interval", "2", "DR runtime projection interval in seconds while protection is enabled.", false);
     public static final ConfigKey<Integer> DrProjectionSchedulerBatchSize = new ConfigKey<>("Advanced", Integer.class,
             "dr.projection.scheduler.batch.size", "25", "Maximum DR plans projected in one scheduler tick.", false);
 
     @Inject private DrPlanDao drPlanDao;
+    @Inject private DrRunDao drRunDao;
     @Inject private DrProtectionViewService drProtectionViewService;
     private ScheduledExecutorService executor;
+    private long lastActivePlanId = -1L;
+    private long lastIdlePlanId = -1L;
 
     @Override
     public boolean configure(String name, Map<String, Object> params) throws ConfigurationException {
@@ -59,7 +65,7 @@ public class DrProjectionScheduler extends ManagerBase implements Configurable {
 
     @Override
     public boolean start() {
-        int interval = Math.max(5, DrProjectionSchedulerInterval.value());
+        int interval = Math.max(2, DrProjectionSchedulerInterval.value());
         executor.scheduleWithFixedDelay(new ProjectionTask(), INITIAL_DELAY_SECONDS, interval, TimeUnit.SECONDS);
         logger.info(String.format("Started DR projection scheduler with interval %s seconds", interval));
         return true;
@@ -110,15 +116,64 @@ public class DrProjectionScheduler extends ManagerBase implements Configurable {
     private void projectPlans() {
         List<DrPlanVO> plans = drPlanDao.listActive();
         int remaining = Math.max(1, DrProjectionSchedulerBatchSize.value());
+        List<DrPlanVO> activePlans = new ArrayList<>();
+        List<DrPlanVO> idlePlans = new ArrayList<>();
         for (DrPlanVO plan : plans) {
-            if (remaining-- <= 0) {
+            if (drRunDao.findActiveByPlanId(plan.getId()) != null) {
+                activePlans.add(plan);
+            } else {
+                idlePlans.add(plan);
+            }
+        }
+        activePlans.sort(Comparator.comparingLong(DrPlanVO::getId));
+        idlePlans.sort(Comparator.comparingLong(DrPlanVO::getId));
+
+        ProjectionBatch activeBatch = projectRoundRobin(activePlans, remaining, lastActivePlanId);
+        lastActivePlanId = activeBatch.lastPlanId;
+        remaining -= activeBatch.projected;
+        if (remaining > 0) {
+            ProjectionBatch idleBatch = projectRoundRobin(idlePlans, remaining, lastIdlePlanId);
+            lastIdlePlanId = idleBatch.lastPlanId;
+        }
+    }
+
+    private ProjectionBatch projectRoundRobin(List<DrPlanVO> plans, int limit, long cursor) {
+        if (plans.isEmpty() || limit <= 0) {
+            return new ProjectionBatch(0, cursor);
+        }
+        int start = 0;
+        for (int index = 0; index < plans.size(); index++) {
+            if (plans.get(index).getId() > cursor) {
+                start = index;
                 break;
             }
+            if (index == plans.size() - 1) {
+                start = 0;
+            }
+        }
+        int projected = 0;
+        long lastPlanId = cursor;
+        int count = Math.min(limit, plans.size());
+        for (int offset = 0; offset < count; offset++) {
+            DrPlanVO plan = plans.get((start + offset) % plans.size());
             try {
                 drProtectionViewService.refreshProjectionAndView(plan.getId(), true);
             } catch (RuntimeException e) {
                 logger.warn(String.format("Failed to project DR plan %s", plan.getId()), e);
             }
+            projected++;
+            lastPlanId = plan.getId();
+        }
+        return new ProjectionBatch(projected, lastPlanId);
+    }
+
+    private static final class ProjectionBatch {
+        private final int projected;
+        private final long lastPlanId;
+
+        private ProjectionBatch(int projected, long lastPlanId) {
+            this.projected = projected;
+            this.lastPlanId = lastPlanId;
         }
     }
 }

@@ -124,6 +124,14 @@ public class DrRunResponse extends BaseResponse {
     @Param(description = "whether VMware CBT is enabled according to the latest FTCTL preflight status")
     private Boolean runtimeCbtEnabled;
 
+    @SerializedName("runtimecbtlifecyclestate")
+    @Param(description = "the evidence-backed VMware CBT lifecycle state")
+    private String runtimeCbtLifecycleState;
+
+    @SerializedName("runtimecbtvmconfigsignal")
+    @Param(description = "the non-authoritative VMware VM-level CBT configuration signal")
+    private String runtimeCbtVmConfigSignal;
+
     @SerializedName("runtimecbtdiskid")
     @Param(description = "the VMware CBT disk ID resolved by the latest FTCTL preflight status")
     private String runtimeCbtDiskId;
@@ -195,6 +203,65 @@ public class DrRunResponse extends BaseResponse {
     @SerializedName("workerexitcode")
     @Param(description = "the latest FTCTL worker exit code")
     private Integer workerExitCode;
+
+    @SerializedName("workeridentitystate")
+    @Param(description = "the FTCTL worker identity verification state")
+    private String workerIdentityState;
+
+    @SerializedName("workerlivenessstate")
+    @Param(description = "the FTCTL worker liveness state")
+    private String workerLivenessState;
+
+    @SerializedName("transferactivitystate")
+    @Param(description = "the live transfer activity state")
+    private String transferActivityState;
+
+    @SerializedName("transferpayloadbytes")
+    @Param(description = "the cumulative payload bytes reported by the active transfer")
+    private Long transferPayloadBytes;
+
+    @SerializedName("transferprogressschemaversion") @Param(description = "the live transfer progress schema version") private Integer transferProgressSchemaVersion;
+    @SerializedName("transfercyclesequence") @Param(description = "the live transfer cycle sequence") private Long transferCycleSequence;
+    @SerializedName("transfersamplesequence") @Param(description = "the live transfer sample sequence") private Long transferSampleSequence;
+    @SerializedName("transferphase") @Param(description = "the live transfer phase") private String transferPhase;
+    @SerializedName("transfermode") @Param(description = "the live transfer mode") private String transferMode;
+    @SerializedName("transferbytestotal") @Param(description = "the total bytes in the active transfer") private Long transferBytesTotal;
+    @SerializedName("transferbytesprocessed") @Param(description = "the bytes processed by the active transfer") private Long transferBytesProcessed;
+    @SerializedName("transfersourcereadbytes") @Param(description = "the source bytes read by the active transfer") private Long transferSourceReadBytes;
+    @SerializedName("transfertargetwrittenbytes") @Param(description = "the target bytes written by the active transfer") private Long transferTargetWrittenBytes;
+    @SerializedName("transferverifiedbytes") @Param(description = "the bytes verified by the active transfer") private Long transferVerifiedBytes;
+    @SerializedName("transferpercent") @Param(description = "the active transfer completion percentage") private Double transferPercent;
+    @SerializedName("transferthroughputbps") @Param(description = "the active transfer throughput in bytes per second") private Long transferThroughputBps;
+    @SerializedName("transferetaseconds") @Param(description = "the active transfer estimated remaining seconds") private Long transferEtaSeconds;
+    @SerializedName("transfercurrentdiskindex") @Param(description = "the zero-based active transfer disk index") private Integer transferCurrentDiskIndex;
+    @SerializedName("transferdiskcount") @Param(description = "the active transfer disk count") private Integer transferDiskCount;
+    @SerializedName("transferprogressestimated") @Param(description = "whether the active transfer progress is estimated") private Boolean transferProgressEstimated;
+    @SerializedName("transferprogresssampledat") @Param(description = "the live transfer progress sample time") private Date transferProgressSampledAt;
+    @SerializedName("transferprogressstale") @Param(description = "whether the live transfer progress sample is stale") private Boolean transferProgressStale;
+
+    @SerializedName("reconciliationrequired")
+    @Param(description = "whether runtime reconciliation must complete before another mutation")
+    private Boolean reconciliationRequired;
+
+    @SerializedName("terminalsource")
+    @Param(description = "the authority that published the terminal operation result")
+    private String terminalSource;
+
+    @SerializedName("terminalversion")
+    @Param(description = "the terminal result contract version")
+    private Integer terminalVersion;
+
+    @SerializedName("terminalpublicationpending")
+    @Param(description = "whether FTCTL is finalizing the terminal operation result")
+    private Boolean terminalPublicationPending;
+
+    @SerializedName("terminalpublicationpendingsince")
+    @Param(description = "the time when terminal result publication entered its grace period")
+    private String terminalPublicationPendingSince;
+
+    @SerializedName("failurephase")
+    @Param(description = "the engine phase that published the failure")
+    private String failurePhase;
 
     @SerializedName("retryable")
     @Param(description = "whether the run is waiting for a retryable condition to clear")
@@ -412,6 +479,14 @@ public class DrRunResponse extends BaseResponse {
         this.runtimeCbtEnabled = runtimeCbtEnabled;
     }
 
+    public void setRuntimeCbtLifecycleState(String runtimeCbtLifecycleState) {
+        this.runtimeCbtLifecycleState = runtimeCbtLifecycleState;
+    }
+
+    public void setRuntimeCbtVmConfigSignal(String runtimeCbtVmConfigSignal) {
+        this.runtimeCbtVmConfigSignal = runtimeCbtVmConfigSignal;
+    }
+
     public void setRuntimeCbtDiskId(String runtimeCbtDiskId) {
         this.runtimeCbtDiskId = runtimeCbtDiskId;
     }
@@ -472,6 +547,36 @@ public class DrRunResponse extends BaseResponse {
     public void setWorkerExitCode(Integer workerExitCode) {
         this.workerExitCode = workerExitCode;
     }
+
+    public void setWorkerIdentityState(String value) { this.workerIdentityState = value; }
+    public void setWorkerLivenessState(String value) { this.workerLivenessState = value; }
+    public void setTransferActivityState(String value) { this.transferActivityState = value; }
+    public void setTransferPayloadBytes(Long value) { this.transferPayloadBytes = value; }
+    public void setTransferProgressSchemaVersion(Integer value) { this.transferProgressSchemaVersion = value; }
+    public void setTransferCycleSequence(Long value) { this.transferCycleSequence = value; }
+    public void setTransferSampleSequence(Long value) { this.transferSampleSequence = value; }
+    public void setTransferPhase(String value) { this.transferPhase = value; }
+    public void setTransferMode(String value) { this.transferMode = value; }
+    public void setTransferBytesTotal(Long value) { this.transferBytesTotal = value; }
+    public void setTransferBytesProcessed(Long value) { this.transferBytesProcessed = value; }
+    public void setTransferSourceReadBytes(Long value) { this.transferSourceReadBytes = value; }
+    public void setTransferTargetWrittenBytes(Long value) { this.transferTargetWrittenBytes = value; }
+    public void setTransferVerifiedBytes(Long value) { this.transferVerifiedBytes = value; }
+    public void setTransferPercent(Double value) { this.transferPercent = value; }
+    public void setTransferThroughputBps(Long value) { this.transferThroughputBps = value; }
+    public void setTransferEtaSeconds(Long value) { this.transferEtaSeconds = value; }
+    public void setTransferCurrentDiskIndex(Integer value) { this.transferCurrentDiskIndex = value; }
+    public void setTransferDiskCount(Integer value) { this.transferDiskCount = value; }
+    public void setTransferProgressEstimated(Boolean value) { this.transferProgressEstimated = value; }
+    public void setTransferProgressSampledAt(Date value) { this.transferProgressSampledAt = value; }
+    public void setTransferProgressStale(Boolean value) { this.transferProgressStale = value; }
+    public void setReconciliationRequired(Boolean value) { this.reconciliationRequired = value; }
+
+    public void setTerminalSource(String value) { this.terminalSource = value; }
+    public void setTerminalVersion(Integer value) { this.terminalVersion = value; }
+    public void setTerminalPublicationPending(Boolean value) { this.terminalPublicationPending = value; }
+    public void setTerminalPublicationPendingSince(String value) { this.terminalPublicationPendingSince = value; }
+    public void setFailurePhase(String value) { this.failurePhase = value; }
 
     public void setRetryable(Boolean retryable) {
         this.retryable = retryable;

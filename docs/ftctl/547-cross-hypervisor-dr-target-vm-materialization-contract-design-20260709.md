@@ -1,5 +1,11 @@
 # Cross Hypervisor DR Target VM Materialization Contract Design
 
+> Normative ownership correction (2026-08-03):
+> [590-cross-hypervisor-dr-plan-async-mutation-and-target-resource-ownership-design-20260803.md](590-cross-hypervisor-dr-plan-async-mutation-and-target-resource-ownership-design-20260803.md)
+> supersedes any name/path-only VM or volume reuse and any unverified
+> `POWERED_OFF` projection in this document. Materialization now requires DB
+> resource claims, Agent live observation, and FTCTL manifest v2 convergence.
+
 Date: 2026-07-09
 
 ## Implementation Update - 2026-07-09

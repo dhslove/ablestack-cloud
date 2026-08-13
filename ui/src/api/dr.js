@@ -39,9 +39,9 @@ const objectKeys = {
   discoverDrSiteInventory: ['discoverdrsiteinventoryresponse', 'drsiteinventory'],
   discoverDrPlanInventory: ['discoverdrplaninventoryresponse', 'drplaninventory'],
   previewDrPlanSpec: ['previewdrplanspecresponse', 'drplanspecpreview'],
-  createDrPlan: ['createdrplanresponse', 'drplan'],
+  createDrPlan: ['createdrplanresponse', 'drplanmutation'],
   updateDrSite: ['updatedrsiteresponse', 'drsite'],
-  updateDrPlan: ['updatedrplanresponse', 'drplan'],
+  updateDrPlan: ['updatedrplanresponse', 'drplanmutation'],
   checkDrSite: ['checkdrsiteresponse', 'drsite'],
   startDrSync: ['startdrsyncresponse', 'drrun'],
   recoverDrSync: ['recoverdrsyncresponse', 'drrun'],
@@ -132,6 +132,28 @@ function postAndWaitForDrObject (command, params, options = {}) {
   })
 }
 
+function submitDrMutation (command, params) {
+  return postAPI(command, params).then(response => {
+    const jobid = extractJobId(response, command)
+    if (!jobid) {
+      return {
+        admitted: false,
+        command,
+        result: extractDrObject(response, command),
+        raw: response
+      }
+    }
+    return { admitted: true, command, jobid, raw: response }
+  })
+}
+
+export function waitForDrMutation (admission, options = {}) {
+  if (!admission?.jobid) {
+    return Promise.resolve(admission?.result || {})
+  }
+  return waitForDrJobObject(admission.jobid, admission.command, options)
+}
+
 export function listDrSites (params = {}) {
   return getAPI('listDrSites', params).then(response => extractDrList(response, 'listDrSites'))
 }
@@ -200,11 +222,11 @@ export function refreshDrProtectionView (planId) {
 }
 
 export function createDrPlan (params) {
-  return postAndWaitForDrObject('createDrPlan', params)
+  return submitDrMutation('createDrPlan', params)
 }
 
 export function updateDrPlan (id, params) {
-  return postAndWaitForDrObject('updateDrPlan', Object.assign({ id }, params))
+  return submitDrMutation('updateDrPlan', Object.assign({ id }, params))
 }
 
 export function deleteDrPlan (id) {

@@ -27,6 +27,7 @@ import org.apache.cloudstack.api.Parameter;
 import org.apache.cloudstack.api.ServerApiException;
 import org.apache.cloudstack.api.response.HostResponse;
 import org.apache.cloudstack.api.response.UserVmResponse;
+import org.apache.cloudstack.api.response.dr.DrPlanMutationResponse;
 import org.apache.cloudstack.api.response.dr.DrPlanResponse;
 import org.apache.cloudstack.context.CallContext;
 
@@ -37,19 +38,16 @@ import com.cloud.dr.DrPlanReadinessValidator;
 import com.cloud.dr.DrPlanService;
 import com.cloud.dr.DrPlanVO;
 import com.cloud.dr.cluster.DisasterRecoveryClusterEventTypes;
-import com.cloud.dr.response.DrResponseGenerator;
 
 @APICommand(name = UpdateDrPlanCmd.APINAME,
         description = "Update a Cross Hypervisor DR plan",
-        responseObject = DrPlanResponse.class,
+        responseObject = DrPlanMutationResponse.class,
         authorized = {RoleType.Admin})
 public class UpdateDrPlanCmd extends BaseAsyncCmd {
     public static final String APINAME = "updateDrPlan";
 
     @Inject
     private DrPlanService drPlanService;
-    @Inject
-    private DrResponseGenerator drResponseGenerator;
     @Inject
     private DrPlanReadinessValidator drPlanReadinessValidator;
     @Inject
@@ -212,7 +210,11 @@ public class UpdateDrPlanCmd extends BaseAsyncCmd {
             applyGuidedSpec(update);
             validateDraftPolicy(update);
             DrPlanVO plan = drPlanService.updatePlan(id, update);
-            DrPlanResponse response = drResponseGenerator.createPlanResponse(plan, drPlanService.getActionEvaluation(plan.getId()));
+            DrPlanMutationResponse response = new DrPlanMutationResponse();
+            response.setId(plan.getUuid());
+            response.setName(plan.getName());
+            response.setState(plan.getState());
+            response.setOperation("UPDATE");
             response.setResponseName(getCommandName());
             setResponseObject(response);
         } catch (ServerApiException e) {

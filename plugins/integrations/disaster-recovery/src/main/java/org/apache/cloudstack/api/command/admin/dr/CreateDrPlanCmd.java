@@ -27,7 +27,7 @@ import org.apache.cloudstack.api.Parameter;
 import org.apache.cloudstack.api.ServerApiException;
 import org.apache.cloudstack.api.response.HostResponse;
 import org.apache.cloudstack.api.response.UserVmResponse;
-import org.apache.cloudstack.api.response.dr.DrPlanResponse;
+import org.apache.cloudstack.api.response.dr.DrPlanMutationResponse;
 import org.apache.cloudstack.api.response.dr.DrSiteResponse;
 import org.apache.cloudstack.context.CallContext;
 
@@ -39,13 +39,13 @@ import com.cloud.dr.DrPlanReadinessValidator;
 import com.cloud.dr.DrPlanService;
 import com.cloud.dr.DrPlanVO;
 import com.cloud.dr.DrRunService;
+import com.cloud.dr.DrRunVO;
 import com.cloud.dr.cluster.DisasterRecoveryClusterEventTypes;
-import com.cloud.dr.response.DrResponseGenerator;
 import com.google.gson.JsonObject;
 
 @APICommand(name = CreateDrPlanCmd.APINAME,
         description = "Create a Cross Hypervisor DR plan",
-        responseObject = DrPlanResponse.class,
+        responseObject = DrPlanMutationResponse.class,
         authorized = {RoleType.Admin})
 public class CreateDrPlanCmd extends BaseAsyncCmd {
     public static final String APINAME = "createDrPlan";
@@ -54,8 +54,6 @@ public class CreateDrPlanCmd extends BaseAsyncCmd {
     private DrPlanService drPlanService;
     @Inject
     private DrRunService drRunService;
-    @Inject
-    private DrResponseGenerator drResponseGenerator;
     @Inject
     private DrPlanReadinessValidator drPlanReadinessValidator;
     @Inject
@@ -231,12 +229,18 @@ public class CreateDrPlanCmd extends BaseAsyncCmd {
             guidedSpecBuilder().applyIfRequested(plan, buildGuidedSpec());
             validateDraftPolicy(plan);
             DrPlanVO created = drPlanService.createPlan(plan);
+            DrRunVO initialRun = null;
             if (Boolean.TRUE.equals(startSync)) {
-                drRunService.startRun(created.getId(), DrConstants.RUN_TYPE_SYNC, "create-plan-initial-sync:" + created.getUuid(),
+                initialRun = drRunService.startRun(created.getId(), DrConstants.RUN_TYPE_SYNC, "create-plan-initial-sync:" + created.getUuid(),
                         CallContext.current().getCallingUserId(), null, buildInitialSyncRequestJson());
                 created = drPlanService.getPlan(created.getId());
             }
-            DrPlanResponse response = drResponseGenerator.createPlanResponse(created, drPlanService.getActionEvaluation(created.getId()));
+            DrPlanMutationResponse response = new DrPlanMutationResponse();
+            response.setId(created.getUuid());
+            response.setName(created.getName());
+            response.setState(created.getState());
+            response.setInitialRunId(initialRun != null ? initialRun.getUuid() : null);
+            response.setOperation("CREATE");
             response.setResponseName(getCommandName());
             setResponseObject(response);
         } catch (ServerApiException e) {

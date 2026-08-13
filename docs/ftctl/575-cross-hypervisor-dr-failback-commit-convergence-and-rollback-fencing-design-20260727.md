@@ -954,6 +954,18 @@ never overwrite the serving TARGET authority.
 | Cloud projection | Reimports stale engine error after DB cleanup | Projects target authority without a current error |
 | History | Current state and failed attempt look identical | Failed run remains visible only as immutable history |
 
+## 21. Commit Envelope And Deterministic Failure Amendment - 2026-08-06
+
+Commit convergence begins only after Cloud persists a complete versioned
+commit envelope. A command rejected for missing session, checkpoint, authority
+generation, attempt ID, or envelope hash is deterministic and must not enter
+`COMMIT_VERIFYING`. Status probing is reserved for transport ambiguity after
+a recorded dispatch attempt.
+
+The envelope, pre-power gate, DB dispatch state, and current-session recovery
+algorithm are defined by document 597. Its authority-generation rule
+supersedes checkpoint or Run-ID fallback behavior.
+
 ## 2026-07-27 Late ACK and Projection Convergence Addendum
 
 실환경에서는 commit 호출이 timeout된 뒤 scheduler가 같은 generation의

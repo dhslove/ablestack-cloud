@@ -55,12 +55,21 @@
       :message="$t('message.dr.nbd.recovery.required')"
       :description="nbdRecoveryMessage" />
 
+    <a-alert
+      v-if="runtimeReconciling"
+      class="cross-dr-terminal-alert"
+      type="info"
+      show-icon
+      :message="$t('message.dr.runtime.reconciliation')"
+      :description="$t('message.dr.runtime.reconciliation.detail')" />
+
     <section class="cross-dr-protection-info__section">
       <dr-plan-overview
         :plan="protectionPlan"
         :sourceSite="sourceSite"
         :targetSite="targetSite"
         :currentRun="currentRun"
+        :runtime="currentProtectionRuntime"
         :showDetails="false"
         :showProtectionSummary="true" />
     </section>
@@ -80,6 +89,9 @@
         <a-descriptions-item :label="$t('label.dr.engine.ack.state')">
           <dr-status-pill :status="protectionPlan.engineackstate || 'PENDING'" />
         </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.cutover.commit.state')">
+          <dr-status-pill :status="protectionPlan.cutovercommitstate || 'NOT_SUBMITTED'" />
+        </a-descriptions-item>
         <a-descriptions-item :label="$t('label.dr.boot.validation.state')">
           <dr-status-pill :status="protectionPlan.cutoverbootvalidationstate || 'PENDING'" />
         </a-descriptions-item>
@@ -91,9 +103,34 @@
 
     <section v-if="failbackSession && failbackSession.state" class="cross-dr-protection-info__section">
       <h3>{{ $t('label.dr.failback.lifecycle') }}</h3>
+      <a-alert
+        v-if="terminalPublicationPending"
+        class="cross-dr-terminal-alert"
+        type="info"
+        show-icon
+        :message="$t('message.dr.terminal.publication.pending')"
+        :description="$t('message.dr.terminal.publication.pending.detail')" />
       <a-descriptions size="small" :column="2" bordered>
         <a-descriptions-item :label="$t('label.dr.failback.phase')">
           <dr-status-pill :status="failbackSession.state" />
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.failback.acceptance.state')">
+          <dr-status-pill :status="failbackSession.acceptancestate || 'PENDING'" />
+        </a-descriptions-item>
+        <a-descriptions-item v-if="hasFailbackFailureMetadata" :label="$t('label.dr.failback.failure.phase')">
+          {{ failbackSession.failurephase || '-' }}
+        </a-descriptions-item>
+        <a-descriptions-item v-if="hasFailbackFailureMetadata" :label="$t('label.dr.failback.failed.component')">
+          {{ failbackSession.failedcomponent || '-' }}
+        </a-descriptions-item>
+        <a-descriptions-item v-if="hasFailbackFailureMetadata" :label="$t('label.dr.failback.driver.exit.code')">
+          {{ failbackSession.driverexitcode === undefined || failbackSession.driverexitcode === null ? '-' : failbackSession.driverexitcode }}
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.failback.worker.alive')">
+          {{ failbackSession.workerpidalive === true ? $t('label.yes') : failbackSession.workerpidalive === false ? $t('label.no') : '-' }}
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.failback.baseline.file.state')">
+          <dr-status-pill :status="failbackSession.baselinefilestate || 'PENDING'" />
         </a-descriptions-item>
         <a-descriptions-item :label="$t('label.dr.failback.checkpoint')">
           {{ failbackSession.checkpointsequence || '-' }}
@@ -137,6 +174,15 @@
         <a-descriptions-item :label="$t('label.dr.failback.post.checkpoint')">
           {{ failbackSession.postfailbackcheckpointsequence || '-' }}
         </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.failback.protection.resume.state')">
+          <dr-status-pill :status="failbackProtectionResumeState" />
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.failback.required.post.checkpoint')">
+          {{ failbackSession.requiredpostfailbackcheckpointsequence || '-' }}
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.failback.protection.resume.verified.at')">
+          {{ failbackSession.protectionresumeverifiedat || '-' }}
+        </a-descriptions-item>
         <a-descriptions-item :label="$t('label.dr.failback.commit.outcome')">
           <dr-status-pill :status="failbackSession.commitoutcome || 'PENDING'" />
         </a-descriptions-item>
@@ -157,11 +203,12 @@
         </a-descriptions-item>
       </a-descriptions>
       <a-alert
-        v-if="failbackSession.errorcode"
+        v-if="canonicalFailbackFailure"
+        class="cross-dr-terminal-alert"
         type="error"
         show-icon
-        :message="failbackSession.errorcode"
-        :description="failbackSession.errormessage || ''" />
+        :message="canonicalFailbackFailure.code"
+        :description="canonicalFailbackFailure.message" />
     </section>
 
     <section class="cross-dr-protection-info__section">
@@ -174,13 +221,19 @@
           {{ activeCycleLabel }}
         </a-descriptions-item>
         <a-descriptions-item :label="$t('label.dr.requested.mode')">
-          {{ currentSyncCycle.requestedmode || '-' }}
+          {{ displaySyncCycle.requestedmode || '-' }}
         </a-descriptions-item>
         <a-descriptions-item :label="$t('label.dr.effective.mode')">
-          {{ currentSyncCycle.effectivemode || '-' }}
+          {{ displaySyncCycle.effectivemode || '-' }}
         </a-descriptions-item>
         <a-descriptions-item :label="$t('label.dr.changed.bytes')">
-          {{ formatBytes(currentSyncCycle.changedbytes) }}
+          {{ formatBytes(displaySyncCycle.changedbytes) }}
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.worker.liveness')">
+          <dr-status-pill :status="displayWorkerLiveness" />
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.transfer.payload.bytes')">
+          {{ formatBytes(displayTransferPayloadBytes) }}
         </a-descriptions-item>
         <a-descriptions-item :label="$t('label.dr.latest.completed.checkpoint')">
           {{ latestCompletedSyncCycle.sequence || '-' }}
@@ -251,10 +304,10 @@
       <h3>{{ $t('label.dr.cycle.commit') }}</h3>
       <a-descriptions size="small" :column="2" bordered>
         <a-descriptions-item :label="$t('label.dr.data.commit.state')">
-          <dr-status-pill :status="plan.datacommitstate || 'UNKNOWN'" />
+          <dr-status-pill :status="cycleCommitState" />
         </a-descriptions-item>
         <a-descriptions-item :label="$t('label.dr.cycle.retry.mode')">
-          {{ plan.cycleretrymode || '-' }}
+          {{ cycleRetryMode }}
         </a-descriptions-item>
         <a-descriptions-item :label="$t('label.dr.data.copied')">
           <dr-status-pill :status="cycleDataCopied ? 'READY' : 'NOT_READY'" />
@@ -265,8 +318,8 @@
         <a-descriptions-item :label="$t('label.dr.target.durable')">
           <dr-status-pill :status="cycleTargetDurable ? 'READY' : 'NOT_READY'" />
         </a-descriptions-item>
-        <a-descriptions-item :label="$t('label.dr.failed.component')">
-          {{ plan.failedcomponent || '-' }}
+        <a-descriptions-item v-if="cycleFailedComponent" :label="$t('label.dr.failed.component')">
+          {{ cycleFailedComponent }}
         </a-descriptions-item>
       </a-descriptions>
     </section>
@@ -370,7 +423,68 @@ export default {
   },
   computed: {
     protectionPlan () {
-      return Object.assign({}, this.plan, this.currentProtectionRuntime)
+      const merged = Object.assign({}, this.plan, this.currentProtectionRuntime)
+      const action = String(this.currentRun.runtype || this.currentRun.action || this.currentRun.type || '').toUpperCase()
+      const runState = String(this.currentRun.state || '').toUpperCase()
+      if (action === 'FAILBACK' && runState === 'SUCCEEDED') {
+        merged.state = this.plan.state || 'READY'
+        merged.runtimestate = 'READY'
+        merged.runtimestep = 'target-checkpoint-ready'
+        merged.runtimeprogress = 100
+        merged.runtimefailbackphase = 'COMPLETED'
+        merged.runtimecloudlifecyclestate = 'COMPLETED'
+        merged.runtimetransferactivitystate = 'IDLE'
+        merged.runtimeimmediatecyclepending = false
+        merged.runtimeterminalauthoritative = true
+      }
+      return merged
+    },
+    terminalPublicationPending () {
+      return this.currentRun.terminalpublicationpending === true ||
+        String(this.currentRun.workerstate || '').toUpperCase() === 'TERMINAL_PENDING'
+    },
+    failbackProtectionResumeState () {
+      if (this.failbackSession.protectionresumeverifiedat) return 'READY'
+      if (this.failbackSession.protectionresumerequestedat) return 'VERIFYING'
+      return 'PENDING'
+    },
+    failbackTerminalSucceeded () {
+      return String(this.failbackSession.state || '').toUpperCase() === 'COMPLETED' &&
+        !this.failbackSession.errorcode
+    },
+    hasFailbackFailureMetadata () {
+      if (this.failbackTerminalSucceeded) return false
+      return Boolean(this.failbackSession.failurephase || this.failbackSession.failedcomponent ||
+        this.failbackSession.errorcode || this.failbackSession.errormessage ||
+        (this.failbackSession.driverexitcode !== undefined && this.failbackSession.driverexitcode !== null))
+    },
+    canonicalFailbackFailure () {
+      if (this.terminalPublicationPending) {
+        return null
+      }
+      if (this.failbackTerminalSucceeded) {
+        return null
+      }
+      const liveness = String(this.currentRun.workerlivenessstate || this.currentProtectionRuntime.workerlivenessstate || '').toUpperCase()
+      const transfer = String(this.currentRun.transferactivitystate || this.currentProtectionRuntime.transferactivitystate || '').toUpperCase()
+      if (this.runtimeReconciling || liveness === 'ALIVE' || ['COPYING', 'VERIFYING'].includes(transfer)) {
+        return null
+      }
+      const runState = String(this.currentRun.state || '').toUpperCase()
+      const runCode = this.currentRun.runtimeerrorcode || this.currentRun.errorcode
+      if (runCode || ['FAILED', 'ERROR', 'ABORTED'].includes(runState)) {
+        return {
+          code: runCode || this.$t('label.error'),
+          message: this.currentRun.errormessage || this.lastError || ''
+        }
+      }
+      if (!this.currentRun.id && this.failbackSession.errorcode) {
+        return {
+          code: this.failbackSession.errorcode,
+          message: this.failbackSession.errormessage || ''
+        }
+      }
+      return null
     },
     hasCutoverState () {
       return Boolean(this.protectionPlan.currentcutoversessionid ||
@@ -392,6 +506,25 @@ export default {
       }
       return `#${this.currentSyncCycle.sequence || '-'} / ${this.currentSyncCycle.state || 'UNKNOWN'}`
     },
+    hasActiveSyncCycle () {
+      return Boolean(this.currentSyncCycle && this.currentSyncCycle.id)
+    },
+    displaySyncCycle () {
+      return this.hasActiveSyncCycle ? this.currentSyncCycle : (this.latestCompletedSyncCycle || {})
+    },
+    displayTransferPayloadBytes () {
+      if (this.hasActiveSyncCycle) {
+        return this.currentProtectionRuntime.transferpayloadbytes ??
+          this.currentRun.transferpayloadbytes ?? this.currentSyncCycle.transferpayloadbytes
+      }
+      return this.latestCompletedSyncCycle.transferpayloadbytes ??
+        this.currentProtectionRuntime.transferpayloadbytes
+    },
+    displayWorkerLiveness () {
+      if (!this.hasActiveSyncCycle && !this.currentRun.id) return 'IDLE'
+      return this.currentProtectionRuntime.workerlivenessstate ||
+        this.currentRun.workerlivenessstate || 'UNKNOWN'
+    },
     runtimeControlReady () {
       const protocol = Number(this.protectionPlan.runtimecontrolprotocolversion)
       const generation = Number(this.protectionPlan.runtimecontrolgeneration)
@@ -399,19 +532,37 @@ export default {
       return protocol >= 2 && Number.isFinite(generation) && Number.isFinite(acknowledged) && acknowledged >= generation
     },
     hasCycleCommitState () {
-      return Boolean(this.plan.datacommitstate || this.plan.cycleretrymode || this.plan.datacopied !== undefined)
+      return Boolean(this.displaySyncCycle.id || this.plan.datacommitstate ||
+        this.plan.cycleretrymode || this.plan.datacopied !== undefined)
     },
     hasSourceSnapshotState () {
       return Boolean(this.plan.runtimesourcesnapshotlifecyclestate || this.plan.runtimesourcesnapshotlastref)
     },
     cycleDataCopied () {
-      return this.plan.datacopied === true
+      return this.hasActiveSyncCycle ? this.plan.datacopied === true : this.completedCycleDurable
     },
     cycleMetadataCommitted () {
-      return this.plan.metadatacommitted === true
+      return this.hasActiveSyncCycle ? this.plan.metadatacommitted === true : this.completedCycleDurable
     },
     cycleTargetDurable () {
-      return this.plan.targetdurable === true
+      return this.hasActiveSyncCycle ? this.plan.targetdurable === true : this.completedCycleDurable
+    },
+    cycleCommitState () {
+      return this.displaySyncCycle.commitstate || this.plan.datacommitstate || 'UNKNOWN'
+    },
+    cycleRetryMode () {
+      return this.hasActiveSyncCycle ? (this.plan.cycleretrymode || '-') : '-'
+    },
+    cycleFailedComponent () {
+      if (!this.hasActiveSyncCycle && this.completedCycleDurable) return ''
+      return this.plan.failedcomponent || this.displaySyncCycle.failedcomponent || ''
+    },
+    completedCycleDurable () {
+      if (this.hasActiveSyncCycle) return false
+      const cycleState = String(this.latestCompletedSyncCycle.state || '').toUpperCase()
+      const commitState = String(this.latestCompletedSyncCycle.commitstate || '').toUpperCase()
+      return ['READY', 'COMPLETED', 'SUCCEEDED'].includes(cycleState) &&
+        ['LOCAL_DURABLE', 'TARGET_DURABLE', 'DURABLE', 'COMMITTED'].includes(commitState)
     },
     currentNbdTeardownState () {
       return this.currentProtectionRuntime.nbdteardownstate ||
@@ -427,6 +578,10 @@ export default {
       return this.currentProtectionRuntime.nbdteardownerrormessage ||
         this.currentProtectionRuntime.nbdteardownerrorcode ||
         this.$t('message.dr.nbd.recovery.required.detail')
+    },
+    runtimeReconciling () {
+      const state = String(this.currentProtectionRuntime.reconciliationstate || this.plan.reconciliationstate || '').toUpperCase()
+      return ['RECONCILING', 'DEAD_CONFIRMING'].includes(state) || this.currentRun.reconciliationrequired === true
     },
     hasNbdTeardownEvidence () {
       return Boolean(this.currentProtectionRuntime.nbdteardownstate ||

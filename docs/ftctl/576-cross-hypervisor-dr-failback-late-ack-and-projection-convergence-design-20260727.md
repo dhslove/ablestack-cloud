@@ -690,6 +690,18 @@ Failback terminal transaction은 current cutover를 `FAILED_BACK`으로
 종결해야 하며, current authority resolver와 Protection View version 4가
 terminal eligibility를 UI에 원자 전달해야 한다. 이 보정의 상세 설계와
 구현 순서는 문서 578을 따른다.
+## 20. Precondition For Late-ACK Reconciliation - 2026-08-06
+
+Late-ACK reconciliation applies only when a complete commit envelope was
+persisted and dispatch reached an ambiguous transport outcome. It must not
+convert deterministic `DR_FAILBACK_COMMIT_INVALID` into an unknown outcome or
+probe a journal for a commit that was never submitted.
+
+When physical serving side is SOURCE but FTCTL authority remains TARGET, the
+API exposes `authorityConsistent=false` and the UI shows an authority commit
+warning instead of Ready. See document 597 for the canonical response fields
+and terminal transaction.
+
 ## 2026-07-30 Post-Commit Resume Evidence Amendment
 
 late ACK 수렴 후 terminal 완료는 operation status의 필드만으로 판정하지 않는다.

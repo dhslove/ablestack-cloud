@@ -39,4 +39,5 @@ class DrPlanActionAvailabilityContext {
     boolean ftctlReleaseReady;
     boolean lifecycleTransition;
     boolean nbdRecoveryRequired;
+    boolean runtimeReconciliationRequired;
 }

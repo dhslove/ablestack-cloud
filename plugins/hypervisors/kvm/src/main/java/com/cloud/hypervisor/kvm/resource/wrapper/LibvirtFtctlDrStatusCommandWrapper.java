@@ -157,9 +157,20 @@ public class LibvirtFtctlDrStatusCommandWrapper extends CommandWrapper<FtctlDrSt
         answer.setTargetDiskInvalidCount(LibvirtFtctlDrCommandHelper.getInteger(payload, "target_disk_invalid_count"));
         answer.setWorkerState(LibvirtFtctlDrCommandHelper.getString(payload, "worker_state"));
         answer.setWorkerPid(LibvirtFtctlDrCommandHelper.getInteger(payload, "worker_pid"));
+        answer.setWorkerStartTicks(LibvirtFtctlDrCommandHelper.getLong(payload, "worker_start_ticks"));
+        answer.setWorkerPidAlive(LibvirtFtctlDrCommandHelper.getBoolean(payload, "worker_pid_alive"));
         answer.setWorkerStartedAt(LibvirtFtctlDrCommandHelper.getString(payload, "worker_started_at"));
         answer.setWorkerUpdatedAt(LibvirtFtctlDrCommandHelper.getString(payload, "worker_updated_at"));
         answer.setWorkerExitCode(LibvirtFtctlDrCommandHelper.getInteger(payload, "worker_exit_code"));
+        answer.setDriverExitCode(LibvirtFtctlDrCommandHelper.getInteger(payload, "driver_exit_code"));
+        answer.setFailurePhase(LibvirtFtctlDrCommandHelper.getString(payload, "failure_phase"));
+        answer.setTerminalSource(LibvirtFtctlDrCommandHelper.getString(payload, "terminal_source"));
+        answer.setTerminalVersion(LibvirtFtctlDrCommandHelper.getInteger(payload, "terminal_version"));
+        answer.setTerminalPublicationPending(LibvirtFtctlDrCommandHelper.getBoolean(payload, "terminal_publication_pending"));
+        answer.setTerminalPublicationPendingSince(LibvirtFtctlDrCommandHelper.getString(payload, "terminal_publication_pending_since"));
+        answer.setBaselineFileState(LibvirtFtctlDrCommandHelper.getString(payload, "baseline_file_state"));
+        answer.setSourceDiskProbeState(LibvirtFtctlDrCommandHelper.getString(payload, "source_disk_probe_state"));
+        answer.setTargetWriterProbeState(LibvirtFtctlDrCommandHelper.getString(payload, "target_writer_probe_state"));
         answer.setRetryable(LibvirtFtctlDrCommandHelper.getBoolean(payload, "retryable"));
         answer.setRetryAfterSeconds(LibvirtFtctlDrCommandHelper.getInteger(payload, "retry_after_sec"));
         answer.setCurrentCheckpointSequence(LibvirtFtctlDrCommandHelper.getLong(payload, "current_checkpoint_sequence"));
@@ -208,8 +219,16 @@ public class LibvirtFtctlDrStatusCommandWrapper extends CommandWrapper<FtctlDrSt
         answer.setLatestCompletedNbdQuarantinedDeviceCount(LibvirtFtctlDrCommandHelper.getInteger(payload, "latest_completed_nbd_quarantined_device_count"));
         answer.setLatestCompletedNbdTeardownErrorCode(LibvirtFtctlDrCommandHelper.getString(payload, "latest_completed_nbd_teardown_error_code"));
         answer.setLatestCompletedNbdTeardownErrorMessage(LibvirtFtctlDrCommandHelper.getString(payload, "latest_completed_nbd_teardown_error_message"));
-        answer.setReplicationDirection(LibvirtFtctlDrCommandHelper.getString(payload, "reverse_direction"));
+        String replicationDirection = LibvirtFtctlDrCommandHelper.getString(payload, "replication_direction");
+        if (StringUtils.isBlank(replicationDirection)) {
+            replicationDirection = LibvirtFtctlDrCommandHelper.getString(payload, "reverse_direction");
+        }
+        answer.setReplicationDirection(replicationDirection);
         answer.setProviderPair(LibvirtFtctlDrCommandHelper.getString(payload, "provider_pair"));
+        answer.setRouteContractVersion(LibvirtFtctlDrCommandHelper.getInteger(payload, "route_contract_version"));
+        answer.setReverseEvidenceContractVersion(LibvirtFtctlDrCommandHelper.getInteger(payload, "reverse_evidence_contract_version"));
+        answer.setReverseEvidenceState(LibvirtFtctlDrCommandHelper.getString(payload, "reverse_evidence_state"));
+        answer.setReverseEvidenceRunUuid(LibvirtFtctlDrCommandHelper.getString(payload, "reverse_evidence_run_uuid"));
         answer.setReverseBaselineGeneration(LibvirtFtctlDrCommandHelper.getLong(payload, "baseline_generation"));
         answer.setReverseBaselineState(LibvirtFtctlDrCommandHelper.getString(payload, "baseline_state"));
         answer.setReverseTrackerState(LibvirtFtctlDrCommandHelper.getString(payload, "tracker_state"));
@@ -217,6 +236,41 @@ public class LibvirtFtctlDrStatusCommandWrapper extends CommandWrapper<FtctlDrSt
         answer.setReverseTargetWritten(LibvirtFtctlDrCommandHelper.getBoolean(payload, "target_written"));
         answer.setReverseWriteVerified(LibvirtFtctlDrCommandHelper.getBoolean(payload, "write_verified"));
         answer.setReverseGuestCompatibilityState(LibvirtFtctlDrCommandHelper.getString(payload, "reverse_guest_compatibility_state"));
+        answer.setWorkerIdentityState(LibvirtFtctlDrCommandHelper.getString(payload, "worker_identity_state"));
+        answer.setWorkerLivenessState(LibvirtFtctlDrCommandHelper.getString(payload, "worker_liveness_state"));
+        answer.setWorkerLaunchNonce(LibvirtFtctlDrCommandHelper.getString(payload, "worker_launch_nonce"));
+        answer.setWorkerGeneration(LibvirtFtctlDrCommandHelper.getLong(payload, "worker_generation"));
+        answer.setTransferActivityState(LibvirtFtctlDrCommandHelper.getString(payload, "transfer_activity_state"));
+        answer.setTransferPayloadBytes(LibvirtFtctlDrCommandHelper.getLong(payload, "transfer_payload_bytes"));
+        answer.setTransferProgressSchemaVersion(LibvirtFtctlDrCommandHelper.getInteger(payload, "transfer_progress_schema_version"));
+        answer.setTransferCycleSequence(LibvirtFtctlDrCommandHelper.getLong(payload, "transfer_cycle_sequence"));
+        answer.setTransferSampleSequence(LibvirtFtctlDrCommandHelper.getLong(payload, "transfer_sample_sequence"));
+        answer.setTransferPhase(LibvirtFtctlDrCommandHelper.getString(payload, "transfer_phase"));
+        answer.setTransferMode(LibvirtFtctlDrCommandHelper.getString(payload, "transfer_mode"));
+        answer.setTransferBytesTotal(LibvirtFtctlDrCommandHelper.getLong(payload, "transfer_bytes_total"));
+        answer.setTransferBytesProcessed(LibvirtFtctlDrCommandHelper.getLong(payload, "transfer_bytes_processed"));
+        answer.setTransferSourceReadBytes(LibvirtFtctlDrCommandHelper.getLong(payload, "transfer_source_read_bytes"));
+        answer.setTransferTargetWrittenBytes(LibvirtFtctlDrCommandHelper.getLong(payload, "transfer_target_written_bytes"));
+        answer.setTransferVerifiedBytes(LibvirtFtctlDrCommandHelper.getLong(payload, "transfer_verified_bytes"));
+        answer.setTransferPercent(LibvirtFtctlWrapperHelper.getDouble(payload, "transfer_percent"));
+        answer.setTransferThroughputBps(LibvirtFtctlDrCommandHelper.getLong(payload, "transfer_throughput_bps"));
+        answer.setTransferEtaSeconds(LibvirtFtctlDrCommandHelper.getLong(payload, "transfer_eta_seconds"));
+        answer.setTransferCurrentDiskIndex(LibvirtFtctlDrCommandHelper.getInteger(payload, "transfer_current_disk_index"));
+        answer.setTransferDiskCount(LibvirtFtctlDrCommandHelper.getInteger(payload, "transfer_disk_count"));
+        answer.setTransferProgressEstimated(LibvirtFtctlDrCommandHelper.getBoolean(payload, "transfer_progress_estimated"));
+        answer.setTransferProgressSampleEpochMs(LibvirtFtctlDrCommandHelper.getLong(payload, "transfer_progress_sample_epoch_ms"));
+        answer.setTransferProgressStale(LibvirtFtctlDrCommandHelper.getBoolean(payload, "transfer_progress_stale"));
+        answer.setOwnedProcessCount(LibvirtFtctlDrCommandHelper.getInteger(payload, "owned_process_count"));
+        answer.setReconciliationRequired(LibvirtFtctlDrCommandHelper.getBoolean(payload, "reconciliation_required"));
+        answer.setRuntimeEndpointsDrained(LibvirtFtctlDrCommandHelper.getBoolean(payload, "runtime_endpoints_drained"));
+        answer.setTerminalAuthoritative(LibvirtFtctlDrCommandHelper.getBoolean(payload, "terminal_authoritative"));
+        answer.setOperationIntent(LibvirtFtctlDrCommandHelper.getString(payload, "operation_intent"));
+        answer.setRequestedMode(LibvirtFtctlDrCommandHelper.getString(payload, "requested_mode"));
+        answer.setEffectiveMode(LibvirtFtctlDrCommandHelper.getString(payload, "effective_mode"));
+        answer.setModeDecisionCode(LibvirtFtctlDrCommandHelper.getString(payload, "mode_decision_code"));
+        answer.setInitialSeedRequired(LibvirtFtctlDrCommandHelper.getBoolean(payload, "initial_seed_required"));
+        answer.setSourceDiskCount(LibvirtFtctlDrCommandHelper.getInteger(payload, "source_disk_count"));
+        answer.setEstimatedVirtualBytes(LibvirtFtctlDrCommandHelper.getLong(payload, "estimated_virtual_bytes"));
         answer.setActiveWorkerRunUuid(LibvirtFtctlDrCommandHelper.getString(payload, "active_worker_run_uuid"));
         FtctlDrCycleSnapshot currentCycle = buildCurrentCycleSnapshot(answer, payloadPlanUuid, payloadRunUuid);
         FtctlDrCycleSnapshot latestCompletedCycle = buildLatestCompletedCycleSnapshot(answer, payloadPlanUuid, payloadRunUuid);
@@ -465,7 +519,9 @@ public class LibvirtFtctlDrStatusCommandWrapper extends CommandWrapper<FtctlDrSt
                 "target_durable", "retryable", "latest_completed_incremental_verified",
                 "latest_completed_metrics_estimated", "current_checkpoint_automatic_reseed",
                 "latest_completed_automatic_reseed", "scheduler_pid_alive", "owner_matched", "events_truncated",
-                "cleanup_required", "immediate_cycle_pending", "target_written", "write_verified"};
+                "cleanup_required", "immediate_cycle_pending", "target_written", "write_verified",
+                "worker_pid_alive", "reconciliation_required", "runtime_endpoints_drained",
+                "terminal_authoritative", "transfer_progress_estimated", "transfer_progress_stale"};
         for (String field : booleans) {
             if (!LibvirtFtctlWrapperHelper.isBooleanOrNull(payload, field)) {
                 return false;
@@ -473,7 +529,8 @@ public class LibvirtFtctlDrStatusCommandWrapper extends CommandWrapper<FtctlDrSt
         }
         String[] numbers = {"progress", "target_ready_rpo_seconds", "events_offset", "events_next_offset",
                 "events_invalid_count", "target_disk_count", "target_disk_invalid_count", "worker_pid",
-                "worker_exit_code", "retry_after_sec", "current_checkpoint_sequence", "guestprep_checkpoint_sequence",
+                "worker_start_ticks", "worker_exit_code", "driver_exit_code", "retry_after_sec",
+                "current_checkpoint_sequence", "guestprep_checkpoint_sequence",
                 "latest_completed_checkpoint_sequence", "latest_completed_target_ready_rpo_seconds",
                 "test_artifact_count",
                 "latest_completed_virtual_bytes", "latest_completed_changed_bytes", "latest_completed_source_read_bytes",
@@ -487,7 +544,13 @@ public class LibvirtFtctlDrStatusCommandWrapper extends CommandWrapper<FtctlDrSt
                 "scheduler_unit_main_pid", "nbd_quarantined_device_count",
                 "latest_completed_nbd_teardown_started_at_ms", "latest_completed_nbd_teardown_completed_at_ms",
                 "latest_completed_nbd_teardown_duration_ms", "latest_completed_nbd_source_device_count",
-                "latest_completed_nbd_target_device_count", "latest_completed_nbd_quarantined_device_count"};
+                "latest_completed_nbd_target_device_count", "latest_completed_nbd_quarantined_device_count",
+                "worker_generation", "transfer_payload_bytes", "owned_process_count", "route_contract_version",
+                "transfer_progress_schema_version", "transfer_cycle_sequence", "transfer_sample_sequence",
+                "transfer_bytes_total", "transfer_bytes_processed", "transfer_source_read_bytes",
+                "transfer_target_written_bytes", "transfer_verified_bytes", "transfer_percent",
+                "transfer_throughput_bps", "transfer_eta_seconds", "transfer_current_disk_index",
+                "transfer_disk_count", "transfer_progress_sample_epoch_ms"};
         for (String field : numbers) {
             if (!LibvirtFtctlWrapperHelper.isNumberOrNull(payload, field)) {
                 return false;

@@ -1,5 +1,30 @@
 # 588. Cross Hypervisor DR Bidirectional Incremental Replication And Failback Data Contract Design
 
+> 2026-08-11 cutover-baseline and terminal-state correction:
+> [602-cross-hypervisor-dr-cutover-reverse-baseline-and-terminal-convergence-design-20260811.md](602-cross-hypervisor-dr-cutover-reverse-baseline-and-terminal-convergence-design-20260811.md)
+> makes the Failover cutover baseline visible to Failback preflight and prevents
+> stale runtime `SYNCING` evidence from overriding a completed Cloud lifecycle.
+>
+> 2026-08-05 route and failure-convergence correction:
+> [595-cross-hypervisor-dr-failback-route-contract-and-terminal-convergence-design-20260805.md](595-cross-hypervisor-dr-failback-route-contract-and-terminal-convergence-design-20260805.md)
+> separates `KVM_TO_VMWARE` topology from `ABLESTACK_TO_VMWARE` provider pair,
+> defines the FTCTL route-contract v2 envelope, and makes Cloud lifecycle gate
+> failure converge Session, Run, Plan, authority, runtime, and cache.
+>
+> 2026-08-04 live-runtime preflight correction:
+> [592-cross-hypervisor-dr-failback-live-runtime-preflight-and-ux-convergence-design-20260804.md](592-cross-hypervisor-dr-failback-live-runtime-preflight-and-ux-convergence-design-20260804.md)
+> separates committed authority projection from Agent/vCenter live power,
+> makes skipped engine stages `NOT_RUN`, and requires a live KVM serving domain
+> before reverse data readiness.
+>
+> 2026-08-04 corrective contract:
+> [591-cross-hypervisor-dr-failback-initial-reverse-seed-and-early-failure-convergence-design-20260804.md](591-cross-hypervisor-dr-failback-initial-reverse-seed-and-early-failure-convergence-design-20260804.md)
+> defines first reverse-seed baseline absence, pre-dispatch FailbackSession
+> creation, typed early-failure convergence, and TARGET-authority retention.
+> Revision 2 separates `FAILBACK_FINAL` operation intent from the
+> `FULL_REVERSE_SEED`/`REVERSE_FINAL` data mode and requires read-only reverse
+> data-plane preflight before Failback is enabled.
+>
 > 2026-08-03 최신 후속 규약:
 > [589-cross-hypervisor-dr-reprotect-preflight-and-release-terminal-convergence-design-20260803.md](589-cross-hypervisor-dr-reprotect-preflight-and-release-terminal-convergence-design-20260803.md)
 > 는 역방향 보호 시작 전 Agent/FTCTL 계약 버전을 검증하고, Release가 현재 VM과
@@ -588,3 +613,90 @@ Agent status now carries reverse direction, provider pair, baseline generation/s
 Database upgrade scripts and the create schema contain the new failback evidence columns. The schema is backward-compatible through idempotent column additions on upgrade paths.
 
 Production PASS still requires the live round-trip acceptance in section 12.4; build success alone does not prove bidirectional data correctness.
+
+## 17. Corrective design update (2026-08-04)
+
+Live Failback Run `7ed30e9b-da7a-4baa-bef9-be555b1464b5` failed before reverse
+data-ready because FTCTL treated the expected absence of the first reverse
+baseline as a file-read error. Cloud safely retained TARGET authority, but the
+early engine failure had no `dr_failback_session` row because session creation
+depended on a later `failback_session_id`.
+
+Document 591 is normative for this correction. Cloud creates the failback
+session with the Run before dispatch, reconciles typed pre-data-ready failures,
+separates operation health from serving authority, and keeps Cloud-owned target
+VM/disk/network materialization authoritative when transient FTCTL operation
+fields are empty. Revision 2 additionally supersedes the fixed
+`failback-final -> REVERSE_FINAL` mapping: operation intent is independent from
+data mode, and an absent first reverse baseline selects `FULL_REVERSE_SEED`.
+The paired FTCTL correction is document 448 revision 2.
+
+## 18. Reverse Snapshot And Terminal Evidence Addendum (2026-08-05)
+
+The reverse data contract additionally requires every immutable RBD snapshot
+source to be attached read-only. Cloud must preserve the engine's typed
+terminal result as the canonical Run and FailbackSession result; an absent
+worker PID or a downstream data-gate failure cannot overwrite a more
+authoritative transfer error. The full UI/API/backend/Agent/FTCTL/DB contract
+and implementation order are defined in document 593, paired with FTCTL
+document 450.
+
+## 19. Live Worker And Reconciliation Addendum (2026-08-05)
+
+The data contract now distinguishes a durable engine terminal from provisional
+worker observation. Advancing bytes, fresh heartbeat, or a Run-owned process
+keeps the transfer non-terminal even when worker identity conflicts. Cloud
+preserves TARGET authority, blocks duplicate mutation, and enters
+`RECONCILIATION_REQUIRED` until authoritative terminal or repeated
+dead-and-drained proof is available. Document 594 and FTCTL document 451 define
+the complete typed contract and implementation order.
+
+## 20. Failback Route And Terminal Convergence Addendum (2026-08-05)
+
+A successful reverse checkpoint uses two valid but different vocabularies:
+`replication_direction=KVM_TO_VMWARE` describes hypervisor topology, while
+`provider_pair=ABLESTACK_TO_VMWARE` describes the product/provider path.
+Document 595 is normative where earlier text or implementation compared both
+fields to one literal. It also supersedes session-only failure handling: every
+Cloud lifecycle gate failure must converge FTCTL operation ownership,
+FailbackSession, Run, Plan, replica authority, action availability, and cache.
+
+## 21. Durable Evidence Publication Addendum (2026-08-06)
+
+The reverse checkpoint data contract is complete only when its durability tuple
+is observable through FTCTL status and persisted in the Failback Session. A
+checkpoint file that is valid but invisible to Agent/Cloud does not authorize
+the authority transition. Document 596 defines the typed fields, coherent
+lineage rule, asynchronous publication grace, error taxonomy, and retained
+baseline retest procedure.
+
+## 22. Failback Commit Envelope Addendum (2026-08-06)
+
+Reverse incremental data completion and authority commit are separate gates.
+After a complete reverse checkpoint, Cloud must persist a versioned commit
+envelope that carries the FTCTL checkpoint and the committed cutover authority
+generation as independent values. Only then may Cloud stop the KVM serving VM
+and start the VMware source.
+
+Document 597 defines the cross-layer gate and current-session forward recovery;
+qemu document 453 defines the FTCTL journal and idempotency contract. A missing
+commit tuple must never trigger a new full reverse seed or be hidden as an
+ambiguous late acknowledgement.
+
+## 23. Forward Target Locator And Protection Resume Addendum (2026-08-06)
+
+The resumed forward path must use the same Cloud-owned target volume identity
+and FTCTL canonical locator as initial protection. A bare image name, reverse
+map, or allocated `plan_cycle_sequence` cannot prove forward protection.
+Document 598 defines the typed target descriptor, asynchronous projection,
+database fields, and durable checkpoint completion gate. FTCTL document 454
+defines the shared storage locator and direction-scoped map behavior.
+
+## 24. Cutover Reverse Baseline And Terminal Snapshot Addendum (2026-08-11)
+
+The normal VMware-to-ABLESTACK round trip no longer waits until Failback to
+create its first KVM baseline. FTCTL document 456 defines the cutover snapshot
+and atomic baseline contract. Cloud document 602 defines the existing API/DB
+evidence reuse, completion snapshot normalization, UI precedence rule, and live
+incremental acceptance procedure. Legacy plans without a cutover baseline may
+still use an explicitly reported full reverse seed.

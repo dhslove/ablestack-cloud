@@ -30,12 +30,31 @@ public class DrFailbackSessionVO implements InternalIdentity {
     @Column(name = "checkpoint_sequence") private Long checkpointSequence;
     @Column(name = "authority_generation") private Long authorityGeneration;
     private String state;
+    @Column(name = "acceptance_state") private String acceptanceState;
+    @Column(name = "failure_phase") private String failurePhase;
+    @Column(name = "failed_component") private String failedComponent;
+    @Column(name = "driver_exit_code") private Integer driverExitCode;
+    @Column(name = "baseline_file_state") private String baselineFileState;
+    @Column(name = "operation_intent") private String operationIntent;
+    @Column(name = "requested_mode") private String requestedMode;
+    @Column(name = "effective_mode") private String effectiveMode;
+    @Column(name = "mode_decision_code") private String modeDecisionCode;
+    @Column(name = "initial_seed_required") private Boolean initialSeedRequired;
+    @Column(name = "source_disk_probe_state") private String sourceDiskProbeState;
+    @Column(name = "source_disk_count") private Integer sourceDiskCount;
+    @Column(name = "target_writer_probe_state") private String targetWriterProbeState;
+    @Column(name = "estimated_virtual_bytes") private Long estimatedVirtualBytes;
+    @Column(name = "worker_pid_alive") private Boolean workerPidAlive;
     @Column(name = "target_power_state") private String targetPowerState;
     @Column(name = "source_power_state") private String sourcePowerState;
     @Column(name = "boot_validation_state") private String bootValidationState;
     @Column(name = "engine_ack_state") private String engineAckState;
     @Column(name = "commit_attempt_id") private String commitAttemptId;
     @Column(name = "commit_outcome") private String commitOutcome;
+    @Column(name = "commit_contract_version") private String commitContractVersion;
+    @Column(name = "commit_envelope_sha256") private String commitEnvelopeSha256;
+    @Column(name = "commit_dispatch_state") private String commitDispatchState;
+    @Column(name = "commit_probe_count") private Integer commitProbeCount;
     @Column(name = "scheduler_generation") private Long schedulerGeneration;
     @Column(name = "scheduler_ack_generation") private Long schedulerAckGeneration;
     @Column(name = "scheduler_state") private String schedulerState;
@@ -61,6 +80,8 @@ public class DrFailbackSessionVO implements InternalIdentity {
     @Temporal(TemporalType.TIMESTAMP) @Column(name = "engine_ack_at") private Date engineAckAt;
     @Temporal(TemporalType.TIMESTAMP) @Column(name = "commit_requested_at") private Date commitRequestedAt;
     @Temporal(TemporalType.TIMESTAMP) @Column(name = "commit_verified_at") private Date commitVerifiedAt;
+    @Temporal(TemporalType.TIMESTAMP) @Column(name = "commit_dispatched_at") private Date commitDispatchedAt;
+    @Temporal(TemporalType.TIMESTAMP) @Column(name = "commit_probe_deadline_at") private Date commitProbeDeadlineAt;
     @Temporal(TemporalType.TIMESTAMP) @Column(name = "protection_resume_requested_at") private Date protectionResumeRequestedAt;
     @Temporal(TemporalType.TIMESTAMP) @Column(name = "protection_resume_verified_at") private Date protectionResumeVerifiedAt;
     @Temporal(TemporalType.TIMESTAMP) @Column(name = "rollback_requested_at") private Date rollbackRequestedAt;
@@ -92,12 +113,31 @@ public class DrFailbackSessionVO implements InternalIdentity {
     public Long getCheckpointSequence() { return checkpointSequence; }
     public Long getAuthorityGeneration() { return authorityGeneration; }
     public String getState() { return state; }
+    public String getAcceptanceState() { return acceptanceState; }
+    public String getFailurePhase() { return failurePhase; }
+    public String getFailedComponent() { return failedComponent; }
+    public Integer getDriverExitCode() { return driverExitCode; }
+    public String getBaselineFileState() { return baselineFileState; }
+    public String getOperationIntent() { return operationIntent; }
+    public String getRequestedMode() { return requestedMode; }
+    public String getEffectiveMode() { return effectiveMode; }
+    public String getModeDecisionCode() { return modeDecisionCode; }
+    public Boolean getInitialSeedRequired() { return initialSeedRequired; }
+    public String getSourceDiskProbeState() { return sourceDiskProbeState; }
+    public Integer getSourceDiskCount() { return sourceDiskCount; }
+    public String getTargetWriterProbeState() { return targetWriterProbeState; }
+    public Long getEstimatedVirtualBytes() { return estimatedVirtualBytes; }
+    public Boolean getWorkerPidAlive() { return workerPidAlive; }
     public String getTargetPowerState() { return targetPowerState; }
     public String getSourcePowerState() { return sourcePowerState; }
     public String getBootValidationState() { return bootValidationState; }
     public String getEngineAckState() { return engineAckState; }
     public String getCommitAttemptId() { return commitAttemptId; }
     public String getCommitOutcome() { return commitOutcome; }
+    public String getCommitContractVersion() { return commitContractVersion; }
+    public String getCommitEnvelopeSha256() { return commitEnvelopeSha256; }
+    public String getCommitDispatchState() { return commitDispatchState; }
+    public Integer getCommitProbeCount() { return commitProbeCount; }
     public Long getSchedulerGeneration() { return schedulerGeneration; }
     public Long getSchedulerAckGeneration() { return schedulerAckGeneration; }
     public String getSchedulerState() { return schedulerState; }
@@ -123,6 +163,8 @@ public class DrFailbackSessionVO implements InternalIdentity {
     public Date getEngineAckAt() { return engineAckAt; }
     public Date getCommitRequestedAt() { return commitRequestedAt; }
     public Date getCommitVerifiedAt() { return commitVerifiedAt; }
+    public Date getCommitDispatchedAt() { return commitDispatchedAt; }
+    public Date getCommitProbeDeadlineAt() { return commitProbeDeadlineAt; }
     public Date getProtectionResumeRequestedAt() { return protectionResumeRequestedAt; }
     public Date getProtectionResumeVerifiedAt() { return protectionResumeVerifiedAt; }
     public Date getRollbackRequestedAt() { return rollbackRequestedAt; }
@@ -140,12 +182,31 @@ public class DrFailbackSessionVO implements InternalIdentity {
     public void setCheckpointSequence(Long value) { checkpointSequence = value; }
     public void setAuthorityGeneration(Long value) { authorityGeneration = value; }
     public void setState(String value) { state = value; }
+    public void setAcceptanceState(String value) { acceptanceState = value; }
+    public void setFailurePhase(String value) { failurePhase = value; }
+    public void setFailedComponent(String value) { failedComponent = value; }
+    public void setDriverExitCode(Integer value) { driverExitCode = value; }
+    public void setBaselineFileState(String value) { baselineFileState = value; }
+    public void setOperationIntent(String value) { operationIntent = value; }
+    public void setRequestedMode(String value) { requestedMode = value; }
+    public void setEffectiveMode(String value) { effectiveMode = value; }
+    public void setModeDecisionCode(String value) { modeDecisionCode = value; }
+    public void setInitialSeedRequired(Boolean value) { initialSeedRequired = value; }
+    public void setSourceDiskProbeState(String value) { sourceDiskProbeState = value; }
+    public void setSourceDiskCount(Integer value) { sourceDiskCount = value; }
+    public void setTargetWriterProbeState(String value) { targetWriterProbeState = value; }
+    public void setEstimatedVirtualBytes(Long value) { estimatedVirtualBytes = value; }
+    public void setWorkerPidAlive(Boolean value) { workerPidAlive = value; }
     public void setTargetPowerState(String value) { targetPowerState = value; }
     public void setSourcePowerState(String value) { sourcePowerState = value; }
     public void setBootValidationState(String value) { bootValidationState = value; }
     public void setEngineAckState(String value) { engineAckState = value; }
     public void setCommitAttemptId(String value) { commitAttemptId = value; }
     public void setCommitOutcome(String value) { commitOutcome = value; }
+    public void setCommitContractVersion(String value) { commitContractVersion = value; }
+    public void setCommitEnvelopeSha256(String value) { commitEnvelopeSha256 = value; }
+    public void setCommitDispatchState(String value) { commitDispatchState = value; }
+    public void setCommitProbeCount(Integer value) { commitProbeCount = value; }
     public void setSchedulerGeneration(Long value) { schedulerGeneration = value; }
     public void setSchedulerAckGeneration(Long value) { schedulerAckGeneration = value; }
     public void setSchedulerState(String value) { schedulerState = value; }
@@ -171,6 +232,8 @@ public class DrFailbackSessionVO implements InternalIdentity {
     public void setEngineAckAt(Date value) { engineAckAt = value; }
     public void setCommitRequestedAt(Date value) { commitRequestedAt = value; }
     public void setCommitVerifiedAt(Date value) { commitVerifiedAt = value; }
+    public void setCommitDispatchedAt(Date value) { commitDispatchedAt = value; }
+    public void setCommitProbeDeadlineAt(Date value) { commitProbeDeadlineAt = value; }
     public void setProtectionResumeRequestedAt(Date value) { protectionResumeRequestedAt = value; }
     public void setProtectionResumeVerifiedAt(Date value) { protectionResumeVerifiedAt = value; }
     public void setRollbackRequestedAt(Date value) { rollbackRequestedAt = value; }

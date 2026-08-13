@@ -685,6 +685,23 @@ CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'active_worker_sta
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'worker_heartbeat_at', 'datetime NULL AFTER `active_worker_start_ticks`');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'control_request_run_uuid', 'varchar(40) NULL AFTER `worker_heartbeat_at`');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'owner_matched', 'tinyint(1) NOT NULL DEFAULT 0 AFTER `control_request_run_uuid`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'worker_identity_state', 'varchar(32) NULL AFTER `worker_state`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'worker_liveness_state', 'varchar(32) NULL AFTER `worker_identity_state`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'worker_launch_nonce', 'varchar(64) NULL AFTER `worker_liveness_state`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'worker_generation', 'bigint unsigned NULL AFTER `worker_launch_nonce`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'transfer_activity_state', 'varchar(32) NULL AFTER `worker_generation`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'transfer_payload_bytes', 'bigint unsigned NULL AFTER `transfer_activity_state`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'owned_process_count', 'int unsigned NOT NULL DEFAULT 0 AFTER `transfer_payload_bytes`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'runtime_endpoints_drained', 'tinyint(1) NOT NULL DEFAULT 0 AFTER `owned_process_count`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'reconciliation_state', 'varchar(32) NULL AFTER `runtime_endpoints_drained`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'reconciliation_run_uuid', 'varchar(40) NULL AFTER `reconciliation_state`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'reconciliation_checks', 'int unsigned NOT NULL DEFAULT 0 AFTER `reconciliation_run_uuid`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'terminal_source', 'varchar(32) NULL AFTER `reconciliation_checks`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'terminal_version', 'int unsigned NULL AFTER `terminal_source`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'terminal_authoritative', 'tinyint(1) NOT NULL DEFAULT 0 AFTER `terminal_version`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_run', 'terminal_source', 'varchar(32) NULL AFTER `error_message`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_run', 'terminal_version', 'int unsigned NULL AFTER `terminal_source`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_run', 'terminal_authoritative', 'tinyint(1) NOT NULL DEFAULT 0 AFTER `terminal_version`');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'scheduler_desired_state', 'varchar(32) NOT NULL DEFAULT ''STOPPED'' AFTER `scheduler_state`');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'scheduler_service_unit', 'varchar(255) NULL AFTER `scheduler_desired_state`');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'scheduler_unit_active_state', 'varchar(32) NULL AFTER `scheduler_service_unit`');
@@ -817,7 +834,9 @@ CREATE TABLE IF NOT EXISTS `cloud`.`dr_cutover_session` (
   `cloud_promotion_state` varchar(32), `target_power_state` varchar(32),
   `target_power_on_at` datetime, `boot_validated_at` datetime,
   `engine_ack_state` varchar(32), `engine_ack_at` datetime,
-  `cloud_authority_generation` bigint unsigned, `completed_at` datetime,
+  `cloud_authority_generation` bigint unsigned, `commit_contract_version` varchar(64),
+  `engine_session_id` varchar(255), `commit_attempt_id` varchar(64),
+  `commit_envelope_sha256` varchar(64), `commit_state` varchar(32), `completed_at` datetime,
   `authority_ended_at` datetime, `authority_ended_by_run_id` bigint unsigned,
   `cleanup_required` tinyint(1) NOT NULL DEFAULT 0,
   `details_json` mediumtext, `error_code` varchar(128), `error_message` varchar(1024),
@@ -838,6 +857,11 @@ CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_cutover_session', 'boot_validated
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_cutover_session', 'engine_ack_state', 'varchar(32) DEFAULT NULL AFTER boot_validated_at');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_cutover_session', 'engine_ack_at', 'datetime DEFAULT NULL AFTER engine_ack_state');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_cutover_session', 'cloud_authority_generation', 'bigint unsigned DEFAULT NULL AFTER engine_ack_at');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_cutover_session', 'commit_contract_version', 'varchar(64) DEFAULT NULL AFTER cloud_authority_generation');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_cutover_session', 'engine_session_id', 'varchar(255) DEFAULT NULL AFTER commit_contract_version');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_cutover_session', 'commit_attempt_id', 'varchar(64) DEFAULT NULL AFTER engine_session_id');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_cutover_session', 'commit_envelope_sha256', 'varchar(64) DEFAULT NULL AFTER commit_attempt_id');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_cutover_session', 'commit_state', 'varchar(32) DEFAULT NULL AFTER commit_envelope_sha256');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_cutover_session', 'completed_at', 'datetime DEFAULT NULL AFTER cloud_authority_generation');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_cutover_session', 'authority_ended_at', 'datetime DEFAULT NULL AFTER completed_at');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_cutover_session', 'authority_ended_by_run_id', 'bigint unsigned DEFAULT NULL AFTER authority_ended_at');
@@ -950,6 +974,13 @@ CREATE TABLE IF NOT EXISTS `cloud`.`dr_failback_session` (
   `plan_id` bigint unsigned NOT NULL, `run_id` bigint unsigned NOT NULL,
   `engine_session_id` varchar(255) NOT NULL, `checkpoint_sequence` bigint unsigned DEFAULT NULL,
   `authority_generation` bigint unsigned DEFAULT NULL, `state` varchar(64) NOT NULL,
+  `acceptance_state` varchar(32), `failure_phase` varchar(64), `failed_component` varchar(128),
+  `driver_exit_code` int, `baseline_file_state` varchar(32),
+  `operation_intent` varchar(32), `requested_mode` varchar(32), `effective_mode` varchar(32),
+  `mode_decision_code` varchar(64), `initial_seed_required` tinyint(1),
+  `source_disk_probe_state` varchar(32), `source_disk_count` int,
+  `target_writer_probe_state` varchar(32), `estimated_virtual_bytes` bigint unsigned,
+  `worker_pid_alive` tinyint(1),
   `target_power_state` varchar(32), `source_power_state` varchar(32),
   `boot_validation_state` varchar(64), `engine_ack_state` varchar(32),
   `commit_attempt_id` varchar(64), `commit_outcome` varchar(32),
@@ -1011,3 +1042,121 @@ CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_failback_session', 'writer_state'
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_failback_session', 'target_written', 'tinyint(1) NULL AFTER `writer_state`');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_failback_session', 'write_verified', 'tinyint(1) NULL AFTER `target_written`');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_failback_session', 'guest_compatibility_state', 'varchar(64) NULL AFTER `write_verified`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_failback_session', 'acceptance_state', 'varchar(32) NULL AFTER `state`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_failback_session', 'failure_phase', 'varchar(64) NULL AFTER `acceptance_state`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_failback_session', 'failed_component', 'varchar(128) NULL AFTER `failure_phase`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_failback_session', 'driver_exit_code', 'int NULL AFTER `failed_component`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_failback_session', 'baseline_file_state', 'varchar(32) NULL AFTER `driver_exit_code`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_failback_session', 'operation_intent', 'varchar(32) NULL AFTER `baseline_file_state`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_failback_session', 'requested_mode', 'varchar(32) NULL AFTER `operation_intent`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_failback_session', 'effective_mode', 'varchar(32) NULL AFTER `requested_mode`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_failback_session', 'mode_decision_code', 'varchar(64) NULL AFTER `effective_mode`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_failback_session', 'initial_seed_required', 'tinyint(1) NULL AFTER `mode_decision_code`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_failback_session', 'source_disk_probe_state', 'varchar(32) NULL AFTER `initial_seed_required`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_failback_session', 'source_disk_count', 'int NULL AFTER `source_disk_probe_state`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_failback_session', 'target_writer_probe_state', 'varchar(32) NULL AFTER `source_disk_count`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_failback_session', 'estimated_virtual_bytes', 'bigint unsigned NULL AFTER `target_writer_probe_state`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_failback_session', 'worker_pid_alive', 'tinyint(1) NULL AFTER `baseline_file_state`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_failback_session', 'commit_contract_version', 'varchar(32) NULL AFTER `commit_outcome`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_failback_session', 'commit_envelope_sha256', 'char(64) NULL AFTER `commit_contract_version`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_failback_session', 'commit_dispatch_state', 'varchar(32) NULL AFTER `commit_envelope_sha256`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_failback_session', 'commit_probe_count', 'int NULL AFTER `commit_dispatch_state`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_failback_session', 'commit_dispatched_at', 'datetime NULL AFTER `commit_verified_at`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_failback_session', 'commit_probe_deadline_at', 'datetime NULL AFTER `commit_dispatched_at`');
+-- Cross-hypervisor DR target ownership and materialization contract v2.
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_replica', 'ownership_generation', 'bigint unsigned NOT NULL DEFAULT 1 AFTER `runtime_state_json`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_replica', 'ownership_state', 'varchar(32) NULL AFTER `ownership_generation`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_replica', 'materialization_digest', 'char(64) NULL AFTER `ownership_state`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_replica', 'power_state_observed_at', 'datetime NULL AFTER `materialization_digest`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_replica_disk', 'target_claim_id', 'bigint unsigned NULL AFTER `details_json`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_replica_disk', 'artifact_uuid', 'varchar(40) NULL AFTER `target_claim_id`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_replica_disk', 'locator_hash', 'char(64) NULL AFTER `artifact_uuid`');
+
+CREATE TABLE IF NOT EXISTS `cloud`.`dr_target_resource_claim` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `uuid` varchar(40) NOT NULL,
+  `plan_id` bigint unsigned NOT NULL,
+  `replica_id` bigint unsigned NOT NULL,
+  `replica_disk_id` bigint unsigned DEFAULT NULL,
+  `claim_run_id` bigint unsigned DEFAULT NULL,
+  `resource_type` varchar(32) NOT NULL,
+  `resource_id` bigint unsigned NOT NULL,
+  `resource_uuid` varchar(64) DEFAULT NULL,
+  `resource_locator_hash` char(64) DEFAULT NULL,
+  `ownership_generation` bigint unsigned NOT NULL DEFAULT 1,
+  `claim_state` varchar(32) NOT NULL,
+  `active_resource_key` varchar(160) DEFAULT NULL,
+  `active_role_key` varchar(160) DEFAULT NULL,
+  `manifest_sha256` char(64) DEFAULT NULL,
+  `created` datetime NOT NULL,
+  `updated` datetime NOT NULL,
+  `released` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_dr_target_claim_uuid` (`uuid`),
+  UNIQUE KEY `uk_dr_target_claim_active_resource` (`active_resource_key`),
+  UNIQUE KEY `uk_dr_target_claim_active_role` (`active_role_key`),
+  KEY `idx_dr_target_claim_plan` (`plan_id`,`claim_state`),
+  KEY `idx_dr_target_claim_replica` (`replica_id`,`claim_state`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- Backfill ownership from immutable VM details. Conflicting active replicas are
+-- quarantined; the operating VM and attached volumes are never reassigned.
+INSERT IGNORE INTO `cloud`.`dr_target_resource_claim`
+  (`uuid`,`plan_id`,`replica_id`,`replica_disk_id`,`claim_run_id`,`resource_type`,`resource_id`,
+   `resource_uuid`,`resource_locator_hash`,`ownership_generation`,`claim_state`,`active_resource_key`,
+   `active_role_key`,`created`,`updated`)
+SELECT UUID(), r.plan_id, r.id, NULL, NULL, 'VM', r.target_vm_id, v.uuid, NULL,
+       COALESCE(r.ownership_generation, 1),
+       IF(r.removed IS NULL, 'CLAIMED', 'DETACHED_OPERATIONAL'),
+       CONCAT('VM:', r.target_vm_id), CONCAT('PLAN:', r.plan_id, ':REPLICA:', r.id, ':TARGET_VM'), NOW(), NOW()
+FROM `cloud`.`dr_replica` r
+JOIN `cloud`.`vm_instance` v ON v.id = r.target_vm_id AND v.removed IS NULL
+JOIN `cloud`.`vm_instance_details` d ON d.vm_id = v.id AND d.name = 'dr.plan.id'
+WHERE r.target_vm_id IS NOT NULL
+  AND CAST(d.value AS UNSIGNED) = r.plan_id
+  AND NOT EXISTS (
+    SELECT 1 FROM `cloud`.`dr_replica` newer
+    WHERE newer.target_vm_id = r.target_vm_id AND newer.plan_id = r.plan_id AND newer.id > r.id
+  );
+
+INSERT IGNORE INTO `cloud`.`dr_target_resource_claim`
+  (`uuid`,`plan_id`,`replica_id`,`replica_disk_id`,`claim_run_id`,`resource_type`,`resource_id`,
+   `resource_uuid`,`resource_locator_hash`,`ownership_generation`,`claim_state`,`active_resource_key`,
+   `active_role_key`,`created`,`updated`)
+SELECT UUID(), r.plan_id, r.id, rd.id, NULL, 'VOLUME', rd.target_volume_id, v.uuid,
+       SHA2(COALESCE(v.path, v.uuid), 256), COALESCE(r.ownership_generation, 1),
+       IF(r.removed IS NULL, 'CLAIMED', 'DETACHED_OPERATIONAL'),
+       CONCAT('VOLUME:', rd.target_volume_id), CONCAT('PLAN:', r.plan_id, ':REPLICA:', r.id, ':TARGET_DISK:', rd.id),
+       NOW(), NOW()
+FROM `cloud`.`dr_replica_disk` rd
+JOIN `cloud`.`dr_replica` r ON r.id = rd.replica_id
+JOIN `cloud`.`volumes` v ON v.id = rd.target_volume_id AND v.removed IS NULL
+LEFT JOIN `cloud`.`vm_instance_details` d ON d.vm_id = v.instance_id AND d.name = 'dr.plan.id'
+WHERE rd.target_volume_id IS NOT NULL
+  AND (v.instance_id IS NULL OR CAST(d.value AS UNSIGNED) = r.plan_id);
+
+UPDATE `cloud`.`dr_replica_disk` rd
+JOIN `cloud`.`dr_target_resource_claim` c
+  ON c.replica_disk_id = rd.id AND c.resource_type = 'VOLUME' AND c.released IS NULL
+SET rd.target_claim_id = c.id,
+    rd.artifact_uuid = COALESCE(rd.artifact_uuid, c.resource_uuid),
+    rd.locator_hash = COALESCE(rd.locator_hash, c.resource_locator_hash);
+
+UPDATE `cloud`.`dr_plan` p
+JOIN `cloud`.`dr_replica` r ON r.plan_id = p.id AND r.removed IS NULL
+JOIN `cloud`.`vm_instance_details` d ON d.vm_id = r.target_vm_id AND d.name = 'dr.plan.id'
+SET p.state = 'ERROR', p.admin_state = 'DISABLED',
+    p.last_error_code = 'DR_TARGET_OWNERSHIP_CONFLICT',
+    p.last_error_message = CONCAT('Target VM ', r.target_vm_id, ' is owned by DR plan ', d.value),
+    p.updated = NOW()
+WHERE r.target_vm_id IS NOT NULL AND CAST(d.value AS UNSIGNED) <> p.id;
+
+UPDATE `cloud`.`dr_replica` r
+JOIN `cloud`.`vm_instance_details` d ON d.vm_id = r.target_vm_id AND d.name = 'dr.plan.id'
+SET r.state = 'ERROR', r.ownership_state = 'QUARANTINED', r.updated = NOW()
+WHERE r.removed IS NULL AND r.target_vm_id IS NOT NULL AND CAST(d.value AS UNSIGNED) <> r.plan_id;
+
+UPDATE `cloud`.`dr_replica` r
+JOIN `cloud`.`vm_instance_details` d ON d.vm_id = r.target_vm_id AND d.name = 'dr.plan.id'
+SET r.ownership_state = 'VALID', r.updated = NOW()
+WHERE r.target_vm_id IS NOT NULL AND CAST(d.value AS UNSIGNED) = r.plan_id
+  AND (r.ownership_state IS NULL OR r.ownership_state <> 'QUARANTINED');

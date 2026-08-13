@@ -1,5 +1,10 @@
 # 577. Cross Hypervisor DR Failover Projection Evidence and Compensation Design
 
+> 2026-08-06 normative ACK-ordering correction:
+> [599-cross-hypervisor-dr-forward-cutover-commit-contract-and-authority-convergence-design-20260806.md](599-cross-hypervisor-dr-forward-cutover-commit-contract-and-authority-convergence-design-20260806.md)
+> separates target power-on from authority commit, adds durable commit recovery,
+> and replaces premature Plan/Replica TARGET projection.
+
 > 2026-07-28 후속 규약:
 > [579-cross-hypervisor-dr-action-intent-guest-identity-and-failed-test-terminal-convergence-design-20260728.md](579-cross-hypervisor-dr-action-intent-guest-identity-and-failed-test-terminal-convergence-design-20260728.md)
 > 는 실제 Failover와 Test Failover의 요청 의도 및 guest identity parser를

@@ -121,6 +121,8 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
     @Inject
     private DrEventDao drEventDao;
     @Inject
+    private DrTargetResourceOwnershipService targetResourceOwnershipService;
+    @Inject
     private DrPlanTargetPlacementResolver targetPlacementResolver;
     @Inject
     private AccountDao accountDao;
@@ -667,7 +669,7 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
         try {
             upsertRunStep(run, "target-materialization", STEP_ORDER_TARGET_MATERIALIZATION, DrConstants.STEP_STATE_RUNNING, 96,
                     runtimeStatusJson, null, "Materializing target VM from durable FTCTL_DR checkpoint");
-            MaterializationResult result = materializeTarget(plan, runtime);
+            MaterializationResult result = materializeTarget(plan, run, runtime);
             notifyFtctlTargetMaterialized(plan, run, result);
             completeMaterialization(plan.getId(), run.getId(), result, runtimeStatusJson);
             LOGGER.info("Materialized DR target VM {} for plan {}", result.targetVmId, plan.getUuid());
@@ -677,7 +679,7 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
         }
     }
 
-    private MaterializationResult materializeTarget(DrPlanVO plan, JsonObject runtime) {
+    private MaterializationResult materializeTarget(DrPlanVO plan, DrRunVO run, JsonObject runtime) {
         DrReplicaVO replica = firstActiveReplica(plan);
         if (replica == null) {
             throw new CloudRuntimeException("DR target materialization requires a prepared replica row");
@@ -685,7 +687,12 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
         if (replica.getTargetVmId() != null) {
             UserVmVO existing = userVmDao.findById(replica.getTargetVmId());
             if (existing != null && existing.getRemoved() == null) {
+                targetResourceOwnershipService.claimVm(plan, replica, run, existing);
                 verifyTargetVmHardware(plan, existing);
+                observeReplicaPowerState(replica, existing);
+                replica.setOwnershipState("VALID");
+                replica.markUpdated();
+                drReplicaDao.update(replica.getId(), replica);
                 return buildResult(plan, replica, existing, drReplicaDiskDao.listActiveByReplicaId(replica.getId()));
             }
         }
@@ -700,9 +707,10 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
         AccountVO owner = resolveOwner(plan);
         DrResolvedDiskMapping rootDisk = resolveRootDisk(placement);
         List<DrReplicaDiskVO> replicaDisks = drReplicaDiskDao.listActiveByReplicaId(replica.getId());
-        VolumeVO rootVolume = ensureImportedVolume(owner, placement, rootDisk, true, 0L);
+        DrReplicaDiskVO rootReplicaDisk = requireReplicaDisk(replicaDisks, rootDisk);
+        VolumeVO rootVolume = ensureImportedVolume(plan, replica, rootReplicaDisk, run, owner, placement, rootDisk, true, 0L);
         updateReplicaDisk(replicaDisks, rootDisk, rootVolume, DrConstants.REPLICA_STATE_SKELETON_READY);
-        UserVmVO targetVm = ensureTargetVm(plan, placement, owner, rootVolume, runtime);
+        UserVmVO targetVm = ensureTargetVm(plan, replica, run, placement, owner, rootVolume, runtime);
         verifyTargetVmHardware(plan, targetVm);
 
         List<VolumeVO> importedVolumes = new ArrayList<VolumeVO>();
@@ -713,7 +721,8 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
                 updateReplicaDisk(replicaDisks, disk, rootVolume, DrConstants.REPLICA_STATE_READY);
                 continue;
             }
-            VolumeVO dataVolume = ensureImportedVolume(owner, placement, disk, false, (long) device);
+            DrReplicaDiskVO dataReplicaDisk = requireReplicaDisk(replicaDisks, disk);
+            VolumeVO dataVolume = ensureImportedVolume(plan, replica, dataReplicaDisk, run, owner, placement, disk, false, (long) device);
             attachDataVolumeIfNeeded(targetVm, dataVolume, (long) device);
             updateReplicaDisk(replicaDisks, disk, dataVolume, DrConstants.REPLICA_STATE_READY);
             importedVolumes.add(dataVolume);
@@ -724,9 +733,10 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
         replica.setTargetExternalRef(targetVm.getUuid());
         replica.setTargetVmName(targetVm.getDisplayName());
         replica.setState(DrConstants.REPLICA_STATE_READY);
-        replica.setPowerState(DrConstants.REPLICA_POWER_STATE_POWERED_OFF);
+        observeReplicaPowerState(replica, targetVm);
         replica.setHypervisorType(DrConstants.HYPERVISOR_TYPE_KVM);
         replica.setActiveSide("TARGET");
+        replica.setOwnershipState("VALID");
         replica.setRuntimeStateJson(buildReplicaRuntimeJson(plan, targetVm, importedVolumes, runtime));
         replica.markUpdated();
         drReplicaDao.update(replica.getId(), replica);
@@ -841,14 +851,17 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
         return placement.getDisks().get(0);
     }
 
-    private VolumeVO ensureImportedVolume(AccountVO owner, DrResolvedTargetPlacement placement, DrResolvedDiskMapping disk,
-            boolean root, Long deviceId) {
+    private VolumeVO ensureImportedVolume(DrPlanVO plan, DrReplicaVO replica, DrReplicaDiskVO replicaDisk, DrRunVO run,
+            AccountVO owner, DrResolvedTargetPlacement placement, DrResolvedDiskMapping disk, boolean root, Long deviceId) {
         StoragePoolVO pool = storagePoolForDisk(placement, disk);
         DiskOfferingVO offering = diskOfferingForDisk(disk);
         String volumeName = volumeNameForDisk(placement, disk, root, deviceId);
         String path = cloudVolumePath(StringUtils.defaultIfBlank(disk.getTargetRef(), volumeName), pool);
         VolumeVO existing = findExistingVolume(pool, path, volumeName);
         if (existing != null) {
+            if (plan != null && replica != null && replicaDisk != null) {
+                targetResourceOwnershipService.claimVolume(plan, replica, replicaDisk, run, existing, path);
+            }
             normalizeImportedVolume(existing, disk, root, deviceId, owner, pool, offering, path, disk.getCapacityBytes());
             return verifyImportedVolumeFormat(volumeDao.findById(existing.getId()), disk, pool);
         }
@@ -862,7 +875,15 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
             throw new CloudRuntimeException("Imported DR target volume could not be reloaded: " + volumeName);
         }
         normalizeImportedVolume(volume, disk, root, deviceId, owner, pool, offering, path, disk.getCapacityBytes());
+        if (plan != null && replica != null && replicaDisk != null) {
+            targetResourceOwnershipService.claimVolume(plan, replica, replicaDisk, run, volume, path);
+        }
         return verifyImportedVolumeFormat(volumeDao.findById(volume.getId()), disk, pool);
+    }
+
+    private VolumeVO ensureImportedVolume(AccountVO owner, DrResolvedTargetPlacement placement,
+            DrResolvedDiskMapping disk, boolean root, Long deviceId) {
+        return ensureImportedVolume(null, null, null, null, owner, placement, disk, root, deviceId);
     }
 
     private void normalizeTestVolumePaths(DrTestSessionVO session) {
@@ -1027,7 +1048,8 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
         return chain.entrySet().isEmpty() ? null : GSON.toJson(chain);
     }
 
-    private UserVmVO ensureTargetVm(DrPlanVO plan, DrResolvedTargetPlacement placement, AccountVO owner, VolumeVO rootVolume, JsonObject runtime) {
+    private UserVmVO ensureTargetVm(DrPlanVO plan, DrReplicaVO replica, DrRunVO run, DrResolvedTargetPlacement placement,
+            AccountVO owner, VolumeVO rootVolume, JsonObject runtime) {
         String vmName = StringUtils.defaultIfBlank(placement.getTargetVmName(), StringUtils.defaultIfBlank(plan.getName(), "dr-target") + "-target");
         VMInstanceVO existing = vmInstanceDao.findVMByHostNameInZone(vmName, placement.getZoneId());
         if (existing != null && existing.getRemoved() == null) {
@@ -1035,6 +1057,7 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
             if (existingUserVm == null) {
                 throw new CloudRuntimeException("Existing target VM name is not a user VM: " + vmName);
             }
+            targetResourceOwnershipService.claimVm(plan, replica, run, existingUserVm);
             return existingUserVm;
         }
         ServiceOfferingVO serviceOffering = serviceOfferingDao.findById(parseLong(placement.getServiceOfferingLocalId()));
@@ -1052,7 +1075,7 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
         if (!placement.getBlockingReasons().isEmpty()) {
             throw new CloudRuntimeException("DR target hardware is not ready: " + StringUtils.join(placement.getBlockingReasons(), ","));
         }
-        Map<String, String> details = buildTargetVmDetails(plan, placement, serviceOffering, rootVolume, hardware);
+        Map<String, String> details = buildTargetVmDetails(plan, replica, placement, serviceOffering, rootVolume, hardware);
         DrReplicaDeployVMVolumeCmd deployCmd = new DrReplicaDeployVMVolumeCmd(
                 owner.getId(),
                 owner.getAccountName(),
@@ -1077,6 +1100,7 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
             if (createdVm == null) {
                 throw new CloudRuntimeException("Created DR target VM could not be reloaded: " + created.getUuid());
             }
+            targetResourceOwnershipService.claimVm(plan, replica, run, createdVm);
             return createdVm;
         } catch (InsufficientCapacityException | ResourceUnavailableException | ConcurrentOperationException |
                  ResourceAllocationException e) {
@@ -1086,12 +1110,17 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
         }
     }
 
-    private Map<String, String> buildTargetVmDetails(DrPlanVO plan, DrResolvedTargetPlacement placement,
+    private Map<String, String> buildTargetVmDetails(DrPlanVO plan, DrReplicaVO replica, DrResolvedTargetPlacement placement,
             ServiceOfferingVO serviceOffering, VolumeVO rootVolume, DrResolvedTargetHardware hardware) {
         Map<String, String> details = new HashMap<String, String>();
-        details.put("dr.replica.vm", "true");
+        details.put("dr.replica.vm", String.valueOf(replica != null));
         details.put("dr.plan.uuid", plan.getUuid());
         details.put("dr.plan.id", String.valueOf(plan.getId()));
+        if (replica != null) {
+            details.put("dr.replica.id", String.valueOf(replica.getId()));
+            details.put("dr.ownership.generation", String.valueOf(
+                    replica.getOwnershipGeneration() != null ? replica.getOwnershipGeneration() : 1L));
+        }
         details.put("dr.direction", plan.getDirection());
         details.put("dr.source.external.ref", StringUtils.defaultString(plan.getSourceExternalRef()));
         details.put("dr.materialized.at", Instant.now().toString());
@@ -1122,6 +1151,11 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
         putDynamicVmDetail(details, VmDetailConstants.MEMORY, serviceOffering != null ? serviceOffering.getRamSize() : null,
                 placement != null ? placement.getTargetMemory() : null);
         return details;
+    }
+
+    private Map<String, String> buildTargetVmDetails(DrPlanVO plan, DrResolvedTargetPlacement placement,
+            ServiceOfferingVO serviceOffering, VolumeVO rootVolume, DrResolvedTargetHardware hardware) {
+        return buildTargetVmDetails(plan, null, placement, serviceOffering, rootVolume, hardware);
     }
 
     private void verifyTargetVmHardware(DrPlanVO plan, UserVmVO targetVm) {
@@ -1195,6 +1229,26 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
         disk.setDetailsJson(buildDiskRuntimeJson(mapping, volume));
         disk.markUpdated();
         drReplicaDiskDao.update(disk.getId(), disk);
+    }
+
+    private DrReplicaDiskVO requireReplicaDisk(List<DrReplicaDiskVO> replicaDisks, DrResolvedDiskMapping mapping) {
+        DrReplicaDiskVO disk = findReplicaDisk(replicaDisks, mapping);
+        if (disk == null) {
+            throw new CloudRuntimeException("DR target materialization has no replica disk ownership row for "
+                    + StringUtils.defaultIfBlank(mapping.getLabel(), mapping.getSourceRef()));
+        }
+        return disk;
+    }
+
+    private void observeReplicaPowerState(DrReplicaVO replica, UserVmVO targetVm) {
+        String observed = "UNKNOWN";
+        if (VirtualMachine.State.Running.equals(targetVm.getState())) {
+            observed = "POWERED_ON";
+        } else if (VirtualMachine.State.Stopped.equals(targetVm.getState())) {
+            observed = DrConstants.REPLICA_POWER_STATE_POWERED_OFF;
+        }
+        replica.setPowerState(observed);
+        replica.setPowerStateObservedAt(new Date());
     }
 
     private DrReplicaDiskVO findReplicaDisk(List<DrReplicaDiskVO> disks, DrResolvedDiskMapping mapping) {
@@ -1301,6 +1355,8 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
         result.targetReadyAt = plan.getLastTargetDurableAt() != null ? plan.getLastTargetDurableAt() : new Date();
         result.targetReadyRpoSeconds = computeRpoSeconds(plan.getLastSourceCheckpointAt(), result.targetReadyAt);
         result.replicaId = replica.getId();
+        result.ownershipGeneration = replica.getOwnershipGeneration() != null ? replica.getOwnershipGeneration() : 1L;
+        result.observedPowerState = replica.getPowerState();
         return result;
     }
 
@@ -1338,6 +1394,10 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
         command.setContextParam("targetExternalRef", result.targetExternalRef);
         command.setContextParam("targetVmName", result.targetVmName);
         command.setContextParam("targetVolumeMapJson", result.targetVolumeMapJson);
+        result.materializationSpecJson = buildMaterializationSpec(plan, run, result);
+        result.materializationSpecSha256 = DrTargetResourceOwnershipService.sha256(result.materializationSpecJson);
+        command.setContextParam("materializationSpecJson", result.materializationSpecJson);
+        command.setContextParam("materializationSpecSha256", result.materializationSpecSha256);
         if (result.targetReadyRpoSeconds != null) {
             command.setContextParam("targetReadyRpoSeconds", String.valueOf(result.targetReadyRpoSeconds));
         }
@@ -1352,6 +1412,30 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
             }
             throw new CloudRuntimeException("Failed to notify FTCTL_DR target materialization: " + message);
         }
+        DrReplicaVO replica = drReplicaDao.findById(result.replicaId);
+        if (replica != null) {
+            replica.setMaterializationDigest(result.materializationSpecSha256);
+            replica.setOwnershipState("VALID");
+            replica.markUpdated();
+            drReplicaDao.update(replica.getId(), replica);
+        }
+    }
+
+    private String buildMaterializationSpec(DrPlanVO plan, DrRunVO run, MaterializationResult result) {
+        JsonObject spec = new JsonObject();
+        spec.addProperty("contractVersion", 2);
+        spec.addProperty("planUuid", plan.getUuid());
+        spec.addProperty("runUuid", run.getUuid());
+        spec.addProperty("replicaId", result.replicaId);
+        spec.addProperty("ownershipGeneration", result.ownershipGeneration);
+        JsonObject target = new JsonObject();
+        target.addProperty("vmId", result.targetVmId);
+        target.addProperty("externalRef", result.targetExternalRef);
+        target.addProperty("name", result.targetVmName);
+        target.addProperty("observedPowerState", result.observedPowerState);
+        spec.add("targetVm", target);
+        spec.add("targetVolumeMap", parseObject(result.targetVolumeMapJson));
+        return GSON.toJson(spec);
     }
 
     private void validateFtctlTargetMaterializedCapability(DrPlanVO plan, DrRunVO run, Long hostId) {
@@ -1363,6 +1447,10 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
         cliCommands.add(FtctlDrActionCommand.Action.TARGET_MATERIALIZED.getCliCommand());
         cliCommands.add("dr-status");
         command.setRequiredCliCommands(cliCommands);
+        List<String> features = new ArrayList<String>();
+        features.add("target-materialization-manifest-v2");
+        features.add("target-resource-ownership-generation-v1");
+        command.setRequiredFeatures(features);
 
         Answer answer = agentManager.easySend(hostId, command);
         if (!(answer instanceof FtctlDrCapabilitiesAnswer)) {
@@ -1422,9 +1510,11 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
 
     private void failMaterialization(DrPlanVO plan, DrRunVO run, String runtimeStatusJson, RuntimeException e) {
         String message = StringUtils.defaultIfBlank(e.getMessage(), "DR target materialization failed");
-        String details = failureDetailsJson(runtimeStatusJson, message);
+        String errorCode = StringUtils.startsWith(message, DrConstants.ERROR_TARGET_OWNERSHIP_CONFLICT)
+                ? DrConstants.ERROR_TARGET_OWNERSHIP_CONFLICT : DrConstants.ERROR_TARGET_VM_MATERIALIZE_FAILED;
+        String details = failureDetailsJson(runtimeStatusJson, errorCode, message);
         upsertRunStep(run, "target-materialization", STEP_ORDER_TARGET_MATERIALIZATION, DrConstants.STEP_STATE_FAILED, 100,
-                details, DrConstants.ERROR_TARGET_VM_MATERIALIZE_FAILED, message);
+                details, errorCode, message);
         run.setState(DrConstants.RUN_STATE_FAILED);
         run.setCompleted(new Date());
         run.setCurrentStepName("target-materialization");
@@ -1434,20 +1524,23 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
         run.setRetryAfterSeconds(null);
         run.setNextRetryAt(null);
         run.setLastStatusJson(details);
-        run.setErrorCode(DrConstants.ERROR_TARGET_VM_MATERIALIZE_FAILED);
+        run.setErrorCode(errorCode);
         run.setErrorMessage(message);
         run.markUpdated();
         drRunDao.update(run.getId(), run);
-        closeOpenRunSteps(run, DrConstants.ERROR_TARGET_VM_MATERIALIZE_FAILED, message);
+        closeOpenRunSteps(run, errorCode, message);
 
         plan.setState(DrConstants.PLAN_STATE_ERROR);
-        plan.setLastErrorCode(DrConstants.ERROR_TARGET_VM_MATERIALIZE_FAILED);
+        plan.setLastErrorCode(errorCode);
         plan.setLastErrorMessage(message);
         plan.markUpdated();
         drPlanDao.update(plan.getId(), plan);
         DrReplicaVO replica = firstActiveReplica(plan);
         if (replica != null) {
             replica.setState(DrConstants.REPLICA_STATE_ERROR);
+            if (DrConstants.ERROR_TARGET_OWNERSHIP_CONFLICT.equals(errorCode)) {
+                replica.setOwnershipState("QUARANTINED");
+            }
             replica.setRuntimeStateJson(details);
             replica.markUpdated();
             drReplicaDao.update(replica.getId(), replica);
@@ -1517,13 +1610,16 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
         details.addProperty("targetExternalRef", result.targetExternalRef);
         details.addProperty("targetVmName", result.targetVmName);
         details.addProperty("targetMaterialized", true);
+        details.addProperty("materializationContractVersion", 2);
+        details.addProperty("ownershipGeneration", result.ownershipGeneration);
+        details.addProperty("materializationSpecSha256", result.materializationSpecSha256);
         details.add("targetVolumeMap", parseObject(result.targetVolumeMapJson));
         return GSON.toJson(details);
     }
 
-    private String failureDetailsJson(String runtimeStatusJson, String message) {
+    private String failureDetailsJson(String runtimeStatusJson, String errorCode, String message) {
         JsonObject details = parseObject(runtimeStatusJson);
-        details.addProperty("errorCode", DrConstants.ERROR_TARGET_VM_MATERIALIZE_FAILED);
+        details.addProperty("errorCode", errorCode);
         details.addProperty("errorMessage", message);
         details.addProperty("targetMaterialized", false);
         return GSON.toJson(details);
@@ -1671,5 +1767,9 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
         private String targetVolumeMapJson;
         private Date targetReadyAt;
         private Integer targetReadyRpoSeconds;
+        private long ownershipGeneration;
+        private String observedPowerState;
+        private String materializationSpecJson;
+        private String materializationSpecSha256;
     }
 }

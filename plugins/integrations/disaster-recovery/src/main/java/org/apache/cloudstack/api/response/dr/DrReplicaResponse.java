@@ -71,6 +71,22 @@ public class DrReplicaResponse extends BaseResponse {
     @Param(description = "the runtime state JSON")
     private String runtimeStateJson;
 
+    @SerializedName("ownershipstate")
+    @Param(description = "the target resource ownership state")
+    private String ownershipState;
+
+    @SerializedName("ownershipgeneration")
+    @Param(description = "the target resource ownership generation")
+    private Long ownershipGeneration;
+
+    @SerializedName("materializationdigest")
+    @Param(description = "the target materialization manifest SHA-256")
+    private String materializationDigest;
+
+    @SerializedName("powerstateobservedat")
+    @Param(description = "the target power state observation time")
+    private Date powerStateObservedAt;
+
     @SerializedName("created")
     @Param(description = "the replica creation time")
     private Date created;
@@ -118,6 +134,11 @@ public class DrReplicaResponse extends BaseResponse {
     public void setRuntimeStateJson(String runtimeStateJson) {
         this.runtimeStateJson = runtimeStateJson;
     }
+
+    public void setOwnershipState(String ownershipState) { this.ownershipState = ownershipState; }
+    public void setOwnershipGeneration(Long ownershipGeneration) { this.ownershipGeneration = ownershipGeneration; }
+    public void setMaterializationDigest(String materializationDigest) { this.materializationDigest = materializationDigest; }
+    public void setPowerStateObservedAt(Date powerStateObservedAt) { this.powerStateObservedAt = powerStateObservedAt; }
 
     public void setCreated(Date created) {
         this.created = created;

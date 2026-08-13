@@ -35,6 +35,8 @@ import com.cloud.agent.api.FtctlDrCapabilitiesAnswer;
 import com.cloud.agent.api.FtctlDrCapabilitiesCommand;
 import com.cloud.agent.api.FtctlDrStatusAnswer;
 import com.cloud.agent.api.FtctlDrStatusCommand;
+import com.cloud.agent.api.FtctlDrReversePreflightAnswer;
+import com.cloud.agent.api.FtctlDrReversePreflightCommand;
 import com.cloud.dr.DrConstants;
 import com.cloud.dr.DrFailbackPreflightResult;
 import com.cloud.dr.DrFailbackPreflightService;
@@ -43,6 +45,7 @@ import com.cloud.dr.DrReprotectAuthoritySpec;
 import com.cloud.dr.DrReprotectPreflightResult;
 import com.cloud.dr.DrReprotectPreflightService;
 import com.cloud.dr.DrRestorePointVO;
+import com.cloud.dr.DrReplicaVO;
 import com.cloud.dr.DrResolvedSiteCredential;
 import com.cloud.dr.DrRunVO;
 import com.cloud.dr.DrSiteCredentialService;
@@ -52,6 +55,7 @@ import com.cloud.dr.adapter.DrExecutionContext;
 import com.cloud.dr.adapter.DrReplicationEngine;
 import com.cloud.dr.dao.DrSiteDao;
 import com.cloud.dr.dao.DrRestorePointDao;
+import com.cloud.dr.dao.DrReplicaDao;
 import com.cloud.dr.health.DrSiteProbeSupport;
 import com.cloud.exception.AgentUnavailableException;
 import com.cloud.exception.OperationTimedoutException;
@@ -60,6 +64,8 @@ import com.cloud.host.Host;
 import com.cloud.host.HostVO;
 import com.cloud.host.dao.HostDao;
 import com.cloud.host.dao.HostDetailsDao;
+import com.cloud.vm.UserVmVO;
+import com.cloud.vm.dao.UserVmDao;
 import com.cloud.utils.component.ManagerBase;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -86,6 +92,10 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
     private DrSiteCredentialService drSiteCredentialService;
     @Inject
     private DrRestorePointDao drRestorePointDao;
+    @Inject
+    private DrReplicaDao drReplicaDao;
+    @Inject
+    private UserVmDao userVmDao;
     @Inject
     private DrReprotectPreflightService drReprotectPreflightService;
     @Inject
@@ -247,6 +257,13 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
             return DrAdapterResult.failure("DR_TEST_ARTIFACT_SPEC_INVALID", e.getMessage(),
                     GSON.toJson(buildExecutionDetails(context, action, coordinatorHostId)));
         }
+        if (action == FtctlDrActionCommand.Action.FAILBACK
+                && StringUtils.equalsIgnoreCase(context.getPlan().getDirection(), DrConstants.DIRECTION_VMWARE_TO_KVM)) {
+            DrAdapterResult reversePreflight = validateReversePreflight(context, coordinatorHostId, command);
+            if (reversePreflight != null) {
+                return reversePreflight;
+            }
+        }
         try {
             Answer answer = agentManager.send(coordinatorHostId, command);
             return toAdapterResult(context, action, coordinatorHostId, answer);
@@ -263,6 +280,48 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
             return DrAdapterResult.failure(DrConstants.ERROR_AGENT_UNAVAILABLE,
                     "FTCTL_DR coordinator Agent is unavailable: " + e.getMessage(), GSON.toJson(buildExecutionDetails(context, action, coordinatorHostId)));
         }
+    }
+
+    private DrAdapterResult validateReversePreflight(DrExecutionContext context, Long coordinatorHostId,
+            FtctlDrActionCommand actionCommand) {
+        Answer rawAnswer = sendReversePreflight(context.getPlan(), coordinatorHostId,
+                actionCommand.getProfileJson());
+        if (!(rawAnswer instanceof FtctlDrReversePreflightAnswer)) {
+            return DrAdapterResult.failure("DR_REVERSE_PREFLIGHT_UNAVAILABLE",
+                    "FTCTL reverse preflight did not return a typed answer",
+                    GSON.toJson(buildExecutionDetails(context, FtctlDrActionCommand.Action.FAILBACK, coordinatorHostId)));
+        }
+        FtctlDrReversePreflightAnswer answer = (FtctlDrReversePreflightAnswer) rawAnswer;
+        if (!answer.getResult() || !Boolean.TRUE.equals(answer.getReady())) {
+            String errorCode = StringUtils.defaultIfBlank(answer.getErrorCode(), "DR_REVERSE_PREFLIGHT_FAILED");
+            return DrAdapterResult.failure(errorCode,
+                    StringUtils.defaultIfBlank(answer.getDetails(), "FTCTL reverse preflight failed"),
+                    StringUtils.defaultIfBlank(answer.getStatusJson(),
+                            GSON.toJson(buildExecutionDetails(context, FtctlDrActionCommand.Action.FAILBACK, coordinatorHostId))));
+        }
+        return null;
+    }
+
+    public FtctlDrReversePreflightAnswer probeReversePreflight(DrPlanVO plan, DrRunVO run) {
+        if (plan == null) {
+            return null;
+        }
+        Long coordinatorHostId = resolveCoordinatorHostId(plan);
+        if (coordinatorHostId == null) {
+            return null;
+        }
+        DrRunVO effectiveRun = run != null ? run : new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_FAILBACK);
+        FtctlDrActionCommand actionCommand = buildActionCommand(
+                new DrExecutionContext(plan, effectiveRun), FtctlDrActionCommand.Action.FAILBACK);
+        Answer answer = sendReversePreflight(plan, coordinatorHostId, actionCommand.getProfileJson());
+        return answer instanceof FtctlDrReversePreflightAnswer
+                ? (FtctlDrReversePreflightAnswer) answer : null;
+    }
+
+    private Answer sendReversePreflight(DrPlanVO plan, Long coordinatorHostId, String profileJson) {
+        FtctlDrReversePreflightCommand command = new FtctlDrReversePreflightCommand(
+                plan.getUuid(), profileJson, "FAILBACK_FINAL", "AUTO");
+        return agentManager.easySend(coordinatorHostId, command);
     }
 
     private FtctlDrActionCommand buildActionCommand(DrExecutionContext context, FtctlDrActionCommand.Action action) {
@@ -691,7 +750,7 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         DrSiteVO targetSite = drSiteDao != null ? drSiteDao.findById(plan.getTargetSiteId()) : null;
         JsonObject mapping = parseObject(plan.getMappingJson());
         profile.add("source", buildEndpoint(plan.getDirection(), true, sourceSite, plan.getSourceVmId(), plan.getSourceExternalRef()));
-        profile.add("target", buildTargetEndpoint(plan.getDirection(), targetSite, mapping));
+        profile.add("target", buildTargetEndpoint(plan, targetSite, mapping));
         profile.add("credentials", buildCredentials(plan, sourceSite, targetSite));
         profile.add("workers", buildWorkers(plan));
         profile.add("policy", parseObject(plan.getPolicyJson()));
@@ -702,12 +761,31 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         return GSON.toJson(profile);
     }
 
-    private JsonObject buildTargetEndpoint(String direction, DrSiteVO targetSite, JsonObject mapping) {
-        JsonObject endpoint = buildEndpoint(direction, false, targetSite, null, null);
+    private JsonObject buildTargetEndpoint(DrPlanVO plan, DrSiteVO targetSite, JsonObject mapping) {
+        JsonObject endpoint = buildEndpoint(plan.getDirection(), false, targetSite, null, null);
         JsonObject targetMapping = objectAt(mapping, "target");
         for (Map.Entry<String, JsonElement> entry : targetMapping.entrySet()) {
             if (!endpoint.has(entry.getKey()) && entry.getValue() != null && !entry.getValue().isJsonNull()) {
                 endpoint.add(entry.getKey(), entry.getValue().deepCopy());
+            }
+        }
+        if (drReplicaDao != null && userVmDao != null) {
+            List<DrReplicaVO> replicas = drReplicaDao.listActiveByPlanId(plan.getId());
+            if (replicas != null) {
+                for (DrReplicaVO replica : replicas) {
+                    if (replica == null || replica.getTargetVmId() == null) {
+                        continue;
+                    }
+                    UserVmVO vm = userVmDao.findById(replica.getTargetVmId());
+                    if (vm != null && vm.getRemoved() == null) {
+                        endpoint.addProperty("vmId", vm.getId());
+                        endpoint.addProperty("vmUuid", vm.getUuid());
+                        endpoint.addProperty("instanceName", vm.getInstanceName());
+                        endpoint.addProperty("vmName", vm.getDisplayName());
+                        endpoint.addProperty("hostId", vm.getHostId());
+                        break;
+                    }
+                }
             }
         }
         return endpoint;

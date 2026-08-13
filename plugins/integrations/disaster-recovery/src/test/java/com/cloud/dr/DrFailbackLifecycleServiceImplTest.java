@@ -14,11 +14,13 @@ import org.mockito.Mockito;
 import org.mockito.Spy;
 import org.mockito.junit.MockitoJUnitRunner;
 
+import com.cloud.dr.dao.DrCutoverSessionDao;
 import com.cloud.dr.dao.DrEventDao;
 import com.cloud.dr.dao.DrFailbackSessionDao;
 import com.cloud.dr.dao.DrPlanDao;
 import com.cloud.dr.dao.DrReplicaDao;
 import com.cloud.dr.dao.DrRunDao;
+import com.cloud.utils.exception.CloudRuntimeException;
 import com.google.gson.JsonObject;
 
 @RunWith(MockitoJUnitRunner.class)
@@ -28,6 +30,7 @@ public class DrFailbackLifecycleServiceImplTest {
     @Mock private DrRunDao drRunDao;
     @Mock private DrReplicaDao drReplicaDao;
     @Mock private DrEventDao drEventDao;
+    @Mock private DrCutoverSessionDao drCutoverSessionDao;
 
     @Spy
     @InjectMocks
@@ -105,6 +108,7 @@ public class DrFailbackLifecycleServiceImplTest {
         runtime.addProperty("scheduler_state", "RUNNING");
         runtime.addProperty("scheduler_health", "HEALTHY");
         runtime.addProperty("latest_completed_checkpoint_sequence", 7L);
+        runtime.addProperty("plan_cycle_sequence", 99L);
 
         Assert.assertFalse(service.protectionResumed(plan, session, runtime));
 
@@ -113,6 +117,152 @@ public class DrFailbackLifecycleServiceImplTest {
 
         session.setEngineAckState("UNKNOWN");
         Assert.assertFalse(service.protectionResumed(plan, session, runtime));
+    }
+
+    @Test
+    public void durableCommitDispatchRequiresCompletePersistedEnvelope() {
+        Assert.assertFalse(service.hasDurableCommitDispatch(session));
+
+        session.setCommitContractVersion(DrFailbackCommitEnvelope.CONTRACT_VERSION);
+        session.setCommitAttemptId("attempt-a");
+        session.setCommitEnvelopeSha256(
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+        session.setCommitDispatchState("DISPATCHED");
+
+        Assert.assertTrue(service.hasDurableCommitDispatch(session));
+    }
+
+    @Test
+    public void reverseWorkerFailureKeepsTargetAuthorityWhileCleanupIsPending() {
+        plan.setState(DrConstants.PLAN_STATE_FAILED_OVER);
+        plan.setActiveSide("TARGET");
+        session.setState("REVERSE_SYNCING");
+        JsonObject runtime = runtime("PENDING");
+        runtime.addProperty("state", "ERROR");
+        runtime.addProperty("worker_state", "FAILED");
+        runtime.addProperty("worker_pid_alive", false);
+        runtime.addProperty("failure_phase", "REVERSE_TRANSFER");
+        runtime.addProperty("failed_component", "kvm-vmware-mover");
+        runtime.addProperty("driver_exit_code", 83);
+        runtime.addProperty("baseline_file_state", "MISSING_EXPECTED");
+        runtime.addProperty("error_code", "DR_REVERSE_BASELINE_REQUIRED");
+        runtime.addProperty("error_message", "Reverse baseline is required for incremental transfer");
+
+        DrFailbackSessionVO result = service.reconcile(plan, run, runtime);
+
+        Assert.assertSame(session, result);
+        Assert.assertEquals("ROLLBACK_FAILED", session.getState());
+        Assert.assertEquals("FAILED", session.getRollbackState());
+        Assert.assertEquals("REVERSE_TRANSFER", session.getFailurePhase());
+        Assert.assertEquals("kvm-vmware-mover", session.getFailedComponent());
+        Assert.assertEquals(Integer.valueOf(83), session.getDriverExitCode());
+        Assert.assertEquals(Boolean.FALSE, session.getWorkerPidAlive());
+        Assert.assertEquals("TARGET", plan.getActiveSide());
+        Assert.assertEquals(DrConstants.PLAN_STATE_FAILED_OVER, plan.getState());
+        Assert.assertTrue(session.getErrorMessage().contains("engine cleanup is pending"));
+        Mockito.verify(drEventDao).persist(Mockito.argThat(event ->
+                "FAILBACK_REVERSE_SYNC_FAILED".equals(event.getEventType())));
+    }
+
+    @Test
+    public void terminalPublicationGraceDoesNotSynthesizeFailbackFailure() {
+        plan.setState(DrConstants.PLAN_STATE_FAILED_OVER);
+        plan.setActiveSide("TARGET");
+        session.setState("REVERSE_SYNCING");
+        JsonObject runtime = runtime("PENDING");
+        runtime.addProperty("state", "RUNNING");
+        runtime.addProperty("worker_state", "TERMINAL_PENDING");
+        runtime.addProperty("worker_pid_alive", false);
+        runtime.addProperty("terminal_publication_pending", true);
+        runtime.addProperty("terminal_publication_pending_since", "2026-08-05T01:02:03+0900");
+
+        DrFailbackSessionVO result = service.reconcile(plan, run, runtime);
+
+        Assert.assertSame(session, result);
+        Assert.assertEquals("REVERSE_SYNCING", session.getState());
+        Assert.assertEquals("TARGET", plan.getActiveSide());
+        Assert.assertEquals(DrConstants.PLAN_STATE_FAILED_OVER, plan.getState());
+        Mockito.verify(drEventDao, Mockito.never()).persist(Mockito.any());
+    }
+
+    @Test
+    public void terminalRuntimeSnapshotOverridesStaleProtectionResumingState() {
+        JsonObject runtime = runtime("ACKNOWLEDGED");
+        runtime.addProperty("step", "protection-resuming");
+        runtime.addProperty("failback_phase", "PROTECTION_RESUMING");
+        runtime.addProperty("cloud_lifecycle_state", "COMMITTED");
+        runtime.addProperty("worker_state", "SUCCEEDED");
+        runtime.addProperty("transfer_activity_state", "COPYING");
+        runtime.addProperty("latest_completed_checkpoint_sequence", 8L);
+        runtime.addProperty("latest_completed_transfer_payload_bytes", 4096L);
+        runtime.addProperty("failure_phase", "REVERSE_SYNC");
+        runtime.addProperty("failed_component", "ftctl");
+
+        JsonObject terminal = service.terminalRuntimeSnapshot(runtime);
+
+        Assert.assertEquals("READY", terminal.get("state").getAsString());
+        Assert.assertEquals("target-checkpoint-ready", terminal.get("step").getAsString());
+        Assert.assertEquals("COMPLETED", terminal.get("failback_phase").getAsString());
+        Assert.assertEquals("COMPLETED", terminal.get("cloud_lifecycle_state").getAsString());
+        Assert.assertEquals("IDLE", terminal.get("transfer_activity_state").getAsString());
+        Assert.assertEquals("CLOUD_LIFECYCLE", terminal.get("terminal_source").getAsString());
+        Assert.assertTrue(terminal.get("terminal_authoritative").getAsBoolean());
+        Assert.assertEquals(8L, terminal.get("latest_completed_checkpoint_sequence").getAsLong());
+        Assert.assertEquals(4096L, terminal.get("latest_completed_transfer_payload_bytes").getAsLong());
+        Assert.assertFalse(terminal.has("failure_phase"));
+        Assert.assertFalse(terminal.has("failed_component"));
+    }
+
+    @Test
+    public void cloudLifecycleTerminalIsIdempotent() {
+        run.setTerminalSource("ENGINE_TERMINAL");
+        run.setTerminalVersion(1);
+        run.setTerminalAuthoritative(true);
+
+        service.applyCloudLifecycleTerminal(run);
+
+        Assert.assertEquals("CLOUD_LIFECYCLE", run.getTerminalSource());
+        Assert.assertEquals(Integer.valueOf(2), run.getTerminalVersion());
+        Assert.assertTrue(run.isTerminalAuthoritative());
+        service.applyCloudLifecycleTerminal(run);
+        Assert.assertEquals(Integer.valueOf(2), run.getTerminalVersion());
+    }
+
+    @Test
+    public void completedSessionRejectsLateFailureEvidenceAndClearsPersistedMetadata() {
+        session.setState("COMPLETED");
+        session.setFailurePhase("REVERSE_TRANSFER");
+        session.setFailedComponent("ftctl");
+        DrFailbackSessionVO verified = new DrFailbackSessionVO(
+                plan.getId(), run.getId(), "session-a", "COMPLETED");
+        Mockito.when(drFailbackSessionDao.findById(session.getId())).thenReturn(verified);
+        JsonObject lateRuntime = runtime("ACKNOWLEDGED");
+        lateRuntime.addProperty("failure_phase", "LATE_READY_SAMPLE");
+        lateRuntime.addProperty("failed_component", "ftctl");
+
+        DrFailbackSessionVO result = service.reconcile(plan, run, lateRuntime);
+
+        Assert.assertSame(session, result);
+        Assert.assertNull(result.getFailurePhase());
+        Assert.assertNull(result.getFailedComponent());
+        Assert.assertNull(result.getErrorCode());
+        Assert.assertNull(result.getErrorMessage());
+        Mockito.verify(drFailbackSessionDao).clearFailureMetadata(session.getId());
+        Mockito.verify(drFailbackSessionDao, Mockito.never()).update(
+                Mockito.eq(session.getId()), Mockito.any(DrFailbackSessionVO.class));
+        Mockito.verify(drEventDao, Mockito.never()).persist(Mockito.any());
+    }
+
+    @Test(expected = CloudRuntimeException.class)
+    public void completedSessionRejectsUnclearedFailureMetadataAfterDaoUpdate() {
+        session.setState("COMPLETED");
+        session.setFailedComponent("ftctl");
+        DrFailbackSessionVO stillStale = new DrFailbackSessionVO(
+                plan.getId(), run.getId(), "session-a", "COMPLETED");
+        stillStale.setFailedComponent("ftctl");
+        Mockito.when(drFailbackSessionDao.findById(session.getId())).thenReturn(stillStale);
+
+        service.reconcile(plan, run, runtime("ACKNOWLEDGED"));
     }
 
     private JsonObject runtime(String outcome) {

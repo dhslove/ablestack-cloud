@@ -95,6 +95,8 @@ public class DrProtectionViewServiceImplTest {
         runtime.setSchedulerPidAlive(true);
         runtime.setOwnerMatched(true);
         runtime.setReplicationActivityState("IDLE");
+        runtime.setTransferCycleSequence(154L);
+        runtime.setTransferPayloadBytes(1024L);
         runtime.setCurrentCycleSequence(189L);
         runtime.setCurrentCycleState("COMPLETED");
         runtime.setLatestCompletedCycleSequence(189L);
@@ -107,7 +109,11 @@ public class DrProtectionViewServiceImplTest {
         completedCycle.setState("READY");
         completedCycle.setRequestedMode("CBT_INCREMENTAL");
         completedCycle.setEffectiveMode("NO_CHANGE");
+        completedCycle.setCommitState("LOCAL_DURABLE");
         completedCycle.setChangedBytes(0L);
+        completedCycle.setSourceReadBytes(4096L);
+        completedCycle.setTargetWrittenBytes(4096L);
+        completedCycle.setTransferPayloadBytes(4096L);
         completedCycle.setIncrementalVerified(true);
         completedCycle.setNbdTeardownState("DRAINED");
         completedCycle.setNbdTeardownDurationMs(85L);
@@ -116,6 +122,11 @@ public class DrProtectionViewServiceImplTest {
         staleActiveCycle.setState("TRANSFERRING");
         Mockito.when(drSyncCycleDao.findActiveByPlanId(PLAN_ID)).thenReturn(staleActiveCycle);
         Mockito.when(drSyncCycleDao.findLatestCompletedByPlanId(PLAN_ID)).thenReturn(completedCycle);
+        DrFailbackSessionVO completedFailback = new DrFailbackSessionVO(PLAN_ID, 84L,
+                "failback-session", "COMPLETED");
+        completedFailback.setFailurePhase("REVERSE_SYNC");
+        completedFailback.setFailedComponent("ftctl");
+        Mockito.when(drFailbackSessionDao.findLatestActiveByPlanId(PLAN_ID)).thenReturn(completedFailback);
         Mockito.when(drReplicaDao.listActiveByPlanId(PLAN_ID)).thenReturn(Collections.emptyList());
         Mockito.when(drEventDao.listRecentByPlanId(PLAN_ID, 20, false)).thenReturn(Collections.emptyList());
         Mockito.when(drPlanViewCacheDao.persist(ArgumentMatchers.any(DrPlanViewCacheVO.class)))
@@ -124,7 +135,7 @@ public class DrProtectionViewServiceImplTest {
         DrPlanViewCacheVO cache = service.rebuildProtectionView(PLAN_ID);
         JsonObject snapshot = JsonParser.parseString(cache.getSnapshotJson()).getAsJsonObject();
 
-        Assert.assertEquals(8, cache.getSnapshotVersion());
+        Assert.assertEquals(11, cache.getSnapshotVersion());
         Assert.assertTrue(snapshot.has("planProjection"));
         Assert.assertTrue(snapshot.getAsJsonObject("planProjection")
                 .getAsJsonObject("actioneligibility").get("testFailover").getAsBoolean());
@@ -135,6 +146,12 @@ public class DrProtectionViewServiceImplTest {
                 snapshot.getAsJsonObject("currentProtectionRuntime").get("schedulerState").getAsString());
         Assert.assertEquals(380L,
                 snapshot.getAsJsonObject("currentProtectionRuntime").get("authoritySequence").getAsLong());
+        Assert.assertEquals(189L,
+                snapshot.getAsJsonObject("currentProtectionRuntime").get("transferCycleSequence").getAsLong());
+        Assert.assertEquals(4096L,
+                snapshot.getAsJsonObject("currentProtectionRuntime").get("transferPayloadBytes").getAsLong());
+        Assert.assertTrue(snapshot.getAsJsonObject("currentProtectionRuntime")
+                .get("completedCycleProjected").getAsBoolean());
         Assert.assertTrue(snapshot.get("currentSyncCycle").isJsonNull());
         Assert.assertEquals(189L,
                 snapshot.getAsJsonObject("latestCompletedSyncCycle").get("sequence").getAsLong());
@@ -144,6 +161,10 @@ public class DrProtectionViewServiceImplTest {
                 snapshot.getAsJsonObject("latestCompletedSyncCycle").get("nbdTeardownDurationMs").getAsLong());
         Assert.assertEquals("DRAINED",
                 snapshot.getAsJsonObject("currentProtectionRuntime").get("nbdTeardownState").getAsString());
+        Assert.assertFalse(snapshot.getAsJsonObject("failbackSession").has("failurePhase"));
+        Assert.assertFalse(snapshot.getAsJsonObject("failbackSession").has("failedComponent"));
+        Assert.assertFalse(snapshot.getAsJsonObject("failbackSession").has("errorCode"));
+        Assert.assertFalse(snapshot.getAsJsonObject("failbackSession").has("errorMessage"));
         Assert.assertEquals(snapshot.get("latestOperationRun"), snapshot.get("latestRun"));
     }
 }

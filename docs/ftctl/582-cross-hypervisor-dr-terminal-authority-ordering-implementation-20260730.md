@@ -1,5 +1,10 @@
 # Cross Hypervisor DR Terminal Authority Ordering
 
+> 2026-08-06 pre-terminal ordering correction:
+> [599-cross-hypervisor-dr-forward-cutover-commit-contract-and-authority-convergence-design-20260806.md](599-cross-hypervisor-dr-forward-cutover-commit-contract-and-authority-convergence-design-20260806.md)
+> is authoritative when the target VM is running but FTCTL ACK is not durable.
+> This document remains authoritative only after a committed cutover session exists.
+
 ## Purpose
 
 This document supplements the post-failover runtime and UI convergence design.

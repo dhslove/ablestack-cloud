@@ -1,5 +1,46 @@
 # Cross Hypervisor DR Full Stack Implementation Design
 
+> 2026-08-10 full-stack addendum: VMware CBT activation for a powered-on source
+> is an asynchronous configure -> run-snapshot activation -> per-disk evidence
+> flow. Cloud UI/API must not block, Agent remains transport-only, FTCTL owns
+> activation evidence, and existing Run/Step/Runtime DB rows carry projection.
+> See
+> `600-cross-hypervisor-dr-vmware-cbt-activation-convergence-design-20260810.md`.
+
+> 2026-08-06 normative forward cutover contract: document
+> [599](599-cross-hypervisor-dr-forward-cutover-commit-contract-and-authority-convergence-design-20260806.md)
+> is authoritative for UI/API/backend/Agent/FTCTL/DB ordering between target
+> power-on, engine authority ACK, and terminal TARGET promotion.
+
+> 2026-08-05 current route and terminal contract: document
+> [595](595-cross-hypervisor-dr-failback-route-contract-and-terminal-convergence-design-20260805.md)
+> is normative for Failback route typing, legacy normalization, Cloud-owned
+> lifecycle failure convergence, and the paired FTCTL v2 envelope.
+
+> 2026-08-05 live-worker correction: document
+> [594](594-cross-hypervisor-dr-live-worker-and-terminal-reconciliation-design-20260805.md)
+> is the current UI/API/backend/Agent/FTCTL/DB contract for post-dispatch
+> liveness, terminal reconciliation, and retry gating.
+
+> Normative live-runtime Failback preflight update (2026-08-04):
+> [592-cross-hypervisor-dr-failback-live-runtime-preflight-and-ux-convergence-design-20260804.md](592-cross-hypervisor-dr-failback-live-runtime-preflight-and-ux-convergence-design-20260804.md)
+> requires stage-separated Cloud/Agent/FTCTL/reverse-data readiness, treats
+> FTCTL power as projection-only, and forbids `force` from bypassing a missing
+> serving TARGET domain.
+>
+> Normative initial reverse Failback update (2026-08-04):
+> [591-cross-hypervisor-dr-failback-initial-reverse-seed-and-early-failure-convergence-design-20260804.md](591-cross-hypervisor-dr-failback-initial-reverse-seed-and-early-failure-convergence-design-20260804.md)
+> revision 2 governs operation-intent/data-mode separation, read-only reverse
+> preflight, first-error-wins convergence, and generation-1 reverse baseline
+> creation before any KVM-to-VMware authority transition.
+>
+> Normative target ownership and plan mutation update (2026-08-03):
+> [590-cross-hypervisor-dr-plan-async-mutation-and-target-resource-ownership-design-20260803.md](590-cross-hypervisor-dr-plan-async-mutation-and-target-resource-ownership-design-20260803.md)
+> governs primitive-only async mutation responses, UI accepted/terminal
+> lifecycle separation, transactional target resource claims, Agent live
+> observation, and FTCTL materialization manifest v2. Name/path-only reuse and
+> optimistic target power-state projection are superseded.
+
 > 2026-07-31 latest correction: FTCTL_DR standalone fence clear is removed.
 > Full-stack source-isolation preflight responsibilities are in document 587.
 
@@ -955,6 +996,15 @@ guest preparation, and typed transfer evidence.
 The implementation baseline is
 [588-cross-hypervisor-dr-bidirectional-incremental-replication-and-failback-data-contract-design-20260801.md](588-cross-hypervisor-dr-bidirectional-incremental-replication-and-failback-data-contract-design-20260801.md).
 
+## 2026-08-06 Failback Evidence Boundary Addendum
+
+The full-stack Failback path now includes an explicit evidence-publication
+boundary between reverse transfer and Cloud lifecycle commit. FTCTL publishes
+one Run/checkpoint evidence tuple, Agent maps it as typed data, Cloud persists it
+atomically, and only then may the lifecycle executor stop the KVM target. UI/API
+preflight also verifies that the installed runtime supports the required status
+contract. Document 596 is normative.
+
 ## 2026-07-31 Test Session And Async Acceptance Addendum
 
 Test Failover의 UI/API/backend/DB 계약은 문서 586으로 보강한다.
@@ -965,3 +1015,16 @@ obligation을 분리하고 terminal proof가 있는 세션은 soft-close한다.
 Agent/FTCTL에는 신규 action이 없으며 기존 typed terminal proof를 Cloud
 reconcile 증거로 사용한다. Protection View cache는 blocking reason을 포함하는
 version 8을 사용한다.
+
+## 2026-08-06 Failback Commit Envelope And Pre-Power Gate Addendum
+
+The full-stack Failback path requires a complete, persisted
+`FailbackCommitEnvelopeV1` before Cloud changes either VM power state.
+Reverse checkpoint/baseline generation is owned by FTCTL, while authority
+generation is read from the active committed Cloud cutover session; these
+values must never be substituted for one another.
+
+Cloud document 597 and qemu document 453 are normative for typed Agent fields,
+DB dispatch state, deterministic versus ambiguous error handling, FTCTL
+write-ahead journal, UI authority-consistency projection, and forward recovery
+of an already transferred Failback Run.

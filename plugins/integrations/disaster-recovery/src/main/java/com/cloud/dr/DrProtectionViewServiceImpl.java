@@ -51,7 +51,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 public class DrProtectionViewServiceImpl extends ManagerBase implements DrProtectionViewService {
-    private static final int SNAPSHOT_VERSION = 10;
+    private static final int SNAPSHOT_VERSION = 11;
     private static final int EVENT_LIMIT = 20;
     private static final Gson GSON = new GsonBuilder().setDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX").serializeNulls().create();
 
@@ -140,10 +140,11 @@ public class DrProtectionViewServiceImpl extends ManagerBase implements DrProtec
         snapshot.add("plan", typedJson(plan, DrPlanVO.class));
         snapshot.add("sourceSite", siteJson(drSiteDao.findById(plan.getSourceSiteId())));
         snapshot.add("targetSite", siteJson(drSiteDao.findById(plan.getTargetSiteId())));
-        snapshot.add("currentProtectionRuntime", protectionRuntimeJson(authority));
+        snapshot.add("currentProtectionRuntime",
+                protectionRuntimeJson(authority, currentSyncCycle, latestCompletedSyncCycle));
         DrFailbackSessionVO failbackSession = drFailbackSessionDao.findLatestActiveByPlanId(planId);
         snapshot.add("failbackSession", failbackSession == null ? JsonNull.INSTANCE
-                : typedJson(failbackSession, DrFailbackSessionVO.class));
+                : failbackSessionJson(failbackSession));
 
         JsonElement activeRunResponse = runJson(activeRun, activeRunSteps);
         JsonArray activeRunStepResponses = runStepJson(activeRunSteps);
@@ -253,7 +254,8 @@ public class DrProtectionViewServiceImpl extends ManagerBase implements DrProtec
         return candidate;
     }
 
-    private JsonElement protectionRuntimeJson(DrProtectionAuthoritySnapshot authority) {
+    private JsonElement protectionRuntimeJson(DrProtectionAuthoritySnapshot authority,
+            DrSyncCycleVO currentSyncCycle, DrSyncCycleVO latestCompletedSyncCycle) {
         if (authority == null || authority.getRuntime() == null) {
             return JsonNull.INSTANCE;
         }
@@ -283,6 +285,31 @@ public class DrProtectionViewServiceImpl extends ManagerBase implements DrProtec
         json.addProperty("ownerMatched", runtime.isOwnerMatched());
         json.addProperty("replicationActivity", runtime.getReplicationActivityState());
         json.addProperty("workerHeartbeatAt", formatDate(runtime.getWorkerHeartbeatAt()));
+        json.addProperty("workerIdentityState", runtime.getWorkerIdentityState());
+        json.addProperty("workerLivenessState", runtime.getWorkerLivenessState());
+        json.addProperty("transferActivityState", runtime.getTransferActivityState());
+        json.addProperty("transferPayloadBytes", runtime.getTransferPayloadBytes());
+        json.addProperty("transferProgressSchemaVersion", runtime.getTransferProgressSchemaVersion());
+        json.addProperty("transferCycleSequence", runtime.getTransferCycleSequence());
+        json.addProperty("transferSampleSequence", runtime.getTransferSampleSequence());
+        json.addProperty("transferPhase", runtime.getTransferPhase());
+        json.addProperty("transferMode", runtime.getTransferMode());
+        json.addProperty("transferBytesTotal", runtime.getTransferBytesTotal());
+        json.addProperty("transferBytesProcessed", runtime.getTransferBytesProcessed());
+        json.addProperty("transferSourceReadBytes", runtime.getTransferSourceReadBytes());
+        json.addProperty("transferTargetWrittenBytes", runtime.getTransferTargetWrittenBytes());
+        json.addProperty("transferVerifiedBytes", runtime.getTransferVerifiedBytes());
+        json.addProperty("transferPercent", runtime.getTransferPercent());
+        json.addProperty("transferThroughputBps", runtime.getTransferThroughputBps());
+        json.addProperty("transferEtaSeconds", runtime.getTransferEtaSeconds());
+        json.addProperty("transferCurrentDiskIndex", runtime.getTransferCurrentDiskIndex());
+        json.addProperty("transferDiskCount", runtime.getTransferDiskCount());
+        json.addProperty("transferProgressEstimated", runtime.getTransferProgressEstimated());
+        json.addProperty("transferProgressSampledAt", runtime.getTransferProgressSampledAt() != null
+                ? runtime.getTransferProgressSampledAt().getTime() : null);
+        json.addProperty("transferProgressStale", runtime.getTransferProgressStale());
+        json.addProperty("ownedProcessCount", runtime.getOwnedProcessCount());
+        json.addProperty("reconciliationState", runtime.getReconciliationState());
         json.addProperty("currentCycleSequence", runtime.getCurrentCycleSequence());
         json.addProperty("currentCycleState", runtime.getCurrentCycleState());
         json.addProperty("currentCycleMode", runtime.getCurrentCycleMode());
@@ -292,6 +319,46 @@ public class DrProtectionViewServiceImpl extends ManagerBase implements DrProtec
         json.addProperty("rpoAgeSeconds", runtime.getRpoAgeSeconds());
         json.addProperty("rpoOverdue", runtime.isRpoOverdue());
         copyRuntimeFields(runtime.getStatusJson(), json);
+        if (shouldProjectLatestCompletedCycle(runtime, currentSyncCycle, latestCompletedSyncCycle)) {
+            projectLatestCompletedCycle(json, latestCompletedSyncCycle);
+        }
+        return json;
+    }
+
+    private boolean shouldProjectLatestCompletedCycle(DrPlanRuntimeVO runtime,
+            DrSyncCycleVO currentSyncCycle, DrSyncCycleVO latestCompletedSyncCycle) {
+        return currentSyncCycle == null
+                && latestCompletedSyncCycle != null
+                && runtime.getLatestCompletedCycleSequence() != null
+                && runtime.getLatestCompletedCycleSequence().longValue() == latestCompletedSyncCycle.getSequence()
+                && StringUtils.equalsIgnoreCase(runtime.getReplicationActivityState(), "IDLE");
+    }
+
+    private void projectLatestCompletedCycle(JsonObject json, DrSyncCycleVO cycle) {
+        json.addProperty("transferActivityState", "IDLE");
+        json.addProperty("transferCycleSequence", cycle.getSequence());
+        json.addProperty("transferMode", cycle.getEffectiveMode());
+        json.addProperty("transferBytesTotal", cycle.getVirtualBytes());
+        json.addProperty("transferBytesProcessed", cycle.getTransferPayloadBytes());
+        json.addProperty("transferSourceReadBytes", cycle.getSourceReadBytes());
+        json.addProperty("transferTargetWrittenBytes", cycle.getTargetWrittenBytes());
+        json.addProperty("transferVerifiedBytes", cycle.getTargetWrittenBytes());
+        json.addProperty("transferPayloadBytes", cycle.getTransferPayloadBytes());
+        json.addProperty("transferPercent", 100);
+        json.addProperty("transferThroughputBps", cycle.getThroughputBps());
+        json.addProperty("transferEtaSeconds", 0L);
+        json.addProperty("completedCycleProjected", true);
+    }
+
+    private JsonElement failbackSessionJson(DrFailbackSessionVO session) {
+        JsonObject json = typedJson(session, DrFailbackSessionVO.class).getAsJsonObject();
+        if (StringUtils.equalsIgnoreCase(session.getState(), "COMPLETED")
+                && StringUtils.isBlank(session.getErrorCode())) {
+            json.remove("failurePhase");
+            json.remove("failedComponent");
+            json.remove("errorCode");
+            json.remove("errorMessage");
+        }
         return json;
     }
 
@@ -313,7 +380,9 @@ public class DrProtectionViewServiceImpl extends ManagerBase implements DrProtec
             copyField(source, target, "rollback_state", "rollbackState");
             copyField(source, target, "rollback_generation", "rollbackGeneration");
             copyField(source, target, "reverse_direction", "reverseDirection");
+            copyField(source, target, "replication_direction", "replicationDirection");
             copyField(source, target, "provider_pair", "providerPair");
+            copyField(source, target, "route_contract_version", "routeContractVersion");
             copyField(source, target, "baseline_generation", "reverseBaselineGeneration");
             copyField(source, target, "baseline_state", "reverseBaselineState");
             copyField(source, target, "tracker_state", "reverseTrackerState");

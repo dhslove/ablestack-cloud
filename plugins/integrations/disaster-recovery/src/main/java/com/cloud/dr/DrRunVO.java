@@ -113,6 +113,15 @@ public class DrRunVO implements InternalIdentity {
     @Column(name = "error_message", length = 4096)
     private String errorMessage;
 
+    @Column(name = "terminal_source")
+    private String terminalSource;
+
+    @Column(name = "terminal_version")
+    private Integer terminalVersion;
+
+    @Column(name = "terminal_authoritative")
+    private boolean terminalAuthoritative;
+
     @Column(name = "started")
     @Temporal(value = TemporalType.TIMESTAMP)
     private Date started;
@@ -238,6 +247,10 @@ public class DrRunVO implements InternalIdentity {
         return errorMessage;
     }
 
+    public String getTerminalSource() { return terminalSource; }
+    public Integer getTerminalVersion() { return terminalVersion; }
+    public boolean isTerminalAuthoritative() { return terminalAuthoritative; }
+
     public Date getStarted() {
         return started;
     }
@@ -337,6 +350,10 @@ public class DrRunVO implements InternalIdentity {
     public void setErrorMessage(String errorMessage) {
         this.errorMessage = errorMessage;
     }
+
+    public void setTerminalSource(String value) { terminalSource = value; }
+    public void setTerminalVersion(Integer value) { terminalVersion = value; }
+    public void setTerminalAuthoritative(boolean value) { terminalAuthoritative = value; }
 
     public void setStarted(Date started) {
         this.started = started;

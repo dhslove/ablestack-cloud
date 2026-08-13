@@ -72,6 +72,15 @@ public class DrReplicaDiskVO implements InternalIdentity {
     @Column(name = "details_json", length = 65535)
     private String detailsJson;
 
+    @Column(name = "target_claim_id")
+    private Long targetClaimId;
+
+    @Column(name = "artifact_uuid")
+    private String artifactUuid;
+
+    @Column(name = "locator_hash")
+    private String locatorHash;
+
     @Column(name = "created")
     @Temporal(value = TemporalType.TIMESTAMP)
     private Date created = new Date();
@@ -141,6 +150,10 @@ public class DrReplicaDiskVO implements InternalIdentity {
         return detailsJson;
     }
 
+    public Long getTargetClaimId() { return targetClaimId; }
+    public String getArtifactUuid() { return artifactUuid; }
+    public String getLocatorHash() { return locatorHash; }
+
     public Date getCreated() {
         return created;
     }
@@ -184,6 +197,10 @@ public class DrReplicaDiskVO implements InternalIdentity {
     public void setDetailsJson(String detailsJson) {
         this.detailsJson = detailsJson;
     }
+
+    public void setTargetClaimId(Long targetClaimId) { this.targetClaimId = targetClaimId; }
+    public void setArtifactUuid(String artifactUuid) { this.artifactUuid = artifactUuid; }
+    public void setLocatorHash(String locatorHash) { this.locatorHash = locatorHash; }
 
     public void markUpdated() {
         updated = new Date();

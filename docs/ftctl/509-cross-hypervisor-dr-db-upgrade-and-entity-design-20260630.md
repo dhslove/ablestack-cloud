@@ -1,5 +1,36 @@
 # Cross Hypervisor DR DB Upgrade And Entity Design
 
+> 2026-08-06 forward cutover commit storage correction: document
+> [599](599-cross-hypervisor-dr-forward-cutover-commit-contract-and-authority-convergence-design-20260806.md)
+> adds durable commit contract, attempt/hash, dispatch, and retry identity to the
+> Cutover Session without deleting prior failure history.
+
+> 2026-08-05 Failback route storage correction: document
+> [595](595-cross-hypervisor-dr-failback-route-contract-and-terminal-convergence-design-20260805.md)
+> keeps `replication_direction` and `provider_pair` as distinct domains and
+> adds indexed, restart-safe failure reconciliation without rewriting history.
+
+> 2026-08-05 live-worker correction: document
+> [594](594-cross-hypervisor-dr-live-worker-and-terminal-reconciliation-design-20260805.md)
+> defines reconciliation, heartbeat, payload, terminal-source, and revision
+> columns plus guarded upgrade requirements.
+
+> 2026-08-04 normative runtime-observation storage update:
+> [592-cross-hypervisor-dr-failback-live-runtime-preflight-and-ux-convergence-design-20260804.md](592-cross-hypervisor-dr-failback-live-runtime-preflight-and-ux-convergence-design-20260804.md)
+> keeps committed authority rows immutable during read-only preflight and uses
+> versioned `dr_plan_view_cache.snapshot_json`, deduplicated `dr_event`, and
+> action-owned `dr_run_step` evidence without adding a new table.
+>
+> 2026-08-04 normative Failback evidence update:
+> Document 591 revision 2 adds queryable reverse mode and preflight evidence to
+> `dr_failback_session`; direction/provider pair are committed before Agent
+> dispatch and per-cycle bytes remain in `dr_sync_cycle`.
+>
+> 2026-08-03 normative schema update:
+> [590-cross-hypervisor-dr-plan-async-mutation-and-target-resource-ownership-design-20260803.md](590-cross-hypervisor-dr-plan-async-mutation-and-target-resource-ownership-design-20260803.md)
+> adds the active target resource claim model, ownership generation, materialization
+> digest, and collision-safe backfill rules.
+
 작성일: 2026-06-30
 
 대상 브랜치: `feature/ftctl-cloud-integration`
@@ -1279,6 +1310,15 @@ backfill 기준은 문서 581을 따른다.
 `required = checkpoint_sequence + 1`을 사용하며 terminal 완료 시
 `post_failback_checkpoint_sequence >= required`를 만족해야 한다. DDL과 migration
 guard는 문서 583을 따른다.
+
+## 2026-08-06 Failback Evidence Persistence Addendum
+
+The existing `dr_failback_session` durability columns are the canonical Cloud
+projection of FTCTL reverse evidence. No new table or migration is required for
+the publication correction. Session state `DATA_EVIDENCE_PENDING`, existing
+probe timestamps, details JSON, and Run status JSON make bounded asynchronous
+reconciliation restart-safe. The lifecycle gate may pass only after all
+mandatory evidence columns are atomically populated. See document 596.
 
 ## 2026-07-30 Action Availability Cache Addendum
 

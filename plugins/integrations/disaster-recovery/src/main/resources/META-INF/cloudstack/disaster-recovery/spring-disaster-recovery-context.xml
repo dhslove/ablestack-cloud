@@ -43,6 +43,7 @@
     <bean id="drRestorePointArtifactDaoImpl" class="com.cloud.dr.dao.DrRestorePointArtifactDaoImpl"/>
     <bean id="drReplicaDaoImpl" class="com.cloud.dr.dao.DrReplicaDaoImpl"/>
     <bean id="drReplicaDiskDaoImpl" class="com.cloud.dr.dao.DrReplicaDiskDaoImpl"/>
+    <bean id="drTargetResourceClaimDaoImpl" class="com.cloud.dr.dao.DrTargetResourceClaimDaoImpl"/>
     <bean id="drRunDaoImpl" class="com.cloud.dr.dao.DrRunDaoImpl"/>
     <bean id="drRunStepDaoImpl" class="com.cloud.dr.dao.DrRunStepDaoImpl"/>
     <bean id="drEventDaoImpl" class="com.cloud.dr.dao.DrEventDaoImpl"/>
@@ -77,6 +78,7 @@
     <bean id="drProjectionScheduler" class="com.cloud.dr.DrProjectionScheduler"/>
     <bean id="drSchedulerRecoveryScheduler" class="com.cloud.dr.DrSchedulerRecoveryScheduler"/>
     <bean id="drTargetMaterializationServiceImpl" class="com.cloud.dr.DrTargetMaterializationServiceImpl"/>
+    <bean id="drTargetResourceOwnershipService" class="com.cloud.dr.DrTargetResourceOwnershipService"/>
     <bean id="drFailbackLifecycleServiceImpl" class="com.cloud.dr.DrFailbackLifecycleServiceImpl"/>
     <bean id="drOrchestratorImpl" class="com.cloud.dr.orchestrator.DrOrchestratorImpl"/>
     <bean id="drProtectionOrchestratorImpl" class="com.cloud.dr.orchestrator.DrProtectionOrchestratorImpl"/>

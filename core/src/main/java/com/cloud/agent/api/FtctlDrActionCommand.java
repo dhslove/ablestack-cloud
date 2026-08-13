@@ -21,7 +21,7 @@ import java.util.Map;
 
 public class FtctlDrActionCommand extends Command {
 
-    public static final String ACTION_CONTRACT_VERSION = "2026-07-27";
+    public static final String ACTION_CONTRACT_VERSION = "2026-08-06";
 
     public enum Action {
         SYNC("dr-sync-start"),
@@ -37,6 +37,7 @@ public class FtctlDrActionCommand extends Command {
         REPROTECT("dr-reprotect"),
         TARGET_MATERIALIZED("dr-target-materialized"),
         CUTOVER_COMMIT("dr-cutover-commit"),
+        CUTOVER_COMMIT_STATUS("dr-cutover-commit-status"),
         FAILOVER_ABORT("dr-failover-abort"),
         FAILBACK_COMMIT("dr-failback-commit"),
         FAILBACK_COMMIT_STATUS("dr-failback-commit-status"),
@@ -81,6 +82,31 @@ public class FtctlDrActionCommand extends Command {
     private Long resumeBaselineCheckpointSequence;
     private Long minimumCompletedCheckpointSequence;
     private boolean forceImmediateCycle;
+    private String cutoverCommitContractVersion;
+    private String cutoverEngineSessionId;
+    private String cutoverCloudSessionId;
+    private Long cutoverCheckpointSequence;
+    private String cutoverManifestSha256;
+    private Long cutoverAuthorityGeneration;
+    private String cutoverCommitAttemptId;
+    private String cutoverCommitEnvelopeSha256;
+    private Long cutoverTargetVmId;
+    private String cutoverTargetExternalRef;
+    private String cutoverTargetPowerState;
+    private String cutoverBootValidationState;
+    private String cutoverSourceFenceState;
+    private String cutoverSourcePowerState;
+    private String failbackCommitContractVersion;
+    private String failbackSessionId;
+    private Long failbackCheckpointSequence;
+    private Long failbackAuthorityGeneration;
+    private Long failbackBaselineGeneration;
+    private String failbackEvidenceRunUuid;
+    private String failbackCommitAttemptId;
+    private String failbackCommitEnvelopeSha256;
+    private String failbackTargetPowerState;
+    private String failbackSourcePowerState;
+    private String failbackBootValidationState;
     @Deprecated
     private Long restorePointId;
     private boolean force;
@@ -287,6 +313,58 @@ public class FtctlDrActionCommand extends Command {
     public void setForceImmediateCycle(boolean forceImmediateCycle) {
         this.forceImmediateCycle = forceImmediateCycle;
     }
+
+    public String getCutoverCommitContractVersion() { return cutoverCommitContractVersion; }
+    public void setCutoverCommitContractVersion(String value) { cutoverCommitContractVersion = value; }
+    public String getCutoverEngineSessionId() { return cutoverEngineSessionId; }
+    public void setCutoverEngineSessionId(String value) { cutoverEngineSessionId = value; }
+    public String getCutoverCloudSessionId() { return cutoverCloudSessionId; }
+    public void setCutoverCloudSessionId(String value) { cutoverCloudSessionId = value; }
+    public Long getCutoverCheckpointSequence() { return cutoverCheckpointSequence; }
+    public void setCutoverCheckpointSequence(Long value) { cutoverCheckpointSequence = value; }
+    public String getCutoverManifestSha256() { return cutoverManifestSha256; }
+    public void setCutoverManifestSha256(String value) { cutoverManifestSha256 = value; }
+    public Long getCutoverAuthorityGeneration() { return cutoverAuthorityGeneration; }
+    public void setCutoverAuthorityGeneration(Long value) { cutoverAuthorityGeneration = value; }
+    public String getCutoverCommitAttemptId() { return cutoverCommitAttemptId; }
+    public void setCutoverCommitAttemptId(String value) { cutoverCommitAttemptId = value; }
+    public String getCutoverCommitEnvelopeSha256() { return cutoverCommitEnvelopeSha256; }
+    public void setCutoverCommitEnvelopeSha256(String value) { cutoverCommitEnvelopeSha256 = value; }
+    public Long getCutoverTargetVmId() { return cutoverTargetVmId; }
+    public void setCutoverTargetVmId(Long value) { cutoverTargetVmId = value; }
+    public String getCutoverTargetExternalRef() { return cutoverTargetExternalRef; }
+    public void setCutoverTargetExternalRef(String value) { cutoverTargetExternalRef = value; }
+    public String getCutoverTargetPowerState() { return cutoverTargetPowerState; }
+    public void setCutoverTargetPowerState(String value) { cutoverTargetPowerState = value; }
+    public String getCutoverBootValidationState() { return cutoverBootValidationState; }
+    public void setCutoverBootValidationState(String value) { cutoverBootValidationState = value; }
+    public String getCutoverSourceFenceState() { return cutoverSourceFenceState; }
+    public void setCutoverSourceFenceState(String value) { cutoverSourceFenceState = value; }
+    public String getCutoverSourcePowerState() { return cutoverSourcePowerState; }
+    public void setCutoverSourcePowerState(String value) { cutoverSourcePowerState = value; }
+
+    public String getFailbackCommitContractVersion() { return failbackCommitContractVersion; }
+    public void setFailbackCommitContractVersion(String value) { failbackCommitContractVersion = value; }
+    public String getFailbackSessionId() { return failbackSessionId; }
+    public void setFailbackSessionId(String value) { failbackSessionId = value; }
+    public Long getFailbackCheckpointSequence() { return failbackCheckpointSequence; }
+    public void setFailbackCheckpointSequence(Long value) { failbackCheckpointSequence = value; }
+    public Long getFailbackAuthorityGeneration() { return failbackAuthorityGeneration; }
+    public void setFailbackAuthorityGeneration(Long value) { failbackAuthorityGeneration = value; }
+    public Long getFailbackBaselineGeneration() { return failbackBaselineGeneration; }
+    public void setFailbackBaselineGeneration(Long value) { failbackBaselineGeneration = value; }
+    public String getFailbackEvidenceRunUuid() { return failbackEvidenceRunUuid; }
+    public void setFailbackEvidenceRunUuid(String value) { failbackEvidenceRunUuid = value; }
+    public String getFailbackCommitAttemptId() { return failbackCommitAttemptId; }
+    public void setFailbackCommitAttemptId(String value) { failbackCommitAttemptId = value; }
+    public String getFailbackCommitEnvelopeSha256() { return failbackCommitEnvelopeSha256; }
+    public void setFailbackCommitEnvelopeSha256(String value) { failbackCommitEnvelopeSha256 = value; }
+    public String getFailbackTargetPowerState() { return failbackTargetPowerState; }
+    public void setFailbackTargetPowerState(String value) { failbackTargetPowerState = value; }
+    public String getFailbackSourcePowerState() { return failbackSourcePowerState; }
+    public void setFailbackSourcePowerState(String value) { failbackSourcePowerState = value; }
+    public String getFailbackBootValidationState() { return failbackBootValidationState; }
+    public void setFailbackBootValidationState(String value) { failbackBootValidationState = value; }
 
     public Long getRestorePointId() {
         return restorePointId;

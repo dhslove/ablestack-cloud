@@ -62,7 +62,7 @@
       </template>
     </a-alert>
 
-    <dr-run-progress v-if="showProtectionSummary && isActiveRun(currentRun)" :run="currentRun" />
+    <dr-run-progress v-if="showProtectionSummary && isActiveRun(currentRun)" :run="currentRun" :runtime="runtime" />
   </div>
 </template>
 
@@ -106,6 +106,10 @@ export default {
       type: Object,
       default: () => ({})
     },
+    runtime: {
+      type: Object,
+      default: () => ({})
+    },
     showDetails: {
       type: Boolean,
       default: true
@@ -145,7 +149,7 @@ export default {
         { key: 'sourceDiskMapPath', label: this.$t('label.dr.source.disk.map'), value: this.plan.sourcediskmappath || this.currentRun.sourcediskmappath },
         { key: 'targetDiskMapPath', label: this.$t('label.dr.target.disk.map'), value: this.plan.targetdiskmappath || this.currentRun.targetdiskmappath },
         { key: 'targetDiskInvalidCount', label: this.$t('label.dr.target.disk.invalid.count'), value: this.firstDefined(this.plan.targetdiskinvalidcount, this.currentRun.targetdiskinvalidcount) },
-        { key: 'runtimeCbtEnabled', label: this.$t('label.dr.cbt.status'), value: this.booleanLabel(this.firstDefined(this.plan.runtimecbtenabled, this.currentRun.runtimecbtenabled)) },
+        { key: 'runtimeCbtLifecycleState', label: this.$t('label.dr.cbt.status'), value: this.cbtStateLabel(this.firstDefined(this.plan.runtimecbtlifecyclestate, this.currentRun.runtimecbtlifecyclestate)) },
         { key: 'runtimeCbtDiskId', label: this.$t('label.dr.cbt.disk.id'), value: this.plan.runtimecbtdiskid || this.currentRun.runtimecbtdiskid },
         { key: 'runtimeCbtMessage', label: this.$t('label.dr.cbt.message'), value: this.plan.runtimecbtmessage || this.currentRun.runtimecbtmessage },
         { key: 'runtimeSourceOpenReady', label: this.$t('label.dr.source.open.status'), value: this.booleanLabel(this.firstDefined(this.plan.runtimesourceopenready, this.currentRun.runtimesourceopenready)) },
@@ -300,6 +304,16 @@ export default {
         return this.$t('label.no')
       }
       return '-'
+    },
+    cbtStateLabel (value) {
+      const state = String(value || '').toUpperCase()
+      const key = {
+        ACTIVE: 'label.dr.cbt.active',
+        CONFIGURED_PENDING_ACTIVATION: 'label.dr.cbt.pending.activation',
+        CONFIG_REQUIRED: 'label.dr.cbt.configuration.required',
+        ERROR: 'label.error'
+      }[state]
+      return key ? this.$t(key) : (value || '-')
     },
     firstDefined (...values) {
       return values.find(value => value !== undefined && value !== null && value !== '') ?? '-'

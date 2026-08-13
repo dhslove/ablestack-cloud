@@ -75,6 +75,21 @@ public class DrPlanActionAvailabilityEvaluatorTest {
                 result.get("sync").getReasonCode());
     }
 
+    @Test
+    public void runtimeReconciliationBlocksMutationsWithTypedReason() {
+        DrPlanActionAvailabilityContext context = baseContext();
+        context.sourceAuthority = true;
+        context.runtimeReconciliationRequired = true;
+        Map<String, Boolean> eligibility = eligibility();
+
+        Map<String, DrActionAvailability> result = evaluator.evaluate(eligibility, context);
+
+        Assert.assertEquals(DrPlanActionAvailabilityEvaluator.RUNTIME_RECONCILIATION_REQUIRED,
+                result.get("sync").getReasonCode());
+        Assert.assertEquals(DrPlanActionAvailabilityEvaluator.RUNTIME_RECONCILIATION_REQUIRED,
+                result.get("update").getReasonCode());
+    }
+
     private DrPlanActionAvailabilityContext baseContext() {
         DrPlanActionAvailabilityContext context = new DrPlanActionAvailabilityContext();
         context.planEnabled = true;

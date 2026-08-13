@@ -20,6 +20,7 @@ public interface DrCutoverSessionDao extends GenericDao<DrCutoverSessionVO, Long
     DrCutoverSessionVO findActiveByRunId(long runId);
     DrCutoverSessionVO findLatestActiveByPlanId(long planId);
     DrCutoverSessionVO findCurrentAuthorityByPlanId(long planId);
+    DrCutoverSessionVO findCommittedTargetAuthorityByPlanId(long planId);
     DrCutoverSessionVO findLatestByPlanId(long planId);
     List<DrCutoverSessionVO> listHistoryByPlanId(long planId);
 }

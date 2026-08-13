@@ -29,6 +29,7 @@ public class DrReplicaDiskDaoImpl extends GenericDaoBase<DrReplicaDiskVO, Long> 
 
     private final SearchBuilder<DrReplicaDiskVO> activeByReplicaSearch;
     private final SearchBuilder<DrReplicaDiskVO> activeByReplicaAndSourceVolumeSearch;
+    private final SearchBuilder<DrReplicaDiskVO> byTargetVolumeSearch;
 
     public DrReplicaDiskDaoImpl() {
         activeByReplicaSearch = createSearchBuilder();
@@ -41,6 +42,10 @@ public class DrReplicaDiskDaoImpl extends GenericDaoBase<DrReplicaDiskVO, Long> 
         activeByReplicaAndSourceVolumeSearch.and("sourceVolumeId", activeByReplicaAndSourceVolumeSearch.entity().getSourceVolumeId(), SearchCriteria.Op.EQ);
         activeByReplicaAndSourceVolumeSearch.and("removed", activeByReplicaAndSourceVolumeSearch.entity().getRemoved(), SearchCriteria.Op.NULL);
         activeByReplicaAndSourceVolumeSearch.done();
+
+        byTargetVolumeSearch = createSearchBuilder();
+        byTargetVolumeSearch.and("targetVolumeId", byTargetVolumeSearch.entity().getTargetVolumeId(), SearchCriteria.Op.EQ);
+        byTargetVolumeSearch.done();
     }
 
     @Override
@@ -56,5 +61,12 @@ public class DrReplicaDiskDaoImpl extends GenericDaoBase<DrReplicaDiskVO, Long> 
         sc.setParameters("replicaId", replicaId);
         sc.setParameters("sourceVolumeId", sourceVolumeId);
         return findOneBy(sc);
+    }
+
+    @Override
+    public List<DrReplicaDiskVO> listByTargetVolumeId(long targetVolumeId) {
+        SearchCriteria<DrReplicaDiskVO> sc = byTargetVolumeSearch.create();
+        sc.setParameters("targetVolumeId", targetVolumeId);
+        return listBy(sc);
     }
 }

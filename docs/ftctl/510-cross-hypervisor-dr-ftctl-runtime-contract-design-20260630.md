@@ -1,5 +1,35 @@
 # Cross Hypervisor DR FTCTL Runtime Contract Design
 
+> 2026-08-06 forward cutover commit V2 correction: Cloud document
+> [599](599-cross-hypervisor-dr-forward-cutover-commit-contract-and-authority-convergence-design-20260806.md)
+> and FTCTL document 455 define the typed envelope, distinct Cloud/engine session
+> identities, durable journal, and idempotent commit-status recovery.
+
+> 2026-08-05 route-contract v2 correction: Cloud document
+> [595](595-cross-hypervisor-dr-failback-route-contract-and-terminal-convergence-design-20260805.md)
+> and FTCTL document 452 publish topology direction and provider pair as
+> separate fields while retaining a normalized legacy alias.
+
+> 2026-08-05 live-worker correction: document
+> [594](594-cross-hypervisor-dr-live-worker-and-terminal-reconciliation-design-20260805.md)
+> and FTCTL document 451 replace shared mutable worker state with typed,
+> owner-specific evidence and a pure status merge.
+
+> 2026-08-04 normative live-observation boundary update:
+> Cloud document 592 and qemu document 449 define FTCTL power fields as
+> projection-only, keep live KVM power under Mold Agent authority, and require
+> a live source domain before KVM-to-VMware reverse data preflight can pass.
+>
+> 2026-08-04 normative initial reverse seed update:
+> Cloud document 591 revision 2 and qemu document 448 revision 2 require a
+> baseline-aware `AUTO` selector and read-only reverse preflight. The
+> `failback-final` operation intent must not force `REVERSE_FINAL`.
+>
+> 2026-08-03 normative target materialization update:
+> Cloud document 590 and qemu document 447 require a versioned ownership
+> manifest, Agent-observed power/disk state, and monotonic generation/digest
+> validation before FTCTL records target READY.
+
 > 2026-07-31 latest correction: FTCTL_DR uses read-only transition preflight
 > and no standalone fence-clear mutation. See Cloud 587 and qemu 444.
 
@@ -736,6 +766,17 @@ Runtime contract additions:
 - Exit 77 maps to `DR_VMWARE_CBT_DISABLED`.
 - Exit 78 maps to `DR_VMWARE_CBT_ENABLE_FAILED`.
 - Exit 79 maps to `DR_VMWARE_CBT_VERIFY_FAILED`.
+
+### 2026-08-10 VMware CBT activation evidence update
+
+Exit 79 is retained for compatibility, but a powered-on source VM must no
+longer fail solely because `config.changeTrackingEnabled` remains false after
+ExtraConfig is saved. Live preflight proved operational CBT through CTK files,
+a per-disk change ID, and successful `QueryChangedDiskAreas` while that VM-level
+signal remained false. New implementations use the normal run snapshot as the
+activation boundary and require evidence for every selected disk. The complete
+runtime, retry, cleanup, and projection contract is defined in
+`600-cross-hypervisor-dr-vmware-cbt-activation-convergence-design-20260810.md`.
 - Exit 80 maps to `DR_VMWARE_CBT_DISK_ID_UNRESOLVED`.
 - Exit 84 maps to `DR_VMWARE_CBT_SNAPSHOT_CONFLICT`.
 - Exit 72 remains `DR_VMWARE_MOVER_SOURCE_GRAPH_INVALID`.
@@ -1025,6 +1066,15 @@ evidence, reverse guest preparation, and isolated target boot validation.
 Cloud must reject Failback when only lifecycle evidence exists. The normative
 Cloud contract is
 [588-cross-hypervisor-dr-bidirectional-incremental-replication-and-failback-data-contract-design-20260801.md](588-cross-hypervisor-dr-bidirectional-incremental-replication-and-failback-data-contract-design-20260801.md).
+
+## 2026-08-06 Reverse Durable Evidence Publication Addendum
+
+`FAILBACK_DATA_READY` is not sufficient by itself. FTCTL must publish the
+complete typed reverse evidence tuple defined by document 596. Agent and Cloud
+must reject an unsupported evidence contract before dispatch, and Cloud must
+persist the complete tuple before target shutdown or source startup. A short
+publication delay is reconciled asynchronously; missing evidence is not
+classified as an explicitly non-durable baseline.
 
 ## 2026-07-31 Test Session Reconcile Boundary Addendum
 

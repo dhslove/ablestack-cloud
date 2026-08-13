@@ -19,8 +19,8 @@ public class DrFailbackDataGateServiceImplTest {
         plan = new DrPlanVO("plan", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
         run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_FAILBACK);
         session = new DrFailbackSessionVO(plan.getId(), 1L, "engine-session", "DATA_READY");
-        session.setReplicationDirection("ABLESTACK_TO_VMWARE");
-        session.setProviderPair("ABLESTACK_TO_VMWARE");
+        session.setReplicationDirection(DrConstants.DIRECTION_KVM_TO_VMWARE);
+        session.setProviderPair(DrConstants.PROVIDER_PAIR_ABLESTACK_TO_VMWARE);
         session.setBaselineGeneration(2L);
         session.setBaselineState("LOCAL_DURABLE");
         session.setTrackerState("LOCAL_DURABLE");
@@ -45,10 +45,24 @@ public class DrFailbackDataGateServiceImplTest {
 
     @Test
     public void blocksForwardDirectionEvidence() {
-        session.setReplicationDirection("VMWARE_TO_ABLESTACK");
+        session.setReplicationDirection(DrConstants.DIRECTION_VMWARE_TO_KVM);
         DrFailbackDataGateResult result = service.validate(plan, run, session);
         Assert.assertFalse(result.isReady());
-        Assert.assertEquals("DR_FAILBACK_DIRECTION_MISMATCH", result.getErrorCode());
+        Assert.assertEquals("DR_FAILBACK_ROUTE_DIRECTION_INVALID", result.getErrorCode());
+    }
+
+    @Test
+    public void blocksForwardProviderEvidence() {
+        session.setProviderPair(DrConstants.PROVIDER_PAIR_VMWARE_TO_ABLESTACK);
+        DrFailbackDataGateResult result = service.validate(plan, run, session);
+        Assert.assertFalse(result.isReady());
+        Assert.assertEquals("DR_FAILBACK_ROUTE_PROVIDER_INVALID", result.getErrorCode());
+    }
+
+    @Test
+    public void acceptsLegacyProviderStyleDirection() {
+        session.setReplicationDirection(DrConstants.PROVIDER_PAIR_ABLESTACK_TO_VMWARE);
+        Assert.assertTrue(service.validate(plan, run, session).isReady());
     }
 
     @Test
@@ -56,6 +70,18 @@ public class DrFailbackDataGateServiceImplTest {
         session.setGuestCompatibilityState(null);
         DrFailbackDataGateResult result = service.validate(plan, run, session);
         Assert.assertFalse(result.isReady());
-        Assert.assertEquals("DR_FAILBACK_GUEST_COMPATIBILITY_NOT_READY", result.getErrorCode());
+        Assert.assertEquals("DR_FAILBACK_DATA_EVIDENCE_INCOMPLETE", result.getErrorCode());
+    }
+
+    @Test
+    public void distinguishesMissingBaselineFromNonDurableBaseline() {
+        session.setBaselineGeneration(null);
+        Assert.assertEquals("DR_FAILBACK_DATA_EVIDENCE_INCOMPLETE",
+                service.validate(plan, run, session).getErrorCode());
+
+        session.setBaselineGeneration(2L);
+        session.setBaselineState("INVALID");
+        Assert.assertEquals("DR_FAILBACK_BASELINE_NOT_DURABLE",
+                service.validate(plan, run, session).getErrorCode());
     }
 }

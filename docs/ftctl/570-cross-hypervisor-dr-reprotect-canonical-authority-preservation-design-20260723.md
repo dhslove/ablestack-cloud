@@ -666,3 +666,12 @@ plans without a baseline, the first Reprotect operation is explicitly
 
 The full cross-layer contract is
 [588-cross-hypervisor-dr-bidirectional-incremental-replication-and-failback-data-contract-design-20260801.md](588-cross-hypervisor-dr-bidirectional-incremental-replication-and-failback-data-contract-design-20260801.md).
+
+## 17. 2026-08-06 Forward Target Locator Reuse Addendum
+
+Reprotect after Failback must reuse the target-volume and storage-pool identity
+that Cloud materialized for initial protection. `targetDiskRef` is not a
+transport locator. Cloud supplies a versioned target descriptor and FTCTL
+derives the librbd sync URI and krbd runtime path. Document 598 is normative
+for the UI/API/backend/Agent/DB contract; FTCTL document 454 defines the engine
+implementation.

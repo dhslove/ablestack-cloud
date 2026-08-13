@@ -86,6 +86,71 @@ public class DrPlanRuntimeVO implements InternalIdentity {
     private boolean ownerMatched;
     @Column(name = "worker_state")
     private String workerState;
+    @Column(name = "worker_identity_state")
+    private String workerIdentityState;
+    @Column(name = "worker_liveness_state")
+    private String workerLivenessState;
+    @Column(name = "worker_launch_nonce")
+    private String workerLaunchNonce;
+    @Column(name = "worker_generation")
+    private Long workerGeneration;
+    @Column(name = "transfer_activity_state")
+    private String transferActivityState;
+    @Column(name = "transfer_payload_bytes")
+    private Long transferPayloadBytes;
+    @Column(name = "transfer_progress_schema_version")
+    private Integer transferProgressSchemaVersion;
+    @Column(name = "transfer_cycle_sequence")
+    private Long transferCycleSequence;
+    @Column(name = "transfer_sample_sequence")
+    private Long transferSampleSequence;
+    @Column(name = "transfer_phase")
+    private String transferPhase;
+    @Column(name = "transfer_mode")
+    private String transferMode;
+    @Column(name = "transfer_bytes_total")
+    private Long transferBytesTotal;
+    @Column(name = "transfer_bytes_processed")
+    private Long transferBytesProcessed;
+    @Column(name = "transfer_source_read_bytes")
+    private Long transferSourceReadBytes;
+    @Column(name = "transfer_target_written_bytes")
+    private Long transferTargetWrittenBytes;
+    @Column(name = "transfer_verified_bytes")
+    private Long transferVerifiedBytes;
+    @Column(name = "transfer_percent")
+    private Double transferPercent;
+    @Column(name = "transfer_throughput_bps")
+    private Long transferThroughputBps;
+    @Column(name = "transfer_eta_seconds")
+    private Long transferEtaSeconds;
+    @Column(name = "transfer_current_disk_index")
+    private Integer transferCurrentDiskIndex;
+    @Column(name = "transfer_disk_count")
+    private Integer transferDiskCount;
+    @Column(name = "transfer_progress_estimated")
+    private Boolean transferProgressEstimated;
+    @Column(name = "transfer_progress_sampled_at")
+    @Temporal(TemporalType.TIMESTAMP)
+    private Date transferProgressSampledAt;
+    @Column(name = "transfer_progress_stale")
+    private Boolean transferProgressStale;
+    @Column(name = "owned_process_count")
+    private int ownedProcessCount;
+    @Column(name = "runtime_endpoints_drained")
+    private boolean runtimeEndpointsDrained;
+    @Column(name = "reconciliation_state")
+    private String reconciliationState;
+    @Column(name = "reconciliation_run_uuid")
+    private String reconciliationRunUuid;
+    @Column(name = "reconciliation_checks")
+    private int reconciliationChecks;
+    @Column(name = "terminal_source")
+    private String terminalSource;
+    @Column(name = "terminal_version")
+    private Integer terminalVersion;
+    @Column(name = "terminal_authoritative")
+    private boolean terminalAuthoritative;
     @Column(name = "current_cycle_sequence")
     private Long currentCycleSequence;
     @Column(name = "current_cycle_state")
@@ -185,6 +250,38 @@ public class DrPlanRuntimeVO implements InternalIdentity {
     public String getControlRequestRunUuid() { return controlRequestRunUuid; }
     public boolean isOwnerMatched() { return ownerMatched; }
     public String getWorkerState() { return workerState; }
+    public String getWorkerIdentityState() { return workerIdentityState; }
+    public String getWorkerLivenessState() { return workerLivenessState; }
+    public String getWorkerLaunchNonce() { return workerLaunchNonce; }
+    public Long getWorkerGeneration() { return workerGeneration; }
+    public String getTransferActivityState() { return transferActivityState; }
+    public Long getTransferPayloadBytes() { return transferPayloadBytes; }
+    public Integer getTransferProgressSchemaVersion() { return transferProgressSchemaVersion; }
+    public Long getTransferCycleSequence() { return transferCycleSequence; }
+    public Long getTransferSampleSequence() { return transferSampleSequence; }
+    public String getTransferPhase() { return transferPhase; }
+    public String getTransferMode() { return transferMode; }
+    public Long getTransferBytesTotal() { return transferBytesTotal; }
+    public Long getTransferBytesProcessed() { return transferBytesProcessed; }
+    public Long getTransferSourceReadBytes() { return transferSourceReadBytes; }
+    public Long getTransferTargetWrittenBytes() { return transferTargetWrittenBytes; }
+    public Long getTransferVerifiedBytes() { return transferVerifiedBytes; }
+    public Double getTransferPercent() { return transferPercent; }
+    public Long getTransferThroughputBps() { return transferThroughputBps; }
+    public Long getTransferEtaSeconds() { return transferEtaSeconds; }
+    public Integer getTransferCurrentDiskIndex() { return transferCurrentDiskIndex; }
+    public Integer getTransferDiskCount() { return transferDiskCount; }
+    public Boolean getTransferProgressEstimated() { return transferProgressEstimated; }
+    public Date getTransferProgressSampledAt() { return transferProgressSampledAt; }
+    public Boolean getTransferProgressStale() { return transferProgressStale; }
+    public int getOwnedProcessCount() { return ownedProcessCount; }
+    public boolean isRuntimeEndpointsDrained() { return runtimeEndpointsDrained; }
+    public String getReconciliationState() { return reconciliationState; }
+    public String getReconciliationRunUuid() { return reconciliationRunUuid; }
+    public int getReconciliationChecks() { return reconciliationChecks; }
+    public String getTerminalSource() { return terminalSource; }
+    public Integer getTerminalVersion() { return terminalVersion; }
+    public boolean isTerminalAuthoritative() { return terminalAuthoritative; }
     public Long getCurrentCycleSequence() { return currentCycleSequence; }
     public String getCurrentCycleState() { return currentCycleState; }
     public String getCurrentCycleMode() { return currentCycleMode; }
@@ -243,6 +340,38 @@ public class DrPlanRuntimeVO implements InternalIdentity {
     public void setControlRequestRunUuid(String value) { controlRequestRunUuid = value; }
     public void setOwnerMatched(boolean value) { ownerMatched = value; }
     public void setWorkerState(String value) { workerState = value; }
+    public void setWorkerIdentityState(String value) { workerIdentityState = value; }
+    public void setWorkerLivenessState(String value) { workerLivenessState = value; }
+    public void setWorkerLaunchNonce(String value) { workerLaunchNonce = value; }
+    public void setWorkerGeneration(Long value) { workerGeneration = value; }
+    public void setTransferActivityState(String value) { transferActivityState = value; }
+    public void setTransferPayloadBytes(Long value) { transferPayloadBytes = value; }
+    public void setTransferProgressSchemaVersion(Integer value) { transferProgressSchemaVersion = value; }
+    public void setTransferCycleSequence(Long value) { transferCycleSequence = value; }
+    public void setTransferSampleSequence(Long value) { transferSampleSequence = value; }
+    public void setTransferPhase(String value) { transferPhase = value; }
+    public void setTransferMode(String value) { transferMode = value; }
+    public void setTransferBytesTotal(Long value) { transferBytesTotal = value; }
+    public void setTransferBytesProcessed(Long value) { transferBytesProcessed = value; }
+    public void setTransferSourceReadBytes(Long value) { transferSourceReadBytes = value; }
+    public void setTransferTargetWrittenBytes(Long value) { transferTargetWrittenBytes = value; }
+    public void setTransferVerifiedBytes(Long value) { transferVerifiedBytes = value; }
+    public void setTransferPercent(Double value) { transferPercent = value; }
+    public void setTransferThroughputBps(Long value) { transferThroughputBps = value; }
+    public void setTransferEtaSeconds(Long value) { transferEtaSeconds = value; }
+    public void setTransferCurrentDiskIndex(Integer value) { transferCurrentDiskIndex = value; }
+    public void setTransferDiskCount(Integer value) { transferDiskCount = value; }
+    public void setTransferProgressEstimated(Boolean value) { transferProgressEstimated = value; }
+    public void setTransferProgressSampledAt(Date value) { transferProgressSampledAt = value; }
+    public void setTransferProgressStale(Boolean value) { transferProgressStale = value; }
+    public void setOwnedProcessCount(int value) { ownedProcessCount = value; }
+    public void setRuntimeEndpointsDrained(boolean value) { runtimeEndpointsDrained = value; }
+    public void setReconciliationState(String value) { reconciliationState = value; }
+    public void setReconciliationRunUuid(String value) { reconciliationRunUuid = value; }
+    public void setReconciliationChecks(int value) { reconciliationChecks = value; }
+    public void setTerminalSource(String value) { terminalSource = value; }
+    public void setTerminalVersion(Integer value) { terminalVersion = value; }
+    public void setTerminalAuthoritative(boolean value) { terminalAuthoritative = value; }
     public void setCurrentCycleSequence(Long value) { currentCycleSequence = value; }
     public void setCurrentCycleState(String value) { currentCycleState = value; }
     public void setCurrentCycleMode(String value) { currentCycleMode = value; }

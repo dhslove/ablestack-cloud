@@ -214,7 +214,7 @@ public class FtctlDrUnifiedActionAdapterTest {
         plan.setState(DrConstants.PLAN_STATE_FAILED_OVER);
         plan.setActiveSide("TARGET");
         DrRunVO run = run(DrConstants.RUN_TYPE_FAILBACK, "{\"force\":true}");
-        Mockito.when(drFailbackPreflightService.validate(plan)).thenReturn(
+        Mockito.when(drFailbackPreflightService.validate(plan, run)).thenReturn(
                 DrFailbackPreflightResult.failure(DrConstants.ERROR_FAILBACK_CREDENTIAL_NOT_READY,
                         "destination credential missing", null, null, "CONFIGURED", "MISSING", null));
         mockCapabilities();

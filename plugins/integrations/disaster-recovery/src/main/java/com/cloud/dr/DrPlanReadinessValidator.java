@@ -72,6 +72,7 @@ public class DrPlanReadinessValidator extends ManagerBase {
     public static final String REASON_SCHEDULER_NOT_RUNNING = "DR_SCHEDULER_NOT_RUNNING";
     public static final String REASON_RPO_OVERDUE = "DR_RPO_OVERDUE";
     public static final String REASON_RESEED_IN_PROGRESS = "DR_CBT_RESEED_IN_PROGRESS";
+    public static final String REASON_TARGET_OWNERSHIP_CONFLICT = DrConstants.ERROR_TARGET_OWNERSHIP_CONFLICT;
 
     @Inject
     private HostDao hostDao;
@@ -412,6 +413,13 @@ public class DrPlanReadinessValidator extends ManagerBase {
         List<DrReplicaVO> replicas = drReplicaDao != null ? drReplicaDao.listActiveByPlanId(plan.getId()) : null;
         DrReplicaVO replica = replicas != null && !replicas.isEmpty() ? replicas.get(0) : null;
         DrRestorePointVO restorePoint = drRestorePointDao != null ? drRestorePointDao.findLatestTargetReadyByPlanId(plan.getId()) : null;
+        boolean ownershipValid = replica != null && StringUtils.equalsIgnoreCase(replica.getOwnershipState(), "VALID");
+        if (replica != null && StringUtils.equalsIgnoreCase(replica.getOwnershipState(), "QUARANTINED")) {
+            readiness.addBlockingReason(REASON_TARGET_OWNERSHIP_CONFLICT);
+            readiness.setExecutionReady(false);
+            readiness.setReasonCode(REASON_TARGET_OWNERSHIP_CONFLICT);
+            readiness.setMessage("DR target resource ownership conflicts with another plan");
+        }
         boolean targetVmPresent = hasTargetReference(plan, replica);
         boolean targetStoragePresent = restorePoint != null
                 || plan.getLastTargetDurableAt() != null
@@ -424,7 +432,9 @@ public class DrPlanReadinessValidator extends ManagerBase {
         boolean durableCheckpointPresent = plan.getLastTargetDurableAt() != null
                 || (restorePoint != null && restorePoint.getTargetReadyAt() != null);
         boolean targetNetworkPresent = targetVmPresent;
-        boolean targetMaterialized = targetVmPresent && targetStoragePresent && restorePointPresent && durableCheckpointPresent;
+        boolean manifestConverged = replica != null && StringUtils.isNotBlank(replica.getMaterializationDigest());
+        boolean targetMaterialized = ownershipValid && manifestConverged && targetVmPresent && targetStoragePresent
+                && restorePointPresent && durableCheckpointPresent;
         readiness.setTargetVmPresent(targetVmPresent);
         readiness.setTargetStoragePresent(targetStoragePresent);
         readiness.setTargetNetworkPresent(targetNetworkPresent);

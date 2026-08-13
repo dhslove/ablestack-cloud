@@ -72,6 +72,19 @@ public class DrReplicaVO implements InternalIdentity {
     @Column(name = "runtime_state_json", length = 65535)
     private String runtimeStateJson;
 
+    @Column(name = "ownership_generation")
+    private Long ownershipGeneration = 1L;
+
+    @Column(name = "ownership_state")
+    private String ownershipState;
+
+    @Column(name = "materialization_digest")
+    private String materializationDigest;
+
+    @Column(name = "power_state_observed_at")
+    @Temporal(value = TemporalType.TIMESTAMP)
+    private Date powerStateObservedAt;
+
     @Column(name = "created")
     @Temporal(value = TemporalType.TIMESTAMP)
     private Date created = new Date();
@@ -141,6 +154,11 @@ public class DrReplicaVO implements InternalIdentity {
         return runtimeStateJson;
     }
 
+    public Long getOwnershipGeneration() { return ownershipGeneration; }
+    public String getOwnershipState() { return ownershipState; }
+    public String getMaterializationDigest() { return materializationDigest; }
+    public Date getPowerStateObservedAt() { return powerStateObservedAt; }
+
     public Date getCreated() {
         return created;
     }
@@ -184,6 +202,11 @@ public class DrReplicaVO implements InternalIdentity {
     public void setRuntimeStateJson(String runtimeStateJson) {
         this.runtimeStateJson = runtimeStateJson;
     }
+
+    public void setOwnershipGeneration(Long ownershipGeneration) { this.ownershipGeneration = ownershipGeneration; }
+    public void setOwnershipState(String ownershipState) { this.ownershipState = ownershipState; }
+    public void setMaterializationDigest(String materializationDigest) { this.materializationDigest = materializationDigest; }
+    public void setPowerStateObservedAt(Date powerStateObservedAt) { this.powerStateObservedAt = powerStateObservedAt; }
 
     public void markUpdated() {
         updated = new Date();

@@ -1,5 +1,11 @@
 ﻿# VMware -> ABLESTACK DR 아키텍처, 시퀀스, 기능 및 단계별 태스크
 
+> 2026-08-10 CBT 보완: 실행 중인 원본 VM의 CBT 설정이 아직 활성화되지
+> 않았으면 시스템이 설정을 저장하고 정상적인 최초 복제 스냅샷을 이용해
+> 선택한 디스크별 CBT를 활성화·검증한다. 원본 VM을 자동으로 종료하지
+> 않으며, 비동기 검증 중에는 준비 상태를 표시한다. 지원 불가 또는 복구
+> 불가능으로 판정된 경우에만 운영자 조치를 안내한다.
+
 문서 기준일: 2026-07-01  
 방향: `VMWARE_TO_KVM`  
 권장 엔진: `FTCTL_DR`
@@ -261,3 +267,29 @@ VMware 방향으로 보호되는 것은 아니다. 먼저 **현재 운영 사이
 세션을 종결한 뒤 메뉴를 다시 활성화해야 한다. UI가
 `accepted run could not be confirmed`만 표시하면 실제 async job 오류가
 가려진 결함으로 판정한다. 기술 계약은 문서 586을 따른다.
+
+## 2026-08-06 실제 페일오버 최종 권한 확정
+
+대상 VM이 Running이라는 사실만으로 페일오버 완료가 아니다. Cloud가 대상 VM
+전원과 부팅을 검증한 뒤 FTCTL에 동일 checkpoint, manifest, session, authority
+generation을 전달하고 `ACKNOWLEDGED`를 받아야 한다.
+
+최종 순서는 다음과 같다.
+
+1. FTCTL `CUTOVER_READY`
+2. Cloud 기존 대상 VM 시작 및 부팅 검증
+3. 화면 `대상 가상머신 시작 완료, 전환 확정 확인 중`
+4. Agent가 typed `DR_CUTOVER_COMMIT_V2`를 FTCTL에 전달
+5. FTCTL TARGET authority journal과 ACK 기록
+6. Cloud Plan/Replica/Session/Run을 한 transaction으로 완료
+7. 화면 `페일오버 완료 / 재보호 필요`
+
+3~5 단계에서는 Failback, Reprotect, Sync, Delete, Release, 일반 Cancel을 실행하지
+않는다. 응답이 유실되면 시스템이 commit status를 조회하며, 운영자가 전체
+Failover나 데이터 복제를 다시 시작하지 않는다.
+
+Cloud가 TARGET인데 FTCTL이 SOURCE이면 완료가 아니라
+`TARGET_PROMOTED_ENGINE_PENDING` 정합성 오류다. 세부 계약과 기존 세션 복구
+절차는
+`../599-cross-hypervisor-dr-forward-cutover-commit-contract-and-authority-convergence-design-20260806.md`를
+따른다.

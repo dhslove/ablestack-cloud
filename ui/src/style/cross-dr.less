@@ -494,6 +494,12 @@
   color: var(--cross-dr-error-text);
 }
 
+.cross-dr-failback-alert.ant-alert-info {
+  background: var(--cross-dr-info-bg);
+  border-color: var(--cross-dr-info-border);
+  color: var(--cross-dr-info-text);
+}
+
 .cross-dr-failback-alert .ant-alert-message,
 .cross-dr-failback-alert .ant-alert-description,
 .cross-dr-failback-alert .ant-alert-icon {
@@ -963,6 +969,29 @@ body.dark-mode .cross-dr-modal .cross-dr-plan-section-alert .ant-alert-icon {
 
 .cross-dr-detail-warning {
   margin-bottom: 12px;
+}
+
+.cross-dr-terminal-alert {
+  margin: 0 0 12px;
+  color: var(--cross-dr-text);
+}
+
+.cross-dr-terminal-alert.ant-alert-info {
+  color: var(--cross-dr-info-text);
+  background: var(--cross-dr-info-bg);
+  border-color: var(--cross-dr-info-border);
+}
+
+.cross-dr-terminal-alert.ant-alert-error {
+  color: var(--cross-dr-error-text);
+  background: var(--cross-dr-error-bg);
+  border-color: var(--cross-dr-error-border);
+}
+
+.cross-dr-terminal-alert .ant-alert-message,
+.cross-dr-terminal-alert .ant-alert-description,
+.cross-dr-terminal-alert .ant-alert-icon {
+  color: inherit;
 }
 
 body.dark-mode .cross-dr-standard-page .cross-dr-detail-warning {

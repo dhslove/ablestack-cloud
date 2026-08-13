@@ -52,9 +52,27 @@ public class FtctlDrStatusAnswer extends Answer {
     private Integer targetDiskInvalidCount;
     private String workerState;
     private Integer workerPid;
+    private Long workerStartTicks;
+    private Boolean workerPidAlive;
     private String workerStartedAt;
     private String workerUpdatedAt;
     private Integer workerExitCode;
+    private Integer driverExitCode;
+    private String failurePhase;
+    private String terminalSource;
+    private Integer terminalVersion;
+    private Boolean terminalPublicationPending;
+    private String terminalPublicationPendingSince;
+    private String baselineFileState;
+    private String sourceDiskProbeState;
+    private Integer sourceDiskCount;
+    private String targetWriterProbeState;
+    private String operationIntent;
+    private String requestedMode;
+    private String effectiveMode;
+    private String modeDecisionCode;
+    private Boolean initialSeedRequired;
+    private Long estimatedVirtualBytes;
     private Boolean retryable;
     private Integer retryAfterSeconds;
     private Boolean transitionReady;
@@ -177,6 +195,10 @@ public class FtctlDrStatusAnswer extends Answer {
     private String cycleEvidenceMessage;
     private String replicationDirection;
     private String providerPair;
+    private Integer routeContractVersion;
+    private Integer reverseEvidenceContractVersion;
+    private String reverseEvidenceState;
+    private String reverseEvidenceRunUuid;
     private Long reverseBaselineGeneration;
     private String reverseBaselineState;
     private String reverseTrackerState;
@@ -184,6 +206,34 @@ public class FtctlDrStatusAnswer extends Answer {
     private Boolean reverseTargetWritten;
     private Boolean reverseWriteVerified;
     private String reverseGuestCompatibilityState;
+    private String workerIdentityState;
+    private String workerLivenessState;
+    private String workerLaunchNonce;
+    private Long workerGeneration;
+    private String transferActivityState;
+    private Long transferPayloadBytes;
+    private Integer transferProgressSchemaVersion;
+    private Long transferCycleSequence;
+    private Long transferSampleSequence;
+    private String transferPhase;
+    private String transferMode;
+    private Long transferBytesTotal;
+    private Long transferBytesProcessed;
+    private Long transferSourceReadBytes;
+    private Long transferTargetWrittenBytes;
+    private Long transferVerifiedBytes;
+    private Double transferPercent;
+    private Long transferThroughputBps;
+    private Long transferEtaSeconds;
+    private Integer transferCurrentDiskIndex;
+    private Integer transferDiskCount;
+    private Boolean transferProgressEstimated;
+    private Long transferProgressSampleEpochMs;
+    private Boolean transferProgressStale;
+    private Integer ownedProcessCount;
+    private Boolean reconciliationRequired;
+    private Boolean runtimeEndpointsDrained;
+    private Boolean terminalAuthoritative;
     private FtctlDrCycleSnapshot currentCycle;
     private FtctlDrCycleSnapshot latestCompletedCycle;
 
@@ -191,6 +241,14 @@ public class FtctlDrStatusAnswer extends Answer {
     public void setReplicationDirection(String value) { replicationDirection = value; }
     public String getProviderPair() { return providerPair; }
     public void setProviderPair(String value) { providerPair = value; }
+    public Integer getRouteContractVersion() { return routeContractVersion; }
+    public void setRouteContractVersion(Integer value) { routeContractVersion = value; }
+    public Integer getReverseEvidenceContractVersion() { return reverseEvidenceContractVersion; }
+    public void setReverseEvidenceContractVersion(Integer value) { reverseEvidenceContractVersion = value; }
+    public String getReverseEvidenceState() { return reverseEvidenceState; }
+    public void setReverseEvidenceState(String value) { reverseEvidenceState = value; }
+    public String getReverseEvidenceRunUuid() { return reverseEvidenceRunUuid; }
+    public void setReverseEvidenceRunUuid(String value) { reverseEvidenceRunUuid = value; }
     public Long getReverseBaselineGeneration() { return reverseBaselineGeneration; }
     public void setReverseBaselineGeneration(Long value) { reverseBaselineGeneration = value; }
     public String getReverseBaselineState() { return reverseBaselineState; }
@@ -205,6 +263,62 @@ public class FtctlDrStatusAnswer extends Answer {
     public void setReverseWriteVerified(Boolean value) { reverseWriteVerified = value; }
     public String getReverseGuestCompatibilityState() { return reverseGuestCompatibilityState; }
     public void setReverseGuestCompatibilityState(String value) { reverseGuestCompatibilityState = value; }
+    public String getWorkerIdentityState() { return workerIdentityState; }
+    public void setWorkerIdentityState(String value) { workerIdentityState = value; }
+    public String getWorkerLivenessState() { return workerLivenessState; }
+    public void setWorkerLivenessState(String value) { workerLivenessState = value; }
+    public String getWorkerLaunchNonce() { return workerLaunchNonce; }
+    public void setWorkerLaunchNonce(String value) { workerLaunchNonce = value; }
+    public Long getWorkerGeneration() { return workerGeneration; }
+    public void setWorkerGeneration(Long value) { workerGeneration = value; }
+    public String getTransferActivityState() { return transferActivityState; }
+    public void setTransferActivityState(String value) { transferActivityState = value; }
+    public Long getTransferPayloadBytes() { return transferPayloadBytes; }
+    public void setTransferPayloadBytes(Long value) { transferPayloadBytes = value; }
+    public Integer getTransferProgressSchemaVersion() { return transferProgressSchemaVersion; }
+    public void setTransferProgressSchemaVersion(Integer value) { transferProgressSchemaVersion = value; }
+    public Long getTransferCycleSequence() { return transferCycleSequence; }
+    public void setTransferCycleSequence(Long value) { transferCycleSequence = value; }
+    public Long getTransferSampleSequence() { return transferSampleSequence; }
+    public void setTransferSampleSequence(Long value) { transferSampleSequence = value; }
+    public String getTransferPhase() { return transferPhase; }
+    public void setTransferPhase(String value) { transferPhase = value; }
+    public String getTransferMode() { return transferMode; }
+    public void setTransferMode(String value) { transferMode = value; }
+    public Long getTransferBytesTotal() { return transferBytesTotal; }
+    public void setTransferBytesTotal(Long value) { transferBytesTotal = value; }
+    public Long getTransferBytesProcessed() { return transferBytesProcessed; }
+    public void setTransferBytesProcessed(Long value) { transferBytesProcessed = value; }
+    public Long getTransferSourceReadBytes() { return transferSourceReadBytes; }
+    public void setTransferSourceReadBytes(Long value) { transferSourceReadBytes = value; }
+    public Long getTransferTargetWrittenBytes() { return transferTargetWrittenBytes; }
+    public void setTransferTargetWrittenBytes(Long value) { transferTargetWrittenBytes = value; }
+    public Long getTransferVerifiedBytes() { return transferVerifiedBytes; }
+    public void setTransferVerifiedBytes(Long value) { transferVerifiedBytes = value; }
+    public Double getTransferPercent() { return transferPercent; }
+    public void setTransferPercent(Double value) { transferPercent = value; }
+    public Long getTransferThroughputBps() { return transferThroughputBps; }
+    public void setTransferThroughputBps(Long value) { transferThroughputBps = value; }
+    public Long getTransferEtaSeconds() { return transferEtaSeconds; }
+    public void setTransferEtaSeconds(Long value) { transferEtaSeconds = value; }
+    public Integer getTransferCurrentDiskIndex() { return transferCurrentDiskIndex; }
+    public void setTransferCurrentDiskIndex(Integer value) { transferCurrentDiskIndex = value; }
+    public Integer getTransferDiskCount() { return transferDiskCount; }
+    public void setTransferDiskCount(Integer value) { transferDiskCount = value; }
+    public Boolean getTransferProgressEstimated() { return transferProgressEstimated; }
+    public void setTransferProgressEstimated(Boolean value) { transferProgressEstimated = value; }
+    public Long getTransferProgressSampleEpochMs() { return transferProgressSampleEpochMs; }
+    public void setTransferProgressSampleEpochMs(Long value) { transferProgressSampleEpochMs = value; }
+    public Boolean getTransferProgressStale() { return transferProgressStale; }
+    public void setTransferProgressStale(Boolean value) { transferProgressStale = value; }
+    public Integer getOwnedProcessCount() { return ownedProcessCount; }
+    public void setOwnedProcessCount(Integer value) { ownedProcessCount = value; }
+    public Boolean getReconciliationRequired() { return reconciliationRequired; }
+    public void setReconciliationRequired(Boolean value) { reconciliationRequired = value; }
+    public Boolean getRuntimeEndpointsDrained() { return runtimeEndpointsDrained; }
+    public void setRuntimeEndpointsDrained(Boolean value) { runtimeEndpointsDrained = value; }
+    public Boolean getTerminalAuthoritative() { return terminalAuthoritative; }
+    public void setTerminalAuthoritative(Boolean value) { terminalAuthoritative = value; }
 
     public FtctlDrStatusAnswer(Command command, boolean success, String details) {
         super(command, success, details);
@@ -443,6 +557,11 @@ public class FtctlDrStatusAnswer extends Answer {
         this.workerPid = workerPid;
     }
 
+    public Long getWorkerStartTicks() { return workerStartTicks; }
+    public void setWorkerStartTicks(Long value) { workerStartTicks = value; }
+    public Boolean getWorkerPidAlive() { return workerPidAlive; }
+    public void setWorkerPidAlive(Boolean value) { workerPidAlive = value; }
+
     public String getWorkerStartedAt() {
         return workerStartedAt;
     }
@@ -466,6 +585,39 @@ public class FtctlDrStatusAnswer extends Answer {
     public void setWorkerExitCode(Integer workerExitCode) {
         this.workerExitCode = workerExitCode;
     }
+
+    public Integer getDriverExitCode() { return driverExitCode; }
+    public void setDriverExitCode(Integer value) { driverExitCode = value; }
+    public String getFailurePhase() { return failurePhase; }
+    public void setFailurePhase(String value) { failurePhase = value; }
+    public String getTerminalSource() { return terminalSource; }
+    public void setTerminalSource(String value) { terminalSource = value; }
+    public Integer getTerminalVersion() { return terminalVersion; }
+    public void setTerminalVersion(Integer value) { terminalVersion = value; }
+    public Boolean getTerminalPublicationPending() { return terminalPublicationPending; }
+    public void setTerminalPublicationPending(Boolean value) { terminalPublicationPending = value; }
+    public String getTerminalPublicationPendingSince() { return terminalPublicationPendingSince; }
+    public void setTerminalPublicationPendingSince(String value) { terminalPublicationPendingSince = value; }
+    public String getBaselineFileState() { return baselineFileState; }
+    public void setBaselineFileState(String value) { baselineFileState = value; }
+    public String getSourceDiskProbeState() { return sourceDiskProbeState; }
+    public void setSourceDiskProbeState(String value) { sourceDiskProbeState = value; }
+    public Integer getSourceDiskCount() { return sourceDiskCount; }
+    public void setSourceDiskCount(Integer value) { sourceDiskCount = value; }
+    public String getTargetWriterProbeState() { return targetWriterProbeState; }
+    public void setTargetWriterProbeState(String value) { targetWriterProbeState = value; }
+    public String getOperationIntent() { return operationIntent; }
+    public void setOperationIntent(String value) { operationIntent = value; }
+    public String getRequestedMode() { return requestedMode; }
+    public void setRequestedMode(String value) { requestedMode = value; }
+    public String getEffectiveMode() { return effectiveMode; }
+    public void setEffectiveMode(String value) { effectiveMode = value; }
+    public String getModeDecisionCode() { return modeDecisionCode; }
+    public void setModeDecisionCode(String value) { modeDecisionCode = value; }
+    public Boolean getInitialSeedRequired() { return initialSeedRequired; }
+    public void setInitialSeedRequired(Boolean value) { initialSeedRequired = value; }
+    public Long getEstimatedVirtualBytes() { return estimatedVirtualBytes; }
+    public void setEstimatedVirtualBytes(Long value) { estimatedVirtualBytes = value; }
 
     public Boolean getRetryable() {
         return retryable;
