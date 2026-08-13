@@ -259,6 +259,7 @@ known_categories = {
     'startDisasterRecoveryClusterVm': 'Disaster Recovery',
     'stopDisasterRecoveryClusterVm': 'Disaster Recovery',
     'GetDisasterRecoveryClusterList': 'Disaster Recovery',
+    'Dr': 'Disaster Recovery',
     'DisasterRecovery': 'dr',
     'Ftctl': 'FTCTL',
     'ftctl': 'FTCTL',
