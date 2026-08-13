@@ -167,6 +167,7 @@ public class AblestackCommvaultRestoreBackupCommand extends Command  {
 
     public void setTimeout(Integer timeout) {
         this.timeout = timeout;
+        setWait(timeout == null ? 0 : timeout);
     }
 
     public String getCacheMode() {

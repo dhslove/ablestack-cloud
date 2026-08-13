@@ -38,7 +38,7 @@
         </template>
         <a-input v-model:value="form.description"/>
       </a-form-item>
-      <a-form-item name="allowuserdrivenbackups" ref="allowuserdrivenbackups" v-if="resource.provider!=='commvault'">
+      <a-form-item name="allowuserdrivenbackups" ref="allowuserdrivenbackups" v-if="showUserDrivenBackupsField">
         <template #label>
           <tooltip-label :title="$t('label.allowuserdrivenbackups')" :tooltip="apiParams.allowuserdrivenbackups.description"/>
         </template>
@@ -105,6 +105,10 @@ export default {
     this.initForm()
   },
   computed: {
+    showUserDrivenBackupsField () {
+      const provider = (this.resource.provider || '').toLowerCase()
+      return provider !== 'commvault' && provider !== 'ablestack-commvault' && provider !== 'netbackup' && provider !== 'ablestack-netbackup'
+    },
     retentionPeriodInDays () {
       const value = parseInt(this.form.retentionPeriodValue)
       switch (this.form.retentionPeriodUnit) {
@@ -167,7 +171,9 @@ export default {
           params.retentionperiod = this.retentionPeriodInDays
         }
         params.id = this.resource.id
-        params.allowuserdrivenbackups = values.allowuserdrivenbackups
+        if (this.showUserDrivenBackupsField) {
+          params.allowuserdrivenbackups = values.allowuserdrivenbackups
+        }
         this.loading = true
         const title = this.$t('label.update.backupoffering')
         getAPI('updateBackupOffering', params).then(json => {

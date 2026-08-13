@@ -31,7 +31,9 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.StringReader;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.NetworkInterface;
+import java.net.Socket;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
@@ -301,6 +303,14 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
 
     protected static Logger LOGGER = LogManager.getLogger(LibvirtComputingResource.class);
     private static final String CONFIG_VALUES_SEPARATOR = ",";
+    private static final String PROC_MOUNTS_PATH = "/proc/mounts";
+    private static final String SECONDARY_STORAGE_NFS_PATH = "/nfs/secondary";
+    private static final String LIBVIRT_NFS_MOUNT_ROOT = "/mnt/";
+    private static final int NFS_SERVICE_PORT = 2049;
+    private static final int NFS_CONNECT_TIMEOUT_MS = 3000;
+    private static final int NFS_CONNECT_RETRY_COUNT = 5;
+    private static final long NFS_CONNECT_RETRY_INTERVAL_MS = 1000L;
+    private static final Pattern LIBVIRT_NFS_MOUNT_POINT_PATTERN = Pattern.compile("^" + Pattern.quote(LIBVIRT_NFS_MOUNT_ROOT) + "[0-9a-fA-F-]{36}$");
 
     private static final String LEGACY = "legacy";
     private static final String SECURE = "secure";
@@ -388,7 +398,7 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
     // ovftool --version => sample output: VMware ovftool 4.6.0 (build-21452615)
     public static final String OVF_EXPORT_TOOl_GET_VERSION_CMD = "ovftool --version | awk '{print $3}'";
 
-    public static final String WINDOWS_GUEST_CONVERSION_SUPPORTED_CHECK_CMD = "rpm -qa | grep -i virtio-win";
+    public static final String WINDOWS_GUEST_CONVERSION_SUPPORTED_PACKAGE = "virtio-win";
     public static final String UBUNTU_WINDOWS_GUEST_CONVERSION_SUPPORTED_CHECK_CMD = "dpkg -l virtio-win";
     public static final String UBUNTU_NBDKIT_PKG_CHECK_CMD = "dpkg -l nbdkit";
     public static final String VDDK_AUTODETECT_PATH_CMD =
@@ -444,6 +454,7 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
     private String nasBackupPath;
     private String ableNasBackupPath;
     private String ableCvtBackupPath;
+    private String ableNetBackupPath;
     private String securityGroupPath;
     private String ovsPvlanDhcpHostPath;
     private String ovsPvlanVmPath;
@@ -790,6 +801,158 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
         return storagePoolManager;
     }
 
+    @Override
+    public void disconnected() {
+        cleanupUnavailableSecondaryNfsIsoMountsSafely("management server disconnect");
+        LOGGER.info("Detected agent disconnect event, running through " + _disconnectHooks.size() + " disconnect hooks");
+        for (DisconnectHook hook : _disconnectHooks) {
+            hook.start();
+        }
+        long start = System.currentTimeMillis();
+        for (DisconnectHook hook : _disconnectHooks) {
+            try {
+                long elapsed = System.currentTimeMillis() - start;
+                long remaining = hook.getTimeoutMs() - elapsed;
+                long joinWait = remaining > 0 ? remaining : 1;
+                hook.join(joinWait);
+                hook.interrupt();
+            } catch (InterruptedException ex) {
+                LOGGER.warn("Interrupted disconnect hook: " + ex.getMessage());
+            }
+        }
+        _disconnectHooks.clear();
+    }
+
+    protected void cleanupUnavailableSecondaryNfsIsoMountsSafely(String reason) {
+        try {
+            cleanupUnavailableSecondaryNfsIsoMounts(reason);
+        } catch (RuntimeException e) {
+            LOGGER.warn("Failed to cleanup unavailable secondary NFS ISO mounts during [{}].", reason, e);
+        }
+    }
+
+    protected void cleanupUnavailableSecondaryNfsIsoMounts(String reason) {
+        List<SecondaryNfsIsoMount> mounts = getMountedSecondaryNfsIsoMounts();
+        if (mounts.isEmpty()) {
+            LOGGER.debug("No secondary NFS ISO mounts found to check during [{}].", reason);
+            return;
+        }
+
+        LOGGER.warn("Checking [{}] secondary NFS ISO mount(s) during [{}].", mounts.size(), reason);
+        Map<String, Boolean> nfsServerAvailability = new HashMap<>();
+        for (SecondaryNfsIsoMount mount : mounts) {
+            try {
+                boolean nfsReachable = nfsServerAvailability.computeIfAbsent(mount.host, this::isNfsServiceReachable);
+                if (nfsReachable) {
+                    LOGGER.debug("Keeping secondary NFS ISO mount [{}] because NFS server [{}] is still reachable.", mount.mountPoint, mount.host);
+                    continue;
+                }
+
+                LOGGER.warn("Secondary NFS ISO mount [{}] from source [{}] is stale. Starting forced lazy unmount.", mount.mountPoint, mount.source);
+                lazyUnmountSecondaryNfsIsoMount(mount, reason);
+            } catch (RuntimeException e) {
+                LOGGER.warn("Failed to process secondary NFS ISO mount [{}] from source [{}].", mount.mountPoint, mount.source, e);
+            }
+        }
+    }
+
+    protected List<SecondaryNfsIsoMount> getMountedSecondaryNfsIsoMounts() {
+        List<String> mountLines;
+        try {
+            mountLines = Files.readAllLines(Paths.get(PROC_MOUNTS_PATH));
+        } catch (IOException e) {
+            LOGGER.warn("Failed to read [{}] while checking secondary NFS ISO mounts.", PROC_MOUNTS_PATH, e);
+            return Collections.emptyList();
+        }
+
+        List<SecondaryNfsIsoMount> mounts = new ArrayList<>();
+        for (String line : mountLines) {
+            SecondaryNfsIsoMount mount = parseSecondaryNfsIsoMount(line);
+            if (mount != null) {
+                mounts.add(mount);
+            }
+        }
+        return mounts;
+    }
+
+    protected SecondaryNfsIsoMount parseSecondaryNfsIsoMount(String mountLine) {
+        if (StringUtils.isBlank(mountLine)) {
+            return null;
+        }
+
+        String[] tokens = mountLine.split("\\s+");
+        if (tokens.length < 3) {
+            return null;
+        }
+
+        String source = tokens[0];
+        String mountPoint = tokens[1];
+        String filesystemType = tokens[2];
+        if (!isNfsFilesystem(filesystemType) || !LIBVIRT_NFS_MOUNT_POINT_PATTERN.matcher(mountPoint).matches()) {
+            return null;
+        }
+
+        String host = StringUtils.substringBefore(source, ":");
+        String path = StringUtils.substringAfter(source, ":");
+        if (StringUtils.isAnyBlank(host, path) || !path.startsWith(SECONDARY_STORAGE_NFS_PATH)) {
+            return null;
+        }
+
+        return new SecondaryNfsIsoMount(source, host, mountPoint);
+    }
+
+    protected boolean isNfsFilesystem(String filesystemType) {
+        return "nfs".equalsIgnoreCase(filesystemType) || "nfs4".equalsIgnoreCase(filesystemType);
+    }
+
+    protected boolean isNfsServiceReachable(String host) {
+        for (int attempt = 1; attempt <= NFS_CONNECT_RETRY_COUNT; attempt++) {
+            try (Socket socket = new Socket()) {
+                socket.connect(new InetSocketAddress(host, NFS_SERVICE_PORT), NFS_CONNECT_TIMEOUT_MS);
+                return true;
+            } catch (IOException | RuntimeException e) {
+                LOGGER.warn("NFS server [{}] is not reachable on port [{}] on attempt [{}/{}].",
+                        host, NFS_SERVICE_PORT, attempt, NFS_CONNECT_RETRY_COUNT);
+                if (attempt < NFS_CONNECT_RETRY_COUNT) {
+                    sleepBeforeNextNfsConnectRetry();
+                }
+            }
+        }
+        LOGGER.warn("NFS server [{}] is not reachable on port [{}] after [{}] attempts. Treating related secondary ISO mounts as stale.",
+                host, NFS_SERVICE_PORT, NFS_CONNECT_RETRY_COUNT);
+        return false;
+    }
+
+    protected void sleepBeforeNextNfsConnectRetry() {
+        try {
+            Thread.sleep(NFS_CONNECT_RETRY_INTERVAL_MS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    protected void lazyUnmountSecondaryNfsIsoMount(SecondaryNfsIsoMount mount, String reason) {
+        LOGGER.warn("Lazy unmounting stale secondary NFS ISO mount [{}] from source [{}] during [{}].", mount.mountPoint, mount.source, reason);
+        int exitValue = Script.runSimpleBashScriptForExitValue(String.format("umount -lf %s", mount.mountPoint));
+        if (exitValue == 0) {
+            LOGGER.info("Successfully lazy unmounted stale secondary NFS ISO mount [{}].", mount.mountPoint);
+        } else {
+            LOGGER.warn("Failed to lazy unmount stale secondary NFS ISO mount [{}]. Exit value: [{}].", mount.mountPoint, exitValue);
+        }
+    }
+
+    protected static class SecondaryNfsIsoMount {
+        protected final String source;
+        protected final String host;
+        protected final String mountPoint;
+
+        protected SecondaryNfsIsoMount(String source, String host, String mountPoint) {
+            this.source = source;
+            this.host = host;
+            this.mountPoint = mountPoint;
+        }
+    }
+
     public String getPrivateIp() {
         return privateIp;
     }
@@ -880,6 +1043,10 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
 
     public String getAbleCvtBackupPath() {
         return ableCvtBackupPath;
+    }
+
+    public String getAbleNetBackupPath() {
+        return ableNetBackupPath;
     }
 
     public String getOvsPvlanDhcpHostPath() {
@@ -1254,6 +1421,11 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
             throw new ConfigurationException("Unable to find ablestack_cvtbackup.sh");
         }
 
+        ableNetBackupPath = Script.findScript(kvmScriptsDir, "ablestack_netbackup.sh");
+        if (ableNetBackupPath == null) {
+            throw new ConfigurationException("Unable to find ablestack_netbackup.sh");
+        }
+
         createTmplPath = Script.findScript(storageScriptsDir, "createtmplt.sh");
         if (createTmplPath == null) {
             throw new ConfigurationException("Unable to find the createtmplt.sh");
@@ -1525,7 +1697,8 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
 
         final String[] info = NetUtils.getNetworkParams(privateNic);
 
-        kvmhaMonitor = new KVMHAMonitor(null, info[0], heartBeatPath, heartBeatPathGfs, heartBeatPathRbd, heartBeatPathClvm);
+        kvmhaMonitor = new KVMHAMonitor(null, info[0], heartBeatPath, heartBeatPathGfs, heartBeatPathRbd, heartBeatPathClvm,
+                () -> cleanupUnavailableSecondaryNfsIsoMountsSafely("libvirt storage pool lookup failure"));
         final Thread ha = new Thread(kvmhaMonitor);
         ha.start();
 
@@ -5719,34 +5892,7 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
                     result = dm.qemuAgentCommand(QemuCommand.buildQemuCommand(QemuCommand.AGENT_NETWORK_GET_INTERFACES, null), 2, 0);
                     if (StringUtils.isNotBlank(result) && !(result.startsWith("error"))) {
                         LOGGER.debug(dm.getName() + " >>  " + result);
-                        JsonArray arrData = (JsonArray) new JsonParser().parse(result).getAsJsonObject().get("return");
-                        for (JsonElement je : arrData) {
-                            JsonElement nicName = je.getAsJsonObject().get("name") == null ? null : je.getAsJsonObject().get("name");
-                            JsonElement nicAddrs = je.getAsJsonObject().get("ip-addresses") == null ? null : je.getAsJsonObject().get("ip-addresses");
-                            if (nicName == null || "lo".equals(nicName.getAsString())) {
-                                continue;
-                            } else {
-                                if (nicAddrs == null) {
-                                    continue;
-                                } else {
-                                    JsonElement nicMac = je.getAsJsonObject().get("hardware-address") == null ? null : je.getAsJsonObject().get("hardware-address");
-                                    if (nicMac == null) {
-                                        continue;
-                                    } else {
-                                        JsonArray arrData2 = (JsonArray) je.getAsJsonObject().get("ip-addresses");
-                                        for (JsonElement je2 : arrData2) {
-                                            JsonElement nicAddrIp = je2.getAsJsonObject().get("ip-address") == null ? null : je2.getAsJsonObject().get("ip-address");
-                                            JsonElement nicAddrIpType = je2.getAsJsonObject().get("ip-address-type") == null ? null : je2.getAsJsonObject().get("ip-address-type");
-                                            if (nicAddrIp == null || nicAddrIpType == null || !"ipv4".equals(nicAddrIpType.getAsString())) {
-                                                continue;
-                                            } else {
-                                                nicAddrMap.put(nicMac.getAsString(), nicAddrIp.getAsString());
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        nicAddrMap.putAll(parseQemuGuestNetworkInterfaces(result));
                         metrics.setNicAddrMap(nicAddrMap);
                     }
                 } catch (Exception e) {
@@ -5801,6 +5947,40 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
                 dm.free();
             }
         }
+    }
+
+    /**
+     * Parses the QEMU guest agent {@code guest-network-get-interfaces} response using the
+     * current legacy projection: loopback and IPv6 addresses are ignored, and multiple
+     * IPv4 addresses on one interface collapse to the last reported value.
+     */
+    protected Map<String, String> parseQemuGuestNetworkInterfaces(final String result) {
+        Map<String, String> nicAddrMap = new HashMap<>();
+        JsonArray arrData = (JsonArray) new JsonParser().parse(result).getAsJsonObject().get("return");
+        for (JsonElement je : arrData) {
+            JsonElement nicName = je.getAsJsonObject().get("name") == null ? null : je.getAsJsonObject().get("name");
+            JsonElement nicAddrs = je.getAsJsonObject().get("ip-addresses") == null ? null : je.getAsJsonObject().get("ip-addresses");
+            if (nicName == null || "lo".equals(nicName.getAsString())) {
+                continue;
+            }
+            if (nicAddrs == null) {
+                continue;
+            }
+            JsonElement nicMac = je.getAsJsonObject().get("hardware-address") == null ? null : je.getAsJsonObject().get("hardware-address");
+            if (nicMac == null) {
+                continue;
+            }
+            JsonArray addresses = (JsonArray) je.getAsJsonObject().get("ip-addresses");
+            for (JsonElement address : addresses) {
+                JsonElement nicAddrIp = address.getAsJsonObject().get("ip-address") == null ? null : address.getAsJsonObject().get("ip-address");
+                JsonElement nicAddrIpType = address.getAsJsonObject().get("ip-address-type") == null ? null : address.getAsJsonObject().get("ip-address-type");
+                if (nicAddrIp == null || nicAddrIpType == null || !"ipv4".equals(nicAddrIpType.getAsString())) {
+                    continue;
+                }
+                nicAddrMap.put(nicMac.getAsString(), nicAddrIp.getAsString());
+            }
+        }
+        return nicAddrMap;
     }
 
     /**
@@ -6961,12 +7141,25 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
         return "'" + StringUtils.defaultString(value).replace("'", "'\"'\"'") + "'";
     }
 
+    public int runPackageQueryWithFallback(final String packageName, final long timeout) {
+        int exitValue = runPackageQuery("aspkg", packageName, timeout);
+        if (exitValue == 0) {
+            return exitValue;
+        }
+        return runPackageQuery("rpm", packageName, timeout);
+    }
+
+    private int runPackageQuery(final String packageManager, final String packageName, final long timeout) {
+        return Script.runSimpleBashScriptForExitValue(
+                String.format("%s -qa | grep -i %s", packageManager, packageName), (int) timeout, true);
+    }
+
     public boolean hostSupportsWindowsGuestConversion() {
         if (isUbuntuOrDebianHost()) {
             int exitValue = Script.runSimpleBashScriptForExitValue(UBUNTU_WINDOWS_GUEST_CONVERSION_SUPPORTED_CHECK_CMD);
             return exitValue == 0;
         }
-        int exitValue = Script.runSimpleBashScriptForExitValue(WINDOWS_GUEST_CONVERSION_SUPPORTED_CHECK_CMD);
+        int exitValue = runPackageQueryWithFallback(WINDOWS_GUEST_CONVERSION_SUPPORTED_PACKAGE, getCmdsTimeout());
         return exitValue == 0;
     }
 
@@ -7529,27 +7722,6 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
                 }
             }
         } catch (IOException e) {}
-    }
-
-    @Override
-    public void disconnected() {
-        LOGGER.info("Detected agent disconnect event, running through " + _disconnectHooks.size() + " disconnect hooks");
-        for (DisconnectHook hook : _disconnectHooks) {
-            hook.start();
-        }
-        long start = System.currentTimeMillis();
-        for (DisconnectHook hook : _disconnectHooks) {
-            try {
-                long elapsed = System.currentTimeMillis() - start;
-                long remaining = hook.getTimeoutMs() - elapsed;
-                long joinWait = remaining > 0 ? remaining : 1;
-                hook.join(joinWait);
-                hook.interrupt();
-            } catch (InterruptedException ex) {
-                LOGGER.warn("Interrupted disconnect hook: " + ex.getMessage());
-            }
-        }
-        _disconnectHooks.clear();
     }
 
     public void addDisconnectHook(DisconnectHook hook) {

@@ -292,7 +292,7 @@
             </template>
             <template v-if="column.key === 'hostDevicesText'">
               <div>
-                <span v-html="formatHostDevicesText(record.hostDevicesText)" style="white-space: pre-line; line-height: 1.6; display: block;"></span>
+                <span v-html="formatLunHostDevicesText(record.hostDevicesText, record)" style="white-space: pre-line; line-height: 1.6; display: block;"></span>
                 <div v-if="record.multipathLlFull" style="margin-top: 8px;">
                   <a-popover
                     placement="leftTop"
@@ -2210,12 +2210,19 @@ export default {
             }
           }
         } else {
-          const response = await getAPI('listHostLunDevices', {
-            id: this.resource.id
-          })
-          const devices = response.listhostlundevicesresponse?.listhostlundevices?.[0]
-          const vmAllocations = devices?.vmallocations || {}
-          vmId = vmAllocations[hostDevicesName]
+          const [singleSettled, multiSettled] = await Promise.allSettled([
+            getAPI('listHostLunDevices', { id: this.resource.id, lunpathmode: 'single', lunPathMode: 'single' }),
+            getAPI('listHostLunDevices', { id: this.resource.id, lunpathmode: 'multipath', lunPathMode: 'multipath' })
+          ])
+
+          const singleLun = singleSettled.status === 'fulfilled'
+            ? singleSettled.value?.listhostlundevicesresponse?.listhostlundevices?.[0]
+            : null
+          const multiLun = multiSettled.status === 'fulfilled'
+            ? multiSettled.value?.listhostlundevicesresponse?.listhostlundevices?.[0]
+            : null
+          const mergedVmAllocations = { ...(singleLun?.vmallocations || {}), ...(multiLun?.vmallocations || {}) }
+          vmId = mergedVmAllocations[hostDevicesName] || record.virtualmachineid || null
           vmName = this.vmNames[hostDevicesName] || 'Unknown VM'
 
           if (!vmId) {
@@ -2249,11 +2256,7 @@ export default {
         }
 
         if (!vmId) {
-          let errorMessage = `VM 할당 정보를 찾을 수 없습니다: ${hostDevicesName}`
-          if (record.allocatedInOtherTab) {
-            errorMessage += ` (다른 탭에서 할당됨: ${record.allocatedInOtherTab.tabType})`
-          }
-          throw new Error(errorMessage)
+          throw new Error(`VM 할당 정보를 찾을 수 없습니다: ${hostDevicesName}`)
         }
 
         const vmResponse = await getAPI('listVirtualMachines', {
@@ -2442,7 +2445,11 @@ export default {
         return
       }
 
-      this.selectedResource = { ...this.resource, hostDevicesName: record.hostDevicesName }
+      this.selectedResource = {
+        ...this.resource,
+        hostDevicesName: record.hostDevicesName,
+        hostDevicesText: record.hostDevicesText || ''
+      }
       this.showAddModal = true
     },
     async deallocatePciDevice (record) {
@@ -4031,13 +4038,6 @@ export default {
     },
 
     shouldShowAllocationButton (record) {
-      if (this.activeKey === '4') {
-        const deviceName = String(record.hostDevicesName || '')
-        if (deviceName.toUpperCase().includes('LUN') || deviceName.toLowerCase().includes('dm')) {
-          return false
-        }
-      }
-
       if (this.isDeviceAssigned(record) || record.allocatedInOtherTab) {
         return true
       }
@@ -4123,6 +4123,17 @@ export default {
       formattedText = formattedText.replace(/(SIZE:\s+[^\s<]+)(?!\s*<br\/?>)(\s+)(?=\S)/gi, '$1<br/>$2')
 
       return formattedText
+    },
+    formatLunHostDevicesText (text, record) {
+      let formatted = this.formatHostDevicesText(text)
+      if (!formatted) return formatted
+      if (this.isDeviceAssigned(record) || record.allocatedInOtherTab) {
+        const hasPartitionsBlue = `<span class="lun-partitioned-text">${this.$t('label.has.partitions')}</span>`
+        const noPartitionsText = this.$t('label.no.partitions')
+        formatted = formatted.split(noPartitionsText).join(hasPartitionsBlue)
+        formatted = formatted.replace(/HAS_PARTITIONS:\s*false/gi, `<span class="lun-partitioned-text">${this.$t('label.has.partitions')}</span>`)
+      }
+      return formatted
     },
 
     async checkDeviceAllocationInScsi (deviceName) {

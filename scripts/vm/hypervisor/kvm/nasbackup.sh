@@ -32,6 +32,7 @@ NAS_ADDRESS=""
 MOUNT_OPTS=""
 BACKUP_DIR=""
 DISK_PATHS=""
+VOLUME_UUIDS=""
 QUIESCE=""
 logFile="/var/log/cloudstack/agent/agent.log"
 
@@ -113,16 +114,25 @@ backup_running_vm() {
   mount_operation
   mkdir -p "$dest" || { echo "Failed to create backup directory $dest"; exit 1; }
 
+  local -a volume_uuid_arr=()
+  if [[ -n "$VOLUME_UUIDS" ]]; then
+    read -r -a volume_uuid_arr <<< "${VOLUME_UUIDS//,/ }"
+  fi
+
   name="root"
+  local disk_index=0
   echo "<domainbackup mode='push'><disks>" > $dest/backup.xml
   while read -r disk fullpath; do
-    if [[ "$fullpath" == /dev/drbd/by-res/* ]]; then
+    if [[ ${#volume_uuid_arr[@]} -gt $disk_index && -n "${volume_uuid_arr[$disk_index]}" ]]; then
+        volUuid="${volume_uuid_arr[$disk_index]}"
+    elif [[ "$fullpath" == /dev/drbd/by-res/* ]]; then
         volUuid=$(get_linstor_uuid_from_path "$fullpath")
     else
         volUuid="${fullpath##*/}"
     fi
     echo "<disk name='$disk' backup='yes' type='file' backupmode='full'><driver type='qcow2'/><target file='$dest/$name.$volUuid.qcow2' /></disk>" >> $dest/backup.xml
     name="datadisk"
+    ((disk_index+=1))
   done < <(
     virsh -c qemu:///system domblklist "$VM" --details 2>/dev/null | awk '$2=="disk"{print $3, $4}'
   )
@@ -207,10 +217,17 @@ backup_stopped_vm() {
   mkdir -p "$dest" || { echo "Failed to create backup directory $dest"; exit 1; }
 
   IFS=","
+  local -a volume_uuid_arr=()
+  if [[ -n "$VOLUME_UUIDS" ]]; then
+    IFS=',' read -r -a volume_uuid_arr <<< "$VOLUME_UUIDS"
+  fi
 
   name="root"
+  local disk_index=0
   for disk in $DISK_PATHS; do
-    if [[ "$disk" == rbd:* ]]; then
+    if [[ ${#volume_uuid_arr[@]} -gt $disk_index && -n "${volume_uuid_arr[$disk_index]}" ]]; then
+      volUuid="${volume_uuid_arr[$disk_index]}"
+    elif [[ "$disk" == rbd:* ]]; then
       volUuid=$(get_ceph_uuid_from_path "$disk")
     elif [[ "$disk" == /dev/drbd/by-res/* ]]; then
       volUuid=$(get_linstor_uuid_from_path "$disk")
@@ -223,6 +240,7 @@ backup_stopped_vm() {
       cleanup
     fi
     name="datadisk"
+    ((disk_index+=1))
   done
   sync
 
@@ -321,6 +339,11 @@ while [[ $# -gt 0 ]]; do
       ;;
     -d|--diskpaths)
       DISK_PATHS="$2"
+      shift
+      shift
+      ;;
+    -u|--volumeuuids)
+      VOLUME_UUIDS="$2"
       shift
       shift
       ;;

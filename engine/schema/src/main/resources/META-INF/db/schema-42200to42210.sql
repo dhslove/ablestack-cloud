@@ -34,7 +34,7 @@ UPDATE `cloud`.`alert` SET type = 34 WHERE name = 'ALERT.VR.PRIVATE.IFACE.MTU';
 -- Update configuration 'kvm.ssh.to.agent' description and is_dynamic fields
 UPDATE `cloud`.`configuration` SET description = 'True if the management server will restart the agent service via SSH into the KVM hosts after or during maintenance operations', is_dynamic = 1 WHERE name = 'kvm.ssh.to.agent';
 -- Drops the unused "backup_interval_type" column of the "cloud.backups" table
-ALTER TABLE `cloud`.`backups` DROP COLUMN `backup_interval_type`;
+CALL `cloud`.`IDEMPOTENT_DROP_COLUMN`('cloud.backups', 'backup_interval_type');
 
 -- Sanitize legacy network-level addressing fields for Public networks
 UPDATE `cloud`.`networks`
@@ -1160,3 +1160,51 @@ JOIN `cloud`.`vm_instance_details` d ON d.vm_id = r.target_vm_id AND d.name = 'd
 SET r.ownership_state = 'VALID', r.updated = NOW()
 WHERE r.target_vm_id IS NOT NULL AND CAST(d.value AS UNSIGNED) = r.plan_id
   AND (r.ownership_state IS NULL OR r.ownership_state <> 'QUARANTINED');
+-- Storage Service protocol/share/target/rule/domain JSON payloads are larger
+-- than the default JPA string width. Keep the columns as MEDIUMTEXT on upgraded
+-- Europa environments so endpoint, volume, authentication, and runtime metadata
+-- are not truncated.
+SET @storage_service_config_json_ddl = IF(
+    (SELECT COUNT(*) FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = 'cloud' AND TABLE_NAME = 'storage_service_protocol' AND COLUMN_NAME = 'config_json') > 0,
+    'ALTER TABLE `cloud`.`storage_service_protocol` MODIFY COLUMN `config_json` mediumtext DEFAULT NULL',
+    'SELECT 1');
+PREPARE stmt FROM @storage_service_config_json_ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @storage_service_config_json_ddl = IF(
+    (SELECT COUNT(*) FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = 'cloud' AND TABLE_NAME = 'storage_file_share' AND COLUMN_NAME = 'config_json') > 0,
+    'ALTER TABLE `cloud`.`storage_file_share` MODIFY COLUMN `config_json` mediumtext DEFAULT NULL',
+    'SELECT 1');
+PREPARE stmt FROM @storage_service_config_json_ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @storage_service_config_json_ddl = IF(
+    (SELECT COUNT(*) FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = 'cloud' AND TABLE_NAME = 'storage_block_target' AND COLUMN_NAME = 'config_json') > 0,
+    'ALTER TABLE `cloud`.`storage_block_target` MODIFY COLUMN `config_json` mediumtext DEFAULT NULL',
+    'SELECT 1');
+PREPARE stmt FROM @storage_service_config_json_ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @storage_service_config_json_ddl = IF(
+    (SELECT COUNT(*) FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = 'cloud' AND TABLE_NAME = 'storage_access_rule' AND COLUMN_NAME = 'config_json') > 0,
+    'ALTER TABLE `cloud`.`storage_access_rule` MODIFY COLUMN `config_json` mediumtext DEFAULT NULL',
+    'SELECT 1');
+PREPARE stmt FROM @storage_service_config_json_ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @storage_service_config_json_ddl = IF(
+    (SELECT COUNT(*) FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = 'cloud' AND TABLE_NAME = 'storage_identity_domain' AND COLUMN_NAME = 'config_json') > 0,
+    'ALTER TABLE `cloud`.`storage_identity_domain` MODIFY COLUMN `config_json` mediumtext DEFAULT NULL',
+    'SELECT 1');
+PREPARE stmt FROM @storage_service_config_json_ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;

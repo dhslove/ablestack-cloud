@@ -1,0 +1,32 @@
+#!/bin/sh
+
+# 파일명 수정 필요: bpend_notify.<정책명>
+
+CLIENT="${1:-}"
+POLICY="${2:-}"
+SCHEDULE="${3:-}"
+TYPE="${4:-}"
+STATUS="${5:-0}"
+
+LOG="/var/log/netbackup-mold-hook.log"
+HELPER="/usr/share/cloudstack-common/scripts/vm/hypervisor/kvm/netbackup-host-bpend-notify.sh"
+
+log_line() {
+  printf '%s %s\n' "$(date '+%F %T')" "$1" >> "$LOG" 2>&1
+}
+
+if [ $# -lt 4 ]; then
+  log_line "POST invalid-args argc=$# client=$CLIENT policy=$POLICY schedule=$SCHEDULE type=$TYPE status=$STATUS"
+  exit 2
+fi
+
+if [ ! -x "$HELPER" ]; then
+  log_line "POST helper-missing path=$HELPER"
+  exit 3
+fi
+
+log_line "POST start client=$CLIENT policy=$POLICY schedule=$SCHEDULE type=$TYPE status=$STATUS"
+"$HELPER" "$POLICY" "$SCHEDULE" "$CLIENT" "$STATUS" >> "$LOG" 2>&1
+RC=$?
+log_line "POST end rc=$RC client=$CLIENT policy=$POLICY schedule=$SCHEDULE type=$TYPE status=$STATUS"
+exit $RC

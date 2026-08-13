@@ -83,6 +83,14 @@ public interface BackupProvider {
         return takeBackup(vm, quiesceVM);
     }
 
+    default Pair<Boolean, Backup> takeNetBackup(VirtualMachine vm, String policyName) {
+        throw new UnsupportedOperationException("NetBackup is not supported by provider " + getName());
+    }
+
+    default String getCatalogBackupTime(Long zoneId, String backupId) {
+        return null;
+    }
+
     /**
      * Delete an existing backup
      * @param backup The backup to exclude
@@ -102,6 +110,9 @@ public interface BackupProvider {
      * Restore VM from backup
      */
     boolean restoreVMFromBackup(VirtualMachine vm, Backup backup);
+
+    default void cleanupPreparedRestore(VirtualMachine vm, Backup backup, String restoreHostName) {
+    }
 
     /**
      * Restore a volume from a backup
@@ -205,6 +216,10 @@ public interface BackupProvider {
 
     default boolean supportsRestoreChainValidation() {
         return false;
+    }
+
+    default String getRestoreJobState(Long zoneId, String recoveryJobId) {
+        return null;
     }
 
     default boolean supportsPostRestoreMaintenance() {

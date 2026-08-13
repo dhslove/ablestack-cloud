@@ -98,7 +98,7 @@
           </a-select-option>
         </a-select>
       </a-form-item>
-      <a-form-item name="allowuserdrivenbackups" ref="allowuserdrivenbackups" v-if="!isCommvaultProvider">
+      <a-form-item name="allowuserdrivenbackups" ref="allowuserdrivenbackups" v-if="!isSingleOfferingProvider">
         <template #label>
           <tooltip-label :title="$t('label.allowuserdrivenbackups')" :tooltip="apiParams.allowuserdrivenbackups.description"/>
         </template>
@@ -196,7 +196,7 @@ export default {
       },
       selectedZoneId: null,
       selectedProviderName: null,
-      useCommvault: false
+      hasExistingSingleProviderOffering: false
     }
   },
   beforeCreate () {
@@ -210,6 +210,13 @@ export default {
   computed: {
     isCommvaultProvider () {
       return this.selectedProviderName && this.selectedProviderName.toLowerCase() === 'commvault'
+    },
+    isNetBackupProvider () {
+      return this.selectedProviderName &&
+        ['netbackup', 'ablestack-netbackup'].includes(this.selectedProviderName.toLowerCase())
+    },
+    isSingleOfferingProvider () {
+      return this.isCommvaultProvider || this.isNetBackupProvider
     },
     retentionPeriodInDays () {
       const value = parseInt(this.form.retentionPeriodValue)
@@ -280,11 +287,11 @@ export default {
     },
     async checkBackupOffering () {
       if (!this.selectedZoneId || !this.selectedProviderName) {
-        this.useCommvault = false
+        this.hasExistingSingleProviderOffering = false
         return
       }
-      if (!this.isCommvaultProvider) {
-        this.useCommvault = false
+      if (!this.isSingleOfferingProvider) {
+        this.hasExistingSingleProviderOffering = false
         return
       }
       const json = await getAPI('listBackupOfferings')
@@ -293,7 +300,7 @@ export default {
       const selProvider = (this.selectedProviderName || '').toLowerCase()
       const selZoneId = this.selectedZoneId
 
-      this.useCommvault = backupOff.some(off => {
+      this.hasExistingSingleProviderOffering = backupOff.some(off => {
         const offProvider = (off.provider || '').toLowerCase()
         const offZoneId = off.zoneid || off.zoneId
         return offProvider === selProvider && offZoneId === selZoneId
@@ -351,7 +358,7 @@ export default {
       if (this.loading) return
       this.formRef.value.validate().then(async () => {
         await this.checkBackupOffering()
-        if (this.useCommvault) {
+        if (this.isSingleOfferingProvider && this.hasExistingSingleProviderOffering) {
           this.$notification.error({
             message: this.$t('message.request.failed'),
             description: this.$t('message.error.import.backup.offering')
@@ -368,6 +375,8 @@ export default {
         if (this.isCommvaultProvider) {
           params.retentionperiod = this.retentionPeriodInDays
           params.allowuserdrivenbackups = true
+        } else if (this.isNetBackupProvider) {
+          params.allowuserdrivenbackups = false
         } else {
           params.allowuserdrivenbackups = values.allowuserdrivenbackups
         }
@@ -385,7 +394,9 @@ export default {
             params.domainid = domainId
           }
         }
-        params.allowuserdrivenbackups = values.allowuserdrivenbackups
+        if (!this.isSingleOfferingProvider) {
+          params.allowuserdrivenbackups = values.allowuserdrivenbackups
+        }
         this.loading = true
         const title = this.$t('label.import.offering')
         postAPI('importBackupOffering', params).then(json => {

@@ -1,0 +1,371 @@
+#!/bin/bash
+
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOG_FILE="${LOG_FILE:-/var/log/netbackup-mold-restore.log}"
+CONFIG_FILE="${MOLD_CONFIG_FILE:-/etc/ablestack/netbackup/restore.conf}"
+CONFIG_ROOT="${CONFIG_ROOT:-/etc/ablestack/netbackup}"
+MOLD_RESTORE_API_METHOD="${MOLD_RESTORE_API_METHOD:-POST}"
+MOLD_RESTORE_MODE="${MOLD_RESTORE_MODE:-live}"
+MOLD_API_RESPONSE_FORMAT="${MOLD_API_RESPONSE_FORMAT:-json}"
+MOLD_ASYNC_JOB_POLL_INTERVAL="${MOLD_ASYNC_JOB_POLL_INTERVAL:-5}"
+MOLD_ASYNC_JOB_TIMEOUT="${MOLD_ASYNC_JOB_TIMEOUT:-1800}"
+MOLD_URL="${MOLD_URL:-}"
+MOLD_RESTORE_API_URL="${MOLD_RESTORE_API_URL:-}"
+ADMIN_APIKEY="${ADMIN_APIKEY:-}"
+ADMIN_SECRETKEY="${ADMIN_SECRETKEY:-}"
+MOLD_SECRET_FILE="${MOLD_SECRET_FILE:-}"
+SECRET_KEY_FILE="${SECRET_KEY_FILE:-}"
+SECRET_HELPER="${SECRET_HELPER:-/usr/share/cloudstack-common/scripts/vm/hypervisor/kvm/netbackup-host-secret-helper.sh}"
+
+ensure_log_dir() {
+  mkdir -p "$(dirname "${LOG_FILE}")"
+}
+
+log_line() {
+  ensure_log_dir
+  printf '[%s] %s\n' "$(date '+%m/%d/%Y %H:%M:%S.%3N')" "$1" >> "${LOG_FILE}"
+}
+
+fail() {
+  log_line "RESTORE error: $*"
+  printf '%s\n' "$*" >&2
+  exit 1
+}
+
+require_commands() {
+  local missing=()
+  local command_name
+  for command_name in "$@"; do
+    command -v "${command_name}" >/dev/null 2>&1 || missing+=("${command_name}")
+  done
+  [[ ${#missing[@]} -eq 0 ]] || fail "Required command(s) not found: ${missing[*]}"
+}
+
+raw_to_hex() {
+  od -An -tx1 -v | tr -d ' \n'
+}
+
+hex_to_raw() {
+  local hex
+  hex="$(printf '%s' "$1" | tr -d '[:space:]')"
+  [[ $(( ${#hex} % 2 )) -eq 0 ]] || fail "Invalid hex string length."
+  printf '%b' "$(printf '%s' "${hex}" | sed 's/../\\x&/g')"
+}
+
+looks_like_backup_id() {
+  [[ "${1:-}" =~ ^[^/\\]+_[0-9]+$ ]]
+}
+
+trim_quotes() {
+  local value="$1"
+  value="${value#\"}"
+  value="${value%\"}"
+  value="${value#\'}"
+  value="${value%\'}"
+  printf '%s' "${value}"
+}
+
+load_config() {
+  [[ -n "${CONFIG_FILE}" ]] || fail "MOLD_CONFIG_FILE must be configured"
+  [[ -f "${CONFIG_FILE}" ]] || fail "MOLD_CONFIG_FILE not found: ${CONFIG_FILE}"
+
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    line="${line#"${line%%[![:space:]]*}"}"
+    line="${line%"${line##*[![:space:]]}"}"
+    [[ -n "${line}" ]] || continue
+    [[ "${line}" == \#* ]] && continue
+    [[ "${line}" == *"="* ]] || continue
+
+    key="${line%%=*}"
+    value="${line#*=}"
+    key="${key//[[:space:]]/}"
+    value="$(trim_quotes "${value}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+
+    case "${key}" in
+      MOLD_URL) [[ -n "${MOLD_URL}" ]] || MOLD_URL="${value}" ;;
+      ADMIN_APIKEY) [[ -n "${ADMIN_APIKEY}" ]] || ADMIN_APIKEY="${value}" ;;
+      LOG_FILE) [[ "${LOG_FILE}" == "/var/log/netbackup-mold-restore.log" ]] && LOG_FILE="${value}" ;;
+      MOLD_SECRET_FILE) [[ -n "${MOLD_SECRET_FILE}" ]] || MOLD_SECRET_FILE="${value}" ;;
+      SECRET_KEY_FILE) [[ -n "${SECRET_KEY_FILE}" ]] || SECRET_KEY_FILE="${value}" ;;
+      SECRET_HELPER) [[ -n "${SECRET_HELPER}" ]] || SECRET_HELPER="${value}" ;;
+    esac
+  done < "${CONFIG_FILE}"
+
+  if [[ -z "${MOLD_RESTORE_API_URL}" ]]; then
+    MOLD_RESTORE_API_URL="${MOLD_URL}"
+  fi
+  [[ -n "${MOLD_RESTORE_API_URL}" ]] || fail "MOLD_RESTORE_API_URL or MOLD_URL must be configured"
+  [[ -n "${ADMIN_APIKEY}" ]] || fail "ADMIN_APIKEY must be configured"
+  [[ "${MOLD_RESTORE_MODE}" == "live" || "${MOLD_RESTORE_MODE}" == "validate-only" ]] || \
+    fail "MOLD_RESTORE_MODE must be either 'live' or 'validate-only'"
+}
+
+load_secret() {
+  [[ -n "${SECRET_KEY_FILE}" ]] || fail "SECRET_KEY_FILE must be configured"
+  [[ -n "${MOLD_SECRET_FILE}" ]] || MOLD_SECRET_FILE="${CONFIG_ROOT}/secrets/secret.enc"
+  [[ -f "${SECRET_KEY_FILE}" ]] || fail "Secret key file not found: ${SECRET_KEY_FILE}"
+  [[ -f "${MOLD_SECRET_FILE}" ]] || fail "Secret file not found: ${MOLD_SECRET_FILE}"
+
+  [[ -x "${SECRET_HELPER}" ]] || fail "Secret helper not found or not executable: ${SECRET_HELPER}"
+
+  ADMIN_SECRETKEY="$(SECRET_KEY_FILE="${SECRET_KEY_FILE}" "${SECRET_HELPER}" decrypt "${MOLD_SECRET_FILE}")" || \
+    fail "Failed to decrypt NetBackup secret file ${MOLD_SECRET_FILE}"
+  ADMIN_SECRETKEY="${ADMIN_SECRETKEY%$'\r'}"
+  ADMIN_SECRETKEY="${ADMIN_SECRETKEY%$'\n'}"
+  [[ -n "${ADMIN_SECRETKEY}" ]] || fail "Decrypted MOLD secret is empty."
+}
+
+urlencode_plus() {
+  local value="$1"
+  local encoded="" char i code
+  for ((i = 0; i < ${#value}; i++)); do
+    char="${value:i:1}"
+    case "${char}" in
+      [a-zA-Z0-9.~_-])
+        encoded+="${char}"
+        ;;
+      ' ')
+        encoded+="+"
+        ;;
+      *)
+        printf -v code '%%%02X' "'${char}"
+        encoded+="${code}"
+        ;;
+    esac
+  done
+  printf '%s' "${encoded}"
+}
+
+build_api_params() {
+  local command_name="$1"
+  shift
+  local params="$1"
+  printf 'command=%s&%s&response=%s' "$(urlencode_plus "${command_name}")" "${params}" "$(urlencode_plus "${MOLD_API_RESPONSE_FORMAT}")"
+}
+
+build_signed_url() {
+  local api_params="$1"
+  local sorted_url signature
+  sorted_url="$(
+    {
+      printf 'apikey=%s\n' "$(printf '%s' "${ADMIN_APIKEY}" | tr '[:upper:]' '[:lower:]')"
+      IFS='&' read -r -a tokens <<< "${api_params}"
+      for token in "${tokens[@]}"; do
+        local key value
+        key="${token%%=*}"
+        value="${token#*=}"
+        printf '%s=%s\n' "$(printf '%s' "${key}" | tr '[:upper:]' '[:lower:]')" "$(printf '%s' "${value}" | tr '[:upper:]' '[:lower:]')"
+      done
+    } | sort | paste -sd '&' -
+  )"
+  signature="$(
+    printf '%s' "${sorted_url}" \
+      | openssl dgst -sha256 -hmac "${ADMIN_SECRETKEY}" -binary \
+      | openssl base64 -A
+  )"
+  printf '%s?%s&apiKey=%s&signature=%s' \
+    "${MOLD_RESTORE_API_URL}" \
+    "${api_params}" \
+    "$(urlencode_plus "${ADMIN_APIKEY}")" \
+    "$(urlencode_plus "${signature}")"
+}
+
+invoke_mold_api() {
+  local method="$1"
+  local command_name="$2"
+  local request_key="$3"
+  local external_id="$4"
+  local netbackup_job_id="${5:-}"
+  local api_params signed_url response http_body http_code curl_exit
+
+  log_line "RESTORE api-call command=${command_name} method=${method} externalid=${external_id} netbackup_jobid=${netbackup_job_id:-}"
+  api_params="${request_key}=$(urlencode_plus "${external_id}")"
+  if [[ -n "${netbackup_job_id}" ]]; then
+    api_params="${api_params}&jobid=$(urlencode_plus "${netbackup_job_id}")"
+  fi
+  api_params="$(build_api_params "${command_name}" "${api_params}")"
+  signed_url="$(build_signed_url "${api_params}")"
+  response="$(curl -sS -X "${method}" \
+    -H 'Accept: application/json' \
+    -H 'Content-type: application/x-www-form-urlencoded' \
+    -w '\n%{http_code}' \
+    "${signed_url}" 2>&1)"
+  curl_exit=$?
+  http_body="${response%$'\n'*}"
+  http_code="${response##*$'\n'}"
+  if [[ ${curl_exit} -ne 0 || ! "${http_code}" =~ ^2[0-9][0-9]$ ]]; then
+    fail "Mold API call failed: method=${method} command=${command_name} httpCode=${http_code} curlExit=${curl_exit} response=${http_body}"
+  fi
+  printf '%s' "${http_body}"
+}
+
+extract_json_value_by_key() {
+  local payload="$1"
+  local key_name="$2"
+
+  python3 - "$payload" "$key_name" <<'PY'
+import json
+import sys
+
+payload = sys.argv[1]
+target_key = sys.argv[2].lower()
+
+try:
+    data = json.loads(payload)
+except Exception:
+    sys.exit(1)
+
+def walk(node):
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if str(key).lower() == target_key:
+                if isinstance(value, (dict, list)):
+                    print(json.dumps(value), end="")
+                elif value is None:
+                    print("", end="")
+                else:
+                    print(str(value), end="")
+                return True
+            if walk(value):
+                return True
+    elif isinstance(node, list):
+        for item in node:
+            if walk(item):
+                return True
+    return False
+
+if not walk(data):
+    sys.exit(1)
+PY
+}
+
+wait_for_mold_async_job() {
+  local operation_name="$1"
+  local job_id="$2"
+  local request_key="$3"
+  local request_value="$4"
+  local start_time
+  start_time="$(date +%s)"
+
+  while true; do
+    local response
+    response="$(invoke_mold_api "${MOLD_RESTORE_API_METHOD}" "queryAsyncJobResult" "jobid" "${job_id}")" || \
+      fail "Failed to query async job status for ${operation_name} jobId=${job_id}"
+
+    local job_status=""
+    job_status="$(extract_json_value_by_key "${response}" "jobstatus" 2>/dev/null || true)"
+    log_line "RESTORE async-job-poll command=${operation_name} jobid=${job_id} status=${job_status:-0} ${request_key}=${request_value}"
+
+    case "${job_status}" in
+      1)
+        local job_result=""
+        job_result="$(extract_json_value_by_key "${response}" "jobresult" 2>/dev/null || true)"
+        log_line "RESTORE async-job-success command=${operation_name} jobid=${job_id} status=1 result=${job_result}"
+        printf '%s' "${response}"
+        return 0
+        ;;
+      2)
+        local error_text=""
+        error_text="$(extract_json_value_by_key "${response}" "errortext" 2>/dev/null || true)"
+        [[ -n "${error_text}" ]] || error_text="$(extract_json_value_by_key "${response}" "jobresult" 2>/dev/null || true)"
+        log_line "RESTORE async-job-failed command=${operation_name} jobid=${job_id} status=2 error=${error_text:-unknown error}"
+        fail "Mold async job failed for ${operation_name} jobId=${job_id}: ${error_text:-unknown error}"
+        ;;
+      0|"")
+        ;;
+      *)
+        log_line "RESTORE async-job-unexpected command=${operation_name} jobid=${job_id} status=${job_status}"
+        ;;
+    esac
+
+    if (( $(date +%s) - start_time >= MOLD_ASYNC_JOB_TIMEOUT )); then
+      fail "Timed out waiting for Mold async job ${operation_name} jobId=${job_id} after ${MOLD_ASYNC_JOB_TIMEOUT}s"
+    fi
+
+    sleep "${MOLD_ASYNC_JOB_POLL_INTERVAL}"
+  done
+}
+
+main() {
+  if [[ $# -lt 2 ]]; then
+    fail "usage: netbackup-host-restore-notify <program_name> <external_id> [operation] [netbackup_job_id]"
+  fi
+
+  local program_name="$1"
+  local external_id="$2"
+  local operation="${3:-}"
+  local netbackup_job_id="${4:-}"
+  local request_key
+  local response
+
+  log_line "START script=netbackup-host-restore-notify args=$*"
+  require_commands openssl base64 od sed tr curl date mkdir sleep
+  load_config
+  load_secret
+  log_line "RESTORE config-loaded program=${program_name} externalid=${external_id} operation=${operation} mold_url=${MOLD_RESTORE_API_URL} log_file=${LOG_FILE}"
+
+  if [[ "${MOLD_RESTORE_MODE}" == "validate-only" ]]; then
+    if looks_like_backup_id "${external_id}"; then
+      request_key="backupid"
+    else
+      request_key="externalid"
+    fi
+    log_line "RESTORE validate-only command=restoreNetBackup ${request_key}=${external_id} operation=${operation} program=${program_name}"
+    return 0
+  fi
+
+  if [[ -n "${operation}" && "${operation,,}" != "restore" ]]; then
+    log_line "RESTORE skip externalid=${external_id} operation=${operation} reason=unsupported-operation"
+    return 0
+  fi
+
+  if looks_like_backup_id "${external_id}"; then
+    request_key="backupid"
+  else
+    request_key="externalid"
+  fi
+
+  response="$(invoke_mold_api "${MOLD_RESTORE_API_METHOD}" "prepareNetBackupRestore" "${request_key}" "${external_id}" "${netbackup_job_id}")"
+  should_restore="$(extract_json_value_by_key "${response}" "shouldrestore" 2>/dev/null || true)"
+  skip_reason="$(extract_json_value_by_key "${response}" "skipreason" 2>/dev/null || true)"
+  vm_id="$(extract_json_value_by_key "${response}" "vmid" 2>/dev/null || true)"
+  vm_name="$(extract_json_value_by_key "${response}" "vmname" 2>/dev/null || true)"
+  backup_uuid="$(extract_json_value_by_key "${response}" "backupuuid" 2>/dev/null || true)"
+  log_line "RESTORE precheck-response command=prepareNetBackupRestore ${request_key}=${external_id} operation=${operation} shouldrestore=${should_restore:-} vmid=${vm_id:-} vmname=${vm_name:-} backupuuid=${backup_uuid:-} skipreason=${skip_reason:-} response=${response}"
+
+  if [[ "${should_restore,,}" != "true" ]]; then
+    log_line "RESTORE precheck-skip command=prepareNetBackupRestore ${request_key}=${external_id} operation=${operation} vmid=${vm_id:-} vmname=${vm_name:-} backupuuid=${backup_uuid:-} reason=${skip_reason:-precheck-declined}"
+    printf 'SKIPPED prepareNetBackupRestore reason=%s\n' "${skip_reason:-precheck-declined}"
+    return 0
+  fi
+
+  response="$(invoke_mold_api "${MOLD_RESTORE_API_METHOD}" "restoreNetBackup" "${request_key}" "${external_id}" "${netbackup_job_id}")"
+  job_id="$(extract_json_value_by_key "${response}" "jobid" 2>/dev/null || true)"
+  [[ -n "${job_id}" ]] || fail "Mold restoreNetBackup API did not return jobid for ${request_key}=${external_id}"
+
+  log_line "RESTORE async-job-submitted command=restoreNetBackup jobid=${job_id} ${request_key}=${external_id} response=${response}"
+  log_line "RESTORE async-job-detached command=restoreNetBackup jobid=${job_id} ${request_key}=${external_id}"
+  printf 'SUBMITTED restoreNetBackup jobid=%s\n' "${job_id}"
+  return 0
+}
+
+main "$@"

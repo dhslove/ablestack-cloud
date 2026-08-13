@@ -70,6 +70,7 @@ public class ApiConstants {
     public static final String BACKUP_VM_OFFERING_REMOVED = "vmbackupofferingremoved";
     public static final String IS_BACKUP_VM_EXPUNGED = "isbackupvmexpunged";
     public static final String BACKUP_TOTAL = "backuptotal";
+    public static final String BACKEND_SSL = "backendssl";
     public static final String BASE64_IMAGE = "base64image";
     public static final String BGP_PEERS = "bgppeers";
     public static final String BGP_PEER_IDS = "bgppeerids";
@@ -393,6 +394,7 @@ public class ApiConstants {
     public static final String MAX = "max";
     public static final String MAX_SNAPS = "maxsnaps";
     public static final String MAX_BACKUPS = "maxbackups";
+    public static final String MEMBER_COUNT = "membercount";
     public static final String MAX_CPU_NUMBER = "maxcpunumber";
     public static final String MAX_MEMORY = "maxmemory";
     public static final String MEMORY_OVERCOMMIT_RATIO = "memoryOvercommitRatio";
@@ -1584,7 +1586,7 @@ public class ApiConstants {
     }
 
     public enum VMDetails {
-        all, group, nics, stats, secgrp, tmpl, servoff, diskoff, backoff, iso, volume, min, affgrp, vnfnics;
+        all, group, nics, stats, secgrp, tmpl, servoff, diskoff, backoff, iso, volume, min, affgrp, vnfnics, guestnetwork;
     }
 
     public enum DomainDetails {

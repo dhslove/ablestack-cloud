@@ -119,6 +119,12 @@
                     :min="0" />
                 </a-tooltip>
               </a-form-item>
+              <a-alert
+                v-if="backupChainRetentionMessage"
+                class="backup-chain-retention-info"
+                type="info"
+                show-icon
+                :message="backupChainRetentionMessage" />
             </a-col>
             <a-col :md="24" :lg="24">
               <a-form-item :label="$t('label.timezone')" ref="timezone" name="timezone">
@@ -206,6 +212,8 @@ export default {
       timeZoneMap: [],
       fetching: false,
       backupProvider: null,
+      kvmIncrementalBackupEnabled: false,
+      backupChainSize: null,
       actionLoading: false,
       listDayOfWeek: ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
     }
@@ -217,6 +225,7 @@ export default {
     this.initForm()
     this.fetchTimeZone()
     this.fetchBackupOffering()
+    this.fetchBackupChainConfiguration()
   },
   mounted () {
     if (this.form.intervaltype && this.isIntervalDisabled(this.form.intervaltype)) {
@@ -260,6 +269,30 @@ export default {
   computed: {
     isQuiesceVmSupported () {
       return this.$isBackupProviderSupportsQuiesceVm(this.backupProvider)
+    },
+    backupChainRetentionMessage () {
+      const maxBackups = Number(this.form.maxbackups)
+      if (!Number.isFinite(maxBackups) || maxBackups <= 0) {
+        return null
+      }
+
+      if (!this.kvmIncrementalBackupEnabled) {
+        return this.$t('message.backup.retention.info').replace(/%x/g, maxBackups)
+      }
+
+      if (!this.backupChainSize) {
+        return null
+      }
+
+      const chainSize = Number(this.backupChainSize)
+      if (!Number.isFinite(chainSize) || chainSize <= 0) {
+        return null
+      }
+
+      return this.$t('message.backup.chain.retention.info')
+        .replace('%x', chainSize)
+        .replace('%y', maxBackups)
+        .replace('%z', chainSize * maxBackups)
     }
   },
   methods: {
@@ -287,6 +320,8 @@ export default {
       this.dayOfWeek = []
       this.dayOfMonth = []
       this.backupProvider = null
+      this.kvmIncrementalBackupEnabled = false
+      this.backupChainSize = null
 
       this.form = {
         intervaltype: 'hourly',
@@ -304,6 +339,35 @@ export default {
       }
 
       this.fetchBackupOffering()
+      this.fetchBackupChainConfiguration()
+    },
+    fetchBackupChainConfiguration () {
+      if (!('listConfigurations' in this.$store.getters.apis)) {
+        return
+      }
+
+      const incrementalBackupParams = {
+        name: 'kvm.incremental.backup'
+      }
+      const clusterId = this.resource?.clusterid
+      if (clusterId) {
+        incrementalBackupParams.clusterid = clusterId
+      }
+      const backupChainSizeParams = {
+        name: 'backup.chain.size'
+      }
+
+      Promise.all([
+        getAPI('listConfigurations', incrementalBackupParams),
+        getAPI('listConfigurations', backupChainSizeParams)
+      ]).then(([incrementalBackupResponse, backupChainSizeResponse]) => {
+        const incrementalBackupValue = incrementalBackupResponse?.listconfigurationsresponse?.configuration?.[0]?.value
+        const backupChainSizeValue = backupChainSizeResponse?.listconfigurationsresponse?.configuration?.[0]?.value
+        this.kvmIncrementalBackupEnabled = String(incrementalBackupValue).toLowerCase() === 'true'
+        this.backupChainSize = backupChainSizeValue
+      }).catch(error => {
+        this.$notifyError(error)
+      })
     },
     fetchBackupOffering () {
       if ('backupoffering' in this.resource) {
@@ -474,5 +538,9 @@ export default {
 
 .form {
   margin: 10px 0;
+}
+
+.backup-chain-retention-info {
+  margin-top: 8px;
 }
 </style>

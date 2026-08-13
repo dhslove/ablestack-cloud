@@ -23,7 +23,7 @@ on:
       source_ref:
         description: Branch, tag, or commit SHA to build for test deployment
         required: true
-        default: feature/ftctl-cloud-integration
+        default: codex/europa-storage-service
         type: string
       base_branch:
         description: Base product line used for branding metadata
@@ -38,6 +38,26 @@ on:
         required: false
         default: ''
         type: string
+      release_stage:
+        description: Product release stage embedded in the test packages
+        required: true
+        default: alpha
+        type: choice
+        options:
+          - alpha
+          - beta
+          - rc
+          - ga
+      prerelease_number:
+        description: Positive sequence for alpha, beta, or rc; leave empty for ga
+        required: false
+        default: '1'
+        type: string
+      build_date:
+        description: Optional fixed UTC build date in YYYYMMDD format
+        required: false
+        default: ''
+        type: string
       release_seq:
         description: RPM release sequence appended after the timestamp
         required: true
@@ -46,11 +66,11 @@ on:
       pack:
         description: Package variant
         required: false
-        default: oss
+        default: noredist
         type: choice
         options:
-          - oss
           - noredist
+          - oss
       simulator:
         description: Include simulator packaging
         required: false
@@ -59,11 +79,6 @@ on:
         options:
           - default
           - simulator
-      templates:
-        description: Optional template list (for example kvm,xen,vmware)
-        required: false
-        default: ''
-        type: string
       node_version:
         description: Node.js version injected into the Rocky build container
         required: false
@@ -92,12 +107,15 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       brand: ${{ steps.derive.outputs.brand }}
+      display_version: ${{ steps.product.outputs.display_version }}
       package_version: ${{ steps.derive.outputs.package_version }}
       timestamp_value: ${{ steps.derive.outputs.timestamp_value }}
       source_commit_sha: ${{ steps.derive.outputs.source_commit_sha }}
       release_tag: ${{ steps.derive.outputs.release_tag }}
       release_name: ${{ steps.derive.outputs.release_name }}
       rpm_artifact_name: ${{ steps.derive.outputs.rpm_artifact_name }}
+      systemvm_artifact_name: ${{ steps.derive.outputs.systemvm_artifact_name }}
+      metadata_artifact_name: ${{ steps.derive.outputs.metadata_artifact_name }}
       ref_slug: ${{ steps.derive.outputs.ref_slug }}
     steps:
       - uses: actions/checkout@v6
@@ -105,17 +123,21 @@ jobs:
           ref: ${{ inputs.source_ref }}
           fetch-depth: 0
 
+      - id: product
+        name: Generate product release metadata
+        run: |
+          python3 tools/build/release_metadata.py \
+            --base-branch "${{ inputs.base_branch }}" \
+            --stage "${{ inputs.release_stage }}" \
+            --number "${{ inputs.prerelease_number }}" \
+            --build-date "${{ inputs.build_date }}" \
+            --git-commit "$(git rev-parse HEAD)" \
+            --workflow-run-id "${{ github.run_id }}" \
+            --output dist/release/release-metadata.json \
+            --github-output "$GITHUB_OUTPUT"
+
       - id: derive
         run: |
-          case "${{ inputs.base_branch }}" in
-            ablestack-europa) brand="Mold.Europa" ;;
-            ablestack-diplo) brand="Mold.Diplo" ;;
-            *)
-              echo "::error::Unsupported base branch ${{ inputs.base_branch }}"
-              exit 1
-              ;;
-          esac
-
           pom_version=$(awk '
             /<artifactId>cloudstack<\/artifactId>/ { seen=1; next }
             seen && /<version>/ {
@@ -148,18 +170,27 @@ jobs:
           timestamp_value=$(date -u +%Y%m%d%H%M)
           source_commit_sha=$(git rev-parse HEAD)
           release_tag="dev-branch-${ref_slug}-latest"
-          release_name="ABLESTACK Branch Dev ${ref_slug} Latest"
+          release_name="ABLESTACK Branch Dev ${ref_slug} - ${{ steps.product.outputs.display_version }}"
 
           {
-            echo "brand=$brand"
+            echo "brand=${{ steps.product.outputs.brand }}"
             echo "package_version=$package_version"
             echo "timestamp_value=$timestamp_value"
             echo "source_commit_sha=$source_commit_sha"
             echo "release_tag=$release_tag"
             echo "release_name=$release_name"
             echo "rpm_artifact_name=branch-dev-rocky97-rpm-${{ github.run_id }}"
+            echo "systemvm_artifact_name=branch-dev-systemvm-kvm-${{ github.run_id }}"
+            echo "metadata_artifact_name=branch-dev-release-metadata-${{ github.run_id }}"
             echo "ref_slug=$ref_slug"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Upload release metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.derive.outputs.metadata_artifact_name }}
+          if-no-files-found: error
+          path: dist/release/release-metadata.json
 
   build-rpm:
     needs: metadata
@@ -171,17 +202,29 @@ jobs:
       release: ${{ inputs.release_seq }}
       brand: ${{ needs.metadata.outputs.brand }}
       package_version: ${{ needs.metadata.outputs.package_version }}
+      ui_build_version: ${{ needs.metadata.outputs.display_version }}
       use_timestamp: true
       timestamp_value: ${{ needs.metadata.outputs.timestamp_value }}
       build_srpm: ${{ inputs.build_srpm }}
-      templates: ${{ inputs.templates }}
+      templates: kvm
       node_version: ${{ inputs.node_version }}
       artifact_name: ${{ needs.metadata.outputs.rpm_artifact_name }}
+
+  build-systemvm-kvm:
+    needs: metadata
+    uses: ./.github/workflows/systemvm-kvm.yml
+    with:
+      ref: ${{ needs.metadata.outputs.source_commit_sha }}
+      version: ${{ needs.metadata.outputs.package_version }}
+      build_number: ${{ github.run_number }}
+      artifact_name: ${{ needs.metadata.outputs.systemvm_artifact_name }}
+      release_display_version: ${{ needs.metadata.outputs.display_version }}
 
   publish-release:
     needs:
       - metadata
       - build-rpm
+      - build-systemvm-kvm
     runs-on: ubuntu-24.04
     env:
       DEV_RELEASE_TAG: ${{ needs.metadata.outputs.release_tag }}
@@ -194,15 +237,20 @@ jobs:
             const tag = process.env.DEV_RELEASE_TAG;
             const { owner, repo } = context.repo;
 
-            try {
-              const release = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
-              await github.rest.repos.deleteRelease({ owner, repo, release_id: release.data.id });
-              core.info(`Deleted existing release for ${tag}`);
-            } catch (error) {
-              if (error.status !== 404) {
-                throw error;
-              }
+            const releases = await github.paginate(github.rest.repos.listReleases, {
+              owner,
+              repo,
+              per_page: 100,
+            });
+            const matchingReleases = releases.filter((release) => release.tag_name === tag);
+
+            if (matchingReleases.length === 0) {
               core.info(`No existing release found for ${tag}`);
+            } else {
+              for (const release of matchingReleases) {
+                await github.rest.repos.deleteRelease({ owner, repo, release_id: release.id });
+                core.info(`Deleted existing release ${release.id} for ${tag}`);
+              }
             }
 
             try {
@@ -221,10 +269,26 @@ jobs:
           name: ${{ needs.metadata.outputs.rpm_artifact_name }}
           path: download/rpm
 
+      - name: Download release metadata
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.metadata.outputs.metadata_artifact_name }}
+          path: download/metadata
+
+      - name: Download KVM System VM artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.metadata.outputs.systemvm_artifact_name }}
+          path: download/systemvm
+
       - name: Assemble branch development release assets
         run: |
           mkdir -p release-assets
           find download/rpm -type f -exec cp {} release-assets/ \;
+          find download/metadata -type f -exec cp {} release-assets/ \;
+          find download/systemvm -type f \
+            \( -name '*.qcow2.bz2' -o -name 'SYSTEMVM-*' \) \
+            -exec cp {} release-assets/ \;
           cat > release-assets/DEV-RELEASE.txt <<EOF
           Release tag: ${DEV_RELEASE_TAG}
           Release name: ${DEV_RELEASE_NAME}
@@ -232,13 +296,37 @@ jobs:
           Base branch metadata: ${{ inputs.base_branch }}
           Source commit: ${{ needs.metadata.outputs.source_commit_sha }}
           Package version: ${{ needs.metadata.outputs.package_version }}
+          ABLESTACK display version: ${{ needs.metadata.outputs.display_version }}
+          Package mode: ${{ inputs.pack }}
+          System VM: KVM x86_64 qcow2.bz2
           Timestamp: ${{ needs.metadata.outputs.timestamp_value }}
           GitHub run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           EOF
           (
             cd release-assets
-            sha256sum * > SHA256SUMS
+            rm -f SHA256SUMS
+            checksum_file=$(mktemp)
+            find . -maxdepth 1 -type f ! -name SHA256SUMS -print0 \
+              | sort -z \
+              | xargs -0 sha256sum > "$checksum_file"
+            mv "$checksum_file" SHA256SUMS
           )
+
+      - name: Summarize branch development release contents
+        run: |
+          systemvm_image=$(find release-assets -maxdepth 1 -type f -name '*.qcow2.bz2' -printf '%f\n')
+          {
+            echo "## ABLESTACK Branch Development Release"
+            echo
+            echo "- Release: \`$DEV_RELEASE_TAG\`"
+            echo "- Source ref: \`${{ inputs.source_ref }}\`"
+            echo "- Source commit: \`${{ needs.metadata.outputs.source_commit_sha }}\`"
+            echo "- Package mode: \`${{ inputs.pack }}\`"
+            echo "- System VM hypervisor: \`KVM\`"
+            echo "- System VM architecture: \`x86_64\`"
+            echo "- System VM format: \`qcow2.bz2\`"
+            echo "- System VM image: \`$systemvm_image\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish branch development GitHub Release
         uses: softprops/action-gh-release@v2

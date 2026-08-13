@@ -160,10 +160,13 @@ public class BackupDaoImpl extends GenericDaoBase<BackupVO, Long> implements Bac
         return new ArrayList<>(listBy(sc));
     }
 
-    private Backup findByExternalId(Long zoneId, String externalId) {
+    @Override
+    public Backup findByExternalId(Long zoneId, String externalId) {
         SearchCriteria<BackupVO> sc = backupSearch.create();
         sc.setParameters("external_id", externalId);
-        sc.setParameters("zone_id", zoneId);
+        if (zoneId != null) {
+            sc.setParameters("zone_id", zoneId);
+        }
         return findOneBy(sc);
     }
 

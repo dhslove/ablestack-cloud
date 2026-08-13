@@ -38,6 +38,7 @@ import java.util.concurrent.TimeUnit;
 import com.cloud.utils.DateUtil;
 import com.google.gson.JsonSyntaxException;
 import org.apache.cloudstack.framework.config.ConfigKey;
+import org.apache.cloudstack.storage.datastore.db.PrimaryDataStoreDao;
 import org.apache.cloudstack.storage.datastore.db.StoragePoolVO;
 import org.apache.commons.collections.CollectionUtils;
 import org.influxdb.InfluxDB;
@@ -66,13 +67,20 @@ import com.cloud.agent.api.VmDiskStatsEntry;
 import com.cloud.agent.api.VmStatsEntry;
 import com.cloud.hypervisor.Hypervisor;
 import com.cloud.server.StatsCollector.ExternalStatsProtocol;
+import com.cloud.storage.ScopeType;
+import com.cloud.storage.Storage;
 import com.cloud.storage.StorageStats;
 import com.cloud.storage.VolumeStatsVO;
+import com.cloud.storage.VolumeVO;
+import com.cloud.storage.dao.VolumeDao;
 import com.cloud.storage.dao.VolumeStatsDao;
 import com.cloud.user.VmDiskStatisticsVO;
 import com.cloud.utils.exception.CloudRuntimeException;
+import com.cloud.vm.NicVO;
+import com.cloud.vm.UserVmManager;
 import com.cloud.vm.VmStats;
 import com.cloud.vm.VmStatsVO;
+import com.cloud.vm.dao.NicDao;
 import com.cloud.vm.dao.VmStatsDaoImpl;
 import com.google.gson.Gson;
 import com.tngtech.java.junit.dataprovider.DataProvider;
@@ -116,6 +124,18 @@ public class StatsCollectorTest {
     VolumeStatsDao volumeStatsDao = Mockito.mock(VolumeStatsDao.class);
 
     @Mock
+    PrimaryDataStoreDao storagePoolDao = Mockito.mock(PrimaryDataStoreDao.class);
+
+    @Mock
+    VolumeDao volumeDao = Mockito.mock(VolumeDao.class);
+
+    @Mock
+    NicDao nicDao = Mockito.mock(NicDao.class);
+
+    @Mock
+    UserVmManager userVmManager = Mockito.mock(UserVmManager.class);
+
+    @Mock
     private StoragePoolVO mockPool;
 
     private static Gson gson = new Gson();
@@ -131,6 +151,10 @@ public class StatsCollectorTest {
         closeable = MockitoAnnotations.openMocks(this);
         statsCollector.vmStatsDao = vmStatsDaoMock;
         statsCollector.volumeStatsDao = volumeStatsDao;
+        ReflectionTestUtils.setField(statsCollector, "_storagePoolDao", storagePoolDao);
+        ReflectionTestUtils.setField(statsCollector, "_volsDao", volumeDao);
+        ReflectionTestUtils.setField(statsCollector, "_userVmMgr", userVmManager);
+        ReflectionTestUtils.setField(statsCollector, "_nicDao", nicDao);
         Field msStatsGsonField = StatsCollector.class.getDeclaredField("msStatsGson");
         msStatsGsonField.setAccessible(true);
         msStatsGson = (Gson) msStatsGsonField.get(null);
@@ -147,6 +171,43 @@ public class StatsCollectorTest {
     @Test
     public void createInfluxDbConnectionTest() {
         configureAndTestCreateInfluxDbConnection(true);
+    }
+
+    @Test
+    public void vmStatsCollectorCurrentBehaviorUpdatesL2NicUsingGlobalExactMacLookup() {
+        String macAddress = "52:54:00:ab:cd:01";
+        Map<String, String> agentNicMap = Map.of(macAddress, "10.10.22.102");
+        NicVO nic = Mockito.mock(NicVO.class);
+        Mockito.when(nicDao.findByMacAddress(macAddress)).thenReturn(nic);
+        Mockito.when(nic.getId()).thenReturn(42L);
+
+        statsCollector.new VmStatsCollector().updateL2NicAddresses(agentNicMap, List.of(macAddress));
+
+        Mockito.verify(nicDao).findByMacAddress(macAddress);
+        Mockito.verify(nic).setIPv4Address("10.10.22.102");
+        Mockito.verify(nicDao).update(42L, nic);
+    }
+
+    @Test
+    public void vmStatsCollectorCurrentBehaviorDoesNotNormalizeMacAddress() {
+        String agentMacAddress = "52-54-00-AB-CD-01";
+        String cloudMacAddress = "52:54:00:ab:cd:01";
+        NicVO nic = Mockito.mock(NicVO.class);
+        Mockito.when(nicDao.findByMacAddress(agentMacAddress)).thenReturn(nic);
+
+        statsCollector.new VmStatsCollector().updateL2NicAddresses(
+                Map.of(agentMacAddress, "10.10.22.102"), List.of(cloudMacAddress));
+
+        Mockito.verify(nicDao).findByMacAddress(agentMacAddress);
+        Mockito.verify(nic, Mockito.never()).setIPv4Address(Mockito.anyString());
+        Mockito.verify(nicDao, Mockito.never()).update(Mockito.anyLong(), Mockito.any(NicVO.class));
+    }
+
+    @Test
+    public void vmStatsCollectorCurrentBehaviorDoesNotClearIpWhenAgentStopsReportingIt() {
+        statsCollector.new VmStatsCollector().updateL2NicAddresses(Map.of(), List.of("52:54:00:ab:cd:01"));
+
+        Mockito.verifyNoInteractions(nicDao);
     }
 
     @Test(expected = CloudRuntimeException.class)
@@ -620,6 +681,61 @@ public class StatsCollectorTest {
         Assert.assertFalse(result);
         Mockito.verify(mockPool, Mockito.never()).setCapacityIops(Mockito.anyLong());
         Mockito.verify(mockPool, Mockito.never()).setUsedIops(Mockito.anyLong());
+    }
+
+    @Test
+    public void volumeStatsTaskSkipsEmptyPools() {
+        configureStoragePool(1L, "pool-uuid", ScopeType.CLUSTER, 1L, Storage.StoragePoolType.NetworkFilesystem);
+        when(volumeDao.findNonDestroyedVolumesByPoolId(1L, null)).thenReturn(new ArrayList<>());
+
+        statsCollector.new VolumeStatsTask().runInContext();
+
+        Mockito.verify(userVmManager, Mockito.never()).getVolumeStatistics(Mockito.anyLong(), Mockito.anyString(), Mockito.any(), Mockito.anyInt());
+    }
+
+    @Test
+    public void volumeStatsTaskSkipsNonZonePoolsWithoutClusterId() {
+        configureStoragePool(1L, "pool-uuid", ScopeType.CLUSTER, null, Storage.StoragePoolType.NetworkFilesystem);
+        VolumeVO volume = Mockito.mock(VolumeVO.class);
+        when(volume.getFormat()).thenReturn(Storage.ImageFormat.QCOW2);
+        when(volumeDao.findNonDestroyedVolumesByPoolId(1L, null)).thenReturn(Arrays.asList(volume));
+
+        statsCollector.new VolumeStatsTask().runInContext();
+
+        Mockito.verify(userVmManager, Mockito.never()).getVolumeStatistics(Mockito.anyLong(), Mockito.anyString(), Mockito.any(), Mockito.anyInt());
+    }
+
+    @Test
+    public void volumeStatsTaskSkipsVolumesWithoutFormat() {
+        configureStoragePool(1L, "pool-uuid", ScopeType.CLUSTER, 1L, Storage.StoragePoolType.NetworkFilesystem);
+        VolumeVO volume = Mockito.mock(VolumeVO.class);
+        when(volume.getFormat()).thenReturn(null);
+        when(volumeDao.findNonDestroyedVolumesByPoolId(1L, null)).thenReturn(Arrays.asList(volume));
+
+        statsCollector.new VolumeStatsTask().runInContext();
+
+        Mockito.verify(userVmManager, Mockito.never()).getVolumeStatistics(Mockito.anyLong(), Mockito.anyString(), Mockito.any(), Mockito.anyInt());
+    }
+
+    @Test
+    public void volumeStatsTaskSkipsVolumesWithoutPoolType() {
+        configureStoragePool(1L, "pool-uuid", ScopeType.CLUSTER, 1L, null);
+        VolumeVO volume = Mockito.mock(VolumeVO.class);
+        when(volume.getFormat()).thenReturn(null);
+        when(volumeDao.findNonDestroyedVolumesByPoolId(1L, null)).thenReturn(Arrays.asList(volume));
+
+        statsCollector.new VolumeStatsTask().runInContext();
+
+        Mockito.verify(userVmManager, Mockito.never()).getVolumeStatistics(Mockito.anyLong(), Mockito.anyString(), Mockito.any(), Mockito.anyInt());
+    }
+
+    private void configureStoragePool(long poolId, String uuid, ScopeType scope, Long clusterId, Storage.StoragePoolType poolType) {
+        when(storagePoolDao.listAll()).thenReturn(Arrays.asList(mockPool));
+        when(mockPool.getId()).thenReturn(poolId);
+        when(mockPool.getUuid()).thenReturn(uuid);
+        when(mockPool.getScope()).thenReturn(scope);
+        when(mockPool.getClusterId()).thenReturn(clusterId);
+        when(mockPool.getPoolType()).thenReturn(poolType);
     }
 
     @Test

@@ -4375,6 +4375,51 @@ public class UserVmManagerImplTest {
         Assert.assertTrue(ex.getMessage().startsWith("The CPU speed of this offering"));
     }
 
+    @Test
+    public void verifyVmLimits_fixedOfferingWithUnchangedResourceDetails_doesNotThrowException() {
+        when(userVmVoMock.getId()).thenReturn(1L);
+        when(userVmVoMock.getServiceOfferingId()).thenReturn(1L);
+        when(accountDao.findById(anyLong())).thenReturn(callerAccount);
+        ServiceOfferingVO serviceOffering = mock(ServiceOfferingVO.class);
+        when(serviceOffering.isDynamic()).thenReturn(false);
+        when(serviceOffering.getCpu()).thenReturn(1);
+        when(serviceOffering.getRamSize()).thenReturn(1024);
+        when(serviceOffering.getSpeed()).thenReturn(1000);
+        when(_serviceOfferingDao.findById(anyLong())).thenReturn(serviceOffering);
+        when(_serviceOfferingDao.findByIdIncludingRemoved(anyLong(), anyLong())).thenReturn(serviceOffering);
+
+        Map<String, String> details = new HashMap<>();
+        details.put(VmDetailConstants.CPU_NUMBER, "1");
+        details.put(VmDetailConstants.MEMORY, "1024");
+        details.put(VmDetailConstants.CPU_SPEED, "1000");
+        details.put(ApiConstants.BootType.UEFI.toString(), ApiConstants.BootMode.LEGACY.toString());
+
+        userVmManagerImpl.verifyVmLimits(userVmVoMock, details);
+    }
+
+    @Test
+    public void verifyVmLimits_dynamicOfferingWithUnchangedFixedCpuSpeed_doesNotThrowException() {
+        when(userVmVoMock.getId()).thenReturn(1L);
+        when(userVmVoMock.getServiceOfferingId()).thenReturn(1L);
+        when(accountDao.findById(anyLong())).thenReturn(callerAccount);
+        ServiceOfferingVO currentServiceOffering = mock(ServiceOfferingVO.class);
+        when(currentServiceOffering.isDynamic()).thenReturn(true);
+        when(currentServiceOffering.getCpu()).thenReturn(1);
+        when(currentServiceOffering.getRamSize()).thenReturn(1024);
+        when(currentServiceOffering.getSpeed()).thenReturn(1000);
+        ServiceOfferingVO serviceOffering = getMockedServiceOffering(true, false);
+        when(_serviceOfferingDao.findById(anyLong())).thenReturn(serviceOffering);
+        when(_serviceOfferingDao.findByIdIncludingRemoved(anyLong(), anyLong())).thenReturn(currentServiceOffering);
+
+        Map<String, String> details = new HashMap<>();
+        details.put(VmDetailConstants.CPU_NUMBER, "1");
+        details.put(VmDetailConstants.MEMORY, "1024");
+        details.put(VmDetailConstants.CPU_SPEED, "1000");
+        details.put(VmDetailConstants.BOOT_ORDER, "cdrom,hd");
+
+        userVmManagerImpl.verifyVmLimits(userVmVoMock, details);
+    }
+
     @Test(expected = InvalidParameterValueException.class)
     public void updateVirtualMachineNicTestInvalidNicThrowInvalidParameterValueException() {
         Long invalidId = -1L;

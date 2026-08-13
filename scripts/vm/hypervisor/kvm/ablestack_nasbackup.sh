@@ -40,7 +40,10 @@ BACKUP_FILES=""
 DISK_PATHS=""
 QUIESCE=""
 FORCED="false"
+CLEANUP_CHECKPOINT_NAMES=""
 logFile="/var/log/cloudstack/agent/agent.log"
+UNMOUNT_TIMEOUT=60
+CREATED_RBD_SNAPSHOTS=()
 
 EXIT_CLEANUP_FAILED=20
 
@@ -52,6 +55,14 @@ log() {
     builtin echo "$(date '+%Y-%m-%d %H-%M-%S>')" "$@" >> "$logFile"
   fi
 }
+
+log_unhandled_error() {
+  local status=$?
+  local line="$1"
+  log -ne "FAILED unhandled error status=[$status] line=[$line] op=[$OP] vm=[$VM] backupDir=[$BACKUP_DIR] checkpoint=[$CHECKPOINT_NAME] mountPoint=[$mount_point]"
+}
+
+trap 'log_unhandled_error "$LINENO"' ERR
 
 vercomp() {
   local IFS=.
@@ -100,6 +111,11 @@ backup_running_vm() {
   local parent_checkpoint_file=""
   if [[ "$BACKUP_TYPE" == "INCREMENTAL" && -n "$PARENT_CHECKPOINT_PATH" ]]; then
     parent_checkpoint_file="$mount_point/$PARENT_CHECKPOINT_PATH"
+    if ! parent_qcow2_bitmap_exists_on_all_disks; then
+      echo "Parent qcow2 bitmap $PARENT_CHECKPOINT_NAME not found on all disks"
+      cleanup
+      exit 1
+    fi
     redefine_checkpoint_if_needed "$VM" "$parent_checkpoint_file"
   fi
 
@@ -130,7 +146,8 @@ backup_running_vm() {
 
   # Start push backup
   local backup_begin=0
-  if virsh -c qemu:///system backup-begin --domain "$VM" --backupxml "$dest/backup.xml" --checkpointxml "$dest/checkpoint.xml" 2>&1 > /dev/null; then
+  local backup_begin_output=""
+  if backup_begin_output=$(virsh -c qemu:///system backup-begin --domain "$VM" --backupxml "$dest/backup.xml" --checkpointxml "$dest/checkpoint.xml" 2>&1); then
     backup_begin=1;
   fi
 
@@ -143,21 +160,28 @@ backup_running_vm() {
   fi
 
   if [[ $backup_begin -ne 1 ]]; then
+    log -ne "FAILED libvirt backup-begin vm=[$VM] checkpoint=[$CHECKPOINT_NAME] output=[${backup_begin_output:-Unknown error}]"
     cleanup
     exit 1
   fi
 
   backup_domain_information "$VM"
 
+  local wait_count=0
   while true; do
     status=$(virsh -c qemu:///system domjobinfo "$VM" --completed --keep-completed | awk '/Job type:/ {print $3}')
     case "$status" in
       Completed)
         break ;;
       Failed)
+        log -ne "FAILED libvirt backup job vm=[$VM] checkpoint=[$CHECKPOINT_NAME]"
         echo "Virsh backup job failed"
         cleanup ;;
     esac
+    wait_count=$((wait_count + 1))
+    if (( wait_count % 12 == 0 )); then
+      log -ne "WAIT libvirt backup job pending vm=[$VM] checkpoint=[$CHECKPOINT_NAME] elapsedSeconds=[$((wait_count * 5))] status=[${status:-unknown}]"
+    fi
     sleep 5
   done
 
@@ -169,7 +193,8 @@ backup_running_vm() {
       backup_file=$(get_backup_file_by_index "$index" "$(basename "$target").qcow2")
       output="$dest/$backup_file"
       parent="../$(basename "$PARENT_BACKUP_DIR")/$backup_file"
-      if ! qemu-img rebase -u -F qcow2 -b "$parent" "$output" > "$logFile" 2> >(cat >&2); then
+      if ! qemu-img rebase -u -F qcow2 -b "$parent" "$output" >> "$logFile" 2> >(cat >&2); then
+        log -ne "FAILED qemu-img rebase output=[$output] parent=[$parent]"
         echo "qemu-img rebase failed for $output with parent $parent"
         cleanup
       fi
@@ -177,6 +202,7 @@ backup_running_vm() {
     done < <(virsh -c qemu:///system domblklist "$VM" --details 2>/dev/null | awk '/disk/ {print $3 "|" $4}')
   fi
 
+  cleanup_parent_qcow2_bitmap_after_success
   dump_checkpoint_xml "$VM"
   rm -f "$dest/backup.xml"
   rm -f "$dest/checkpoint.xml"
@@ -186,8 +212,8 @@ backup_running_vm() {
   virsh -c qemu:///system domjobinfo "$VM" --completed
   du -sb "$dest" | cut -f1
 
-  umount "$mount_point"
-  rmdir "$mount_point"
+  timeout "$UNMOUNT_TIMEOUT" umount "$mount_point" 2>>"$logFile" || { log "WARNING: umount of $mount_point failed or timed out"; true; }
+  rmdir "$mount_point" 2>>"$logFile" || { log "WARNING: rmdir of $mount_point failed"; true; }
 }
 
 backup_rbd_volumes() {
@@ -196,10 +222,11 @@ backup_rbd_volumes() {
   mkdir -p "$dest" || { echo "Failed to create backup directory $dest"; exit 1; }
 
   backup_domain_information "$VM"
+  trap 'log -ne "FAILED RBD backup unexpected error line=[$LINENO] op=[$OP] vm=[$VM] checkpoint=[$CHECKPOINT_NAME]"; cleanup_created_rbd_snapshots' ERR
+  trap 'log -ne "FAILED RBD backup interrupted op=[$OP] vm=[$VM] checkpoint=[$CHECKPOINT_NAME]"; cleanup_created_rbd_snapshots; exit 1' INT TERM
 
   local index=0
   while IFS= read -r disk; do
-    local created_snapshot=""
     log -ne "Loop disk raw value=[$disk]"
     [[ -z "$disk" ]] && continue
 
@@ -223,33 +250,45 @@ backup_rbd_volumes() {
     log -ne "Starting RBD backup for disk path [$disk], resolved image [$RBD_IMAGE], output [$output]"
 
     if ! timeout 30s "${RBD_CMD[@]}" info "$RBD_IMAGE" >> "$logFile" 2>&1; then
+      log -ne "FAILED RBD image access check image=[$RBD_IMAGE] timeout=[30s]"
       echo "Failed to access RBD image $RBD_IMAGE"
+      cleanup_created_rbd_snapshots
       cleanup
     fi
 
     if [[ "$BACKUP_TYPE" == "INCREMENTAL" && -n "$PARENT_CHECKPOINT_NAME" ]]; then
       if ! timeout 30s "${RBD_CMD[@]}" snap ls "$RBD_IMAGE" 2>>"$logFile" | awk 'NR>1 {print $2}' | grep -Fxq "$PARENT_CHECKPOINT_NAME"; then
+        log -ne "FAILED RBD parent snapshot check image=[$RBD_IMAGE] parentSnapshot=[$PARENT_CHECKPOINT_NAME]"
         echo "Parent RBD snapshot ${RBD_IMAGE}@${PARENT_CHECKPOINT_NAME} not found for incremental backup"
+        cleanup_created_rbd_snapshots
         cleanup
       fi
     fi
 
     if ! timeout 30s "${RBD_CMD[@]}" snap create "${RBD_IMAGE}@${current_snapshot}" >> "$logFile" 2>&1; then
+      log -ne "FAILED RBD snapshot create image=[$RBD_IMAGE] snapshot=[$current_snapshot] timeout=[30s]"
       echo "Failed to create RBD snapshot ${RBD_IMAGE}@${current_snapshot}"
+      cleanup_created_rbd_snapshots
       cleanup
     fi
-    created_snapshot="${RBD_IMAGE}@${current_snapshot}"
+    record_created_rbd_snapshot "$disk" "$current_snapshot"
 
     if [[ "$BACKUP_TYPE" == "INCREMENTAL" && -n "$PARENT_CHECKPOINT_NAME" ]]; then
+      local export_start
+      export_start=$(date +%s)
       if ! timeout 6h "${RBD_CMD[@]}" export-diff --from-snap "$PARENT_CHECKPOINT_NAME" "${RBD_IMAGE}@${current_snapshot}" "$output" >> "$logFile" 2>&1; then
+        log -ne "FAILED RBD export-diff image=[$RBD_IMAGE] snapshot=[$current_snapshot] output=[$output] elapsedSeconds=[$(($(date +%s) - export_start))] timeout=[6h]"
         echo "Failed to export incremental RBD diff for ${RBD_IMAGE}@${current_snapshot}"
-        [[ -n "$created_snapshot" ]] && "${RBD_CMD[@]}" snap rm "$created_snapshot" >> "$logFile" 2>&1 || true
+        cleanup_created_rbd_snapshots
         cleanup
       fi
     else
+      local export_start
+      export_start=$(date +%s)
       if ! timeout 6h "${RBD_CMD[@]}" export "${RBD_IMAGE}@${current_snapshot}" "$output" >> "$logFile" 2>&1; then
+        log -ne "FAILED RBD export image=[$RBD_IMAGE] snapshot=[$current_snapshot] output=[$output] elapsedSeconds=[$(($(date +%s) - export_start))] timeout=[6h]"
         echo "Failed to export full RBD snapshot ${RBD_IMAGE}@${current_snapshot}"
-        [[ -n "$created_snapshot" ]] && "${RBD_CMD[@]}" snap rm "$created_snapshot" >> "$logFile" 2>&1 || true
+        cleanup_created_rbd_snapshots
         cleanup
       fi
     fi
@@ -260,11 +299,15 @@ backup_rbd_volumes() {
   done < <(split_csv "$DISK_PATHS")
 
   write_rbd_backup_metadata "$BACKUP_TYPE" "$CHECKPOINT_NAME" "$PARENT_CHECKPOINT_NAME"
+  cleanup_parent_rbd_snapshot_after_success
+  trap - ERR
+  trap - INT TERM
+  CREATED_RBD_SNAPSHOTS=()
 
   sync
   log -ne "RBD backup completed checkpoint=[$CHECKPOINT_NAME] parent=[$PARENT_CHECKPOINT_NAME]"
-  umount "$mount_point"
-  rmdir "$mount_point"
+  timeout "$UNMOUNT_TIMEOUT" umount "$mount_point" 2>>"$logFile" || { log "WARNING: umount of $mount_point failed or timed out"; true; }
+  rmdir "$mount_point" 2>>"$logFile" || { log "WARNING: rmdir of $mount_point failed"; true; }
 }
 
 backup_domain_information() {
@@ -307,6 +350,17 @@ has_child_backup() {
   grep -R -q "^parent_checkpoint_name=$checkpoint_name$" "$mount_point"/*/rbd-backup.meta 2>/dev/null
 }
 
+has_child_checkpoint() {
+  local checkpoint_name="$1"
+
+  [[ -z "$checkpoint_name" ]] && return 1
+
+  find "$mount_point" -path "$dest" -prune -o -type f -name "*.xml" -print 2>/dev/null \
+    | xargs grep -F -l "<parent>" 2>/dev/null \
+    | xargs grep -F -l "<name>$checkpoint_name</name>" 2>/dev/null \
+    | grep -q .
+}
+
 delete_rbd_snapshot_if_unreferenced() {
   local disk_paths="$1"
   local checkpoint_name="$2"
@@ -330,6 +384,92 @@ delete_rbd_snapshot_if_unreferenced() {
   done < <(split_csv "$disk_paths")
 }
 
+delete_libvirt_checkpoint_if_unreferenced() {
+  local checkpoint_name="$1"
+  local vm_name
+
+  [[ -z "$checkpoint_name" ]] && return 0
+
+  if has_child_checkpoint "$checkpoint_name"; then
+    log -ne "Skip libvirt checkpoint delete [$checkpoint_name] (child exists)"
+    return 0
+  fi
+
+  vm_name="${VM:-$(basename "$(dirname "$dest")")}"
+  if [[ -z "$vm_name" ]]; then
+    return 0
+  fi
+
+  if virsh -c qemu:///system dominfo "$vm_name" > /dev/null 2>&1 \
+      && virsh -c qemu:///system checkpoint-info --domain "$vm_name" --checkpointname "$checkpoint_name" > /dev/null 2>&1; then
+    log -ne "Deleting libvirt checkpoint [$checkpoint_name] from VM [$vm_name]"
+    if ! virsh -c qemu:///system checkpoint-delete --domain "$vm_name" --checkpointname "$checkpoint_name" >> "$logFile" 2>&1; then
+      log -ne "Failed to delete libvirt checkpoint [$checkpoint_name] from VM [$vm_name]; removing metadata only"
+      virsh -c qemu:///system checkpoint-delete --domain "$vm_name" --checkpointname "$checkpoint_name" --metadata >> "$logFile" 2>&1 || true
+    fi
+  fi
+
+  delete_qcow2_bitmap_if_present "$vm_name" "$checkpoint_name"
+}
+
+delete_qcow2_bitmap_if_present() {
+  local vm_name="$1"
+  local checkpoint_name="$2"
+  local removed=0
+  local node
+
+  [[ -z "$vm_name" || -z "$checkpoint_name" ]] && return 0
+
+  while IFS= read -r node; do
+    [[ -z "$node" ]] && continue
+    if virsh -c qemu:///system qemu-monitor-command "$vm_name" \
+        "{\"execute\":\"block-dirty-bitmap-remove\",\"arguments\":{\"node\":\"$node\",\"name\":\"$checkpoint_name\"}}" \
+        > /dev/null 2>>"$logFile"; then
+      removed=$((removed + 1))
+    else
+      log -ne "Failed to remove qcow2 bitmap [$checkpoint_name] on node [$node] (non-fatal)"
+    fi
+  done < <(
+    virsh -c qemu:///system qemu-monitor-command "$vm_name" '{"execute":"query-block"}' 2>/dev/null | python3 -c '
+import sys, json
+target = sys.argv[1]
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+seen = set()
+for dev in data.get("return", []) or []:
+    inserted = dev.get("inserted") or {}
+    node = inserted.get("node-name")
+    if not node or node in seen:
+        continue
+    if any((bitmap or {}).get("name") == target for bitmap in (inserted.get("dirty-bitmaps") or [])):
+        seen.add(node)
+        print(node)
+' "$checkpoint_name" 2>/dev/null || true
+  )
+
+  if [[ "$removed" -gt 0 ]]; then
+    log -ne "Removed qcow2 bitmap [$checkpoint_name] from [$removed] disk(s)"
+  fi
+}
+
+cleanup_unreferenced_qcow2_bitmaps() {
+  local vm_name
+  local checkpoint_name
+
+  [[ -z "$CLEANUP_CHECKPOINT_NAMES" ]] && return 0
+
+  vm_name="${VM:-$(basename "$(dirname "$dest")")}"
+  [[ -z "$vm_name" ]] && return 0
+
+  while IFS= read -r checkpoint_name; do
+    [[ -z "$checkpoint_name" ]] && continue
+    log -ne "Cleaning up unreferenced qcow2 bitmap [$checkpoint_name] from VM [$vm_name]"
+    delete_qcow2_bitmap_if_present "$vm_name" "$checkpoint_name"
+  done < <(split_csv "$CLEANUP_CHECKPOINT_NAMES")
+}
+
 delete_backup() {
   mount_operation
 
@@ -349,8 +489,12 @@ delete_backup() {
   elif [[ -n "$CHECKPOINT_NAME" && -n "$DISK_PATHS" ]]; then
     log -ne "Deleting backup using command metadata [$dest]"
     delete_rbd_snapshot_if_unreferenced "$DISK_PATHS" "$CHECKPOINT_NAME"
+  elif [[ -n "$CHECKPOINT_NAME" ]]; then
+    log -ne "Deleting file-backed backup using command metadata [$dest]"
+    delete_libvirt_checkpoint_if_unreferenced "$CHECKPOINT_NAME"
   fi
 
+  cleanup_unreferenced_qcow2_bitmaps
   rm -frv "$dest" || { echo "Failed to delete $dest"; exit 1; }
   if [[ -e "$dest" ]]; then
     echo "Backup directory still exists after delete: $dest"
@@ -380,6 +524,7 @@ mount_operation() {
   if [ $? -eq 0 ]; then
       log -ne "Successfully mounted ${NAS_TYPE} store"
   else
+      log -ne "FAILED NAS mount type=[$NAS_TYPE] address=[$NAS_ADDRESS] mountPoint=[$mount_point]"
       echo "Failed to mount ${NAS_TYPE} store"
       exit 1
   fi
@@ -397,6 +542,7 @@ cleanup() {
   rmdir "$mount_point" || { echo "Failed to remove mount point $mount_point"; status=1; }
 
   if [[ $status -ne 0 ]]; then
+    log -ne "FAILED cleanup dest=[$dest] mountPoint=[$mount_point] status=[$status]"
     echo "Backup cleanup failed"
     exit $EXIT_CLEANUP_FAILED
   fi
@@ -451,6 +597,75 @@ redefine_checkpoint_if_needed() {
   fi
 }
 
+parent_qcow2_bitmap_exists_on_all_disks() {
+  [[ "$BACKUP_TYPE" != "INCREMENTAL" || -z "$PARENT_CHECKPOINT_NAME" ]] && return 0
+
+  local disk_count
+  local bitmap_count
+  disk_count=$(virsh -c qemu:///system domblklist "$VM" --details 2>/dev/null | awk '$2=="disk"{c++} END{print c+0}')
+  bitmap_count=$(virsh -c qemu:///system qemu-monitor-command "$VM" '{"execute":"query-block"}' 2>/dev/null | python3 -c '
+import sys, json
+target = sys.argv[1]
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    print(0); sys.exit(0)
+files = set()
+for dev in data.get("return", []) or []:
+    inserted = dev.get("inserted") or {}
+    f = inserted.get("file")
+    if not f:
+        continue
+    if any((bitmap or {}).get("name") == target for bitmap in (inserted.get("dirty-bitmaps") or [])):
+        files.add(f)
+print(len(files))
+' "$PARENT_CHECKPOINT_NAME" 2>/dev/null || echo 0)
+
+  [[ "$disk_count" -gt 0 && "$bitmap_count" -ge "$disk_count" ]]
+}
+
+cleanup_parent_qcow2_bitmap_after_success() {
+  [[ "$BACKUP_TYPE" != "INCREMENTAL" || -z "$PARENT_CHECKPOINT_NAME" ]] && return
+
+  local expected=0
+  local removed=0
+  local node
+
+  while IFS= read -r node; do
+    [[ -z "$node" ]] && continue
+    expected=$((expected + 1))
+    if virsh -c qemu:///system qemu-monitor-command "$VM" \
+        "{\"execute\":\"block-dirty-bitmap-remove\",\"arguments\":{\"node\":\"$node\",\"name\":\"$PARENT_CHECKPOINT_NAME\"}}" \
+        > /dev/null 2>>"$logFile"; then
+      removed=$((removed + 1))
+    else
+      log -ne "Failed to remove previous qcow2 parent bitmap [$PARENT_CHECKPOINT_NAME] on node [$node] (non-fatal)"
+    fi
+  done < <(
+    virsh -c qemu:///system qemu-monitor-command "$VM" '{"execute":"query-block"}' 2>/dev/null | python3 -c '
+import sys, json
+target = sys.argv[1]
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+seen = set()
+for dev in data.get("return", []) or []:
+    inserted = dev.get("inserted") or {}
+    node = inserted.get("node-name")
+    if not node or node in seen:
+        continue
+    if any((bitmap or {}).get("name") == target for bitmap in (inserted.get("dirty-bitmaps") or [])):
+        seen.add(node)
+        print(node)
+' "$PARENT_CHECKPOINT_NAME" 2>/dev/null || true
+  )
+
+  if [[ "$expected" -gt 0 && "$removed" -eq "$expected" ]]; then
+    log -ne "Removed previous qcow2 parent bitmap [$PARENT_CHECKPOINT_NAME] from [$removed] disk(s)"
+  fi
+}
+
 parse_rbd_uri() {
   local uri="$1"
   log -ne "parse_rbd_uri called with uri=[$uri]"
@@ -462,20 +677,24 @@ parse_rbd_uri() {
 
   if [[ "$uri" == rbd:* ]]; then
     local payload="${uri#rbd:}"
-    RBD_IMAGE="${payload%%:*}"
-
-    if [[ "$uri" =~ :mon_host=([^:]*) ]]; then
-      RBD_MON_HOST="${BASH_REMATCH[1]}"
+    if [[ "$payload" == *":mon_host="* ]]; then
+      RBD_IMAGE="${payload%%:mon_host=*}"
+      local mon_part="${payload#*:mon_host=}"
+      RBD_MON_HOST="${mon_part%%:auth_supported=*}"
       RBD_MON_HOST="${RBD_MON_HOST//\\;/,}"
       RBD_MON_HOST="${RBD_MON_HOST//\\:/:}"
+    else
+      RBD_IMAGE="${payload%%:*}"
     fi
 
-    if [[ "$uri" =~ :id=([^:]*) ]]; then
-      RBD_USER="${BASH_REMATCH[1]}"
+    if [[ "$payload" == *":id="* ]]; then
+      local id_part="${payload#*:id=}"
+      RBD_USER="${id_part%%:*}"
     fi
 
-    if [[ "$uri" =~ :key=([^:]*) ]]; then
-      RBD_KEY="${BASH_REMATCH[1]}"
+    if [[ "$payload" == *":key="* ]]; then
+      local key_part="${payload#*:key=}"
+      RBD_KEY="${key_part%%:*}"
     fi
   elif [[ "$uri" == rbd/* ]]; then
     RBD_IMAGE="$uri"
@@ -503,6 +722,50 @@ build_rbd_cmd() {
   if [[ -n "$RBD_KEY" ]]; then
     RBD_CMD+=(--key "$RBD_KEY")
   fi
+}
+
+record_created_rbd_snapshot() {
+  local disk_path="$1"
+  local checkpoint_name="$2"
+  [[ -z "$disk_path" || -z "$checkpoint_name" ]] && return
+  CREATED_RBD_SNAPSHOTS+=("${disk_path}|${checkpoint_name}")
+}
+
+cleanup_created_rbd_snapshots() {
+  [[ "${#CREATED_RBD_SNAPSHOTS[@]}" -eq 0 ]] && return
+
+  local snapshot_entry
+  for snapshot_entry in "${CREATED_RBD_SNAPSHOTS[@]}"; do
+    local disk_path="${snapshot_entry%%|*}"
+    local checkpoint_name="${snapshot_entry#*|}"
+    [[ -z "$disk_path" || -z "$checkpoint_name" ]] && continue
+
+    parse_rbd_uri "$disk_path"
+    build_rbd_cmd
+    if timeout 30s "${RBD_CMD[@]}" snap ls "$RBD_IMAGE" 2>/dev/null | awk 'NR>1 {print $2}' | grep -Fxq "$checkpoint_name"; then
+      log -ne "Cleaning failed RBD backup snapshot [${RBD_IMAGE}@${checkpoint_name}]"
+      "${RBD_CMD[@]}" snap rm "${RBD_IMAGE}@${checkpoint_name}" >> "$logFile" 2>&1 || true
+    fi
+  done
+  CREATED_RBD_SNAPSHOTS=()
+}
+
+cleanup_parent_rbd_snapshot_after_success() {
+  [[ "$BACKUP_TYPE" != "INCREMENTAL" || -z "$PARENT_CHECKPOINT_NAME" ]] && return
+  [[ "$PARENT_CHECKPOINT_NAME" == "$CHECKPOINT_NAME" ]] && return
+
+  while IFS= read -r disk_path; do
+    [[ -z "$disk_path" ]] && continue
+    parse_rbd_uri "$disk_path"
+    build_rbd_cmd
+
+    if timeout 30s "${RBD_CMD[@]}" snap ls "$RBD_IMAGE" 2>/dev/null | awk 'NR>1 {print $2}' | grep -Fxq "$PARENT_CHECKPOINT_NAME"; then
+      log -ne "Deleting previous RBD parent snapshot after successful backup [${RBD_IMAGE}@${PARENT_CHECKPOINT_NAME}]"
+      if ! "${RBD_CMD[@]}" snap rm "${RBD_IMAGE}@${PARENT_CHECKPOINT_NAME}" >> "$logFile" 2>&1; then
+        log -ne "Failed to delete previous RBD parent snapshot [${RBD_IMAGE}@${PARENT_CHECKPOINT_NAME}]"
+      fi
+    fi
+  done < <(split_csv "$DISK_PATHS")
 }
 
 write_rbd_backup_metadata() {
@@ -599,6 +862,11 @@ while [[ $# -gt 0 ]]; do
       ;;
     -x|--forced)
       FORCED="$2"
+      shift
+      shift
+      ;;
+    -C|--cleanupcheckpoints)
+      CLEANUP_CHECKPOINT_NAMES="$2"
       shift
       shift
       ;;

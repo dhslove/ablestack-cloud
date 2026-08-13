@@ -63,6 +63,7 @@ class LibvirtAblestackNasBackupHelper {
     protected Logger LOGGER = LogManager.getLogger(LibvirtAblestackNasBackupHelper.class);
     static final Integer EXIT_CLEANUP_FAILED = 20;
     private static final int BACKUP_JOB_POLL_INTERVAL_MS = 10000;
+    private static final int UNMOUNT_TIMEOUT_SECONDS = 60;
     private static final DateTimeFormatter SCRIPT_LOG_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH-mm-ss>");
 
     enum BackupExecutionMode {
@@ -199,6 +200,7 @@ class LibvirtAblestackNasBackupHelper {
 
     private Pair<Integer, String> executeStoppedVmBackup(AblestackNasTakeBackupCommand command, List<String> diskPaths) {
         Path mountPoint = null;
+        Path dest = null;
         String dummyVmName = String.format("DUMMY-VM-%s", command.getCheckpointName().replace('.', '-'));
         Connect conn = null;
         try {
@@ -209,7 +211,7 @@ class LibvirtAblestackNasBackupHelper {
                 resource.validateLibvirtAndQemuVersionForIncrementalSnapshots();
             }
             mountPoint = mountRepository(command);
-            Path dest = mountPoint.resolve(command.getBackupPath());
+            dest = mountPoint.resolve(command.getBackupPath());
             Files.createDirectories(dest.resolve("checkpoints"));
 
             conn = LibvirtConnection.getConnection();
@@ -258,10 +260,15 @@ class LibvirtAblestackNasBackupHelper {
         } catch (Exception e) {
             LOGGER.error("Stopped VM NAS backup failed for vm=[{}], dummyVm=[{}] due to: {}",
                     command.getVmName(), dummyVmName, e.getMessage(), e);
+            if (!cleanupStoppedBackup(command, dest, mountPoint)) {
+                mountPoint = null;
+                return new Pair<>(EXIT_CLEANUP_FAILED, String.format("Backup cleanup failed after stopped VM NAS backup failure: %s", e.getMessage()));
+            }
+            mountPoint = null;
             return new Pair<>(1, e.getMessage());
         } finally {
             cleanupDummyVm(dummyVmName);
-            unmountRepository(mountPoint);
+            unmountRepository(command, mountPoint);
         }
     }
 
@@ -280,15 +287,40 @@ class LibvirtAblestackNasBackupHelper {
         return mountPoint;
     }
 
-    private void unmountRepository(Path mountPoint) {
-        if (mountPoint == null) {
-            return;
+    private boolean cleanupStoppedBackup(AblestackNasTakeBackupCommand command, Path dest, Path mountPoint) {
+        boolean success = true;
+        if (dest != null) {
+            try (var stream = Files.walk(dest)) {
+                List<Path> paths = stream.sorted(Comparator.reverseOrder()).collect(Collectors.toList());
+                for (Path path : paths) {
+                    Files.deleteIfExists(path);
+                }
+            } catch (IOException e) {
+                LOGGER.warn("Failed to cleanup stopped VM NAS backup path [{}]: {}", dest, e.getMessage(), e);
+                success = false;
+            }
         }
-        Script.runSimpleBashScriptForExitValue(String.format("umount %s", shellQuote(mountPoint.toString())));
+        return unmountRepository(command, mountPoint) && success;
+    }
+
+    private boolean unmountRepository(AblestackNasTakeBackupCommand command, Path mountPoint) {
+        if (mountPoint == null) {
+            return true;
+        }
+        boolean success = true;
+        int unmountExit = Script.runSimpleBashScriptForExitValue(String.format("timeout %d umount %s",
+                UNMOUNT_TIMEOUT_SECONDS, shellQuote(mountPoint.toString())));
+        if (unmountExit != 0) {
+            LOGGER.warn("Failed to unmount stopped VM NAS backup repository [{}] or operation timed out", mountPoint);
+            success = false;
+        }
         try {
             Files.deleteIfExists(mountPoint);
-        } catch (IOException ignored) {
+        } catch (IOException e) {
+            LOGGER.warn("Failed to remove stopped VM NAS backup mount point [{}]: {}", mountPoint, e.getMessage(), e);
+            success = false;
         }
+        return success;
     }
 
     private String buildDummyVmXml(String vmName, List<String> diskPaths, Connect conn) throws LibvirtException {

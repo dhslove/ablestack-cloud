@@ -190,6 +190,36 @@ export default {
       this.populatePreFillData()
       this.configure = true
     },
+    hasCustomComputeDetails () {
+      const details = this.serviceOffering?.serviceofferingdetails || {}
+      return !!(this.serviceOffering?.iscustomized ||
+        details.mincpunumber || details.maxcpunumber ||
+        details.minmemory || details.maxmemory)
+    },
+    applyDefaultDeployParams (args) {
+      const vmDetails = this.resource.vmdetails || {}
+      const offeringDetails = this.serviceOffering?.serviceofferingdetails || {}
+      if (vmDetails.serviceofferingid) {
+        args.serviceofferingid = vmDetails.serviceofferingid
+      }
+      if (vmDetails.templateid) {
+        args.templateid = vmDetails.templateid
+      }
+      if (this.hasCustomComputeDetails()) {
+        const cpuNumber = vmDetails.cpunumber || this.serviceOffering.cpunumber || offeringDetails.mincpunumber
+        const cpuSpeed = vmDetails.cpuspeed || this.serviceOffering.cpuspeed
+        const memory = vmDetails.memory || this.serviceOffering.memory || offeringDetails.minmemory
+        if (cpuNumber && (this.serviceOffering.cpunumber == null || this.serviceOffering.cpunumber === undefined)) {
+          args['details[0].cpuNumber'] = cpuNumber
+        }
+        if (cpuSpeed && (this.serviceOffering.cpuspeed == null || this.serviceOffering.cpuspeed === undefined)) {
+          args['details[0].cpuSpeed'] = cpuSpeed
+        }
+        if (memory && (this.serviceOffering.memory == null || this.serviceOffering.memory === undefined)) {
+          args['details[0].memory'] = memory
+        }
+      }
+    },
     closeAction () {
       this.$emit('close-action')
     },
@@ -199,6 +229,7 @@ export default {
       const args = {}
       args.zoneid = this.resource.zoneid
       args.backupid = this.resource.id
+      this.applyDefaultDeployParams(args)
 
       if (this.form.name) {
         args.name = this.form.name

@@ -50,17 +50,21 @@ import org.apache.cloudstack.api.command.admin.backup.ListBackupProviderOffering
 import org.apache.cloudstack.api.command.admin.backup.ListBackupProvidersForZoneCmd;
 import org.apache.cloudstack.api.command.admin.backup.ListBackupProvidersCmd;
 import org.apache.cloudstack.api.command.admin.backup.UpdateBackupOfferingCmd;
+import org.apache.cloudstack.api.command.admin.backup.UpdateNetBackupCmd;
 import org.apache.cloudstack.api.command.admin.vm.CreateVMFromBackupCmdByAdmin;
 import org.apache.cloudstack.api.command.user.backup.AssignVirtualMachineToBackupOfferingCmd;
 import org.apache.cloudstack.api.command.user.backup.CreateBackupCmd;
+import org.apache.cloudstack.api.command.user.backup.CreateNetBackupCmd;
 import org.apache.cloudstack.api.command.user.backup.CreateBackupScheduleCmd;
 import org.apache.cloudstack.api.command.user.backup.DeleteBackupCmd;
 import org.apache.cloudstack.api.command.user.backup.DeleteBackupScheduleCmd;
 import org.apache.cloudstack.api.command.user.backup.ListBackupOfferingsCmd;
 import org.apache.cloudstack.api.command.user.backup.ListBackupScheduleCmd;
 import org.apache.cloudstack.api.command.user.backup.ListBackupsCmd;
+import org.apache.cloudstack.api.command.user.backup.PrepareNetBackupRestoreCmd;
 import org.apache.cloudstack.api.command.user.backup.RemoveVirtualMachineFromBackupOfferingCmd;
 import org.apache.cloudstack.api.command.user.backup.RestoreBackupCmd;
+import org.apache.cloudstack.api.command.user.backup.RestoreNetBackupCmd;
 import org.apache.cloudstack.api.command.user.backup.RestoreVolumeFromBackupAndAttachToVMCmd;
 import org.apache.cloudstack.api.command.user.backup.UpdateBackupScheduleCmd;
 import org.apache.cloudstack.api.command.user.backup.repository.AddBackupRepositoryCmd;
@@ -70,6 +74,9 @@ import org.apache.cloudstack.api.command.user.backup.repository.UpdateBackupRepo
 import org.apache.cloudstack.api.command.user.vm.CreateVMFromBackupCmd;
 import org.apache.cloudstack.api.command.user.vm.CreateVMFromBxBackupCmd;
 import org.apache.cloudstack.api.response.BackupResponse;
+import org.apache.cloudstack.backup.NetBackupRestoreCoordinator.RestorePhase;
+import org.apache.cloudstack.backup.NetBackupRestoreCoordinator.RestoreResolution;
+import org.apache.cloudstack.backup.NetBackupRestoreCoordinator.RestoreSession;
 import org.apache.cloudstack.backup.dao.BackupDao;
 import org.apache.cloudstack.backup.dao.BackupDetailsDao;
 import org.apache.cloudstack.backup.dao.BackupOfferingDao;
@@ -177,10 +184,11 @@ import com.cloud.vm.VmDiskInfo;
 import com.cloud.vm.dao.UserVmDao;
 import com.cloud.vm.dao.VMInstanceDao;
 import com.cloud.vm.dao.VMInstanceDetailsDao;
+import com.cloud.vm.snapshot.VMSnapshotVO;
+import com.cloud.vm.snapshot.dao.VMSnapshotDao;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
-
 public class BackupManagerImpl extends ManagerBase implements BackupManager {
 
     @Inject
@@ -195,6 +203,8 @@ public class BackupManagerImpl extends ManagerBase implements BackupManager {
     private BackupOfferingDetailsDao backupOfferingDetailsDao;
     @Inject
     private VMInstanceDao vmInstanceDao;
+    @Inject
+    private VMSnapshotDao vmSnapshotDao;
     @Inject
     private AccountService accountService;
     @Inject
@@ -230,6 +240,8 @@ public class BackupManagerImpl extends ManagerBase implements BackupManager {
     @Inject
     private VMInstanceDetailsDao vmInstanceDetailsDao;
     @Inject
+    private NetBackupRestoreCoordinator netBackupRestoreCoordinator;
+    @Inject
     private NetworkDao networkDao;
     @Inject
     private NetworkService networkService;
@@ -259,6 +271,9 @@ public class BackupManagerImpl extends ManagerBase implements BackupManager {
     private static final long POST_RESTORE_MAINTENANCE_RETRY_INTERVAL_MS = 60_000L;
 
     private static Map<String, BackupProvider> backupProvidersMap = new HashMap<>();
+    private static final String ABLESTACK_NETBACKUP_PROVIDER_NAME = "ablestack-netbackup";
+    private static final int NETBACKUP_RESTORE_PATH_DISCOVERY_WINDOW_SECONDS = 1800;
+    private static final int NETBACKUP_PREPARE_RESTORE_PATH_DISCOVERY_WINDOW_SECONDS = 120;
     private List<BackupProvider> backupProviders;
     private final List<PostRestoreMaintenanceTask> postRestoreMaintenanceTasks = Collections.synchronizedList(new ArrayList<>());
 
@@ -957,6 +972,7 @@ public class BackupManagerImpl extends ManagerBase implements BackupManager {
     @Override
     @ActionEvent(eventType = EventTypes.EVENT_VM_BACKUP_CREATE, eventDescription = "creating VM backup", async = true)
     public boolean createBackup(CreateBackupCmd cmd, Object job) throws ResourceAllocationException {
+        final long backupStartTime = System.currentTimeMillis();
         Long vmId = cmd.getVmId();
         Account caller = CallContext.current().getCallingAccount();
 
@@ -990,6 +1006,8 @@ public class BackupManagerImpl extends ManagerBase implements BackupManager {
 
         Long backupScheduleId = getBackupScheduleId(job);
         boolean isScheduledBackup = backupScheduleId != null;
+        logger.info("Starting VM backup request [vmId: {}, vmUuid: {}, vmName: {}, provider: {}, offeringId: {}, scheduleId: {}, scheduled: {}]",
+                vm.getId(), vm.getUuid(), vm.getInstanceName(), offering.getProvider(), offering.getId(), backupScheduleId, isScheduledBackup);
         Account owner = accountManager.getAccount(vm.getAccountId());
 
         Long backupSize = 0L;
@@ -1006,6 +1024,8 @@ public class BackupManagerImpl extends ManagerBase implements BackupManager {
         if (isScheduledBackup) {
             deleteOldestBackupFromScheduleIfRequired(vmId, backupScheduleId);
         }
+        logger.info("Completed VM backup request [vmId: {}, vmUuid: {}, vmName: {}, provider: {}, offeringId: {}, scheduleId: {}, elapsedMs: {}]",
+                vm.getId(), vm.getUuid(), vm.getInstanceName(), offering.getProvider(), offering.getId(), backupScheduleId, System.currentTimeMillis() - backupStartTime);
         return true;
     }
 
@@ -1022,9 +1042,148 @@ public class BackupManagerImpl extends ManagerBase implements BackupManager {
                     vmId, ApiCommandResourceType.VirtualMachine.toString(),
                     true, 0);
 
-            Pair<Boolean, Backup> result = backupProvider.takeBackup(vm, cmd.getQuiesceVM());
+            Pair<Boolean, Backup> result = backupProvider.takeBackup(vm, cmd.getQuiesceVM(), backupScheduleId);
             if (!result.first()) {
                 throw new CloudRuntimeException("Failed to create VM backup");
+            }
+            Backup backup = result.second();
+            if (backup != null) {
+                BackupVO vmBackup = backupDao.findById(result.second().getId());
+                vmBackup.setBackupScheduleId(backupScheduleId);
+                if (cmd.getName() != null) {
+                    vmBackup.setName(cmd.getName());
+                }
+                vmBackup.setDescription(cmd.getDescription());
+                backupDao.update(vmBackup.getId(), vmBackup);
+                resourceLimitMgr.incrementResourceCount(vm.getAccountId(), Resource.ResourceType.backup);
+                resourceLimitMgr.incrementResourceCount(vm.getAccountId(), Resource.ResourceType.backup_storage, backup.getSize());
+            }
+        } catch (ResourceAllocationException e) {
+            if (isScheduledBackup && (Resource.ResourceType.backup.equals(e.getResourceType()) ||
+                    Resource.ResourceType.backup_storage.equals(e.getResourceType()))) {
+                sendExceededBackupLimitAlert(owner.getUuid(), e.getResourceType());
+            }
+            throw e;
+        }
+    }
+
+    protected Long calculateBackupSize(final Long vmId) {
+        Long backupSize = 0L;
+        for (final Volume volume: volumeDao.findByInstance(vmId)) {
+            if (Volume.State.Ready.equals(volume.getState())) {
+                Long volumeSize = volumeApiService.getVolumePhysicalSize(volume.getFormat(), volume.getPath(), volume.getChainInfo());
+                if (volumeSize == null) {
+                    volumeSize = volume.getSize();
+                }
+                backupSize += volumeSize;
+            }
+        }
+        return backupSize;
+    }
+
+        @Override
+    @ActionEvent(eventType = EventTypes.EVENT_VM_BACKUP_CREATE, eventDescription = "creating VM backup for NetBackup", async = true)
+    public boolean createNetBackup(final CreateNetBackupCmd cmd) throws ResourceAllocationException {
+        final Long vmId = cmd.getVmId();
+        final Account caller = CallContext.current().getCallingAccount();
+        final String defaultExternalId = "netbackup";
+
+        final VMInstanceVO vm = findVmById(vmId);
+        validateBackupForZone(vm.getDataCenterId());
+        accountManager.checkAccess(caller, null, true, vm);
+
+        if (vm.getBackupOfferingId() != null) {
+            final BackupOffering existingOffering = backupOfferingDao.findById(vm.getBackupOfferingId());
+            if (existingOffering == null) {
+                throw new CloudRuntimeException("VM backup offering not found");
+            }
+            if (!BackupProviderNameUtils.isNetBackupFamily(existingOffering.getProvider())) {
+                throw new CloudRuntimeException(String.format("VM [%s] is already assigned to backup offering [%s] using provider [%s]. NetBackup backup cannot proceed.",
+                        vm.getInstanceName(), existingOffering.getName(), existingOffering.getProvider()));
+            }
+        }
+
+        final BackupOffering netBackupOfferingRef = backupOfferingDao.findByExternalId(defaultExternalId, vm.getDataCenterId());
+        if (netBackupOfferingRef == null) {
+            throw new CloudRuntimeException(String.format("No NetBackup backup offering is configured for zone [%s]. Please import a NetBackup backup offering before running NetBackup backups.",
+                    vm.getDataCenterId()));
+        }
+        final BackupOfferingVO netBackupOffering = backupOfferingDao.findById(netBackupOfferingRef.getId());
+        if (netBackupOffering == null) {
+            throw new CloudRuntimeException("NetBackup backup offering record not found");
+        }
+        final BackupProvider backupProvider = getBackupProvider(netBackupOffering.getProvider());
+        if (backupProvider == null) {
+            throw new CloudRuntimeException("Failed to get NetBackup provider for existing offering assignment");
+        }
+
+        final VMInstanceVO assignedVm = transactionAssignVMToBackupOffering(vm, netBackupOffering, backupProvider);
+        if (assignedVm == null) {
+            throw new CloudRuntimeException(String.format("Failed to assign existing NetBackup offering [%s] to VM [%s].",
+                    netBackupOffering.getName(), vm.getInstanceName()));
+        }
+
+        final Account owner = accountManager.getAccount(vm.getAccountId());
+        final Long backupSize = calculateBackupSize(vm.getId());
+
+        createCheckedBackup(cmd, owner, false, backupSize, vm, vm.getId(), backupProvider, null);
+        return true;
+    }
+
+    @Override
+    public boolean updateNetBackup(final UpdateNetBackupCmd cmd) {
+        final Long vmId = cmd.getVmId();
+        final Account caller = CallContext.current().getCallingAccount();
+
+        final VMInstanceVO vm = findVmById(vmId);
+        validateBackupForZone(vm.getDataCenterId());
+        accountManager.checkAccess(caller, null, true, vm);
+        netBackupRestoreCoordinator.updateBackupMetadata(cmd, vm);
+        return true;
+    }
+
+    private String resolveNetBackupCatalogBackupTime(final BackupVO backup, final String backupId) {
+        if (StringUtils.isBlank(backupId)) {
+            return null;
+        }
+
+        try {
+            final BackupOffering offering = backupOfferingDao.findById(backup.getBackupOfferingId());
+            if (offering == null || !BackupProviderNameUtils.isNetBackupFamily(offering.getProvider())) {
+                return null;
+            }
+            final BackupProvider provider = getBackupProvider(offering.getProvider());
+            final String backupTime = provider != null ? provider.getCatalogBackupTime(backup.getZoneId(), backupId) : null;
+            if (StringUtils.isNotBlank(backupTime)) {
+                return backupTime;
+            }
+            logger.warn(String.format(
+                    "NetBackup catalog backupTime was not found for backup ID [%s] in zone [%s].",
+                    backupId, backup.getZoneId()));
+        } catch (Exception e) {
+            logger.warn(String.format(
+                    "Failed to resolve NetBackup catalog backupTime for backup ID [%s] in zone [%s]: %s",
+                    backupId, backup.getZoneId(), e.getMessage()), e);
+        }
+        return null;
+    }
+
+    private void createCheckedBackup(CreateNetBackupCmd cmd, Account owner, boolean isScheduledBackup, Long backupSize,
+                VMInstanceVO vm, Long vmId, BackupProvider backupProvider, Long backupScheduleId)
+            throws ResourceAllocationException {
+        try (CheckedReservation backupReservation = new CheckedReservation(owner, Resource.ResourceType.backup,
+                1L, reservationDao, resourceLimitMgr);
+            CheckedReservation backupStorageReservation = new CheckedReservation(owner,
+                     Resource.ResourceType.backup_storage, backupSize, reservationDao, resourceLimitMgr)) {
+
+            ActionEventUtils.onStartedActionEvent(User.UID_SYSTEM, vm.getAccountId(),
+                    EventTypes.EVENT_VM_BACKUP_CREATE, "creating backup for VM ID:" + vm.getUuid(),
+                    vmId, ApiCommandResourceType.VirtualMachine.toString(),
+                    true, 0);
+
+            Pair<Boolean, Backup> result = backupProvider.takeNetBackup(vm, cmd.getPolicyId());
+            if (!result.first()) {
+                throw new CloudRuntimeException("Failed to create VM backup for NetBackup");
             }
             Backup backup = result.second();
             if (backup != null) {
@@ -1396,13 +1555,315 @@ public class BackupManagerImpl extends ManagerBase implements BackupManager {
             throw new CloudRuntimeException(errorMessage);
         }
         String backupDetailsInMessage = ReflectionToStringBuilderUtils.reflectOnlySelectedFields(backup, "uuid", "externalId", "vmId", "name");
-        tryRestoreVM(backup, vm, offering, backupDetailsInMessage);
-        updateVolumeState(vm, Volume.Event.RestoreSucceeded, Volume.State.Ready);
-        updateVmState(vm, VirtualMachine.Event.RestoringSuccess, VirtualMachine.State.Stopped);
+        final boolean netBackupRestore = isAblestackNetBackupOffering(offering);
+        final String netBackupRestoreRequestIdentifier = netBackupRestore ? netBackupRestoreCoordinator.getMoldRestoreRequestIdentifier(backup) : null;
+        final VMInstanceVO netBackupRestoreMarkerVm = netBackupRestore ? netBackupRestoreCoordinator.getRestoreMarkerVm(backup, vm) : null;
+        try {
+            if (netBackupRestore) {
+                netBackupRestoreCoordinator.blockIfRestoreAlreadyActive(netBackupRestoreMarkerVm, netBackupRestoreRequestIdentifier);
+                final RestorePhase phase = isNetBackupIncrementalBackup(backup)
+                        ? RestorePhase.CHAIN_RESTORE_IN_PROGRESS
+                        : RestorePhase.ROOT_RESTORE_IN_PROGRESS;
+                netBackupRestoreCoordinator.persistRestoreState(backup, netBackupRestoreMarkerVm, netBackupRestoreRequestIdentifier, phase);
+            }
 
-        return importRestoredVM(vm.getDataCenterId(), vm.getDomainId(), vm.getAccountId(), vm.getUserId(),
-                vm.getInstanceName(), vm.getHypervisorType(), backup);
+            tryRestoreVM(backup, vm, offering, backupDetailsInMessage);
+            updateVolumeState(vm, Volume.Event.RestoreSucceeded, Volume.State.Ready);
+            updateVmState(vm, VirtualMachine.Event.RestoringSuccess, VirtualMachine.State.Stopped);
+
+            final boolean imported = importRestoredVM(vm.getDataCenterId(), vm.getDomainId(), vm.getAccountId(), vm.getUserId(),
+                    vm.getInstanceName(), vm.getHypervisorType(), backup);
+            if (netBackupRestore) {
+                netBackupRestoreCoordinator.persistRestoreState(backup, netBackupRestoreMarkerVm, netBackupRestoreRequestIdentifier,
+                        imported ? RestorePhase.COMPLETED : RestorePhase.FAILED);
+            }
+            return imported;
+        } catch (RuntimeException e) {
+            if (netBackupRestore) {
+                netBackupRestoreCoordinator.persistRestoreState(backup, netBackupRestoreMarkerVm, netBackupRestoreRequestIdentifier, RestorePhase.FAILED);
+            }
+            throw e;
+        }
     }
+
+    @Override
+    @ActionEvent(eventType = EventTypes.EVENT_VM_BACKUP_RESTORE, eventDescription = "restoring VM from NetBackup external ID", async = true)
+    public boolean restoreNetBackup(final RestoreNetBackupCmd cmd) {
+        logger.info("NetBackup restore requested. externalId=[{}], backupId=[{}]",
+                cmd.getExternalId(), cmd.getBackupId());
+        if (StringUtils.isBlank(cmd.getExternalId()) && StringUtils.isBlank(cmd.getBackupId())) {
+            throw new CloudRuntimeException("NetBackup backup external ID or backup ID is required");
+        }
+        final RestoreResolution resolution = netBackupRestoreCoordinator.resolveRestoreRequest(
+                cmd.getExternalId(), cmd.getBackupId(), NETBACKUP_RESTORE_PATH_DISCOVERY_WINDOW_SECONDS, true);
+        final BackupVO backup = resolution.getBackup();
+        logger.info("NetBackup restore resolved. requestIdentifier=[{}], resolvedBackupUuid=[{}], resolvedExternalId=[{}], restoreHostName=[{}]",
+                resolution.getRequestIdentifier(), backup.getUuid(), backup.getExternalId(), resolution.getPreparedRestoreHostName());
+
+        VMInstanceVO vm = null;
+        String restoreGuardToken = null;
+        try {
+            if (!Backup.Status.BackedUp.equals(backup.getStatus())) {
+                throw new CloudRuntimeException(String.format(
+                        "NetBackup external ID [%s] is mapped to backup [%s] in state [%s]. Only BackedUp backups can be restored.",
+                        resolution.getRequestIdentifier(), backup.getUuid(), backup.getStatus()));
+            }
+            validateBackupForZone(backup.getZoneId());
+
+            vm = vmInstanceDao.findByIdIncludingRemoved(backup.getVmId());
+            if (vm == null || VirtualMachine.State.Expunging.equals(vm.getState())) {
+                throw new CloudRuntimeException("The Instance from which the NetBackup was taken could not be found.");
+            }
+            accountManager.checkAccess(CallContext.current().getCallingAccount(), null, true, vm);
+            validateVmStoppedForNetBackupRestore(vm);
+
+            final BackupVO restoreJobBackup = netBackupRestoreCoordinator.findRestoreBackupByJobId(cmd.getJobId());
+            if (restoreJobBackup != null) {
+                final String skipMessage = String.format(
+                        "Skipping NetBackup restore request for VM [%s] using NetBackup job ID [%s] because it was created by an existing Mold restore flow on backup [%s].",
+                        vm.getInstanceName(), cmd.getJobId(), restoreJobBackup.getUuid());
+                logger.info(skipMessage);
+                CallContext.current().setEventDetails(skipMessage);
+                return true;
+            }
+
+            restoreGuardToken = netBackupRestoreCoordinator.acquireRestoreGuard(vm, resolution.getRequestIdentifier());
+            if (restoreGuardToken == null) {
+                final String skipMessage = String.format(
+                        "Skipping duplicate NetBackup restore request for VM [%s] (vmId=[%s]) using request identifier [%s] because a restore is already in progress.",
+                        vm.getInstanceName(), vm.getId(), resolution.getRequestIdentifier());
+                logger.info(skipMessage);
+                CallContext.current().setEventDetails(skipMessage);
+                return true;
+            }
+
+            final RestoreSession activeSession = netBackupRestoreCoordinator.findSession(vm.getId());
+            if (activeSession != null) {
+                netBackupRestoreCoordinator.updateSessionPhase(vm.getId(), resolution.getRequestIdentifier(), RestorePhase.ROOT_RESTORE_IN_PROGRESS);
+            }
+
+            netBackupRestoreCoordinator.persistRestoreState(backup, vm, resolution.getRequestIdentifier(), RestorePhase.ROOT_RESTORE_IN_PROGRESS);
+
+            if (isNetBackupFullBackup(backup)) {
+                logger.info("Resolved NetBackup FULL restore request for VM [{}] using external ID [{}] and backup [{}].",
+                        vm.getInstanceName(), resolution.getRequestIdentifier(), backup.getUuid());
+                final BackupOffering offering = getBackupOfferingForRestore(vm, backup);
+                final String backupDetailsInMessage = ReflectionToStringBuilderUtils.reflectOnlySelectedFields(
+                        backup, "uuid", "externalId", "vmId", "name");
+                if (resolution.getPreparedRestoreHostName() != null) {
+                    tryRestorePreparedNetBackupVM(
+                            backup, vm, offering, backupDetailsInMessage, resolution.getPreparedRestoreHostName());
+                } else {
+                    tryRestoreVM(backup, vm, offering, backupDetailsInMessage);
+                }
+                updateVolumeState(vm, Volume.Event.RestoreSucceeded, Volume.State.Ready);
+                updateVmState(vm, VirtualMachine.Event.RestoringSuccess, VirtualMachine.State.Stopped);
+                final boolean imported = importRestoredVM(vm.getDataCenterId(), vm.getDomainId(), vm.getAccountId(), vm.getUserId(),
+                        vm.getInstanceName(), vm.getHypervisorType(), backup);
+                if (imported) {
+                    netBackupRestoreCoordinator.persistRestoreState(backup, vm, resolution.getRequestIdentifier(), RestorePhase.COMPLETED);
+                    netBackupRestoreCoordinator.completeSession(vm.getId(), resolution.getRequestIdentifier());
+                } else {
+                    netBackupRestoreCoordinator.persistRestoreState(backup, vm, resolution.getRequestIdentifier(), RestorePhase.FAILED);
+                    netBackupRestoreCoordinator.failSession(vm.getId(), resolution.getRequestIdentifier(), "Imported VM result was false");
+                }
+                return imported;
+            }
+
+            if (isNetBackupIncrementalBackup(backup)) {
+                netBackupRestoreCoordinator.updateSessionPhase(vm.getId(), resolution.getRequestIdentifier(),
+                        RestorePhase.CHAIN_RESTORE_IN_PROGRESS);
+                netBackupRestoreCoordinator.persistRestoreState(backup, vm, resolution.getRequestIdentifier(), RestorePhase.CHAIN_RESTORE_IN_PROGRESS);
+                final List<BackupVO> restoreChain = netBackupRestoreCoordinator.getRestoreChain(backup);
+                logger.info("Resolved NetBackup INCREMENTAL restore chain for VM [{}] using external ID [{}]: {}",
+                        vm.getInstanceName(), resolution.getRequestIdentifier(),
+                        restoreChain.stream().map(BackupVO::getUuid).collect(Collectors.joining(" -> ")));
+                final BackupOffering offering = getBackupOfferingForRestore(vm, backup);
+                final String backupDetailsInMessage = ReflectionToStringBuilderUtils.reflectOnlySelectedFields(
+                        backup, "uuid", "externalId", "vmId", "name");
+                if (resolution.getPreparedRestoreHostName() != null) {
+                    tryRestorePreparedNetBackupVM(
+                            backup, vm, offering, backupDetailsInMessage, resolution.getPreparedRestoreHostName());
+                } else {
+                    tryRestoreVM(backup, vm, offering, backupDetailsInMessage);
+                }
+                updateVolumeState(vm, Volume.Event.RestoreSucceeded, Volume.State.Ready);
+                updateVmState(vm, VirtualMachine.Event.RestoringSuccess, VirtualMachine.State.Stopped);
+                final boolean imported = importRestoredVM(vm.getDataCenterId(), vm.getDomainId(), vm.getAccountId(), vm.getUserId(),
+                        vm.getInstanceName(), vm.getHypervisorType(), backup);
+                if (imported) {
+                    netBackupRestoreCoordinator.persistRestoreState(backup, vm, resolution.getRequestIdentifier(), RestorePhase.COMPLETED);
+                    netBackupRestoreCoordinator.completeSession(vm.getId(), resolution.getRequestIdentifier());
+                } else {
+                    netBackupRestoreCoordinator.persistRestoreState(backup, vm, resolution.getRequestIdentifier(), RestorePhase.FAILED);
+                    netBackupRestoreCoordinator.failSession(vm.getId(), resolution.getRequestIdentifier(), "Imported VM result was false");
+                }
+                return imported;
+            }
+
+            throw new CloudRuntimeException(String.format(
+                    "NetBackup external ID [%s] is mapped to backup [%s] with unsupported type [%s].",
+                    resolution.getRequestIdentifier(), backup.getUuid(), backup.getType()));
+        } catch (RuntimeException e) {
+            netBackupRestoreCoordinator.persistRestoreState(backup, vm, resolution.getRequestIdentifier(), RestorePhase.FAILED);
+            netBackupRestoreCoordinator.failSession(vm != null ? vm.getId() : null, resolution.getRequestIdentifier(), e.getMessage());
+            cleanupPreparedNetBackupRestoreOnFailure(backup, vm, resolution, e);
+            throw e;
+        } finally {
+            netBackupRestoreCoordinator.releaseRestoreGuard(vm != null ? vm.getId() : null, restoreGuardToken, resolution.getRequestIdentifier());
+        }
+    }
+
+    @Override
+    public NetBackupRestorePrecheckResult prepareNetBackupRestore(final PrepareNetBackupRestoreCmd cmd) {
+        logger.info("NetBackup restore precheck requested. externalId=[{}], backupId=[{}]",
+                cmd.getExternalId(), cmd.getBackupId());
+        if (StringUtils.isBlank(cmd.getExternalId()) && StringUtils.isBlank(cmd.getBackupId())) {
+            throw new CloudRuntimeException("NetBackup backup external ID or backup ID is required");
+        }
+
+        final BackupVO trackedRestoreJobBackup = netBackupRestoreCoordinator.findRestoreBackupByJobId(cmd.getJobId());
+        if (trackedRestoreJobBackup != null) {
+            final VMInstanceVO trackedVm = vmInstanceDao.findByIdIncludingRemoved(trackedRestoreJobBackup.getVmId());
+            if (trackedVm == null || VirtualMachine.State.Expunging.equals(trackedVm.getState())) {
+                throw new CloudRuntimeException("The Instance from which the NetBackup was taken could not be found.");
+            }
+            accountManager.checkAccess(CallContext.current().getCallingAccount(), null, true, trackedVm);
+            final String skipReason = String.format(
+                    "NetBackup restore job [%s] is already tracked by Mold restore flow on backup [%s]",
+                    cmd.getJobId(), trackedRestoreJobBackup.getUuid());
+            logger.info("NetBackup restore precheck skip by tracked restore job before path resolution. vm=[{}], vmId=[{}], jobId=[{}], trackedBackup=[{}]",
+                    trackedVm.getInstanceName(), trackedVm.getId(), cmd.getJobId(), trackedRestoreJobBackup.getUuid());
+            return new NetBackupRestorePrecheckResult(false, skipReason, trackedVm.getId(), trackedVm.getInstanceName(),
+                    trackedRestoreJobBackup.getId(), trackedRestoreJobBackup.getUuid(),
+                    StringUtils.defaultIfBlank(cmd.getExternalId(), cmd.getBackupId()), trackedRestoreJobBackup.getExternalId());
+        }
+
+        final RestoreResolution resolution = netBackupRestoreCoordinator.resolveRestoreRequest(
+                cmd.getExternalId(), cmd.getBackupId(), NETBACKUP_PREPARE_RESTORE_PATH_DISCOVERY_WINDOW_SECONDS, true, true);
+        final BackupVO backup = resolution.getBackup();
+        final VMInstanceVO vm = vmInstanceDao.findByIdIncludingRemoved(backup.getVmId());
+        if (vm == null || VirtualMachine.State.Expunging.equals(vm.getState())) {
+            throw new CloudRuntimeException("The Instance from which the NetBackup was taken could not be found.");
+        }
+        accountManager.checkAccess(CallContext.current().getCallingAccount(), null, true, vm);
+
+        final BackupVO restoreJobBackup = netBackupRestoreCoordinator.findRestoreBackupByJobId(cmd.getJobId());
+        if (restoreJobBackup != null) {
+            final String skipReason = String.format(
+                    "NetBackup restore job [%s] is already tracked by Mold restore flow on backup [%s]",
+                    cmd.getJobId(), restoreJobBackup.getUuid());
+            logger.info("NetBackup restore precheck skip by tracked restore job. vm=[{}], vmId=[{}], requestIdentifier=[{}], jobId=[{}], trackedBackup=[{}]",
+                    vm.getInstanceName(), vm.getId(), resolution.getRequestIdentifier(), cmd.getJobId(), restoreJobBackup.getUuid());
+            return new NetBackupRestorePrecheckResult(false, skipReason, vm.getId(), vm.getInstanceName(),
+                    backup.getId(), backup.getUuid(), resolution.getRequestIdentifier(), backup.getExternalId());
+        }
+
+        final BackupVO activeRestoreBackup = netBackupRestoreCoordinator.findActiveRestoreBackupForVm(vm);
+        if (activeRestoreBackup != null) {
+            final String activePhase = netBackupRestoreCoordinator.getRestorePhase(activeRestoreBackup);
+            final String activeRequestId = netBackupRestoreCoordinator.getRestoreRequestId(activeRestoreBackup);
+            final String skipReason = String.format(
+                    "NetBackup restore session for VM [%s] is already active on backup [%s] in phase [%s] for request [%s]",
+                    vm.getInstanceName(), activeRestoreBackup.getUuid(), activePhase, activeRequestId);
+            logger.info("NetBackup restore precheck skip by detail state. vm=[{}], vmId=[{}], requestIdentifier=[{}], activeBackup=[{}], phase=[{}], activeRequestIdentifier=[{}]",
+                    vm.getInstanceName(), vm.getId(), resolution.getRequestIdentifier(),
+                    activeRestoreBackup.getUuid(), activePhase, activeRequestId);
+            return new NetBackupRestorePrecheckResult(false, skipReason, vm.getId(), vm.getInstanceName(),
+                    backup.getId(), backup.getUuid(), resolution.getRequestIdentifier(), backup.getExternalId());
+        }
+
+        final RestoreSession existingSession = netBackupRestoreCoordinator.findSession(vm.getId());
+        if (existingSession != null) {
+            final String skipReason = String.format("NetBackup restore session for VM [%s] is already active for request [%s] in phase [%s]",
+                    vm.getInstanceName(), existingSession.getRequestIdentifier(), existingSession.getPhase());
+            logger.info("NetBackup restore precheck skip by active session. vm=[{}], vmId=[{}], requestIdentifier=[{}], activeRequestIdentifier=[{}], phase=[{}]",
+                    vm.getInstanceName(), vm.getId(), resolution.getRequestIdentifier(), existingSession.getRequestIdentifier(), existingSession.getPhase());
+            return new NetBackupRestorePrecheckResult(false, skipReason, vm.getId(), vm.getInstanceName(),
+                    backup.getId(), backup.getUuid(), resolution.getRequestIdentifier(), backup.getExternalId());
+        }
+
+        if (!VirtualMachine.State.Stopped.equals(vm.getState())) {
+            final String skipReason = String.format(
+                    "VM [%s] must be in Stopped state before NetBackup restore. Current state: [%s].",
+                    vm.getInstanceName(), vm.getState());
+            logger.info("NetBackup restore precheck skip by VM state. vm=[{}], vmId=[{}], requestIdentifier=[{}], state=[{}]",
+                    vm.getInstanceName(), vm.getId(), resolution.getRequestIdentifier(), vm.getState());
+            cleanupPreparedNetBackupRestoreOnFailure(backup, vm, resolution, new CloudRuntimeException(skipReason));
+            return new NetBackupRestorePrecheckResult(false, skipReason, vm.getId(), vm.getInstanceName(),
+                    backup.getId(), backup.getUuid(), resolution.getRequestIdentifier(), backup.getExternalId());
+        }
+
+        netBackupRestoreCoordinator.validatePreparedRestorePath(backup, resolution, NETBACKUP_PREPARE_RESTORE_PATH_DISCOVERY_WINDOW_SECONDS);
+
+        final RestoreSession session = netBackupRestoreCoordinator.claimSession(vm, resolution.getRequestIdentifier(), backup);
+        if (session == null) {
+            final RestoreSession existing = netBackupRestoreCoordinator.findSession(vm.getId());
+            final String skipReason = existing == null
+                    ? String.format("NetBackup restore session for VM [%s] is already active", vm.getInstanceName())
+                    : String.format("NetBackup restore session for VM [%s] is already active for request [%s] in phase [%s]",
+                    vm.getInstanceName(), existing.getRequestIdentifier(), existing.getPhase());
+            logger.info("NetBackup restore precheck skip. vm=[{}], vmId=[{}], requestIdentifier=[{}], reason=[{}]",
+                    vm.getInstanceName(), vm.getId(), resolution.getRequestIdentifier(), skipReason);
+            return new NetBackupRestorePrecheckResult(false, skipReason, vm.getId(), vm.getInstanceName(),
+                    backup.getId(), backup.getUuid(), resolution.getRequestIdentifier(), backup.getExternalId());
+        }
+
+        netBackupRestoreCoordinator.persistRestoreState(backup, vm, resolution.getRequestIdentifier(), RestorePhase.CLAIMED);
+
+        logger.info("NetBackup restore precheck approved. vm=[{}], vmId=[{}], requestIdentifier=[{}], backupUuid=[{}], externalId=[{}]",
+                vm.getInstanceName(), vm.getId(), resolution.getRequestIdentifier(), backup.getUuid(), backup.getExternalId());
+        return new NetBackupRestorePrecheckResult(true, null, vm.getId(), vm.getInstanceName(),
+                backup.getId(), backup.getUuid(), resolution.getRequestIdentifier(), backup.getExternalId());
+    }
+
+    private BackupOffering getBackupOfferingForRestore(final VMInstanceVO vm, final BackupVO backup) {
+        BackupOffering offering = backupOfferingDao.findByIdIncludingRemoved(vm.getBackupOfferingId());
+        if (offering != null) {
+            return offering;
+        }
+
+        offering = backupOfferingDao.findByIdIncludingRemoved(backup.getBackupOfferingId());
+        if (offering != null) {
+            return offering;
+        }
+        throw new CloudRuntimeException("Failed to find backup offering of the VM backup.");
+    }
+
+    private void validateVmStoppedForNetBackupRestore(final VMInstanceVO vm) {
+        if (!VirtualMachine.State.Stopped.equals(vm.getState())) {
+            throw new CloudRuntimeException(String.format(
+                    "VM [%s] must be in Stopped state before NetBackup restore. Current state: [%s].",
+                    vm.getInstanceName(), vm.getState()));
+        }
+    }
+
+    private void cleanupPreparedNetBackupRestoreOnFailure(final BackupVO backup, final VMInstanceVO vm,
+            final RestoreResolution resolution, final RuntimeException restoreFailure) {
+        if (backup == null || resolution == null || StringUtils.isBlank(resolution.getPreparedRestoreHostName())) {
+            return;
+        }
+        try {
+            final BackupProvider provider = getBackupProviderForOffering(backup.getBackupOfferingId());
+            provider.cleanupPreparedRestore(vm, backup, resolution.getPreparedRestoreHostName());
+        } catch (Exception cleanupException) {
+            logger.warn("Failed to cleanup prepared NetBackup restore for vm=[{}], backup=[{}], restoreHost=[{}] after restore failure: {}",
+                    vm != null ? vm.getInstanceName() : null, backup.getUuid(), resolution.getPreparedRestoreHostName(), restoreFailure.getMessage(), cleanupException);
+        }
+    }
+
+    private boolean isNetBackupFullBackup(final Backup backup) {
+        return StringUtils.equalsIgnoreCase(backup.getType(), "FULL");
+    }
+
+    private boolean isNetBackupIncrementalBackup(final Backup backup) {
+        return StringUtils.equalsIgnoreCase(backup.getType(), "INCREMENTAL");
+    }
+
+    private boolean isAblestackNetBackupOffering(final BackupOffering offering) {
+        return offering != null && StringUtils.equalsIgnoreCase(ABLESTACK_NETBACKUP_PROVIDER_NAME, offering.getProvider());
+    }
+
 
     /**
      * Tries to restore a VM from a backup. <br/>
@@ -1437,6 +1898,64 @@ public class BackupManagerImpl extends ManagerBase implements BackupManager {
             throw new CloudRuntimeException(String.format("Error restoring VM from backup [%s].", backupDetailsInMessage));
         }
     }
+
+    protected void tryRestorePreparedNetBackupVM(final BackupVO backup, final VMInstanceVO vm,
+            final BackupOffering offering,
+            final String backupDetailsInMessage, final String restoreHostName) {
+        try {
+            updateVmState(vm, VirtualMachine.Event.RestoringRequested, VirtualMachine.State.Restoring);
+            updateVolumeState(vm, Volume.Event.RestoreRequested, Volume.State.Restoring);
+            ActionEventUtils.onStartedActionEvent(User.UID_SYSTEM, vm.getAccountId(), EventTypes.EVENT_VM_BACKUP_RESTORE,
+                    String.format("Restoring VM %s from prepared NetBackup backup %s", vm.getUuid(), backup.getUuid()),
+                    vm.getId(), ApiCommandResourceType.VirtualMachine.toString(),
+                    true, 0);
+
+            final BackupProvider backupProvider = getBackupProvider(offering.getProvider());
+            if (!invokePreparedNetBackupRestore(backupProvider, vm, backup, restoreHostName)) {
+                ActionEventUtils.onCompletedActionEvent(User.UID_SYSTEM, vm.getAccountId(), EventVO.LEVEL_ERROR,
+                        EventTypes.EVENT_VM_BACKUP_RESTORE,
+                        String.format("Failed to restore VM %s from prepared NetBackup backup %s",
+                                vm.getInstanceName(), backup.getUuid()),
+                        vm.getId(), ApiCommandResourceType.VirtualMachine.toString(), 0);
+                throw new CloudRuntimeException(
+                        "Error restoring VM from prepared NetBackup backup with uuid " + backup.getUuid());
+            }
+            runPostRestoreMaintenance(backupProvider, vm, backup, false);
+        } catch (Exception e) {
+            logger.error(String.format(
+                    "Failed to restore prepared NetBackup backup [%s] due to: [%s].",
+                    backupDetailsInMessage, e.getMessage()), e);
+            updateVolumeState(vm, Volume.Event.RestoreFailed, Volume.State.Ready);
+            updateVmState(vm, VirtualMachine.Event.RestoringFailed, VirtualMachine.State.Stopped);
+            throw new CloudRuntimeException(String.format(
+                    "Error restoring prepared NetBackup backup [%s].", backupDetailsInMessage));
+        }
+    }
+
+    private boolean invokePreparedNetBackupRestore(final BackupProvider backupProvider, final VMInstanceVO vm,
+            final BackupVO backup, final String restoreHostName) {
+        if (backupProvider == null) {
+            return false;
+        }
+        try {
+            return (Boolean) backupProvider.getClass()
+                    .getMethod("restoreVMFromPreparedBackup", VirtualMachine.class, Backup.class, String.class)
+                    .invoke(backupProvider, vm, backup, restoreHostName);
+        } catch (NoSuchMethodException e) {
+            logger.warn("Backup provider [{}] does not support prepared NetBackup restore flow.",
+                    backupProvider.getName());
+            return false;
+        } catch (Exception e) {
+            final Throwable cause = e instanceof java.lang.reflect.InvocationTargetException
+                    ? ((java.lang.reflect.InvocationTargetException)e).getTargetException()
+                    : e;
+            final String details = cause != null && StringUtils.isNotBlank(cause.getMessage()) ? cause.getMessage() : e.getMessage();
+            throw new CloudRuntimeException(String.format(
+                    "Failed to invoke prepared NetBackup restore on provider [%s]: %s",
+                    backupProvider.getName(), details), e);
+        }
+    }
+
 
     /**
      * Tries to update the state of given VM, given specified event
@@ -1613,12 +2132,16 @@ public class BackupManagerImpl extends ManagerBase implements BackupManager {
         return ipToNetworkMap;
     }
 
-    private void processRestoreBackupToVMFailure(VMInstanceVO vm, Backup backup, Long eventId) {
-        updateVolumeState(vm, Volume.Event.RestoreFailed, Volume.State.Ready);
-        updateVmState(vm, VirtualMachine.Event.RestoringFailed, VirtualMachine.State.Stopped);
-        ActionEventUtils.onCompletedActionEvent(User.UID_SYSTEM, vm.getAccountId(), EventVO.LEVEL_ERROR, EventTypes.EVENT_VM_CREATE_FROM_BACKUP,
-                String.format("Failed to create Instance %s from backup %s", vm.getInstanceName(), backup.getUuid()),
-                vm.getId(), ApiCommandResourceType.VirtualMachine.toString(), eventId);
+    private void processRestoreBackupToVMFailure(VMInstanceVO vm, Backup backup, Long eventId, boolean restoreStateRequested) {
+        if (restoreStateRequested) {
+            updateVolumeState(vm, Volume.Event.RestoreFailed, Volume.State.Ready);
+            updateVmState(vm, VirtualMachine.Event.RestoringFailed, VirtualMachine.State.Stopped);
+        }
+        if (eventId != null) {
+            ActionEventUtils.onCompletedActionEvent(User.UID_SYSTEM, vm.getAccountId(), EventVO.LEVEL_ERROR, EventTypes.EVENT_VM_CREATE_FROM_BACKUP,
+                    String.format("Failed to create Instance %s from backup %s", vm.getInstanceName(), backup.getUuid()),
+                    vm.getId(), ApiCommandResourceType.VirtualMachine.toString(), eventId);
+        }
     }
 
     @Override
@@ -1685,13 +2208,25 @@ public class BackupManagerImpl extends ManagerBase implements BackupManager {
         if (!backupProvider.supportsInstanceFromBackup()) {
             throw new CloudRuntimeException("Create instance from backup is not supported by the " + offering.getProvider() + " provider.");
         }
+        final boolean netBackupRestore = isAblestackNetBackupOffering(offering);
+        final String netBackupRestoreRequestIdentifier = netBackupRestore ? netBackupRestoreCoordinator.getMoldRestoreRequestIdentifier(backup) : null;
+        final VMInstanceVO netBackupRestoreMarkerVm = netBackupRestore ? netBackupRestoreCoordinator.getRestoreMarkerVm(backup, vm) : null;
 
         String backupDetailsInMessage = ReflectionToStringBuilderUtils.reflectOnlySelectedFields(backup, "uuid", "externalId", "name");
         Pair<Boolean, String> result = null;
         Long eventId = null;
+        boolean restoreStateRequested = false;
         try {
+            if (netBackupRestore) {
+                netBackupRestoreCoordinator.blockIfRestoreAlreadyActive(netBackupRestoreMarkerVm, netBackupRestoreRequestIdentifier);
+                final RestorePhase phase = isNetBackupIncrementalBackup(backup)
+                        ? RestorePhase.CHAIN_RESTORE_IN_PROGRESS
+                        : RestorePhase.ROOT_RESTORE_IN_PROGRESS;
+                netBackupRestoreCoordinator.persistRestoreState(backup, netBackupRestoreMarkerVm, netBackupRestoreRequestIdentifier, phase);
+            }
             updateVmState(vm, VirtualMachine.Event.RestoringRequested, VirtualMachine.State.Restoring);
             updateVolumeState(vm, Volume.Event.RestoreRequested, Volume.State.Restoring);
+            restoreStateRequested = true;
             eventId = ActionEventUtils.onStartedActionEvent(User.UID_SYSTEM, vm.getAccountId(), EventTypes.EVENT_VM_CREATE_FROM_BACKUP,
                     String.format("Creating Instance %s from backup %s", vm.getInstanceName(), backup.getUuid()),
                     vm.getId(), ApiCommandResourceType.VirtualMachine.toString(),
@@ -1708,15 +2243,21 @@ public class BackupManagerImpl extends ManagerBase implements BackupManager {
             result = backupProvider.restoreBackupToVM(vm, backup, host, dataStore);
 
         } catch (Exception e) {
+            if (netBackupRestore) {
+                netBackupRestoreCoordinator.persistRestoreState(backup, netBackupRestoreMarkerVm, netBackupRestoreRequestIdentifier, RestorePhase.FAILED);
+            }
             logger.error(String.format("Failed to create Instance [%s] from backup [%s] due to: [%s]", vm.getInstanceName(), backupDetailsInMessage, e.getMessage()), e);
-            processRestoreBackupToVMFailure(vm, backup, eventId);
+            processRestoreBackupToVMFailure(vm, backup, eventId, restoreStateRequested);
             throw new CloudRuntimeException(String.format("Error while creating Instance [%s] from backup [%s].", vm.getUuid(), backupDetailsInMessage));
         }
 
         if (result != null && !result.first()) {
+            if (netBackupRestore) {
+                netBackupRestoreCoordinator.persistRestoreState(backup, netBackupRestoreMarkerVm, netBackupRestoreRequestIdentifier, RestorePhase.FAILED);
+            }
             String error_msg = String.format("Failed to create Instance [%s] from backup [%s] due to: %s.", vm.getInstanceName(), backupDetailsInMessage, result.second());
             logger.error(error_msg);
-            processRestoreBackupToVMFailure(vm, backup, eventId);
+            processRestoreBackupToVMFailure(vm, backup, eventId, restoreStateRequested);
             throw new CloudRuntimeException(error_msg);
         }
 
@@ -1725,6 +2266,9 @@ public class BackupManagerImpl extends ManagerBase implements BackupManager {
         ActionEventUtils.onCompletedActionEvent(User.UID_SYSTEM, vm.getAccountId(), EventVO.LEVEL_INFO, EventTypes.EVENT_VM_CREATE_FROM_BACKUP,
                 String.format("Successfully created Instance %s from backup %s", vm.getInstanceName(), backup.getUuid()),
                 vm.getId(), ApiCommandResourceType.VirtualMachine.toString(),eventId);
+        if (netBackupRestore) {
+            netBackupRestoreCoordinator.persistRestoreState(backup, netBackupRestoreMarkerVm, netBackupRestoreRequestIdentifier, RestorePhase.COMPLETED);
+        }
         return true;
     }
 
@@ -1759,10 +2303,10 @@ public class BackupManagerImpl extends ManagerBase implements BackupManager {
             final VMInstanceVO vmFromBackup = vmInstanceDao.findByIdIncludingRemoved(backup.getVmId());
             if (vmFromBackup == null) {
                 throw new CloudRuntimeException("VM reference for the provided VM backup not found");
-            } else if (vmFromBackup == null || vmFromBackup.getBackupVolumeList() == null) {
+            } else if (vmFromBackup.getBackupVolumeList() == null) {
                 throw new CloudRuntimeException("Volumes metadata not found in the backup");
             }
-            volumeInfoList = vm.getBackupVolumeList();
+            volumeInfoList = vmFromBackup.getBackupVolumeList();
         }
         Backup.VolumeInfo backupVolumeInfo = getVolumeInfo(volumeInfoList, backedUpVolumeUuid);
         if (backupVolumeInfo == null) {
@@ -1793,12 +2337,33 @@ public class BackupManagerImpl extends ManagerBase implements BackupManager {
 
         logger.debug(String.format("Trying to restore volume using host private IP address: [%s].", host.getPrivateIpAddress()));
 
-        String[] hostPossibleValues = {host.getPrivateIpAddress(), host.getName()};
-        String[] datastoresPossibleValues = {datastore.getUuid(), datastore.getName()};
+        final boolean netBackupRestore = isAblestackNetBackupOffering(offering);
+        final boolean snapshotSensitiveVolumeRestore = isSnapshotSensitiveVolumeRestoreOffering(offering);
+        if (snapshotSensitiveVolumeRestore) {
+            validateNoVmSnapshotsForRestoreVolumeAttach(vm);
+        }
+        String[] hostPossibleValues = netBackupRestore
+                ? new String[]{host.getPrivateIpAddress()}
+                : new String[]{host.getPrivateIpAddress(), host.getName()};
+        String[] datastoresPossibleValues = netBackupRestore
+                ? new String[]{datastore.getUuid()}
+                : new String[]{datastore.getUuid(), datastore.getName()};
+        final String netBackupRestoreRequestIdentifier = netBackupRestore ? netBackupRestoreCoordinator.getMoldRestoreRequestIdentifier(backup) : null;
+        final VMInstanceVO netBackupRestoreMarkerVm = netBackupRestore ? netBackupRestoreCoordinator.getRestoreMarkerVm(backup, vm) : null;
+        if (netBackupRestore) {
+            netBackupRestoreCoordinator.blockIfRestoreAlreadyActive(netBackupRestoreMarkerVm, netBackupRestoreRequestIdentifier);
+            final RestorePhase phase = isNetBackupIncrementalBackup(backup)
+                    ? RestorePhase.CHAIN_RESTORE_IN_PROGRESS
+                    : RestorePhase.ROOT_RESTORE_IN_PROGRESS;
+            netBackupRestoreCoordinator.persistRestoreState(backup, netBackupRestoreMarkerVm, netBackupRestoreRequestIdentifier, phase);
+        }
 
         Pair<Boolean, String> result = restoreBackedUpVolume(backupVolumeInfo, backup, backupProvider, hostPossibleValues, datastoresPossibleValues, vm);
 
         if (BooleanUtils.isFalse(result.first())) {
+            if (netBackupRestore) {
+                netBackupRestoreCoordinator.persistRestoreState(backup, netBackupRestoreMarkerVm, netBackupRestoreRequestIdentifier, RestorePhase.FAILED);
+            }
             throw new CloudRuntimeException(String.format("Error restoring volume [%s] of VM [%s] to host [%s] using backup provider [%s] due to: [%s].",
                     backedUpVolumeUuid, vm.getUuid(), host.getUuid(), backupProvider.getName(), result.second()));
         }
@@ -1809,16 +2374,38 @@ public class BackupManagerImpl extends ManagerBase implements BackupManager {
                 throw new CloudRuntimeException(String.format("Error attaching volume [%s] to VM [%s].", backedUpVolumeUuid, vm.getUuid()));
             }
             runPostRestoreMaintenance(backupProvider, vm, backup, true);
+            if (netBackupRestore) {
+                netBackupRestoreCoordinator.persistRestoreState(backup, netBackupRestoreMarkerVm, netBackupRestoreRequestIdentifier, RestorePhase.COMPLETED);
+            }
         } catch (Exception e) {
+            if (netBackupRestore) {
+                netBackupRestoreCoordinator.persistRestoreState(backup, netBackupRestoreMarkerVm, netBackupRestoreRequestIdentifier, RestorePhase.FAILED);
+            }
             cleanupRestoredVolumeAfterAttachFailure(result.second());
             throw e;
         }
         return true;
     }
 
+    private void validateNoVmSnapshotsForRestoreVolumeAttach(final VMInstanceVO vm) {
+        final List<VMSnapshotVO> vmSnapshots = vmSnapshotDao.findByVm(vm.getId());
+        if (CollectionUtils.isNotEmpty(vmSnapshots)) {
+            throw new CloudRuntimeException(String.format(
+                    "Unable to restore and attach volume to VM [%s] while Instance snapshots exist. Remove Instance snapshots before restoring and attaching the volume.",
+                    vm.getInstanceName()));
+        }
+    }
+
+    private boolean isSnapshotSensitiveVolumeRestoreOffering(final BackupOffering offering) {
+        return offering != null && (BackupProviderNameUtils.isNetBackupFamily(offering.getProvider()) ||
+                BackupProviderNameUtils.isNasFamily(offering.getProvider()) ||
+                BackupProviderNameUtils.isCommvaultFamily(offering.getProvider()));
+    }
+
     protected Pair<Boolean, String> restoreBackedUpVolume(final Backup.VolumeInfo backupVolumeInfo, final BackupVO backup,
             BackupProvider backupProvider, String[] hostPossibleValues, String[] datastoresPossibleValues, VMInstanceVO vm) {
-        Pair<Boolean, String> result = new  Pair<>(false, "");
+        Pair<Boolean, String> result = new Pair<>(false, "");
+        List<String> failureDetails = new ArrayList<>();
         for (String hostData : hostPossibleValues) {
             for (String datastoreData : datastoresPossibleValues) {
                 logger.debug(String.format("Trying to restore volume [UUID: %s], using host [%s] and datastore [%s].",
@@ -1826,19 +2413,24 @@ public class BackupManagerImpl extends ManagerBase implements BackupManager {
 
                 try {
                     result = backupProvider.restoreBackedUpVolume(backup, backupVolumeInfo, hostData, datastoreData, new Pair<>(vm.getName(), vm.getState()));
+                    if (result != null && StringUtils.isNotBlank(result.second())) {
+                        failureDetails.add(String.format("host [%s], datastore [%s]: %s", hostData, datastoreData, result.second()));
+                    }
 
-                    if (BooleanUtils.isTrue(result.first())) {
+                    if (result != null && BooleanUtils.isTrue(result.first())) {
                         logger.info("Successfully restored volume [UUID: {}] using host [{}] and datastore [{}] through backup provider [{}]. Result details: [{}]",
                                 backupVolumeInfo.getUuid(), hostData, datastoreData, backupProvider.getName(), result.second());
                         return result;
                     }
                 } catch (Exception e) {
+                    failureDetails.add(String.format("host [%s], datastore [%s]: %s", hostData, datastoreData, e.getMessage()));
                     logger.debug(String.format("Failed to restore volume [UUID: %s], using host [%s] and datastore [%s] due to: [%s].",
                             backupVolumeInfo.getUuid(), hostData, datastoreData, e.getMessage()), e);
                 }
             }
         }
-        return result;
+        final String resultDetails = result != null ? result.second() : null;
+        return new Pair<>(false, CollectionUtils.isNotEmpty(failureDetails) ? StringUtils.join(failureDetails, "; ") : resultDetails);
     }
 
     private void runPostRestoreMaintenance(final BackupProvider backupProvider, final VirtualMachine vm, final Backup backup, final boolean volumeOnly) {
@@ -2135,6 +2727,7 @@ public class BackupManagerImpl extends ManagerBase implements BackupManager {
         cmdList.add(ListBackupOfferingsCmd.class);
         cmdList.add(DeleteBackupOfferingCmd.class);
         cmdList.add(UpdateBackupOfferingCmd.class);
+        cmdList.add(UpdateNetBackupCmd.class);
         // Assignment
         cmdList.add(AssignVirtualMachineToBackupOfferingCmd.class);
         cmdList.add(RemoveVirtualMachineFromBackupOfferingCmd.class);
@@ -2145,8 +2738,11 @@ public class BackupManagerImpl extends ManagerBase implements BackupManager {
         cmdList.add(DeleteBackupScheduleCmd.class);
         // Operations
         cmdList.add(CreateBackupCmd.class);
+        cmdList.add(CreateNetBackupCmd.class);
         cmdList.add(ListBackupsCmd.class);
         cmdList.add(RestoreBackupCmd.class);
+        cmdList.add(PrepareNetBackupRestoreCmd.class);
+        cmdList.add(RestoreNetBackupCmd.class);
         cmdList.add(DeleteBackupCmd.class);
         cmdList.add(RestoreVolumeFromBackupAndAttachToVMCmd.class);
         cmdList.add(AddBackupRepositoryCmd.class);
@@ -2170,6 +2766,8 @@ public class BackupManagerImpl extends ManagerBase implements BackupManager {
                 BackupFrameworkEnabled,
                 BackupProviderPlugin,
                 BackupSyncPollingInterval,
+                BackupCommandTimeout,
+                BackupRestoreTimeout,
                 BackupEnableAttachDetachVolumes,
                 KvmIncrementalBackup,
                 BackupChainSize,
@@ -2246,17 +2844,25 @@ public class BackupManagerImpl extends ManagerBase implements BackupManager {
         for (final BackupScheduleVO backupSchedule : backupSchedules) {
             final Long asyncJobId = backupSchedule.getAsyncJobId();
             final AsyncJobVO asyncJob = asyncJobManager.getAsyncJob(asyncJobId);
+            if (asyncJob == null) {
+                logger.warn("Backup schedule [id: {}, uuid: {}, vmId: {}] references missing async job [id: {}]. Scheduling next backup run.",
+                        backupSchedule.getId(), backupSchedule.getUuid(), backupSchedule.getVmId(), asyncJobId);
+                scheduleNextBackupJob(backupSchedule);
+                continue;
+            }
             switch (asyncJob.getStatus()) {
                 case SUCCEEDED:
                 case FAILED:
+                case CANCELLED:
                     final Date nextDateTime = scheduleNextBackupJob(backupSchedule);
                     final String nextScheduledTime = DateUtil.displayDateInTimezone(DateUtil.GMT_TIMEZONE, nextDateTime);
-                    logger.debug("Next backup scheduled time for VM ID " + backupSchedule.getVmId() + " is " + nextScheduledTime);
+                    logger.info("Backup schedule [id: {}, uuid: {}, vmId: {}] completed async job [id: {}, uuid: {}, status: {}]. Next scheduled time is [{}].",
+                            backupSchedule.getId(), backupSchedule.getUuid(), backupSchedule.getVmId(), asyncJob.getId(), asyncJob.getUuid(), asyncJob.getStatus(), nextScheduledTime);
                     break;
             default:
-                logger.debug("Found async backup job [id: {}, uuid: {}, vmId: {}] with " +
+                logger.debug("Found async backup job [id: {}, uuid: {}, scheduleId: {}, vmId: {}] with " +
                         "status [{}] and cmd information: [cmd: {}, cmdInfo: {}].",
-                        asyncJob.getId(), asyncJob.getUuid(), backupSchedule.getVmId(),
+                        asyncJob.getId(), asyncJob.getUuid(), backupSchedule.getId(), backupSchedule.getVmId(),
                         asyncJob.getStatus(), asyncJob.getCmd(), asyncJob.getCmdInfo());
                 break;
             }
@@ -2269,6 +2875,7 @@ public class BackupManagerImpl extends ManagerBase implements BackupManager {
         logger.debug("Backup backup.poll is being called at " + displayTime);
 
         final List<BackupScheduleVO> backupsToBeExecuted = backupScheduleDao.getSchedulesToExecute(currentTimestamp);
+        logger.debug("Found [{}] backup schedules to execute at [{}].", backupsToBeExecuted.size(), displayTime);
         for (final BackupScheduleVO backupSchedule: backupsToBeExecuted) {
             final Long backupScheduleId = backupSchedule.getId();
             final Long vmId = backupSchedule.getVmId();
@@ -2306,6 +2913,9 @@ public class BackupManagerImpl extends ManagerBase implements BackupManager {
 
             try {
                 tmpBackupScheduleVO = backupScheduleDao.acquireInLockTable(backupScheduleId);
+                logger.info("Submitting scheduled backup [scheduleId: {}, scheduleUuid: {}, vmId: {}, vmUuid: {}, vmName: {}, provider: {}, offeringId: {}, scheduledTimestamp: {}, submitTime: {}].",
+                        backupScheduleId, backupSchedule.getUuid(), vm.getId(), vm.getUuid(), vm.getInstanceName(), offering.getProvider(), offering.getId(),
+                        backupSchedule.getScheduledTimestamp(), new Date());
 
                 final Long eventId = ActionEventUtils.onScheduledActionEvent(User.UID_SYSTEM, vm.getAccountId(),
                         EventTypes.EVENT_VM_BACKUP_CREATE, "creating backup for VM ID:" + vm.getUuid(),
@@ -2335,8 +2945,11 @@ public class BackupManagerImpl extends ManagerBase implements BackupManager {
                 final long jobId = asyncJobManager.submitAsyncJob(job);
                 tmpBackupScheduleVO.setAsyncJobId(jobId);
                 backupScheduleDao.update(backupScheduleId, tmpBackupScheduleVO);
+                logger.info("Submitted scheduled backup [scheduleId: {}, scheduleUuid: {}, vmId: {}, vmUuid: {}, provider: {}, offeringId: {}, jobId: {}, jobUuid: {}].",
+                        backupScheduleId, backupSchedule.getUuid(), vm.getId(), vm.getUuid(), offering.getProvider(), offering.getId(), jobId, job.getUuid());
             } catch (Exception e) {
-                logger.error(String.format("Scheduling backup failed due to: [%s].", e.getMessage()), e);
+                logger.error("Scheduling backup failed [scheduleId: {}, scheduleUuid: {}, vmId: {}, provider: {}, offeringId: {}] due to: [{}].",
+                        backupScheduleId, backupSchedule.getUuid(), vmId, offering.getProvider(), offering.getId(), e.getMessage(), e);
             } finally {
                 if (tmpBackupScheduleVO != null) {
                     backupScheduleDao.releaseFromLockTable(backupScheduleId);
@@ -2468,16 +3081,6 @@ public class BackupManagerImpl extends ManagerBase implements BackupManager {
             if (!backupProvider.supportsOutOfBandBackupSync()) {
                 return;
             }
-            if (backupProvider.supportsProviderManagedBackupAgents()) {
-                boolean check = backupProvider.checkBackupAgent(dataCenter.getId());
-                if (!check) {
-                    boolean install = false;
-                    while(!install) {
-                        logger.info("Commvault Backup Agent will attempt to install....");
-                        install = backupProvider.installBackupAgent(dataCenter.getId());
-                    }
-                }
-            }
 
             List<VMInstanceVO> vms = vmInstanceDao.listByZoneAndBackupOffering(dataCenter.getId(), null);
             if (vms == null || vms.isEmpty()) {
@@ -2487,11 +3090,11 @@ public class BackupManagerImpl extends ManagerBase implements BackupManager {
             if (backupProvider.supportsBackupMetricsSync()) {
                 backupProvider.syncBackupMetrics(dataCenter.getId());
             }
+            int syncedVmCount = 0;
             for (final VMInstanceVO vm : vms) {
                 try {
                     Long backupOfferingId = vm.getBackupOfferingId();
                     if (backupOfferingId == null) {
-                        logger.debug("Skipping VM [{}] because backup offering is not assigned.", vm);
                         continue;
                     }
                     BackupOfferingVO offering = backupOfferingDao.findById(vm.getBackupOfferingId());
@@ -2500,9 +3103,9 @@ public class BackupManagerImpl extends ManagerBase implements BackupManager {
                         continue;
                     }
                     if (!backupProvider.getName().equalsIgnoreCase(offering.getProvider())) {
-                        logger.debug("Skipping VM [{}] because backup offering provider [{}] does not match current provider [{}].", vm, offering.getProvider(), backupProvider.getName());
                         continue;
                     }
+                    syncedVmCount++;
                     logger.debug(String.format("Trying to sync backups of VM [%s] using backup provider [%s].", vm, backupProvider.getName()));
                     // Sync out-of-band backups
                     syncBackups(backupProvider, vm);
@@ -2510,6 +3113,10 @@ public class BackupManagerImpl extends ManagerBase implements BackupManager {
                 } catch (final Exception e) {
                     logger.error("Failed to sync backup usage metrics and out-of-band backups of VM [{}] due to: [{}].", vm, e.getMessage(), e);
                 }
+            }
+            if (syncedVmCount == 0) {
+                logger.debug("No VMs assigned to backup provider [{}] in zone [{}] for out-of-band backup sync.",
+                        backupProvider.getName(), dataCenter.getId());
             }
         }
 
@@ -2586,8 +3193,20 @@ public class BackupManagerImpl extends ManagerBase implements BackupManager {
 
         private void processRemoveList(List<Long> removeList, VirtualMachine vm) {
             for (final Long backupIdToRemove : removeList) {
-                logger.warn(String.format("Removing backup with ID: [%s].", backupIdToRemove));
                 Backup backup = backupDao.findById(backupIdToRemove);
+                if (backup == null) {
+                    logger.warn("Skipping removal of backup [ID: {}] during sync because it was not found.", backupIdToRemove);
+                    continue;
+                }
+                if (backup != null && Backup.Status.BackingUp.equals(backup.getStatus())) {
+                    final BackupOffering offering = backupOfferingDao.findById(backup.getBackupOfferingId());
+                    if (offering != null && BackupProviderNameUtils.isNetBackupFamily(offering.getProvider())) {
+                        logger.debug("Skipping removal of NetBackup backup [{}] for VM [{}] because it is still BackingUp.",
+                                backup.getId(), vm.getInstanceName());
+                        continue;
+                    }
+                }
+                logger.warn(String.format("Removing backup with ID: [%s].", backupIdToRemove));
                 resourceLimitMgr.decrementResourceCount(backup.getAccountId(), Resource.ResourceType.backup);
                 resourceLimitMgr.decrementResourceCount(backup.getAccountId(), Resource.ResourceType.backup_storage, backup.getSize());
                 boolean result = backupDao.remove(backupIdToRemove);
@@ -2801,7 +3420,7 @@ public class BackupManagerImpl extends ManagerBase implements BackupManager {
         response.setSize(backup.getSize());
         response.setProtectedSize(backup.getProtectedSize());
         response.setStatus(backup.getStatus());
-        response.setIntervalType("MANUAL");
+        response.setIntervalType(offering != null && BackupProviderNameUtils.isNetBackupFamily(offering.getProvider()) ? "EXTERNAL" : "MANUAL");
         if (backup.getBackupScheduleId() != null) {
             BackupScheduleVO scheduleVO = backupScheduleDao.findById(backup.getBackupScheduleId());
             if (scheduleVO != null) {
@@ -2821,6 +3440,7 @@ public class BackupManagerImpl extends ManagerBase implements BackupManager {
         if (offering != null) {
             response.setBackupOfferingId(offering.getUuid());
             response.setBackupOffering(offering.getName());
+            response.setProvider(offering.getProvider());
         } else {
             response.setVmOfferingRemoved(true);
         }

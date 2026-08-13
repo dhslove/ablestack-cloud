@@ -21,8 +21,10 @@ import org.apache.commons.lang3.StringUtils;
 public final class BackupProviderNameUtils {
     public static final String NAS = "nas";
     public static final String COMMVAULT = "commvault";
+    public static final String NETBACKUP = "netbackup";
     public static final String ABLESTACK_NAS = "ablestack-nas";
     public static final String ABLESTACK_COMMVAULT = "ablestack-commvault";
+    public static final String ABLESTACK_NETBACKUP = "ablestack-netbackup";
 
     private BackupProviderNameUtils() {
     }
@@ -37,6 +39,9 @@ public final class BackupProviderNameUtils {
         if (COMMVAULT.equalsIgnoreCase(providerName) || ABLESTACK_COMMVAULT.equalsIgnoreCase(providerName)) {
             return ABLESTACK_COMMVAULT;
         }
+        if (NETBACKUP.equalsIgnoreCase(providerName) || ABLESTACK_NETBACKUP.equalsIgnoreCase(providerName)) {
+            return ABLESTACK_NETBACKUP;
+        }
         return providerName;
     }
 
@@ -50,6 +55,9 @@ public final class BackupProviderNameUtils {
         if (ABLESTACK_COMMVAULT.equalsIgnoreCase(providerName) || COMMVAULT.equalsIgnoreCase(providerName)) {
             return COMMVAULT;
         }
+        if (ABLESTACK_NETBACKUP.equalsIgnoreCase(providerName) || NETBACKUP.equalsIgnoreCase(providerName)) {
+            return NETBACKUP;
+        }
         return providerName;
     }
 
@@ -59,5 +67,9 @@ public final class BackupProviderNameUtils {
 
     public static boolean isCommvaultFamily(final String providerName) {
         return ABLESTACK_COMMVAULT.equalsIgnoreCase(canonicalize(providerName));
+    }
+
+    public static boolean isNetBackupFamily(final String providerName) {
+        return ABLESTACK_NETBACKUP.equalsIgnoreCase(canonicalize(providerName));
     }
 }

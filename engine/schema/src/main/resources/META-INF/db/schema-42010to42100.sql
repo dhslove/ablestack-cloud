@@ -19,6 +19,9 @@
 -- Schema upgrade from 4.20.1.0 to 4.21.0.0
 --;
 
+-- Re-apply schema change that may be missing from earlier 4.21 installations.
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.op_ha_work', 'reason', 'varchar(32) DEFAULT NULL COMMENT "Reason for the HA work"');
+
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.backup_schedule', 'max_backups', 'INT(8) UNSIGNED NOT NULL DEFAULT 0 COMMENT ''Maximum number of backups to be retained''');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.backups', 'backup_schedule_id', 'BIGINT(20) UNSIGNED');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.backup_schedule', 'quiescevm', 'tinyint(1) default NULL COMMENT "Quiesce VM before taking backup"');
@@ -338,15 +341,25 @@ INSERT IGNORE INTO `cloud`.`counter` (uuid, provider, source, name, value, creat
 INSERT IGNORE INTO `cloud`.`counter` (uuid, provider, source, name, value, created) VALUES (UUID(), 'Netris', 'memory', 'VM Memory - average percentage', 'vm.memory.average.percentage', NOW());
 
 -- Rename user_vm_details to vm_instance_details
-SET @sql := (SELECT IF(COUNT(*)>0,'RENAME TABLE `cloud`.`user_vm_details` TO `cloud`.`vm_instance_details`','SELECT 1') FROM information_schema.TABLES WHERE TABLE_SCHEMA='cloud' AND TABLE_NAME='user_vm_details'); PREPARE s FROM @sql; EXECUTE s; DEALLOCATE PREPARE s;
-SET @sql := (SELECT IF(COUNT(*)>0,'ALTER TABLE `cloud`.`vm_instance_details` DROP FOREIGN KEY `fk_user_vm_details__vm_id`','SELECT 1') FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA='cloud' AND TABLE_NAME='vm_instance_details' AND CONSTRAINT_NAME='fk_user_vm_details__vm_id' AND CONSTRAINT_TYPE='FOREIGN KEY'); PREPARE s FROM @sql; EXECUTE s; DEALLOCATE PREPARE s;
+SET @sql := (SELECT IF(COUNT(*)>0,'RENAME TABLE `cloud`.`user_vm_details` TO `cloud`.`vm_instance_details`','SELECT 1') FROM information_schema.TABLES WHERE TABLE_SCHEMA='cloud' AND TABLE_NAME='user_vm_details');
+PREPARE s FROM @sql;
+EXECUTE s;
+DEALLOCATE PREPARE s;
+
+SET @sql := (SELECT IF(COUNT(*)>0,'ALTER TABLE `cloud`.`vm_instance_details` DROP FOREIGN KEY `fk_user_vm_details__vm_id`','SELECT 1') FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA='cloud' AND TABLE_NAME='vm_instance_details' AND CONSTRAINT_NAME='fk_user_vm_details__vm_id' AND CONSTRAINT_TYPE='FOREIGN KEY');
+PREPARE s FROM @sql;
+EXECUTE s;
+DEALLOCATE PREPARE s;
 CALL `cloud`.`IDEMPOTENT_ADD_FOREIGN_KEY`('cloud.vm_instance_details', 'fk_vm_instance_details__vm_id', '(vm_id)', '`vm_instance`(`id`)');
 
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.backup_schedule', 'uuid', 'VARCHAR(40) NOT NULL');
-UPDATE `cloud`.`backup_schedule` SET uuid = UUID() WHERE uuid IS NULL;
+UPDATE `cloud`.`backup_schedule` SET uuid = UUID() WHERE uuid IS NULL OR uuid = '';
 
 -- Extension framework
-UPDATE `cloud`.`configuration` SET value = CONCAT(value, ',External') WHERE name = 'hypervisor.list';
+UPDATE `cloud`.`configuration`
+SET value = IF(value IS NULL OR value = '', 'External', CONCAT(value, ',External'))
+WHERE name = 'hypervisor.list'
+  AND (value IS NULL OR FIND_IN_SET('External', value) = 0);
 
 CREATE TABLE IF NOT EXISTS `cloud`.`extension` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -570,7 +583,7 @@ CALL `cloud`.`IDEMPOTENT_CHANGE_COLUMN`('cloud.networks','ip6_gateway','ip6_gate
 
 -- Add columns name, description and backup_interval_type to backup table
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.backups', 'name', 'VARCHAR(255) NULL COMMENT "name of the backup"');
-UPDATE `cloud`.`backups` backup INNER JOIN `cloud`.`vm_instance` vm ON backup.vm_id = vm.id SET backup.name = vm.name;
+UPDATE `cloud`.`backups` backup INNER JOIN `cloud`.`vm_instance` vm ON backup.vm_id = vm.id SET backup.name = vm.name WHERE backup.name IS NULL OR backup.name = '';
 CALL `cloud`.`IDEMPOTENT_CHANGE_COLUMN`('cloud.backups','name','name','VARCHAR(255) NOT NULL');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.backups', 'description', 'VARCHAR(1024) COMMENT "description for the backup"');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.backups', 'backup_interval_type', 'int(5) COMMENT "type of backup, e.g. manual, recurring - hourly, daily, weekly or monthly"');
@@ -610,7 +623,8 @@ SET b.backed_volumes = (
     FROM `cloud`.`volumes` v
     LEFT JOIN `cloud`.`disk_offering` doff ON v.disk_offering_id = doff.id
     WHERE v.instance_id = vm.id
-);
+)
+WHERE b.backed_volumes IS NULL OR b.backed_volumes = '' OR b.backed_volumes NOT LIKE '%"diskOfferingId"%';
 
 -- Add diskOfferingId, deviceId, minIops and maxIops to backup_volumes in vm_instance table
 UPDATE `cloud`.`vm_instance` vm
@@ -636,7 +650,8 @@ SET vm.backup_volumes = (
     LEFT JOIN `cloud`.`disk_offering` doff ON v.disk_offering_id = doff.id
     WHERE v.instance_id = vm.id
 )
-WHERE vm.backup_offering_id IS NOT NULL;
+WHERE vm.backup_offering_id IS NOT NULL
+AND (vm.backup_volumes IS NULL OR vm.backup_volumes = '' OR vm.backup_volumes NOT LIKE '%"diskOfferingId"%');
 
 -- Add column allocated_size to object_store table. Rename column 'used_bytes' to 'used_size'
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.object_store', 'allocated_size', 'bigint unsigned COMMENT "allocated size in bytes"');

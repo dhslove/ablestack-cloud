@@ -19,9 +19,7 @@
 
 package com.cloud.hypervisor.kvm.resource.wrapper;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import com.cloud.agent.api.Answer;
@@ -39,12 +37,11 @@ import org.apache.commons.lang3.StringUtils;
 @ResourceWrapper(handles =  ReadyCommand.class)
 public final class LibvirtReadyCommandWrapper extends CommandWrapper<ReadyCommand, Answer, LibvirtComputingResource> {
 
-
     @Override
     public Answer execute(final ReadyCommand command, final LibvirtComputingResource libvirtComputingResource) {
         Map<String, String> hostDetails = new HashMap<String, String>();
 
-        if (hostSupportsUefi(libvirtComputingResource.isUbuntuOrDebianHost()) && libvirtComputingResource.isUefiPropertiesFileLoaded()) {
+        if (hostSupportsUefi(libvirtComputingResource, libvirtComputingResource.isUbuntuOrDebianHost()) && libvirtComputingResource.isUefiPropertiesFileLoaded()) {
             hostDetails.put(Host.HOST_UEFI_ENABLE, Boolean.TRUE.toString());
         }
 
@@ -62,18 +59,15 @@ public final class LibvirtReadyCommandWrapper extends CommandWrapper<ReadyComman
         return new ReadyAnswer(command, hostDetails);
     }
 
-    private boolean hostSupportsUefi(boolean isUbuntuOrDebianHost) {
+    private boolean hostSupportsUefi(final LibvirtComputingResource libvirtComputingResource, boolean isUbuntuOrDebianHost) {
         int timeout = AgentPropertiesFileHandler.getPropertyValue(AgentProperties.AGENT_SCRIPT_TIMEOUT) * 1000; // Get property value & convert to milliseconds
         int result;
         if (isUbuntuOrDebianHost) {
             logger.debug("Running command : [dpkg -l ovmf] with timeout : " + timeout + " ms");
             result = Script.executeCommandForExitValue(timeout, Script.getExecutableAbsolutePath("dpkg"), "-l", "ovmf");
         } else {
-            logger.debug("Running command : [rpm -qa | grep -i ovmf] with timeout : " + timeout + " ms");
-            List<String[]> commands = new ArrayList<>();
-            commands.add(new String[]{Script.getExecutableAbsolutePath("rpm"), "-qa"});
-            commands.add(new String[]{Script.getExecutableAbsolutePath("grep"), "-i", "ovmf"});
-            result = Script.executePipedCommands(commands, timeout).first();
+            logger.debug("Running command : [aspkg -qa | grep -i ovmf] and falling back to [rpm -qa | grep -i ovmf] with timeout : " + timeout + " ms");
+            result = libvirtComputingResource.runPackageQueryWithFallback("ovmf", timeout);
         }
         logger.debug("Got result : " + result);
         return result == 0;

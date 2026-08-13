@@ -1,0 +1,31 @@
+#!/bin/sh
+
+# 파일명 수정 필요: bpstart_notify.<정책명>
+
+CLIENT="${1:-}"
+POLICY="${2:-}"
+SCHEDULE="${3:-}"
+TYPE="${4:-}"
+
+LOG="/var/log/netbackup-mold-hook.log"
+HELPER="/usr/share/cloudstack-common/scripts/vm/hypervisor/kvm/netbackup-host-bpstart-notify.sh"
+
+log_line() {
+  printf '%s %s\n' "$(date '+%F %T')" "$1" >> "$LOG" 2>&1
+}
+
+if [ $# -lt 4 ]; then
+  log_line "PRE invalid-args argc=$# client=$CLIENT policy=$POLICY schedule=$SCHEDULE type=$TYPE"
+  exit 2
+fi
+
+if [ ! -x "$HELPER" ]; then
+  log_line "PRE helper-missing path=$HELPER"
+  exit 3
+fi
+
+log_line "PRE start client=$CLIENT policy=$POLICY schedule=$SCHEDULE type=$TYPE"
+"$HELPER" "$POLICY" "$SCHEDULE" "$CLIENT" >> "$LOG" 2>&1
+RC=$?
+log_line "PRE end rc=$RC client=$CLIENT policy=$POLICY schedule=$SCHEDULE type=$TYPE"
+exit $RC

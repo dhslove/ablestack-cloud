@@ -48,6 +48,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -100,7 +101,8 @@ class LibvirtAblestackCommvaultBackupHelper {
         String[] scriptCommand = buildBackupScriptCommand(command, diskPaths, executionMode);
         LOGGER.debug("Executing Commvault backup script command=[{}]", String.join(" ", scriptCommand));
         commands.add(scriptCommand);
-        return Script.executePipedCommands(commands, resource.getCmdsTimeout());
+        final int timeout = command.getWait() > 0 ? command.getWait() * 1000 : resource.getCmdsTimeout();
+        return Script.executePipedCommands(commands, timeout);
     }
 
     List<String> resolveDiskPaths(List<PrimaryDataStoreTO> volumePools, List<String> volumePaths) {
@@ -212,9 +214,28 @@ class LibvirtAblestackCommvaultBackupHelper {
         } catch (Exception e) {
             LOGGER.error("Stopped VM Commvault backup failed for vm=[{}], dummyVm=[{}] due to: {}",
                     command.getVmName(), dummyVmName, e.getMessage(), e);
+            if (!cleanupStoppedBackupPath(dest)) {
+                return new Pair<>(EXIT_CLEANUP_FAILED, String.format("Backup cleanup failed after stopped VM Commvault backup failure: %s", e.getMessage()));
+            }
             return new Pair<>(1, e.getMessage());
         } finally {
             cleanupDummyVm(dummyVmName);
+        }
+    }
+
+    private boolean cleanupStoppedBackupPath(Path dest) {
+        if (dest == null || !Files.exists(dest)) {
+            return true;
+        }
+        try (var stream = Files.walk(dest)) {
+            List<Path> paths = stream.sorted(Comparator.reverseOrder()).collect(Collectors.toList());
+            for (Path path : paths) {
+                Files.deleteIfExists(path);
+            }
+            return true;
+        } catch (IOException e) {
+            LOGGER.warn("Failed to cleanup stopped VM Commvault backup path [{}]: {}", dest, e.getMessage(), e);
+            return false;
         }
     }
 

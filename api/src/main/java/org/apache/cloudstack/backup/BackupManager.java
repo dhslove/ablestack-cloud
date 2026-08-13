@@ -24,13 +24,17 @@ import com.cloud.capacity.Capacity;
 import com.cloud.exception.ResourceAllocationException;
 import org.apache.cloudstack.api.command.admin.backup.CloneBackupOfferingCmd;
 import org.apache.cloudstack.api.command.admin.backup.ImportBackupOfferingCmd;
+import org.apache.cloudstack.api.command.admin.backup.UpdateNetBackupCmd;
 import org.apache.cloudstack.api.command.admin.backup.UpdateBackupOfferingCmd;
 import org.apache.cloudstack.api.command.user.backup.CreateBackupCmd;
+import org.apache.cloudstack.api.command.user.backup.CreateNetBackupCmd;
 import org.apache.cloudstack.api.command.user.backup.CreateBackupScheduleCmd;
 import org.apache.cloudstack.api.command.user.backup.DeleteBackupScheduleCmd;
 import org.apache.cloudstack.api.command.user.backup.ListBackupOfferingsCmd;
 import org.apache.cloudstack.api.command.user.backup.ListBackupScheduleCmd;
 import org.apache.cloudstack.api.command.user.backup.ListBackupsCmd;
+import org.apache.cloudstack.api.command.user.backup.PrepareNetBackupRestoreCmd;
+import org.apache.cloudstack.api.command.user.backup.RestoreNetBackupCmd;
 import org.apache.cloudstack.api.response.BackupResponse;
 import org.apache.cloudstack.framework.config.ConfigKey;
 import org.apache.cloudstack.framework.config.Configurable;
@@ -57,12 +61,26 @@ public interface BackupManager extends BackupService, Configurable, PluggableSer
     ConfigKey<String> BackupProviderPlugin = new ConfigKey<>("Advanced", String.class,
             "backup.framework.provider.plugin",
             "dummy",
-            "The backup and recovery provider plugin (comma-separated). Example: dummy, veeam, networker, nas, commvault", true, ConfigKey.Scope.Zone, BackupFrameworkEnabled.key());
+            "The backup and recovery provider plugin (comma-separated). Example: dummy, veeam, networker, nas, commvault, netbackup", true, ConfigKey.Scope.Zone, BackupFrameworkEnabled.key());
 
     ConfigKey<Long> BackupSyncPollingInterval = new ConfigKey<>("Advanced", Long.class,
             "backup.framework.sync.interval",
             "300",
             "The backup and recovery background sync task polling interval in seconds.", true, BackupFrameworkEnabled.key());
+
+    ConfigKey<Integer> BackupCommandTimeout = new ConfigKey<>("Advanced", Integer.class,
+            "backup.command.timeout",
+            "7200",
+            "Timeout in seconds for KVM backup commands. A value of 0 uses the global command wait timeout.",
+            true,
+            BackupFrameworkEnabled.key());
+
+    ConfigKey<Integer> BackupRestoreTimeout = new ConfigKey<>("Advanced", Integer.class,
+            "backup.restore.timeout",
+            "7200",
+            "Timeout in seconds for KVM backup restore commands. A value of 0 uses the global command wait timeout.",
+            true,
+            BackupFrameworkEnabled.key());
 
     ConfigKey<Boolean> BackupEnableAttachDetachVolumes = new ConfigKey<>("Advanced", Boolean.class,
             "backup.enable.attach.detach.of.volumes",
@@ -212,6 +230,20 @@ public interface BackupManager extends BackupService, Configurable, PluggableSer
     boolean deleteBackupSchedule(DeleteBackupScheduleCmd cmd);
 
     /**
+     * Creates backup of a VM for NetBackup
+     * @param cmd CreateNetBackupCmd
+     * @return returns operation success
+     */
+    boolean createNetBackup(CreateNetBackupCmd cmd) throws ResourceAllocationException;
+
+    /**
+     * Updates NetBackup-specific backup metadata for a VM backup row.
+     * @param cmd UpdateNetBackupCmd
+     * @return returns operation success
+     */
+    boolean updateNetBackup(UpdateNetBackupCmd cmd);
+
+    /**
      * Creates backup of a VM
      * @param cmd CreateBackupCmd
      * @param job The async job associated with the backup retention
@@ -228,6 +260,16 @@ public interface BackupManager extends BackupService, Configurable, PluggableSer
      * Restore a full VM from backup
      */
     boolean restoreBackup(final Long backupId);
+
+    /**
+     * Restore a VM from NetBackup using a restore pathname.
+     */
+    boolean restoreNetBackup(final RestoreNetBackupCmd cmd);
+
+    /**
+     * Claim a NetBackup restore session before invoking the restore flow.
+     */
+    NetBackupRestorePrecheckResult prepareNetBackupRestore(final PrepareNetBackupRestoreCmd cmd);
 
     Map<Long, Network.IpAddresses> getIpToNetworkMapFromBackup(Backup backup, boolean preserveIps, List<Long> networkIds);
 

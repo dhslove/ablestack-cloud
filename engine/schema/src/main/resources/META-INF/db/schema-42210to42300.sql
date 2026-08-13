@@ -759,7 +759,6 @@ WHERE v.removed IS NULL
   AND UPPER(COALESCE(v.format, '')) <> 'RAW';
 
 -- Create webhook_filter table
-DROP TABLE IF EXISTS `cloud`.`webhook_filter`;
 CREATE TABLE IF NOT EXISTS `cloud`.`webhook_filter` (
     `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT 'id of the webhook filter',
     `uuid` varchar(255) COMMENT 'uuid of the webhook filter',
@@ -809,14 +808,37 @@ CREATE TABLE IF NOT EXISTS `cloud`.`api_keypair_permissions` (
 );
 
 -- Populate "api_keypair" table with existing user API keys
-INSERT INTO `cloud`.`api_keypair` (uuid, user_id, domain_id, account_id, api_key, secret_key, created, name)
-SELECT UUID(), user.id, account.domain_id, account.id, user.api_key, user.secret_key, NOW(), 'Active key pair'
-FROM `cloud`.`user` AS user
-JOIN `cloud`.`account` AS account ON user.account_id = account.id
-WHERE user.api_key IS NOT NULL AND user.secret_key IS NOT NULL;
+SET @migrate_user_keys_to_api_keypair = IF(
+    (
+        SELECT COUNT(1)
+        FROM `information_schema`.`columns`
+        WHERE `table_schema` = 'cloud'
+          AND `table_name` = 'user'
+          AND `column_name` IN ('api_key', 'secret_key')
+    ) = 2,
+    'INSERT INTO `cloud`.`api_keypair` (uuid, user_id, domain_id, account_id, api_key, secret_key, created, name)
+     SELECT UUID(), user.id, account.domain_id, account.id, user.api_key, user.secret_key, NOW(), ''Active key pair''
+     FROM `cloud`.`user` AS user
+     JOIN `cloud`.`account` AS account ON user.account_id = account.id
+     WHERE user.api_key IS NOT NULL
+       AND user.secret_key IS NOT NULL
+       AND NOT EXISTS (
+           SELECT 1
+           FROM `cloud`.`api_keypair` keypair
+           WHERE keypair.user_id = user.id
+             AND keypair.api_key = user.api_key
+             AND keypair.secret_key = user.secret_key
+             AND keypair.removed IS NULL
+       )',
+    'SELECT 1'
+);
+PREPARE migrate_user_keys_to_api_keypair_stmt FROM @migrate_user_keys_to_api_keypair;
+EXECUTE migrate_user_keys_to_api_keypair_stmt;
+DEALLOCATE PREPARE migrate_user_keys_to_api_keypair_stmt;
 
 -- Drop API keys from user table
-ALTER TABLE `cloud`.`user` DROP COLUMN api_key, DROP COLUMN secret_key;
+CALL `cloud`.`IDEMPOTENT_DROP_COLUMN`('cloud.user', 'api_key');
+CALL `cloud`.`IDEMPOTENT_DROP_COLUMN`('cloud.user', 'secret_key');
 
 -- Grant access to the "deleteUserKeys" API to the "User", "Domain Admin" and "Resource Admin" roles, similarly to the "registerUserKeys" API
 CALL `cloud`.`IDEMPOTENT_UPDATE_API_PERMISSION`('User', 'deleteUserKeys', 'ALLOW');
@@ -826,7 +848,7 @@ CALL `cloud`.`IDEMPOTENT_UPDATE_API_PERMISSION`('Resource Admin', 'deleteUserKey
 -- Add conserve mode for VPC offerings
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.vpc_offerings','conserve_mode', 'tinyint(1) unsigned NULL DEFAULT 0 COMMENT ''True if the VPC offering is IP conserve mode enabled, allowing public IP services to be used across multiple VPC tiers'' ');
 
---- Disable/enable NICs
+-- Disable/enable NICs
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.nics','enabled', 'TINYINT(1) NOT NULL DEFAULT 1 COMMENT ''Indicates whether the NIC is enabled or not'' ');
 CREATE TABLE IF NOT EXISTS `cloud`.`dr_cutover_session` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT, `uuid` varchar(40) NOT NULL, `plan_id` bigint unsigned NOT NULL,

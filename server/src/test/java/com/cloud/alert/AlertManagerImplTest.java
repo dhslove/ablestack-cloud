@@ -148,6 +148,17 @@ public class AlertManagerImplTest {
         }
     }
 
+    private void prepareZoneAndPod(long zoneId, Long podId) {
+        DataCenterVO zone = Mockito.mock(DataCenterVO.class);
+        Mockito.when(zone.getId()).thenReturn(zoneId);
+        Mockito.when(_dcDao.findById(zoneId)).thenReturn(zone);
+        if (podId != null) {
+            HostPodVO pod = Mockito.mock(HostPodVO.class);
+            Mockito.when(pod.getId()).thenReturn(podId);
+            Mockito.when(_podDao.findById(podId)).thenReturn(pod);
+        }
+    }
+
     @Test
     public void sendAlertTestSendMail() {
         Mockito.doReturn(null).when(_alertDao).getLastAlert(Mockito.anyShort(), Mockito.anyLong(),
@@ -353,5 +364,64 @@ public class AlertManagerImplTest {
         List<String> expectedTypes = (List<String>)ReflectionTestUtils.getField(alertManagerImplMock, "allowedRepetitiveAlertTypeNames");
         Assert.assertNotNull(expectedTypes);
         Assert.assertTrue(expectedTypes.isEmpty());
+    }
+
+    @Test
+    public void sendPersistentAlertSendsDeliveryForNewWallAlert() {
+        prepareZoneAndPod(1L, 2L);
+        Mockito.doReturn(null).when(_alertDao).getLastAlert(Mockito.anyShort(), Mockito.anyLong(),
+                Mockito.anyLong(), Mockito.<Long>isNull());
+        Mockito.doReturn(null).when(_alertDao).persist(Mockito.any());
+        Mockito.doNothing().when(alertManagerImplMock).sendAlertDeliveries(
+                Mockito.eq(AlertManager.AlertType.ALERT_TYPE_WALL_RULE),
+                Mockito.eq(1L),
+                Mockito.eq(2L),
+                Mockito.<Long>isNull(),
+                Mockito.eq("subject"),
+                Mockito.eq("body"));
+
+        alertManagerImplMock.sendPersistentAlert(AlertManager.AlertType.ALERT_TYPE_WALL_RULE, 1L, 2L, "subject", "body");
+
+        Mockito.verify(_alertDao).persist(Mockito.any(AlertVO.class));
+        Mockito.verify(alertManagerImplMock).sendAlertDeliveries(
+                Mockito.eq(AlertManager.AlertType.ALERT_TYPE_WALL_RULE),
+                Mockito.eq(1L),
+                Mockito.eq(2L),
+                Mockito.<Long>isNull(),
+                Mockito.eq("subject"),
+                Mockito.eq("body"));
+    }
+
+    @Test
+    public void sendPersistentAlertSendsDeliveryForDuplicateWallAlert() {
+        prepareZoneAndPod(1L, 2L);
+        AlertVO update = new AlertVO();
+        Mockito.doReturn(alertVOMock).when(_alertDao).getLastAlert(Mockito.anyShort(), Mockito.anyLong(),
+                Mockito.anyLong(), Mockito.<Long>isNull());
+        Mockito.doReturn(null).when(alertVOMock).getResolved();
+        Mockito.doReturn("subject").when(alertVOMock).getSubject();
+        Mockito.doReturn(3).when(alertVOMock).getSentCount();
+        Mockito.doReturn(10L).when(alertVOMock).getId();
+        Mockito.doReturn(update).when(_alertDao).createForUpdate();
+        Mockito.doReturn(true).when(_alertDao).update(Mockito.eq(10L), Mockito.same(update));
+        Mockito.doNothing().when(alertManagerImplMock).sendAlertDeliveries(
+                Mockito.eq(AlertManager.AlertType.ALERT_TYPE_WALL_RULE),
+                Mockito.eq(1L),
+                Mockito.eq(2L),
+                Mockito.<Long>isNull(),
+                Mockito.eq("subject"),
+                Mockito.eq("body"));
+
+        alertManagerImplMock.sendPersistentAlert(AlertManager.AlertType.ALERT_TYPE_WALL_RULE, 1L, 2L, "subject", "body");
+
+        Mockito.verify(_alertDao).update(Mockito.eq(10L), Mockito.same(update));
+        Mockito.verify(_alertDao, Mockito.never()).persist(Mockito.any(AlertVO.class));
+        Mockito.verify(alertManagerImplMock).sendAlertDeliveries(
+                Mockito.eq(AlertManager.AlertType.ALERT_TYPE_WALL_RULE),
+                Mockito.eq(1L),
+                Mockito.eq(2L),
+                Mockito.<Long>isNull(),
+                Mockito.eq("subject"),
+                Mockito.eq("body"));
     }
 }

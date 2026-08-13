@@ -29,7 +29,7 @@ public class Upgrade42210to42300 extends DbUpgradeAbstractImpl implements DbUpgr
 
     @Override
     public String[] getUpgradableVersionRange() {
-        return new String[]{"4.22.0.0", "4.23.0.0"};
+        return new String[]{"4.22.1.0", "4.23.0.0"};
     }
 
     @Override

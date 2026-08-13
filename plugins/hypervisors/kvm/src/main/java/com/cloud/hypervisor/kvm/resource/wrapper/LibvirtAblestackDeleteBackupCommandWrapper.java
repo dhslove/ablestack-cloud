@@ -41,7 +41,9 @@ public class LibvirtAblestackDeleteBackupCommandWrapper extends CommandWrapper<A
         final String backupRepoAddress = command.getBackupRepoAddress();
         final String mountOptions = command.getMountOptions();
         final String backupProvider = command.getBackupProvider();
+        final String vmName = command.getVmName();
         final String checkpointName = command.getCheckpointName();
+        final String cleanupCheckpointNames = command.getCleanupCheckpointNames();
         final String diskPaths = command.getDiskPaths();
         final boolean forced = command.isForced();
 
@@ -53,11 +55,45 @@ public class LibvirtAblestackDeleteBackupCommandWrapper extends CommandWrapper<A
             deleteCommand.add("delete");
             deleteCommand.add("-p");
             deleteCommand.add(backupPath);
+            if (StringUtils.isNotBlank(vmName)) {
+                deleteCommand.add("-v");
+                deleteCommand.add(vmName);
+            }
             deleteCommand.add("-x");
             deleteCommand.add(Boolean.toString(forced));
             if (StringUtils.isNotBlank(checkpointName)) {
                 deleteCommand.add("-c");
                 deleteCommand.add(checkpointName);
+            }
+            if (StringUtils.isNotBlank(cleanupCheckpointNames)) {
+                deleteCommand.add("-C");
+                deleteCommand.add(cleanupCheckpointNames);
+            }
+            if (StringUtils.isNotBlank(diskPaths)) {
+                deleteCommand.add("-d");
+                deleteCommand.add(diskPaths);
+            }
+            commands.add(deleteCommand.toArray(new String[0]));
+        } else if ("ablestack-netbackup".equalsIgnoreCase(backupProvider)) {
+            List<String> deleteCommand = new ArrayList<>();
+            deleteCommand.add(libvirtComputingResource.getAbleNetBackupPath());
+            deleteCommand.add("-o");
+            deleteCommand.add("delete");
+            deleteCommand.add("-p");
+            deleteCommand.add(backupPath);
+            if (StringUtils.isNotBlank(vmName)) {
+                deleteCommand.add("-v");
+                deleteCommand.add(vmName);
+            }
+            deleteCommand.add("-x");
+            deleteCommand.add(Boolean.toString(forced));
+            if (StringUtils.isNotBlank(checkpointName)) {
+                deleteCommand.add("-c");
+                deleteCommand.add(checkpointName);
+            }
+            if (StringUtils.isNotBlank(cleanupCheckpointNames)) {
+                deleteCommand.add("-C");
+                deleteCommand.add(cleanupCheckpointNames);
             }
             if (StringUtils.isNotBlank(diskPaths)) {
                 deleteCommand.add("-d");
@@ -77,11 +113,19 @@ public class LibvirtAblestackDeleteBackupCommandWrapper extends CommandWrapper<A
             deleteCommand.add(mountOptions);
             deleteCommand.add("-p");
             deleteCommand.add(backupPath);
+            if (StringUtils.isNotBlank(vmName)) {
+                deleteCommand.add("-v");
+                deleteCommand.add(vmName);
+            }
             deleteCommand.add("-x");
             deleteCommand.add(Boolean.toString(forced));
             if (StringUtils.isNotBlank(checkpointName)) {
                 deleteCommand.add("-c");
                 deleteCommand.add(checkpointName);
+            }
+            if (StringUtils.isNotBlank(cleanupCheckpointNames)) {
+                deleteCommand.add("-C");
+                deleteCommand.add(cleanupCheckpointNames);
             }
             if (StringUtils.isNotBlank(diskPaths)) {
                 deleteCommand.add("-d");

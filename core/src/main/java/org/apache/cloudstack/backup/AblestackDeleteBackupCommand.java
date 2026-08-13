@@ -27,7 +27,9 @@ public class AblestackDeleteBackupCommand extends Command {
     private String backupRepoType;
     private String backupRepoAddress;
     private String backupProvider;
+    private String vmName;
     private String checkpointName;
+    private String cleanupCheckpointNames;
     private String diskPaths;
     private boolean forced;
     @LogLevel(LogLevel.Log4jLevel.Off)
@@ -74,12 +76,28 @@ public class AblestackDeleteBackupCommand extends Command {
         this.backupProvider = backupProvider;
     }
 
+    public String getVmName() {
+        return vmName;
+    }
+
+    public void setVmName(String vmName) {
+        this.vmName = vmName;
+    }
+
     public String getCheckpointName() {
         return checkpointName;
     }
 
     public void setCheckpointName(String checkpointName) {
         this.checkpointName = checkpointName;
+    }
+
+    public String getCleanupCheckpointNames() {
+        return cleanupCheckpointNames;
+    }
+
+    public void setCleanupCheckpointNames(String cleanupCheckpointNames) {
+        this.cleanupCheckpointNames = cleanupCheckpointNames;
     }
 
     public String getDiskPaths() {

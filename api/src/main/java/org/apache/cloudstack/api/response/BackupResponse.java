@@ -87,6 +87,10 @@ public class BackupResponse extends BaseResponse {
     @Param(description = "Backup offering name")
     private String backupOfferingName;
 
+    @SerializedName(ApiConstants.PROVIDER)
+    @Param(description = "Backup provider name")
+    private String provider;
+
     @SerializedName(ApiConstants.ACCOUNT_ID)
     @Param(description = "Account id")
     private String accountId;
@@ -241,6 +245,14 @@ public class BackupResponse extends BaseResponse {
 
     public void setBackupOffering(String backupOfferingName) {
         this.backupOfferingName = backupOfferingName;
+    }
+
+    public String getProvider() {
+        return provider;
+    }
+
+    public void setProvider(String provider) {
+        this.provider = provider;
     }
 
     public String getAccountId() {
