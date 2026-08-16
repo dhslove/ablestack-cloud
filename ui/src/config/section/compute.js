@@ -24,14 +24,24 @@ import kubernetesIcon from '@/assets/icons/kubernetes.svg?inline'
 
 const activeFastCloneStatuses = ['pending', 'running']
 const runningFastCloneStatuses = ['running']
+const activeBackupStatuses = ['backingup']
 const fastCloneOperationBlockedLabel = 'message.sharedmountpoint.clone.flatten.in.progress'
+const backupOperationBlockedLabel = 'message.backup.in.progress'
 
 const getFastCloneStatus = (record) => {
   return String(record?.clonefaststatus || record?.details?.['clone.fast.status'] || '').toLowerCase()
 }
 
+const getActiveBackupStatus = (record) => {
+  return String(record?.activebackupstatus || '').toLowerCase()
+}
+
 const isFastCloneFlattenActive = (record) => {
   return activeFastCloneStatuses.includes(getFastCloneStatus(record))
+}
+
+const isBackupActive = (record) => {
+  return activeBackupStatuses.includes(getActiveBackupStatus(record))
 }
 
 const isFastCloneFlattenRunning = (record) => {
@@ -42,6 +52,10 @@ const hasFastCloneFlattenSelection = (selectedItems) => {
   return Array.isArray(selectedItems) && selectedItems.some(item => isFastCloneFlattenActive(item))
 }
 
+const hasActiveBackupSelection = (selectedItems) => {
+  return Array.isArray(selectedItems) && selectedItems.some(item => isBackupActive(item))
+}
+
 const hasFastCloneFlattenRunningSelection = (selectedItems) => {
   return Array.isArray(selectedItems) && selectedItems.some(item => isFastCloneFlattenRunning(item))
 }
@@ -50,12 +64,29 @@ const disableDuringFastCloneFlatten = (record, store, selectedItems) => {
   return isFastCloneFlattenActive(record) || hasFastCloneFlattenSelection(selectedItems)
 }
 
+const disableDuringBackup = (record, store, selectedItems) => {
+  return isBackupActive(record) || hasActiveBackupSelection(selectedItems)
+}
+
 const disableDuringFastCloneFlattenRunning = (record, store, selectedItems) => {
   return isFastCloneFlattenRunning(record) || hasFastCloneFlattenRunningSelection(selectedItems)
 }
 
 const getFastCloneOperationTooltip = (record, store, selectedItems, fallbackLabel) => {
   return disableDuringFastCloneFlatten(record, store, selectedItems) ? fastCloneOperationBlockedLabel : fallbackLabel
+}
+
+const getBackupOperationTooltip = (record, store, selectedItems, fallbackLabel) => {
+  return disableDuringBackup(record, store, selectedItems) ? backupOperationBlockedLabel : fallbackLabel
+}
+
+const getCloneOperationTooltip = (record, store, selectedItems) => {
+  return getBackupOperationTooltip(
+    record,
+    store,
+    selectedItems,
+    getFastCloneOperationTooltip(record, store, selectedItems, 'label.action.clone.vm')
+  )
 }
 
 const getFastCloneRunningOperationTooltip = (record, store, selectedItems, fallbackLabel) => {
@@ -241,8 +272,12 @@ export default {
           dataView: true,
           popup: true,
           show: (record) => { return ['Running', 'Stopped'].includes(record.state) && record.vmtype !== 'sharedfsvm' },
-          disabled: (record, store, selectedItems) => { return (record.hostcontrolstate === 'Offline' && record.hypervisor === 'KVM') || disableDuringFastCloneFlatten(record, store, selectedItems) },
-          tooltip: (record, store, selectedItems) => getFastCloneOperationTooltip(record, store, selectedItems, 'label.action.clone.vm'),
+          disabled: (record, store, selectedItems) => {
+            return (record.hostcontrolstate === 'Offline' && record.hypervisor === 'KVM') ||
+              disableDuringFastCloneFlatten(record, store, selectedItems) ||
+              disableDuringBackup(record, store, selectedItems)
+          },
+          tooltip: (record, store, selectedItems) => getCloneOperationTooltip(record, store, selectedItems),
           component: shallowRef(defineAsyncComponent(() => import('@/views/compute/CloneVM.vue')))
         },
         {
@@ -323,7 +358,8 @@ export default {
           docHelp: 'adminguide/virtual_machines.html#creating-vm-backups',
           dataView: true,
           show: (record) => { return record.backupofferingid },
-          disabled: (record) => { return record.hostcontrolstate === 'Offline' },
+          disabled: (record, store, selectedItems) => { return record.hostcontrolstate === 'Offline' || disableDuringFastCloneFlatten(record, store, selectedItems) },
+          tooltip: (record, store, selectedItems) => getFastCloneOperationTooltip(record, store, selectedItems, 'label.create.backup'),
           popup: true,
           component: shallowRef(defineAsyncComponent(() => import('@/views/compute/StartBackup.vue')))
         },

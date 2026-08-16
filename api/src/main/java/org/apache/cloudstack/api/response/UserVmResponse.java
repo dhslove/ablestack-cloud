@@ -360,6 +360,10 @@ public class UserVmResponse extends BaseResponseWithTagInformation implements Co
     @Param(description = "device ID of the volume currently being flattened by SharedMountPoint fast clone.")
     private Long cloneFastFlattenDeviceId;
 
+    @SerializedName("activebackupstatus")
+    @Param(description = "Active backup status of the virtual machine.")
+    private String activeBackupStatus;
+
     @SerializedName("readonlydetails")
     @Param(description = "List of read-only Instance details as comma separated string.", since = "4.16.0")
     private String readOnlyDetails;
@@ -1175,6 +1179,10 @@ public class UserVmResponse extends BaseResponseWithTagInformation implements Co
         this.cloneFastFlattenDeviceId = cloneFastFlattenDeviceId;
     }
 
+    public void setActiveBackupStatus(String activeBackupStatus) {
+        this.activeBackupStatus = activeBackupStatus;
+    }
+
     public void setReadOnlyDetails(String readOnlyDetails) {
         this.readOnlyDetails = readOnlyDetails;
     }
@@ -1221,6 +1229,10 @@ public class UserVmResponse extends BaseResponseWithTagInformation implements Co
 
     public Long getCloneFastFlattenDeviceId() {
         return cloneFastFlattenDeviceId;
+    }
+
+    public String getActiveBackupStatus() {
+        return activeBackupStatus;
     }
 
     public String getReadOnlyDetails() {

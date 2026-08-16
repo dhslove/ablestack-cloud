@@ -43,6 +43,8 @@ import org.apache.cloudstack.api.response.NicSecondaryIpResponse;
 import org.apache.cloudstack.api.response.SecurityGroupResponse;
 import org.apache.cloudstack.api.response.UserVmResponse;
 import org.apache.cloudstack.api.response.VnfNicResponse;
+import org.apache.cloudstack.backup.Backup;
+import org.apache.cloudstack.backup.dao.BackupDao;
 import org.apache.cloudstack.context.CallContext;
 import org.apache.cloudstack.extension.ExtensionHelper;
 import org.apache.cloudstack.framework.config.dao.ConfigurationDao;
@@ -148,6 +150,8 @@ public class UserVmJoinDaoImpl extends GenericDaoBaseWithTagInformation<UserVmJo
     VMTemplateDao vmTemplateDao;
     @Inject
     ExtensionHelper extensionHelper;
+    @Inject
+    BackupDao backupDao;
 
     private final SearchBuilder<UserVmJoinVO> VmDetailSearch;
     private final SearchBuilder<UserVmJoinVO> activeVmByIsoSearch;
@@ -231,6 +235,7 @@ public class UserVmJoinDaoImpl extends GenericDaoBaseWithTagInformation<UserVmJo
         if (isFastCloneFlattenActive(fastCloneStatus)) {
             setFastCloneFlattenVolume(userVmResponse, userVm.getId());
         }
+        setActiveBackupStatus(userVmResponse, userVm.getId());
 
         User user = _userDao.getUser(userVm.getUserId());
         if (user != null) {
@@ -587,6 +592,20 @@ public class UserVmJoinDaoImpl extends GenericDaoBaseWithTagInformation<UserVmJo
         }
         return FAST_CLONE_FLATTEN_RUNNING.equalsIgnoreCase(fastCloneStatus.getValue()) ||
                 FAST_CLONE_FLATTEN_PENDING.equalsIgnoreCase(fastCloneStatus.getValue());
+    }
+
+    protected void setActiveBackupStatus(UserVmResponse userVmResponse, long vmId) {
+        List<Backup> backups = backupDao.listByVmId(null, vmId);
+        if (CollectionUtils.isEmpty(backups)) {
+            return;
+        }
+
+        for (Backup backup : backups) {
+            if (Backup.Status.BackingUp.equals(backup.getStatus())) {
+                userVmResponse.setActiveBackupStatus(backup.getStatus().name());
+                return;
+            }
+        }
     }
 
     protected void setFastCloneFlattenVolume(UserVmResponse userVmResponse, long vmId) {
