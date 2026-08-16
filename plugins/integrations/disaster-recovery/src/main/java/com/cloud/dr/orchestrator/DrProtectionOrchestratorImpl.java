@@ -17,8 +17,11 @@
 package com.cloud.dr.orchestrator;
 
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import javax.inject.Inject;
 
@@ -30,11 +33,15 @@ import com.cloud.dr.DrPlanVO;
 import com.cloud.dr.DrReplicaDiskVO;
 import com.cloud.dr.DrReplicaVO;
 import com.cloud.dr.DrRunVO;
+import com.cloud.dr.DrSiteVO;
 import com.cloud.dr.dao.DrEventDao;
 import com.cloud.dr.dao.DrPlanDao;
 import com.cloud.dr.dao.DrReplicaDao;
 import com.cloud.dr.dao.DrReplicaDiskDao;
+import com.cloud.dr.dao.DrSiteDao;
 import com.cloud.exception.InvalidParameterValueException;
+import com.cloud.hypervisor.Hypervisor.HypervisorType;
+import com.cloud.host.HostVO;
 import com.cloud.host.dao.HostDao;
 import com.cloud.utils.component.ManagerBase;
 import com.cloud.utils.db.Transaction;
@@ -56,6 +63,8 @@ public class DrProtectionOrchestratorImpl extends ManagerBase implements DrProte
     private DrEventDao drEventDao;
     @Inject
     private HostDao hostDao;
+    @Inject
+    private DrSiteDao drSiteDao;
 
     @Override
     public DrPlanVO prepareSyncRun(final DrPlanVO plan, final DrRunVO run) {
@@ -90,6 +99,19 @@ public class DrProtectionOrchestratorImpl extends ManagerBase implements DrProte
     }
 
     private void materializeWorkerBindings(DrPlanVO plan) {
+        if (plan.getCoordinatorWorkerHostId() == null && plan.getSourceWorkerHostId() == null
+                && plan.getTargetWorkerHostId() == null) {
+            Long autoWorkerHostId = selectLeastLoadedKvmWorker(plan);
+            if (autoWorkerHostId != null) {
+                plan.setCoordinatorWorkerHostId(autoWorkerHostId);
+                if (isTargetAbleStack(plan)) {
+                    plan.setTargetWorkerHostId(autoWorkerHostId);
+                }
+                if (isSourceAbleStack(plan)) {
+                    plan.setSourceWorkerHostId(autoWorkerHostId);
+                }
+            }
+        }
         Long coordinatorHostId = firstNonNull(plan.getCoordinatorWorkerHostId(), plan.getSourceWorkerHostId(), plan.getTargetWorkerHostId());
         if (coordinatorHostId == null) {
             throw new InvalidParameterValueException(DrConstants.ERROR_WORKER_BINDING_INVALID
@@ -114,6 +136,38 @@ public class DrProtectionOrchestratorImpl extends ManagerBase implements DrProte
         if (StringUtils.isBlank(plan.getActiveSide())) {
             plan.setActiveSide("SOURCE");
         }
+    }
+
+    private Long selectLeastLoadedKvmWorker(DrPlanVO plan) {
+        if (hostDao == null || drSiteDao == null || plan == null) {
+            return null;
+        }
+        long siteId = isTargetAbleStack(plan) ? plan.getTargetSiteId() : plan.getSourceSiteId();
+        DrSiteVO site = drSiteDao.findById(siteId);
+        if (site == null || site.getZoneId() == null) {
+            return null;
+        }
+        List<HostVO> candidates = hostDao.listAllHostsUpByZoneAndHypervisor(site.getZoneId(), HypervisorType.KVM);
+        if (candidates == null || candidates.isEmpty()) {
+            return null;
+        }
+        Map<Long, Integer> assignedPlans = new HashMap<>();
+        for (DrPlanVO activePlan : drPlanDao.listActive()) {
+            if (activePlan == null) {
+                continue;
+            }
+            for (Long hostId : new Long[] {activePlan.getCoordinatorWorkerHostId(), activePlan.getTargetWorkerHostId(), activePlan.getSourceWorkerHostId()}) {
+                if (hostId != null) {
+                    assignedPlans.put(hostId, assignedPlans.getOrDefault(hostId, 0) + 1);
+                }
+            }
+        }
+        return candidates.stream()
+                .filter(host -> host != null && host.getRemoved() == null)
+                .min(Comparator.comparingInt((HostVO host) -> assignedPlans.getOrDefault(host.getId(), 0))
+                        .thenComparingLong(HostVO::getId))
+                .map(HostVO::getId)
+                .orElse(null);
     }
 
     private void requireHost(Long hostId, String role) {

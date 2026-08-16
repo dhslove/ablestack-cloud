@@ -68,7 +68,7 @@ The metric file also contains the correct `baselineGeneration` and
 
 The live DB already has:
 
-- unique `(plan_id, engine_run_uuid, sequence)` on `dr_sync_cycle`;
+- unique `(plan_id, sequence)` on `dr_sync_cycle`; `engine_run_uuid` is producer metadata;
 - unique `(plan_id, checkpoint_ref_hash)` on `dr_restore_point`.
 
 These prevent duplicate identities but do not prevent an existing terminal row

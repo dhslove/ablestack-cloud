@@ -49,6 +49,7 @@ import RenderIcon from '@/utils/renderIcon'
 import { drActionReasonMessageKey, resolveDrActionAvailability } from '@/utils/dr/actionAvailability'
 
 const GROUPS = [
+  { key: 'MULTI', label: 'label.dr.action.group.multiple' },
   { key: 'CURRENT', label: 'label.dr.action.group.current' },
   { key: 'PLAN', label: 'label.dr.action.group.plan' },
   { key: 'REPLICATION', label: 'label.dr.action.group.replication' },

@@ -329,10 +329,12 @@ projectLatestCompletedRestorePoint(plan, projectionRun, status);
 Both paths call:
 
 ```java
-upsertSyncCycle(planId, engineRunUuid, sequence, Consumer<DrSyncCycleVO> patch)
+upsertSyncCycle(planId, sequence, engineRunUuid, Consumer<DrSyncCycleVO> patch)
 ```
 
-The unique identity remains `(plan_id, engine_run_uuid, sequence)`. A completed
+The unique identity is `(plan_id, sequence)`. `engine_run_uuid` records the
+first producer that established the canonical row and does not create an alias.
+A completed
 row is monotonic:
 
 - `LOCAL_DURABLE` cannot regress to `TRANSFERRING`;
@@ -342,8 +344,8 @@ row is monotonic:
 
 ### 8.3 Reconcile previously missed completed rows
 
-During projection, if a READY `dr_restore_point` exists for the same Plan,
-engine Run, and sequence while `dr_sync_cycle` remains non-terminal, update the
+During projection, if a READY `dr_restore_point` exists for the same Plan and
+sequence while `dr_sync_cycle` remains non-terminal, update the
 cycle from typed restore-point/checkpoint data. Do not infer
 `incremental_verified=true`; copy only persisted evidence.
 
@@ -389,15 +391,15 @@ readiness, and audit.
 
 Backfill is idempotent:
 
-1. join active `dr_sync_cycle` rows to READY restore points by Plan, engine Run,
-   and sequence;
+1. join active `dr_sync_cycle` rows to READY restore points by Plan and sequence;
 2. fill terminal state, effective mode, commit state, generation, byte metrics,
    timestamps, and verification fields only when the restore-point field is
    non-null;
 3. never manufacture requested mode or incremental verification;
 4. leave irreconcilable rows visible for operator diagnosis.
 
-Existing unique and Plan-sequence indexes remain sufficient.
+The Plan-sequence key is unique. The Plan/Run/sequence index remains non-unique
+for producer-oriented diagnostics.
 
 ## 10. API Design
 

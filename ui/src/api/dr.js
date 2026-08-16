@@ -26,7 +26,8 @@ const listKeys = {
   listDrEvents: ['listdreventsresponse', 'drevent'],
   listDrReplicas: ['listdrreplicasresponse', 'drreplica'],
   listDrRestorePoints: ['listdrrestorepointsresponse', 'drrestorepoint'],
-  listDrSyncCheckpoints: ['listdrsynccheckpointsresponse', 'drrestorepoint']
+  listDrSyncCheckpoints: ['listdrsynccheckpointsresponse', 'drrestorepoint'],
+  listDrProtectionGroupRuns: ['listdrprotectiongrouprunsresponse', 'drgrouprun']
 }
 
 const objectKeys = {
@@ -39,6 +40,7 @@ const objectKeys = {
   discoverDrSiteInventory: ['discoverdrsiteinventoryresponse', 'drsiteinventory'],
   discoverDrPlanInventory: ['discoverdrplaninventoryresponse', 'drplaninventory'],
   previewDrPlanSpec: ['previewdrplanspecresponse', 'drplanspecpreview'],
+  previewDrProtectionGroupAction: ['previewdrprotectiongroupactionresponse', 'drprotectiongrouppreflight'],
   createDrPlan: ['createdrplanresponse', 'drplanmutation'],
   updateDrSite: ['updatedrsiteresponse', 'drsite'],
   updateDrPlan: ['updatedrplanresponse', 'drplanmutation'],
@@ -55,7 +57,9 @@ const objectKeys = {
   startDrReprotect: ['startdrreprotectresponse', 'drrun'],
   adoptDrReplica: ['adoptdrreplicaresponse', 'drrun'],
   releaseDrProtection: ['releasedrprotectionresponse', 'drrun'],
-  cancelDrRun: ['canceldrrunresponse', 'drrun']
+  cancelDrRun: ['canceldrrunresponse', 'drrun'],
+  configureDrProtectionGroup: ['configuredrprotectiongroupresponse', 'drprotectiongroup'],
+  startDrProtectionGroupAction: ['startdrprotectiongroupactionresponse', 'drgrouprun']
 }
 
 export function extractDrList (response, command) {
@@ -199,6 +203,25 @@ export function deleteDrSite (id) {
 
 export function listDrPlans (params = {}) {
   return getAPI('listDrPlans', params).then(response => extractDrList(response, 'listDrPlans'))
+}
+
+export function configureDrProtectionGroup (params = {}) {
+  return postAPI('configureDrProtectionGroup', params)
+    .then(response => extractDrObject(response, 'configureDrProtectionGroup'))
+}
+
+export function previewDrProtectionGroupAction (params = {}) {
+  return getAPI('previewDrProtectionGroupAction', params)
+    .then(response => extractDrObject(response, 'previewDrProtectionGroupAction'))
+}
+
+export function startDrProtectionGroupAction (params = {}) {
+  return postAndWaitForDrObject('startDrProtectionGroupAction', params, { timeoutMs: 30000 })
+}
+
+export function listDrProtectionGroupRuns (params = {}) {
+  return getAPI('listDrProtectionGroupRuns', params)
+    .then(response => extractDrList(response, 'listDrProtectionGroupRuns'))
 }
 
 export function getDrPlan (id) {

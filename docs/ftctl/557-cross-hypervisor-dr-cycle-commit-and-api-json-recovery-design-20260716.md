@@ -561,7 +561,7 @@ after the initial Cloud command require first-class Cloud projection. A
 completed dr_run records one requested asynchronous operation and must not be
 mutated to represent later cycles.
 
-Cloud adds one dr_sync_cycle row per engine-run/sequence and one
+Cloud adds one dr_sync_cycle row per Plan-wide sequence and one
 dr_plan_runtime row for the newest accepted generation. Only LOCAL_DURABLE
 creates a restore point. A current cycle failure remains current authority
 while the previous durable restore point stays last-good evidence.

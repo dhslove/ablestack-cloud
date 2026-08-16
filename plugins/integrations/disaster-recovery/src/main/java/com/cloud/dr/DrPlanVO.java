@@ -108,6 +108,21 @@ public class DrPlanVO implements InternalIdentity {
     @Column(name = "coordinator_worker_host_id")
     private Long coordinatorWorkerHostId;
 
+    @Column(name = "protection_group_uuid")
+    private String protectionGroupUuid;
+
+    @Column(name = "protection_group_name")
+    private String protectionGroupName;
+
+    @Column(name = "protection_group_order")
+    private Integer protectionGroupOrder;
+
+    @Column(name = "protection_group_max_parallel")
+    private Integer protectionGroupMaxParallel;
+
+    @Column(name = "protection_group_quiesce_required")
+    private Boolean protectionGroupQuiesceRequired;
+
     @Column(name = "last_source_checkpoint_at")
     @Temporal(value = TemporalType.TIMESTAMP)
     private Date lastSourceCheckpointAt;
@@ -251,6 +266,12 @@ public class DrPlanVO implements InternalIdentity {
         return coordinatorWorkerHostId;
     }
 
+    public String getProtectionGroupUuid() { return protectionGroupUuid; }
+    public String getProtectionGroupName() { return protectionGroupName; }
+    public Integer getProtectionGroupOrder() { return protectionGroupOrder; }
+    public Integer getProtectionGroupMaxParallel() { return protectionGroupMaxParallel; }
+    public Boolean getProtectionGroupQuiesceRequired() { return protectionGroupQuiesceRequired; }
+
     public Date getLastSourceCheckpointAt() {
         return lastSourceCheckpointAt;
     }
@@ -366,6 +387,12 @@ public class DrPlanVO implements InternalIdentity {
     public void setCoordinatorWorkerHostId(Long coordinatorWorkerHostId) {
         this.coordinatorWorkerHostId = coordinatorWorkerHostId;
     }
+
+    public void setProtectionGroupUuid(String value) { protectionGroupUuid = value; }
+    public void setProtectionGroupName(String value) { protectionGroupName = value; }
+    public void setProtectionGroupOrder(Integer value) { protectionGroupOrder = value; }
+    public void setProtectionGroupMaxParallel(Integer value) { protectionGroupMaxParallel = value; }
+    public void setProtectionGroupQuiesceRequired(Boolean value) { protectionGroupQuiesceRequired = value; }
 
     public void setLastSourceCheckpointAt(Date lastSourceCheckpointAt) {
         this.lastSourceCheckpointAt = lastSourceCheckpointAt;

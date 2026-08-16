@@ -18,9 +18,12 @@ package com.cloud.dr.orchestrator;
 
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import javax.inject.Inject;
@@ -31,6 +34,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.cloud.dr.DrConstants;
+import com.cloud.dr.DrAdmissionController;
 import com.cloud.dr.DrEventVO;
 import com.cloud.dr.DrPlanVO;
 import com.cloud.dr.DrProjectionService;
@@ -79,12 +83,18 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
     private DrProtectionOrchestrator drProtectionOrchestrator;
     @Inject
     private DrTargetMaterializationService drTargetMaterializationService;
+    @Inject
+    private DrAdmissionController drAdmissionController;
 
     private ExecutorService dispatchExecutor;
+    private ScheduledExecutorService retryExecutor;
 
     @Override
     public boolean start() {
-        dispatchExecutor = Executors.newFixedThreadPool(2, new NamedThreadFactory("DrRunDispatcher"));
+        dispatchExecutor = new ThreadPoolExecutor(4, 4, 0L, TimeUnit.MILLISECONDS,
+                new ArrayBlockingQueue<>(512), new NamedThreadFactory("DrRunDispatcher"),
+                new ThreadPoolExecutor.AbortPolicy());
+        retryExecutor = Executors.newSingleThreadScheduledExecutor(new NamedThreadFactory("DrRunRetryScheduler"));
         return true;
     }
 
@@ -93,6 +103,10 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
         if (dispatchExecutor != null) {
             dispatchExecutor.shutdownNow();
             dispatchExecutor = null;
+        }
+        if (retryExecutor != null) {
+            retryExecutor.shutdownNow();
+            retryExecutor = null;
         }
         return true;
     }
@@ -118,7 +132,8 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
         } catch (RejectedExecutionException e) {
             DrRunVO latestRun = drRunDao.findById(runId);
             if (latestRun != null) {
-                failRun(latestRun, DrConstants.ERROR_ENGINE_BUSY, "DR dispatcher is not accepting new work: " + e.getMessage(), null);
+                retryRun(latestRun, "DR_RESOURCE_BUSY", "DR dispatcher queue is temporarily full", null,
+                        DEFAULT_RETRY_AFTER_SECONDS);
             }
         }
     }
@@ -149,6 +164,21 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
             return;
         }
 
+        if (drAdmissionController != null && !drAdmissionController.acquire(plan, latestRun)) {
+            retryRun(latestRun, "DR_RESOURCE_BUSY", "DR execution capacity is temporarily unavailable", null,
+                    DEFAULT_RETRY_AFTER_SECONDS);
+            return;
+        }
+        try {
+            executeAdmittedRun(plan, latestRun);
+        } finally {
+            if (drAdmissionController != null) {
+                drAdmissionController.release(latestRun.getId());
+            }
+        }
+    }
+
+    private void executeAdmittedRun(DrPlanVO plan, DrRunVO latestRun) {
         LOGGER.debug("Executing DR run {} of type {} for plan {}", latestRun.getId(), latestRun.getRunType(), latestRun.getPlanId());
         markRunPreparing(latestRun);
         recordEvent(plan.getId(), latestRun.getId(), DrConstants.EVENT_RUN_STARTED, DrConstants.EVENT_SEVERITY_INFO,
@@ -394,19 +424,13 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
     }
 
     private void scheduleRetry(final long runId, final int retryAfterSeconds) {
-        ExecutorService executor = dispatchExecutor;
+        ScheduledExecutorService executor = retryExecutor;
         if (executor == null) {
             return;
         }
-        executor.submit(new ManagedContextRunnable() {
+        executor.schedule(new ManagedContextRunnable() {
             @Override
             protected void runInContext() {
-                try {
-                    Thread.sleep(TimeUnit.SECONDS.toMillis(retryAfterSeconds));
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    return;
-                }
                 DrRunVO retryRun = drRunDao.findById(runId);
                 if (retryRun == null || retryRun.getCompleted() != null || retryRun.getRemoved() != null
                         || !StringUtils.equals(retryRun.getState(), DrConstants.RUN_STATE_RETRYING)) {
@@ -417,9 +441,9 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
                 retryRun.setRetryable(false);
                 retryRun.markUpdated();
                 drRunDao.update(retryRun.getId(), retryRun);
-                executeRunInternal(runId);
+                queueRun(retryRun);
             }
-        });
+        }, retryAfterSeconds, TimeUnit.SECONDS);
     }
 
     private void failRun(DrRunVO run, String errorCode, String message, String detailsJson) {

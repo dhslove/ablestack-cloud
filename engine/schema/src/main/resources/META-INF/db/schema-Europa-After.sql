@@ -416,6 +416,8 @@ CREATE TABLE IF NOT EXISTS `cloud`.`dr_run` (
     `external_job_ref` varchar(2048) NULL,
     `engine_accepted` tinyint(1) NOT NULL DEFAULT 0,
     `accepted_at` datetime NULL,
+    `accepted_cycle_sequence` bigint unsigned NULL,
+    `accepted_cycle_token` varchar(255) NULL,
     `dispatch_started` datetime NULL,
     `dispatch_completed` datetime NULL,
     `projection_state` varchar(64) NULL,
@@ -613,8 +615,8 @@ CREATE TABLE IF NOT EXISTS `cloud`.`dr_sync_cycle` (
     `removed` datetime DEFAULT NULL,
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_dr_sync_cycle__uuid` (`uuid`),
-    UNIQUE KEY `uk_dr_sync_cycle__plan_run_sequence` (`plan_id`, `engine_run_uuid`, `sequence`),
-    KEY `i_dr_sync_cycle__plan_sequence` (`plan_id`, `sequence`),
+    UNIQUE KEY `uk_dr_sync_cycle__plan_sequence` (`plan_id`, `sequence`),
+    KEY `i_dr_sync_cycle__plan_run_sequence` (`plan_id`, `engine_run_uuid`, `sequence`),
     KEY `i_dr_sync_cycle__plan_state_updated` (`plan_id`, `state`, `updated`),
     CONSTRAINT `fk_dr_sync_cycle__plan_id` FOREIGN KEY (`plan_id`) REFERENCES `dr_plan` (`id`) ON DELETE CASCADE,
     CONSTRAINT `fk_dr_sync_cycle__run_id` FOREIGN KEY (`run_id`) REFERENCES `dr_run` (`id`) ON DELETE SET NULL
@@ -678,6 +680,8 @@ CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'terminal_authorit
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_run', 'terminal_source', 'varchar(32) NULL AFTER `error_message`');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_run', 'terminal_version', 'int unsigned NULL AFTER `terminal_source`');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_run', 'terminal_authoritative', 'tinyint(1) NOT NULL DEFAULT 0 AFTER `terminal_version`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_run', 'accepted_cycle_sequence', 'bigint unsigned NULL AFTER `accepted_at`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_run', 'accepted_cycle_token', 'varchar(255) NULL AFTER `accepted_cycle_sequence`');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'scheduler_desired_state', 'varchar(32) NOT NULL DEFAULT ''STOPPED'' AFTER `scheduler_state`');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'scheduler_service_unit', 'varchar(255) NULL AFTER `scheduler_desired_state`');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'scheduler_unit_active_state', 'varchar(32) NULL AFTER `scheduler_service_unit`');

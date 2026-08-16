@@ -453,6 +453,8 @@ CREATE TABLE IF NOT EXISTS `cloud`.`dr_run` (
     `external_job_ref` varchar(2048) NULL,
     `engine_accepted` tinyint(1) NOT NULL DEFAULT 0,
     `accepted_at` datetime NULL,
+    `accepted_cycle_sequence` bigint unsigned NULL,
+    `accepted_cycle_token` varchar(255) NULL,
     `dispatch_started` datetime NULL,
     `dispatch_completed` datetime NULL,
     `projection_state` varchar(64) NULL,
@@ -643,8 +645,8 @@ CREATE TABLE IF NOT EXISTS `cloud`.`dr_sync_cycle` (
     `removed` datetime DEFAULT NULL,
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_dr_sync_cycle__uuid` (`uuid`),
-    UNIQUE KEY `uk_dr_sync_cycle__plan_run_sequence` (`plan_id`, `engine_run_uuid`, `sequence`),
-    KEY `i_dr_sync_cycle__plan_sequence` (`plan_id`, `sequence`),
+    UNIQUE KEY `uk_dr_sync_cycle__plan_sequence` (`plan_id`, `sequence`),
+    KEY `i_dr_sync_cycle__plan_run_sequence` (`plan_id`, `engine_run_uuid`, `sequence`),
     KEY `i_dr_sync_cycle__plan_state_updated` (`plan_id`, `state`, `updated`),
     CONSTRAINT `fk_dr_sync_cycle__plan_id` FOREIGN KEY (`plan_id`) REFERENCES `dr_plan` (`id`) ON DELETE CASCADE,
     CONSTRAINT `fk_dr_sync_cycle__run_id` FOREIGN KEY (`run_id`) REFERENCES `dr_run` (`id`) ON DELETE SET NULL
@@ -708,6 +710,8 @@ CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'terminal_authorit
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_run', 'terminal_source', 'varchar(32) NULL AFTER `error_message`');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_run', 'terminal_version', 'int unsigned NULL AFTER `terminal_source`');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_run', 'terminal_authoritative', 'tinyint(1) NOT NULL DEFAULT 0 AFTER `terminal_version`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_run', 'accepted_cycle_sequence', 'bigint unsigned NULL AFTER `accepted_at`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_run', 'accepted_cycle_token', 'varchar(255) NULL AFTER `accepted_cycle_sequence`');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'scheduler_desired_state', 'varchar(32) NOT NULL DEFAULT ''STOPPED'' AFTER `scheduler_state`');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'scheduler_service_unit', 'varchar(255) NULL AFTER `scheduler_desired_state`');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'scheduler_unit_active_state', 'varchar(32) NULL AFTER `scheduler_service_unit`');
@@ -803,38 +807,10 @@ CREATE TABLE IF NOT EXISTS `cloud`.`api_keypair_permissions` (
     CONSTRAINT `fk_keypair_permissions__api_keypair_id` FOREIGN KEY(`api_keypair_id`) REFERENCES `cloud`.`api_keypair`(`id`)
 );
 
--- Populate "api_keypair" table with existing user API keys
-SET @migrate_user_keys_to_api_keypair = IF(
-    (
-        SELECT COUNT(1)
-        FROM `information_schema`.`columns`
-        WHERE `table_schema` = 'cloud'
-          AND `table_name` = 'user'
-          AND `column_name` IN ('api_key', 'secret_key')
-    ) = 2,
-    'INSERT INTO `cloud`.`api_keypair` (uuid, user_id, domain_id, account_id, api_key, secret_key, created, name)
-     SELECT UUID(), user.id, account.domain_id, account.id, user.api_key, user.secret_key, NOW(), ''Active key pair''
-     FROM `cloud`.`user` AS user
-     JOIN `cloud`.`account` AS account ON user.account_id = account.id
-     WHERE user.api_key IS NOT NULL
-       AND user.secret_key IS NOT NULL
-       AND NOT EXISTS (
-           SELECT 1
-           FROM `cloud`.`api_keypair` keypair
-           WHERE keypair.user_id = user.id
-             AND keypair.api_key = user.api_key
-             AND keypair.secret_key = user.secret_key
-             AND keypair.removed IS NULL
-       )',
-    'SELECT 1'
-);
-PREPARE migrate_user_keys_to_api_keypair_stmt FROM @migrate_user_keys_to_api_keypair;
-EXECUTE migrate_user_keys_to_api_keypair_stmt;
-DEALLOCATE PREPARE migrate_user_keys_to_api_keypair_stmt;
-
--- Drop API keys from user table
-CALL `cloud`.`IDEMPOTENT_DROP_COLUMN`('cloud.user', 'api_key');
-CALL `cloud`.`IDEMPOTENT_DROP_COLUMN`('cloud.user', 'secret_key');
+-- Existing user API keys are migrated by Upgrade42210to42300.performDataMigration().
+-- The Java migration uses DBEncryptionUtil so api_keypair.secret_key is stored in
+-- the format expected by the @Encrypt entity field. Legacy columns remain in place
+-- until the cleanup phase, allowing a failed migration to be retried safely.
 
 -- Grant access to the "deleteUserKeys" API to the "User", "Domain Admin" and "Resource Admin" roles, similarly to the "registerUserKeys" API
 CALL `cloud`.`IDEMPOTENT_UPDATE_API_PERMISSION`('User', 'deleteUserKeys', 'ALLOW');
@@ -1154,3 +1130,113 @@ JOIN `cloud`.`vm_instance_details` d ON d.vm_id = r.target_vm_id AND d.name = 'd
 SET r.ownership_state = 'VALID', r.updated = NOW()
 WHERE r.target_vm_id IS NOT NULL AND CAST(d.value AS UNSIGNED) = r.plan_id
   AND (r.ownership_state IS NULL OR r.ownership_state <> 'QUARANTINED');
+
+-- Bounded DR fleet admission. Expired ACTIVE leases are ignored and can be
+-- reclaimed after a management-server restart without changing a plan state.
+CREATE TABLE IF NOT EXISTS `cloud`.`dr_resource_lease` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `uuid` varchar(40) NOT NULL,
+  `resource_key` varchar(160) NOT NULL,
+  `operation_class` varchar(32) NOT NULL,
+  `plan_id` bigint unsigned NOT NULL,
+  `run_id` bigint unsigned NOT NULL,
+  `state` varchar(32) NOT NULL,
+  `expires_at` datetime NOT NULL,
+  `created` datetime NOT NULL,
+  `updated` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_dr_resource_lease_uuid` (`uuid`),
+  KEY `idx_dr_resource_lease_capacity` (`resource_key`,`state`,`expires_at`),
+  KEY `idx_dr_resource_lease_run` (`run_id`,`state`,`expires_at`),
+  KEY `idx_dr_resource_lease_plan` (`plan_id`,`created`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Provider-neutral protection-group metadata. Null values keep legacy
+-- single-plan execution behavior unchanged.
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan', 'protection_group_uuid', 'varchar(40) NULL AFTER `coordinator_worker_host_id`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan', 'protection_group_name', 'varchar(255) NULL AFTER `protection_group_uuid`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan', 'protection_group_order', 'int NULL AFTER `protection_group_name`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan', 'protection_group_max_parallel', 'int NULL AFTER `protection_group_order`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan', 'protection_group_quiesce_required', 'tinyint(1) NULL AFTER `protection_group_max_parallel`');
+
+CREATE TABLE IF NOT EXISTS `cloud`.`dr_group_run` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `uuid` varchar(40) NOT NULL,
+  `group_uuid` varchar(40) NOT NULL,
+  `group_name` varchar(255) NOT NULL,
+  `action` varchar(32) NOT NULL,
+  `state` varchar(32) NOT NULL,
+  `plan_ids_json` text NOT NULL,
+  `progress_json` mediumtext DEFAULT NULL,
+  `max_parallel` int NOT NULL DEFAULT 1,
+  `quiesce_required` tinyint(1) NOT NULL DEFAULT 0,
+  `total_count` int NOT NULL DEFAULT 0,
+  `succeeded_count` int NOT NULL DEFAULT 0,
+  `failed_count` int NOT NULL DEFAULT 0,
+  `created` datetime NOT NULL,
+  `updated` datetime NOT NULL,
+  `completed` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_dr_group_run_uuid` (`uuid`),
+  KEY `idx_dr_group_run_group` (`group_uuid`,`created`),
+  KEY `idx_dr_group_run_state` (`state`,`updated`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- A durable FTCTL cycle is identified by plan and engine sequence. Scheduler
+-- and operation Run UUIDs are producers/observers of that cycle, not identity.
+DROP TEMPORARY TABLE IF EXISTS `cloud`.`dr_sync_cycle_canonical`;
+CREATE TEMPORARY TABLE `cloud`.`dr_sync_cycle_canonical` (
+  `plan_id` bigint unsigned NOT NULL,
+  `sequence` bigint unsigned NOT NULL,
+  `keep_id` bigint unsigned NOT NULL,
+  PRIMARY KEY (`plan_id`, `sequence`)
+) ENGINE=InnoDB;
+
+INSERT INTO `cloud`.`dr_sync_cycle_canonical` (`plan_id`, `sequence`, `keep_id`)
+SELECT `plan_id`, `sequence`,
+       CAST(SUBSTRING_INDEX(GROUP_CONCAT(`id` ORDER BY
+         (`removed` IS NULL) DESC,
+         (`completed` IS NOT NULL) DESC,
+         (`state` IN ('READY','COMPLETED','TARGET_READY')) DESC,
+         `id` DESC), ',', 1) AS UNSIGNED)
+FROM `cloud`.`dr_sync_cycle`
+GROUP BY `plan_id`, `sequence`
+HAVING COUNT(*) > 1;
+
+DELETE alias
+FROM `cloud`.`dr_sync_cycle` alias
+JOIN `cloud`.`dr_sync_cycle_canonical` canonical
+  ON canonical.plan_id = alias.plan_id AND canonical.sequence = alias.sequence
+WHERE alias.id <> canonical.keep_id;
+
+DROP TEMPORARY TABLE `cloud`.`dr_sync_cycle_canonical`;
+
+SET @dr_cycle_drop_plan_sequence = IF(
+  EXISTS (SELECT 1 FROM information_schema.STATISTICS
+          WHERE TABLE_SCHEMA='cloud' AND TABLE_NAME='dr_sync_cycle'
+            AND INDEX_NAME='i_dr_sync_cycle__plan_sequence'),
+  'ALTER TABLE `cloud`.`dr_sync_cycle` DROP INDEX `i_dr_sync_cycle__plan_sequence`', 'SELECT 1');
+PREPARE stmt FROM @dr_cycle_drop_plan_sequence; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @dr_cycle_add_plan_sequence = IF(
+  EXISTS (SELECT 1 FROM information_schema.STATISTICS
+          WHERE TABLE_SCHEMA='cloud' AND TABLE_NAME='dr_sync_cycle'
+            AND INDEX_NAME='uk_dr_sync_cycle__plan_sequence'),
+  'SELECT 1',
+  'ALTER TABLE `cloud`.`dr_sync_cycle` ADD UNIQUE KEY `uk_dr_sync_cycle__plan_sequence` (`plan_id`,`sequence`)');
+PREPARE stmt FROM @dr_cycle_add_plan_sequence; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @dr_cycle_drop_plan_run_sequence = IF(
+  EXISTS (SELECT 1 FROM information_schema.STATISTICS
+          WHERE TABLE_SCHEMA='cloud' AND TABLE_NAME='dr_sync_cycle'
+            AND INDEX_NAME='uk_dr_sync_cycle__plan_run_sequence'),
+  'ALTER TABLE `cloud`.`dr_sync_cycle` DROP INDEX `uk_dr_sync_cycle__plan_run_sequence`', 'SELECT 1');
+PREPARE stmt FROM @dr_cycle_drop_plan_run_sequence; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @dr_cycle_add_plan_run_sequence = IF(
+  EXISTS (SELECT 1 FROM information_schema.STATISTICS
+          WHERE TABLE_SCHEMA='cloud' AND TABLE_NAME='dr_sync_cycle'
+            AND INDEX_NAME='i_dr_sync_cycle__plan_run_sequence'),
+  'SELECT 1',
+  'ALTER TABLE `cloud`.`dr_sync_cycle` ADD KEY `i_dr_sync_cycle__plan_run_sequence` (`plan_id`,`engine_run_uuid`,`sequence`)');
+PREPARE stmt FROM @dr_cycle_add_plan_run_sequence; EXECUTE stmt; DEALLOCATE PREPARE stmt;

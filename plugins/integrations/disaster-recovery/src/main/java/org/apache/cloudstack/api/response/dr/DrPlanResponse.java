@@ -388,6 +388,12 @@ public class DrPlanResponse extends BaseResponse {
     @Param(description = "the coordinator worker host ID")
     private Long coordinatorWorkerHostId;
 
+    @SerializedName("protectiongroupuuid") @Param(description = "the protection group UUID") private String protectionGroupUuid;
+    @SerializedName("protectiongroupname") @Param(description = "the protection group name") private String protectionGroupName;
+    @SerializedName("protectiongrouporder") @Param(description = "the ordered position in the protection group") private Integer protectionGroupOrder;
+    @SerializedName("protectiongroupmaxparallel") @Param(description = "the group maximum concurrency") private Integer protectionGroupMaxParallel;
+    @SerializedName("protectiongroupquiescerequired") @Param(description = "whether group quiesce is required") private Boolean protectionGroupQuiesceRequired;
+
     @SerializedName("lastsourcecheckpointat")
     @Param(description = "the latest source checkpoint time")
     private Date lastSourceCheckpointAt;
@@ -868,6 +874,12 @@ public class DrPlanResponse extends BaseResponse {
     public void setCoordinatorWorkerHostId(Long coordinatorWorkerHostId) {
         this.coordinatorWorkerHostId = coordinatorWorkerHostId;
     }
+
+    public void setProtectionGroupUuid(String value) { protectionGroupUuid = value; }
+    public void setProtectionGroupName(String value) { protectionGroupName = value; }
+    public void setProtectionGroupOrder(Integer value) { protectionGroupOrder = value; }
+    public void setProtectionGroupMaxParallel(Integer value) { protectionGroupMaxParallel = value; }
+    public void setProtectionGroupQuiesceRequired(Boolean value) { protectionGroupQuiesceRequired = value; }
 
     public void setLastSourceCheckpointAt(Date lastSourceCheckpointAt) {
         this.lastSourceCheckpointAt = lastSourceCheckpointAt;

@@ -19,10 +19,13 @@ import com.cloud.utils.db.UpdateBuilder;
 @DB
 public class DrSyncCycleDaoImpl extends GenericDaoBase<DrSyncCycleVO, Long> implements DrSyncCycleDao {
     private final SearchBuilder<DrSyncCycleVO> byIdentitySearch;
+    private final SearchBuilder<DrSyncCycleVO> byPlanSequenceSearch;
     private final SearchBuilder<DrSyncCycleVO> byPlanSearch;
     private final SearchBuilder<DrSyncCycleVO> activeByPlanSearch;
     private final SearchBuilder<DrSyncCycleVO> completedByPlanSearch;
+    private final SearchBuilder<DrSyncCycleVO> completedByRunAndRequestedModeSearch;
     private final SearchBuilder<DrSyncCycleVO> incompleteBeforeSequenceSearch;
+    private final SearchBuilder<DrSyncCycleVO> incompleteAtOrBeforeSequenceSearch;
 
     private static final String[] ACTIVE_STATES = {
             "PREPARING", "SNAPSHOTTING", "TRANSFERRING", "COMMITTING", "RETRYING", "RUNNING"
@@ -34,6 +37,12 @@ public class DrSyncCycleDaoImpl extends GenericDaoBase<DrSyncCycleVO, Long> impl
         byIdentitySearch.and("runUuid", byIdentitySearch.entity().getEngineRunUuid(), SearchCriteria.Op.EQ);
         byIdentitySearch.and("sequence", byIdentitySearch.entity().getSequence(), SearchCriteria.Op.EQ);
         byIdentitySearch.done();
+
+        byPlanSequenceSearch = createSearchBuilder();
+        byPlanSequenceSearch.and("planId", byPlanSequenceSearch.entity().getPlanId(), SearchCriteria.Op.EQ);
+        byPlanSequenceSearch.and("sequence", byPlanSequenceSearch.entity().getSequence(), SearchCriteria.Op.EQ);
+        byPlanSequenceSearch.and("removed", byPlanSequenceSearch.entity().getRemoved(), SearchCriteria.Op.NULL);
+        byPlanSequenceSearch.done();
 
         byPlanSearch = createSearchBuilder();
         byPlanSearch.and("planId", byPlanSearch.entity().getPlanId(), SearchCriteria.Op.EQ);
@@ -52,12 +61,26 @@ public class DrSyncCycleDaoImpl extends GenericDaoBase<DrSyncCycleVO, Long> impl
         completedByPlanSearch.and("removed", completedByPlanSearch.entity().getRemoved(), SearchCriteria.Op.NULL);
         completedByPlanSearch.done();
 
+        completedByRunAndRequestedModeSearch = createSearchBuilder();
+        completedByRunAndRequestedModeSearch.and("runId", completedByRunAndRequestedModeSearch.entity().getRunId(), SearchCriteria.Op.EQ);
+        completedByRunAndRequestedModeSearch.and("requestedMode", completedByRunAndRequestedModeSearch.entity().getRequestedMode(), SearchCriteria.Op.EQ);
+        completedByRunAndRequestedModeSearch.and("completed", completedByRunAndRequestedModeSearch.entity().getCompleted(), SearchCriteria.Op.NNULL);
+        completedByRunAndRequestedModeSearch.and("removed", completedByRunAndRequestedModeSearch.entity().getRemoved(), SearchCriteria.Op.NULL);
+        completedByRunAndRequestedModeSearch.done();
+
         incompleteBeforeSequenceSearch = createSearchBuilder();
         incompleteBeforeSequenceSearch.and("planId", incompleteBeforeSequenceSearch.entity().getPlanId(), SearchCriteria.Op.EQ);
         incompleteBeforeSequenceSearch.and("sequence", incompleteBeforeSequenceSearch.entity().getSequence(), SearchCriteria.Op.LT);
         incompleteBeforeSequenceSearch.and("completed", incompleteBeforeSequenceSearch.entity().getCompleted(), SearchCriteria.Op.NULL);
         incompleteBeforeSequenceSearch.and("removed", incompleteBeforeSequenceSearch.entity().getRemoved(), SearchCriteria.Op.NULL);
         incompleteBeforeSequenceSearch.done();
+
+        incompleteAtOrBeforeSequenceSearch = createSearchBuilder();
+        incompleteAtOrBeforeSequenceSearch.and("planId", incompleteAtOrBeforeSequenceSearch.entity().getPlanId(), SearchCriteria.Op.EQ);
+        incompleteAtOrBeforeSequenceSearch.and("sequence", incompleteAtOrBeforeSequenceSearch.entity().getSequence(), SearchCriteria.Op.LTEQ);
+        incompleteAtOrBeforeSequenceSearch.and("completed", incompleteAtOrBeforeSequenceSearch.entity().getCompleted(), SearchCriteria.Op.NULL);
+        incompleteAtOrBeforeSequenceSearch.and("removed", incompleteAtOrBeforeSequenceSearch.entity().getRemoved(), SearchCriteria.Op.NULL);
+        incompleteAtOrBeforeSequenceSearch.done();
     }
 
     @Override
@@ -67,6 +90,15 @@ public class DrSyncCycleDaoImpl extends GenericDaoBase<DrSyncCycleVO, Long> impl
         sc.setParameters("runUuid", runUuid);
         sc.setParameters("sequence", sequence);
         return findOneBy(sc);
+    }
+
+    @Override
+    public DrSyncCycleVO findByPlanSequence(long planId, long sequence) {
+        SearchCriteria<DrSyncCycleVO> sc = byPlanSequenceSearch.create();
+        sc.setParameters("planId", planId);
+        sc.setParameters("sequence", sequence);
+        List<DrSyncCycleVO> rows = listBy(sc, new Filter(DrSyncCycleVO.class, "completed", false, 0L, 1L));
+        return rows != null && !rows.isEmpty() ? rows.get(0) : null;
     }
 
     @Override
@@ -93,8 +125,25 @@ public class DrSyncCycleDaoImpl extends GenericDaoBase<DrSyncCycleVO, Long> impl
     }
 
     @Override
+    public DrSyncCycleVO findLatestCompletedByRunIdAndRequestedMode(long runId, String requestedMode) {
+        SearchCriteria<DrSyncCycleVO> sc = completedByRunAndRequestedModeSearch.create();
+        sc.setParameters("runId", runId);
+        sc.setParameters("requestedMode", requestedMode);
+        List<DrSyncCycleVO> rows = listBy(sc, new Filter(DrSyncCycleVO.class, "sequence", false, 0L, 1L));
+        return rows != null && !rows.isEmpty() ? rows.get(0) : null;
+    }
+
+    @Override
     public List<DrSyncCycleVO> listIncompleteBeforeSequence(long planId, long sequence, int limit) {
         SearchCriteria<DrSyncCycleVO> sc = incompleteBeforeSequenceSearch.create();
+        sc.setParameters("planId", planId);
+        sc.setParameters("sequence", sequence);
+        return listBy(sc, new Filter(DrSyncCycleVO.class, "sequence", true, 0L, (long) Math.max(1, limit)));
+    }
+
+    @Override
+    public List<DrSyncCycleVO> listIncompleteAtOrBeforeSequence(long planId, long sequence, int limit) {
+        SearchCriteria<DrSyncCycleVO> sc = incompleteAtOrBeforeSequenceSearch.create();
         sc.setParameters("planId", planId);
         sc.setParameters("sequence", sequence);
         return listBy(sc, new Filter(DrSyncCycleVO.class, "sequence", true, 0L, (long) Math.max(1, limit)));

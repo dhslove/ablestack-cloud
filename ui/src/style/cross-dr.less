@@ -1062,6 +1062,108 @@ body.dark-mode .cross-dr-modal .ant-input-number-handler-wrap {
   color: var(--cross-dr-text-secondary);
 }
 
+body.dark-mode .cross-dr-modal .cross-dr-group-table,
+body.dark-mode .cross-dr-modal .cross-dr-group-table .ant-table,
+body.dark-mode .cross-dr-modal .cross-dr-group-table .ant-table-container,
+body.dark-mode .cross-dr-modal .cross-dr-group-table .ant-table-content,
+body.dark-mode .cross-dr-modal .cross-dr-group-table .ant-table-tbody > tr > td {
+  color: var(--cross-dr-text);
+  background: #20272d;
+  border-color: var(--cross-dr-border);
+}
+
+body.dark-mode .cross-dr-modal .cross-dr-group-table .ant-table-thead > tr > th {
+  color: var(--cross-dr-text-secondary);
+  background: #242c33;
+  border-color: var(--cross-dr-border);
+}
+
+body.dark-mode .cross-dr-modal .cross-dr-group-table .ant-table-tbody > tr:hover > td {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.cross-dr-group-run-panel {
+  margin: 0 0 12px;
+  padding: 14px 16px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  background: #fff;
+  color: rgba(0, 0, 0, 0.85);
+}
+
+.cross-dr-group-run-panel__header,
+.cross-dr-group-run-panel__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cross-dr-group-run-panel__header {
+  margin-bottom: 6px;
+}
+
+.cross-dr-group-run-panel__action {
+  margin-left: 10px;
+  color: rgba(0, 0, 0, 0.55);
+  font-size: 12px;
+}
+
+.cross-dr-group-run-panel__summary,
+.cross-dr-group-preflight-reason {
+  color: rgba(0, 0, 0, 0.65);
+  font-size: 12px;
+}
+
+.cross-dr-group-resource-wait {
+  color: #ad6800;
+  font-weight: 600;
+}
+
+.cross-dr-group-run-panel .ant-progress {
+  margin: 6px 0 10px;
+}
+
+.cross-dr-group-run-table .ant-table {
+  background: transparent;
+}
+
+body.dark-mode .cross-dr-group-run-panel {
+  border-color: var(--cross-dr-border);
+  background: var(--cross-dr-surface);
+  color: var(--cross-dr-text);
+}
+
+body.dark-mode .cross-dr-group-run-panel__action,
+body.dark-mode .cross-dr-group-run-panel__summary,
+body.dark-mode .cross-dr-group-preflight-reason {
+  color: var(--cross-dr-text-secondary);
+}
+
+body.dark-mode .cross-dr-group-resource-wait {
+  color: #ffd666;
+}
+
+body.dark-mode .cross-dr-group-run-panel .cross-dr-group-table,
+body.dark-mode .cross-dr-group-run-panel .cross-dr-group-table .ant-table,
+body.dark-mode .cross-dr-group-run-panel .cross-dr-group-table .ant-table-container,
+body.dark-mode .cross-dr-group-run-panel .cross-dr-group-table .ant-table-content,
+body.dark-mode .cross-dr-group-run-panel .cross-dr-group-table .ant-table-tbody > tr > td {
+  border-color: var(--cross-dr-border) !important;
+  background: var(--cross-dr-surface) !important;
+  color: var(--cross-dr-text) !important;
+}
+
+body.dark-mode .cross-dr-group-run-panel .cross-dr-group-table .ant-table-thead > tr > th {
+  border-color: var(--cross-dr-border) !important;
+  background: var(--cross-dr-surface-muted) !important;
+  color: var(--cross-dr-text) !important;
+}
+
+body.dark-mode .cross-dr-group-run-panel .cross-dr-group-table .ant-table-tbody > tr:hover > td {
+  background: rgba(255, 255, 255, 0.07) !important;
+}
+
 @media (max-width: 599px) {
   .cross-dr-failback-route .ant-descriptions-item-label {
     width: 128px;

@@ -1,0 +1,109 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements. See the NOTICE file distributed with this work.
+package com.cloud.dr;
+
+import java.util.Date;
+import java.util.List;
+
+import javax.inject.Inject;
+
+import org.apache.commons.lang3.StringUtils;
+
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+
+import com.cloud.dr.dao.DrResourceLeaseDao;
+import com.cloud.utils.component.ManagerBase;
+import com.cloud.utils.db.GlobalLock;
+
+public class DrAdmissionControllerImpl extends ManagerBase implements DrAdmissionController {
+    private static final int FULL_SEED_LIMIT = 2;
+    private static final int INCREMENTAL_LIMIT = 4;
+    private static final int TRANSITION_LIMIT = 1;
+    private static final int LEASE_SECONDS = 120;
+
+    @Inject private DrResourceLeaseDao drResourceLeaseDao;
+
+    @Override
+    public boolean acquire(DrPlanVO plan, DrRunVO run) {
+        if (plan == null || run == null) {
+            return false;
+        }
+        Date now = new Date();
+        DrResourceLeaseVO existing = drResourceLeaseDao.findActiveByRunId(run.getId(), now);
+        if (existing != null) {
+            return true;
+        }
+        String operationClass = operationClass(run);
+        Long workerHostId = plan.getCoordinatorWorkerHostId() != null
+                ? plan.getCoordinatorWorkerHostId() : plan.getTargetWorkerHostId();
+        String resourceKey = "HOST:" + (workerHostId != null ? workerHostId : 0L) + ":" + operationClass;
+        GlobalLock lock = GlobalLock.getInternLock("DrAdmission:" + resourceKey);
+        boolean acquired = false;
+        try {
+            acquired = lock.lock(2);
+            if (!acquired) {
+                return false;
+            }
+            List<DrResourceLeaseVO> active = drResourceLeaseDao.listActiveByResourceKey(resourceKey, now);
+            if (active != null && active.size() >= limit(operationClass)) {
+                return false;
+            }
+            Date expiresAt = new Date(now.getTime() + LEASE_SECONDS * 1000L);
+            return drResourceLeaseDao.persist(new DrResourceLeaseVO(resourceKey, operationClass,
+                    plan.getId(), run.getId(), expiresAt)) != null;
+        } finally {
+            if (acquired) {
+                lock.unlock();
+            }
+            lock.releaseRef();
+        }
+    }
+
+    @Override
+    public void release(long runId) {
+        DrResourceLeaseVO lease = drResourceLeaseDao.findActiveByRunId(runId, new Date());
+        if (lease == null) {
+            return;
+        }
+        lease.setState("RELEASED");
+        drResourceLeaseDao.update(lease.getId(), lease);
+    }
+
+    @Override
+    public String operationClass(DrRunVO run) {
+        String type = StringUtils.upperCase(run != null ? run.getRunType() : null);
+        if (StringUtils.equals(type, DrConstants.RUN_TYPE_SYNC)) {
+            return isFullSeedRequest(run) ? "FULL_SEED" : "INCREMENTAL";
+        }
+        if (StringUtils.equalsAny(type, DrConstants.RUN_TYPE_FAILOVER, DrConstants.RUN_TYPE_FAILBACK,
+                DrConstants.RUN_TYPE_TEST_FAILOVER, DrConstants.RUN_TYPE_TEST_CLEANUP,
+                DrConstants.RUN_TYPE_REPROTECT, DrConstants.RUN_TYPE_RELEASE)) {
+            return "TRANSITION";
+        }
+        return "INCREMENTAL";
+    }
+
+    private boolean isFullSeedRequest(DrRunVO run) {
+        if (run == null || StringUtils.isBlank(run.getRequestJson())) {
+            return false;
+        }
+        try {
+            JsonObject request = JsonParser.parseString(run.getRequestJson()).getAsJsonObject();
+            return request.has("forceFullReseed") && request.get("forceFullReseed").getAsBoolean()
+                    || request.has("mode") && StringUtils.equalsIgnoreCase("FULL_RESEED", request.get("mode").getAsString());
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    int limit(String operationClass) {
+        if ("FULL_SEED".equals(operationClass)) {
+            return FULL_SEED_LIMIT;
+        }
+        if ("TRANSITION".equals(operationClass)) {
+            return TRANSITION_LIMIT;
+        }
+        return INCREMENTAL_LIMIT;
+    }
+}

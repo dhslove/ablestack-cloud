@@ -193,6 +193,11 @@ public class DrResponseGenerator extends ManagerBase {
         response.setSourceWorkerHostId(plan.getSourceWorkerHostId());
         response.setTargetWorkerHostId(plan.getTargetWorkerHostId());
         response.setCoordinatorWorkerHostId(plan.getCoordinatorWorkerHostId());
+        response.setProtectionGroupUuid(plan.getProtectionGroupUuid());
+        response.setProtectionGroupName(plan.getProtectionGroupName());
+        response.setProtectionGroupOrder(plan.getProtectionGroupOrder());
+        response.setProtectionGroupMaxParallel(plan.getProtectionGroupMaxParallel());
+        response.setProtectionGroupQuiesceRequired(plan.getProtectionGroupQuiesceRequired());
         response.setLastSourceCheckpointAt(plan.getLastSourceCheckpointAt());
         response.setLastTargetDurableAt(plan.getLastTargetDurableAt());
         response.setTargetReadyAt(plan.getTargetReadyAt());

@@ -147,6 +147,49 @@ All six compute hosts report the deployed Cloud agent version, active
   produced 21 DR tables with the expected 32-column `dr_run` contract.
 - The superseded run `31669628452` was cancelled before deployment and replaced with a build from the corrected schema commit.
 
+### 32 cluster login regression and API key repair
+
+After the 4.23 deployment, the `10.10.32.10:8080` login request succeeded but
+the UI could not finish initialization. The authenticated `listUsers` request
+returned HTTP 530, and the UI subsequently raised a permission initialization
+error because no user object was available.
+
+The management log identified the actual failure as an `api_keypair.secret_key`
+decryption error. The 4.22.1-to-4.23 schema script had copied the legacy
+`cloud.user.secret_key` plaintext directly into a field mapped with `@Encrypt`.
+Its idempotence check also compared that plaintext value with an existing
+encrypted value, allowing a duplicate active key pair to be inserted.
+
+The live 32-cluster recovery preserved the registered API and Secret values:
+
+- A root-only SQL backup was saved as
+  `/root/api_keypair-pre-repair-20260813-210237.sql` with mode `0600`.
+- A plaintext duplicate whose decrypted value matched the existing encrypted
+  pair was soft-deleted.
+- A standalone plaintext Secret was encrypted in place with the management
+  server's current CloudStack V2 database encryptor.
+- The resulting active set contains three key pairs with three distinct API
+  keys and no plaintext Secret candidates.
+- Session login, `listUsers`, and `listUserKeys` were rechecked and all returned
+  HTTP 200. The administrator still has exactly one active key pair.
+
+The source migration now follows a failure-safe sequence:
+
+1. The prepare SQL creates the key-pair schema but does not copy or drop legacy
+   key columns.
+2. `Upgrade42210to42300.performDataMigration()` reads legacy key pairs, encrypts
+   each Secret with `DBEncryptionUtil`, updates the oldest matching pair, and
+   soft-deletes any active duplicates. If no matching pair exists, it inserts
+   a new encrypted pair.
+3. The cleanup SQL drops `cloud.user.api_key` and `cloud.user.secret_key` only
+   after the Java migration completes successfully.
+
+Focused schema-module tests cover encrypted insertion, deterministic duplicate
+reconciliation, and retry behavior when the legacy columns are already absent.
+The WSL ext4 Maven reactor command
+`mvn -pl engine/schema -am -Dtest=Upgrade42210to42300Test -Dsurefire.failIfNoSpecifiedTests=false test`
+completed with three tests passed and no failures or errors.
+
 ### QEMU, FTCTL, and V2K build and deployment
 
 | Artifact | GitHub Actions evidence | Package | SHA256 |

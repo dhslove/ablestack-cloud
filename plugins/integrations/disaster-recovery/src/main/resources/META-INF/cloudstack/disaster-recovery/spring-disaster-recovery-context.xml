@@ -38,6 +38,8 @@
     <bean id="drPlanDaoImpl" class="com.cloud.dr.dao.DrPlanDaoImpl"/>
     <bean id="drPlanRuntimeDaoImpl" class="com.cloud.dr.dao.DrPlanRuntimeDaoImpl"/>
     <bean id="drSyncCycleDaoImpl" class="com.cloud.dr.dao.DrSyncCycleDaoImpl"/>
+    <bean id="drResourceLeaseDaoImpl" class="com.cloud.dr.dao.DrResourceLeaseDaoImpl"/>
+    <bean id="drGroupRunDaoImpl" class="com.cloud.dr.dao.DrGroupRunDaoImpl"/>
     <bean id="drPlanViewCacheDaoImpl" class="com.cloud.dr.dao.DrPlanViewCacheDaoImpl"/>
     <bean id="drRestorePointDaoImpl" class="com.cloud.dr.dao.DrRestorePointDaoImpl"/>
     <bean id="drRestorePointArtifactDaoImpl" class="com.cloud.dr.dao.DrRestorePointArtifactDaoImpl"/>
@@ -83,6 +85,8 @@
     <bean id="drOrchestratorImpl" class="com.cloud.dr.orchestrator.DrOrchestratorImpl"/>
     <bean id="drProtectionOrchestratorImpl" class="com.cloud.dr.orchestrator.DrProtectionOrchestratorImpl"/>
     <bean id="drRunExecutorImpl" class="com.cloud.dr.orchestrator.DrRunExecutorImpl"/>
+    <bean id="drAdmissionControllerImpl" class="com.cloud.dr.DrAdmissionControllerImpl"/>
+    <bean id="drProtectionGroupServiceImpl" class="com.cloud.dr.DrProtectionGroupServiceImpl"/>
     <bean id="ftctlDrActionAdapter" class="com.cloud.dr.adapter.ftctl.FtctlDrActionAdapter"/>
     <bean id="ftctlDrContractAdapter" class="com.cloud.dr.adapter.ftctl.FtctlDrContractAdapter"/>
     <bean id="ftctlDrUnifiedActionAdapter" class="com.cloud.dr.adapter.ftctl.FtctlDrUnifiedActionAdapter"/>

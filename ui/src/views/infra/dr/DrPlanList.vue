@@ -77,8 +77,22 @@
               :resource="detailPlan"
               :triggerStyle="{ float: device === 'mobile' ? 'left' : 'right' }"
               @exec-action="runPlanAction" />
+            <span
+              v-if="!detailId && selectedRowKeys.length > 0 && 'startDrProtectionGroupAction' in $store.getters.apis"
+              class="row-action-button"
+              :style="{ 'margin-right': '10px', display: 'inline-flex' }">
+              <a-button
+                type="primary"
+                shape="round"
+                class="action-button-item"
+                :style="{ 'margin-left': '5px' }"
+                @click="openGroupModal">
+                <ApartmentOutlined class="action-button-item__icon" />
+                <span>{{ $t('label.dr.protection.group.action') }}</span>
+              </a-button>
+            </span>
             <action-button
-              v-else-if="'createDrPlan' in $store.getters.apis"
+              v-else-if="!detailId && 'createDrPlan' in $store.getters.apis"
               :style="{ 'margin-right': '10px', display: 'inline-flex' }"
               :loading="loading"
               :actions="createPlanActions"
@@ -192,6 +206,58 @@
 
     <template v-else>
       <div class="row-element" @contextmenu="openListContextMenu">
+        <section v-if="trackedGroupRun.id" class="cross-dr-group-run-panel">
+          <div class="cross-dr-group-run-panel__header">
+            <div>
+              <strong>{{ trackedGroupRun.groupname || $t('label.dr.protection.group.action') }}</strong>
+              <span class="cross-dr-group-run-panel__action">{{ groupActionLabel(trackedGroupRun.action) }}</span>
+            </div>
+            <dr-status-pill :status="trackedGroupRun.state" />
+          </div>
+          <div class="cross-dr-group-run-panel__summary">
+            {{ $t('message.dr.protection.group.summary', {
+              succeeded: trackedGroupRun.succeededcount || 0,
+              failed: trackedGroupRun.failedcount || 0,
+              total: trackedGroupRun.totalcount || 0
+            }) }}
+          </div>
+          <a-progress
+            :percent="trackedGroupProgressPercent"
+            :status="String(trackedGroupRun.state || '').toUpperCase() === 'FAILED' ? 'exception' : 'active'"
+            size="small" />
+          <a-table
+            v-if="trackedGroupPlanResults.length"
+            class="cross-dr-group-table cross-dr-group-run-table"
+            size="small"
+            :pagination="false"
+            :dataSource="trackedGroupPlanResults"
+            :rowKey="record => record.planId || record.planName">
+            <a-table-column :title="$t('label.name')" dataIndex="planName" key="planName" />
+            <a-table-column :title="$t('label.dr.protection.group.initial.sync')" key="initialSyncState">
+              <template #default="{ record }"><dr-status-pill :status="record.terminalizationState || record.initialSyncState || record.state" /></template>
+            </a-table-column>
+            <a-table-column :title="$t('label.dr.protection.group.continuous.protection')" key="continuousProtectionState">
+              <template #default="{ record }"><dr-status-pill :status="record.continuousProtectionState || 'PENDING'" /></template>
+            </a-table-column>
+            <a-table-column :title="$t('label.dr.protection.group.rpo')" key="rpo">
+              <template #default="{ record }">{{ groupRpoText(record) }}</template>
+            </a-table-column>
+            <a-table-column :title="$t('label.details')" key="reason">
+              <template #default="{ record }">
+                <span v-if="record.resourceWaiting" class="cross-dr-group-resource-wait">
+                  {{ $t('message.dr.protection.group.resource.wait') }}
+                </span>
+                <span v-else-if="record.terminalizationState === 'RESULT_FINALIZING'">
+                  {{ $t('message.dr.protection.group.result.finalizing') }}
+                </span>
+                <span v-else-if="record.terminalizationState === 'CONSISTENCY_WARNING'" class="cross-dr-group-resource-wait">
+                  {{ $t('message.dr.protection.group.consistency.warning', { sequence: record.acceptedCycleSequence || '-' }) }}
+                </span>
+                <span v-else>{{ groupReasonText(record.reasonCode, record.error) }}</span>
+              </template>
+            </a-table-column>
+          </a-table>
+        </section>
         <a-table
           class="cross-dr-standard-table"
           size="middle"
@@ -843,11 +909,12 @@
     </dr-form-modal>
     <dr-resource-context-menu
       :visible="contextMenuVisible"
-      :actions="planActions"
-      :resource="contextMenuPlan"
+      :actions="contextMenuActions"
+      :resource="contextMenuResource"
       :position="contextMenuPosition"
+      :title="contextMenuTitle"
       @close="closeContextMenu"
-      @exec-action="runPlanAction" />
+      @exec-action="runContextMenuAction" />
 
     <dr-form-modal
       :visible="showActionModal"
@@ -1030,6 +1097,100 @@
       </a-form>
       </div>
     </dr-form-modal>
+
+    <dr-form-modal
+      :visible="showGroupModal"
+      :title="$t('label.dr.protection.group.action')"
+      :loading="groupHistoryLoading || groupPreflightLoading"
+      :confirm-loading="groupSubmitting"
+      :ok-disabled="selectedRowKeys.length < 1 || groupPreflightLoading || groupPreflight.ready !== true"
+      width="820"
+      @cancel="closeGroupModal"
+      @ok="submitGroupAction">
+      <a-form layout="vertical" class="cross-dr-action-modal">
+        <a-alert
+          class="cross-dr-plan-section-alert"
+          type="info"
+          show-icon
+          :message="$t('message.dr.protection.group.order')" />
+        <a-row :gutter="16">
+          <a-col :span="12">
+            <a-form-item :label="$t('label.name')" required>
+              <a-input v-model:value="groupForm.name" :placeholder="$t('message.dr.protection.group.name.placeholder')" />
+            </a-form-item>
+          </a-col>
+          <a-col :span="12">
+            <a-form-item :label="$t('label.action')" required>
+              <a-select v-model:value="groupForm.action" @change="refreshGroupPreflight">
+                <a-select-option value="SYNC">{{ $t('label.dr.action.full.resync') }}</a-select-option>
+                <a-select-option value="TEST_FAILOVER">{{ $t('label.dr.action.test.failover') }}</a-select-option>
+                <a-select-option value="TEST_CLEANUP">{{ $t('label.dr.action.test.cleanup') }}</a-select-option>
+                <a-select-option value="FAILOVER">{{ $t('label.dr.action.failover') }}</a-select-option>
+                <a-select-option value="FAILBACK">{{ $t('label.dr.action.failback') }}</a-select-option>
+                <a-select-option value="REPROTECT">{{ $t('label.dr.action.reprotect') }}</a-select-option>
+              </a-select>
+            </a-form-item>
+          </a-col>
+        </a-row>
+        <a-row :gutter="16">
+          <a-col :span="12">
+            <a-form-item :label="$t('label.dr.protection.group.max.parallel')">
+              <a-input-number v-model:value="groupForm.maxparallel" :min="1" :max="16" style="width: 100%" />
+            </a-form-item>
+          </a-col>
+          <a-col :span="12">
+            <a-form-item :label="$t('label.dr.protection.group.quiesce')">
+              <a-switch v-model:checked="groupForm.quiescerequired" @change="refreshGroupPreflight" />
+            </a-form-item>
+          </a-col>
+        </a-row>
+        <a-alert
+          v-if="groupPreflight.ready === false"
+          class="cross-dr-plan-section-alert"
+          type="error"
+          show-icon
+          :message="$t('message.dr.protection.group.preflight.blocked')" />
+        <a-table
+          class="cross-dr-group-table"
+          size="small"
+          :pagination="false"
+          :dataSource="groupPlanRows"
+          :rowKey="record => record.id || record.planid">
+          <a-table-column :title="$t('label.dr.protection.group.order')" key="order">
+            <template #default="{ index }">{{ index + 1 }}</template>
+          </a-table-column>
+          <a-table-column :title="$t('label.name')" key="name">
+            <template #default="{ record }">{{ record.planname || record.name }}</template>
+          </a-table-column>
+          <a-table-column :title="$t('label.state')" key="state">
+            <template #default="{ record }"><status :text="record.planstate || effectivePlanState(record)" displayText /></template>
+          </a-table-column>
+          <a-table-column :title="$t('label.dr.readiness')" key="readiness">
+            <template #default="{ record }">
+              <dr-status-pill :status="record.eligible === true ? 'READY' : (record.eligible === false ? 'BLOCKED' : 'UNKNOWN')" />
+              <div v-if="record.eligible === false" class="cross-dr-group-preflight-reason">
+                {{ groupReasonText(record.reasoncode) }}
+              </div>
+            </template>
+          </a-table-column>
+        </a-table>
+        <a-divider v-if="groupHistory.length" />
+        <a-table
+          v-if="groupHistory.length"
+          class="cross-dr-group-table"
+          size="small"
+          :pagination="false"
+          :dataSource="groupHistory"
+          :rowKey="record => record.id">
+          <a-table-column :title="$t('label.action')" dataIndex="action" key="action" />
+          <a-table-column :title="$t('label.state')" dataIndex="state" key="state" />
+          <a-table-column :title="$t('label.dr.protection.group.progress')" key="progress">
+            <template #default="{ record }">{{ record.succeededcount || 0 }} / {{ record.totalcount || 0 }}</template>
+          </a-table-column>
+          <a-table-column :title="$t('label.created')" dataIndex="created" key="created" />
+        </a-table>
+      </a-form>
+    </dr-form-modal>
   </div>
 </template>
 
@@ -1051,12 +1212,13 @@ import SearchFilter from '@/components/view/SearchFilter'
 import SearchView from '@/components/view/SearchView'
 import Status from '@/components/widgets/Status'
 import TooltipLabel from '@/components/widgets/TooltipLabel'
-import { createDrPlan, deleteDrPlan, discoverDrPlanInventory, getDrFailbackPreflight, getDrPlan, getDrProtectionView, listDrPlans, listDrReplicas, listDrRuns, listDrSites, previewDrPlanSpec, refreshDrProtectionView, startDrAction, updateDrPlan, waitForDrMutation } from '@/api/dr'
+import { configureDrProtectionGroup, createDrPlan, deleteDrPlan, discoverDrPlanInventory, getDrFailbackPreflight, getDrPlan, getDrProtectionView, listDrPlans, listDrProtectionGroupRuns, listDrReplicas, listDrRuns, listDrSites, previewDrPlanSpec, previewDrProtectionGroupAction, refreshDrProtectionView, startDrAction, startDrProtectionGroupAction, updateDrPlan, waitForDrMutation } from '@/api/dr'
+import { drActionReasonMessageKey } from '@/utils/dr/actionAvailability'
 import { DEFAULT_DR_PLAN_ACTIVE_SECTIONS, DR_PLAN_DIALOG_SECTIONS, drPlanSectionForValidation } from '@/utils/dr/planDialogSections'
 import { isActiveDrRun, isActiveDrSyncCycle, resolveDrPlanState } from '@/utils/dr/planState'
 import { buildDrPlanActions } from '@/utils/dr/resourceActions'
 import { mixinDevice } from '@/utils/mixin.js'
-import { BranchesOutlined, ClockCircleOutlined, DesktopOutlined, GlobalOutlined } from '@ant-design/icons-vue'
+import { ApartmentOutlined, BranchesOutlined, ClockCircleOutlined, DesktopOutlined, GlobalOutlined } from '@ant-design/icons-vue'
 
 export default {
   name: 'DrPlanList',
@@ -1072,6 +1234,7 @@ export default {
     DrResourceContextMenu,
     DrResourceInfoCard,
     DrStatusPill,
+    ApartmentOutlined,
     BranchesOutlined,
     GlobalOutlined,
     ResourceLayout,
@@ -1103,6 +1266,7 @@ export default {
       planFormMode: 'create',
       editingPlan: {},
       contextMenuVisible: false,
+      contextMenuMode: 'single',
       contextMenuPlan: {},
       contextMenuPosition: { x: 0, y: 0 },
       actionSubmitting: false,
@@ -1120,6 +1284,22 @@ export default {
       searchQuery: '',
       searchParams: {},
       selectedRowKeys: [],
+      showGroupModal: false,
+      groupSubmitting: false,
+      groupHistoryLoading: false,
+      groupHistory: [],
+      groupPreflightLoading: false,
+      groupPreflight: {},
+      groupPreflightRequest: 0,
+      trackedGroupRun: {},
+      groupRunPollTimer: null,
+      groupRunPollDeadline: 0,
+      groupForm: {
+        name: '',
+        action: 'SYNC',
+        maxparallel: 2,
+        quiescerequired: false
+      },
       selectedColumns: ['name', 'state', 'direction', 'sourcesiteid', 'targetsiteid', 'targetreadyrposeconds', 'enginetype'],
       page: 1,
       pageSize: this.$store.getters.defaultListViewPageSize || 20,
@@ -1346,6 +1526,35 @@ export default {
     planActions () {
       return buildDrPlanActions(this.detailId ? this.currentRun : {})
     },
+    contextMenuActions () {
+      if (this.contextMenuMode !== 'multiple') {
+        return this.planActions
+      }
+      return [
+        {
+          api: 'startDrProtectionGroupAction',
+          icon: 'apartment-outlined',
+          label: 'label.dr.protection.group.action',
+          group: 'MULTI',
+          contextAction: 'openProtectionGroup'
+        },
+        {
+          icon: 'close-outlined',
+          label: 'label.dr.selection.clear',
+          group: 'MULTI',
+          contextAction: 'clearSelection'
+        }
+      ]
+    },
+    contextMenuResource () {
+      return this.contextMenuMode === 'multiple' ? {} : this.contextMenuPlan
+    },
+    contextMenuTitle () {
+      if (this.contextMenuMode === 'multiple') {
+        return this.$t('label.dr.plan.selection', { count: this.selectedRowKeys.length })
+      }
+      return ''
+    },
     planModalTitle () {
       return this.planFormMode === 'edit' ? this.$t('label.dr.plan.edit') : this.$t('label.dr.plan.add')
     },
@@ -1453,6 +1662,59 @@ export default {
         columnWidth: 30
       }
     },
+    selectedGroupPlans () {
+      const plansById = new Map(this.plans.map(plan => [plan.id, plan]))
+      return this.selectedRowKeys.map(id => plansById.get(id)).filter(Boolean)
+    },
+    groupPlanRows () {
+      return Array.isArray(this.groupPreflight.plans) && this.groupPreflight.plans.length
+        ? this.groupPreflight.plans
+        : this.selectedGroupPlans
+    },
+    trackedGroupProgress () {
+      const value = this.trackedGroupRun.progressjson || this.trackedGroupRun.progressJson
+      if (!value) return {}
+      if (typeof value === 'object') return value
+      try {
+        return JSON.parse(value)
+      } catch (e) {
+        return {}
+      }
+    },
+    trackedGroupPlanResults () {
+      const results = Array.isArray(this.trackedGroupProgress.plans) ? this.trackedGroupProgress.plans : []
+      return results.map(record => {
+        const plan = this.plans.find(item => String(item.id || '') === String(record.planId || ''))
+        if (!plan) return record
+        const currentRpo = plan.targetreadyrposeconds !== null && plan.targetreadyrposeconds !== undefined && plan.targetreadyrposeconds !== ''
+          ? Number(plan.targetreadyrposeconds) : Number.NaN
+        const targetRpo = plan.rposeconds !== null && plan.rposeconds !== undefined && plan.rposeconds !== ''
+          ? Number(plan.rposeconds) : Number.NaN
+        const errorCode = String(plan.lasterrorcode || '').toUpperCase()
+        const resourceWaiting = ['DR_RESOURCE_BUSY', 'DR_NBD_CAPACITY_INVALID'].includes(errorCode)
+        let continuousProtectionState = String(this.effectivePlanState(plan) || plan.state || 'PENDING').toUpperCase()
+        if (resourceWaiting) {
+          continuousProtectionState = 'WAITING_RESOURCE'
+        } else if (Number.isFinite(currentRpo) && Number.isFinite(targetRpo) && currentRpo > targetRpo) {
+          continuousProtectionState = 'DEGRADED'
+        }
+        return {
+          ...record,
+          continuousProtectionState,
+          currentRpoSeconds: Number.isFinite(currentRpo) ? currentRpo : record.currentRpoSeconds,
+          targetRpoSeconds: Number.isFinite(targetRpo) ? targetRpo : record.targetRpoSeconds,
+          resourceWaiting
+        }
+      })
+    },
+    trackedGroupProgressPercent () {
+      const total = Number(this.trackedGroupRun.totalcount || this.trackedGroupProgress.total || 0)
+      if (!total) return 0
+      const terminal = this.trackedGroupPlanResults.filter(plan =>
+        ['SUCCEEDED', 'FAILED', 'CANCELED', 'BLOCKED', 'SKIPPED'].includes(String(plan.state || '').toUpperCase())
+      ).length
+      return Math.min(100, Math.round((terminal / total) * 100))
+    },
     filterValue () {
       return this.filters.state || 'all'
     },
@@ -1537,6 +1799,9 @@ export default {
   },
   watch: {
     '$route.path': function () {
+      this.selectedRowKeys = []
+      this.closeContextMenu()
+      this.stopGroupRunPolling()
       this.fetchData()
     },
     '$route.query.tab': function () {
@@ -1555,6 +1820,7 @@ export default {
     if (this.sourceWorkloadSearchTimer) {
       clearTimeout(this.sourceWorkloadSearchTimer)
     }
+    this.stopGroupRunPolling()
   },
   methods: {
     defaultCreateForm () {
@@ -3170,7 +3436,15 @@ export default {
         return
       }
       event.preventDefault()
+      this.contextMenuMode = 'single'
       this.contextMenuPlan = plan
+      this.contextMenuPosition = { x: event.clientX, y: event.clientY }
+      this.contextMenuVisible = true
+    },
+    openMultiplePlanContextMenu (event) {
+      event.preventDefault()
+      this.contextMenuMode = 'multiple'
+      this.contextMenuPlan = {}
       this.contextMenuPosition = { x: event.clientX, y: event.clientY }
       this.contextMenuVisible = true
     },
@@ -3180,14 +3454,30 @@ export default {
         this.closeContextMenu()
         return
       }
+      if (this.selectedRowKeys.length > 1) {
+        this.openMultiplePlanContextMenu(event)
+        return
+      }
       const rowKey = rowElement.getAttribute('data-row-key')
       const plan = this.pagedPlans.find(item => String(item.id) === String(rowKey))
       if (plan) {
         this.openPlanContextMenu(event, plan)
       }
     },
+    runContextMenuAction (action, plan) {
+      if (action?.contextAction === 'openProtectionGroup') {
+        this.openGroupModal()
+        return
+      }
+      if (action?.contextAction === 'clearSelection') {
+        this.selectedRowKeys = []
+        return
+      }
+      this.runPlanAction(action, plan)
+    },
     closeContextMenu () {
       this.contextMenuVisible = false
+      this.contextMenuMode = 'single'
       this.contextMenuPlan = {}
     },
     applyAcceptedRun (run, plan) {
@@ -3309,6 +3599,173 @@ export default {
     },
     onRowSelectionChange (selectedRowKeys) {
       this.selectedRowKeys = selectedRowKeys
+    },
+    async openGroupModal () {
+      const plans = this.selectedGroupPlans
+      this.groupForm = {
+        name: plans[0]?.protectiongroupname || this.$t('label.dr.protection.group.default.name'),
+        action: 'SYNC',
+        maxparallel: Number(plans[0]?.protectiongroupmaxparallel || 2),
+        quiescerequired: plans.some(plan => plan.protectiongroupquiescerequired === true)
+      }
+      this.groupHistory = []
+      this.groupPreflight = {}
+      this.showGroupModal = true
+      await this.refreshGroupPreflight()
+      const groupUuid = plans[0]?.protectiongroupuuid
+      if (groupUuid && plans.every(plan => plan.protectiongroupuuid === groupUuid)) {
+        this.groupHistoryLoading = true
+        try {
+          const result = await listDrProtectionGroupRuns({ groupuuid: groupUuid })
+          this.groupHistory = result.items || []
+        } finally {
+          this.groupHistoryLoading = false
+        }
+      }
+    },
+    async refreshGroupPreflight () {
+      if (this.selectedRowKeys.length < 1 || !this.groupForm.action) {
+        this.groupPreflight = {}
+        return false
+      }
+      const request = ++this.groupPreflightRequest
+      this.groupPreflightLoading = true
+      try {
+        const result = await previewDrProtectionGroupAction({
+          planids: this.selectedRowKeys.join(','),
+          action: this.groupForm.action,
+          quiescerequired: this.groupForm.quiescerequired
+        })
+        if (request === this.groupPreflightRequest) {
+          this.groupPreflight = result || {}
+        }
+        return result?.ready === true
+      } catch (error) {
+        if (request === this.groupPreflightRequest) {
+          this.groupPreflight = { ready: false, plans: [] }
+          notification.error({
+            message: this.$t('message.dr.protection.group.preflight.failed'),
+            description: error?.response?.data?.errorresponse?.errortext || error?.message || ''
+          })
+        }
+        return false
+      } finally {
+        if (request === this.groupPreflightRequest) {
+          this.groupPreflightLoading = false
+        }
+      }
+    },
+    closeGroupModal () {
+      if (!this.groupSubmitting) {
+        this.showGroupModal = false
+      }
+    },
+    async submitGroupAction () {
+      if (!this.groupForm.name || this.selectedRowKeys.length < 1) {
+        notification.error({ message: this.$t('message.dr.protection.group.validation') })
+        return
+      }
+      this.groupSubmitting = true
+      try {
+        if (!await this.refreshGroupPreflight()) {
+          notification.error({ message: this.$t('message.dr.protection.group.preflight.blocked') })
+          return
+        }
+        const planids = this.selectedRowKeys.join(',')
+        await configureDrProtectionGroup({
+          planids,
+          groupname: this.groupForm.name,
+          maxparallel: this.groupForm.maxparallel,
+          quiescerequired: this.groupForm.quiescerequired
+        })
+        const groupRun = await startDrProtectionGroupAction({
+          planids,
+          action: this.groupForm.action,
+          maxparallel: this.groupForm.maxparallel,
+          quiescerequired: this.groupForm.quiescerequired
+        })
+        this.trackedGroupRun = groupRun || {}
+        this.groupHistory = [groupRun, ...this.groupHistory.filter(run => run.id !== groupRun?.id)].filter(Boolean)
+        this.showGroupModal = false
+        this.selectedRowKeys = []
+        if (String(groupRun?.state || '').toUpperCase() === 'FAILED') {
+          notification.error({ message: this.$t('message.dr.protection.group.terminal.failed') })
+        } else {
+          notification.info({ message: this.$t('message.dr.protection.group.accepted') })
+          this.startGroupRunPolling(groupRun)
+        }
+        await this.fetchList()
+      } catch (error) {
+        notification.error({
+          message: this.$t('message.dr.protection.group.failed'),
+          description: error?.response?.data?.errorresponse?.errortext || error?.message || ''
+        })
+      } finally {
+        this.groupSubmitting = false
+      }
+    },
+    startGroupRunPolling (groupRun) {
+      this.stopGroupRunPolling()
+      if (!groupRun?.id || !groupRun?.groupuuid) return
+      this.groupRunPollDeadline = Date.now() + (24 * 60 * 60 * 1000)
+      const poll = async () => {
+        if (Date.now() >= this.groupRunPollDeadline) {
+          this.stopGroupRunPolling()
+          notification.warning({ message: this.$t('message.dr.protection.group.poll.timeout') })
+          return
+        }
+        try {
+          const result = await listDrProtectionGroupRuns({ groupuuid: groupRun.groupuuid })
+          const current = (result.items || []).find(run => run.id === groupRun.id)
+          if (current) {
+            this.trackedGroupRun = current
+            const state = String(current.state || '').toUpperCase()
+            if (['SUCCEEDED', 'FAILED'].includes(state)) {
+              this.stopGroupRunPolling()
+              notification[state === 'SUCCEEDED' ? 'success' : 'error']({
+                message: this.$t(state === 'SUCCEEDED'
+                  ? 'message.dr.protection.group.terminal.succeeded'
+                  : 'message.dr.protection.group.terminal.failed')
+              })
+              await this.fetchList()
+              return
+            }
+          }
+        } catch (error) {
+          // Keep the last durable group state visible and retry the read.
+        }
+        this.groupRunPollTimer = setTimeout(poll, 2000)
+      }
+      this.groupRunPollTimer = setTimeout(poll, 500)
+    },
+    stopGroupRunPolling () {
+      if (this.groupRunPollTimer) {
+        clearTimeout(this.groupRunPollTimer)
+        this.groupRunPollTimer = null
+      }
+      this.groupRunPollDeadline = 0
+    },
+    groupReasonText (reasonCode, fallback) {
+      if (!reasonCode) return fallback || '-'
+      const key = drActionReasonMessageKey(reasonCode)
+      return typeof this.$te === 'function' && this.$te(key) ? this.$t(key) : (fallback || reasonCode)
+    },
+    groupActionLabel (action) {
+      const labels = {
+        SYNC: 'label.dr.action.full.resync',
+        TEST_FAILOVER: 'label.dr.action.test.failover',
+        TEST_CLEANUP: 'label.dr.action.test.cleanup',
+        FAILOVER: 'label.dr.action.failover',
+        FAILBACK: 'label.dr.action.failback',
+        REPROTECT: 'label.dr.action.reprotect'
+      }
+      return this.$t(labels[String(action || '').toUpperCase()] || 'label.action')
+    },
+    groupRpoText (record = {}) {
+      const actual = Number(record.currentRpoSeconds)
+      const target = Number(record.targetRpoSeconds)
+      if (!Number.isFinite(target) || target <= 0) return '-'
+      return `${Number.isFinite(actual) && actual >= 0 ? actual : '-'}s / ${target}s`
     },
     paginationTotal (total) {
       const start = total === 0 ? 0 : Math.min(total, 1 + ((this.normalizedPage - 1) * this.pageSize))

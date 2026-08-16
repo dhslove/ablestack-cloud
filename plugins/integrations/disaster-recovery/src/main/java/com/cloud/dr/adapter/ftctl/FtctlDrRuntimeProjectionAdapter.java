@@ -77,6 +77,9 @@ import com.cloud.dr.dao.DrSyncCycleDao;
 import com.cloud.dr.dao.DrTestSessionDao;
 import com.cloud.utils.DateUtil;
 import com.cloud.utils.component.ManagerBase;
+import com.cloud.utils.db.Transaction;
+import com.cloud.utils.db.TransactionCallback;
+import com.cloud.utils.db.TransactionStatus;
 import com.cloud.storage.VolumeVO;
 import com.cloud.storage.dao.VolumeDao;
 import com.cloud.vm.UserVmVO;
@@ -647,18 +650,40 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             upsertCutoverDisks(plan, committedTargetSession, runtime);
         }
 
-        if (sequence != null && StringUtils.isNotBlank(producerRunUuid)) {
-            projectCurrentSyncCycle(plan, protectionProducerRun, status, sequence, requestedMode, effectiveMode, cycleState,
-                    baselineState, reseedReason, sourceAt, errorCode, errorMessage);
+        projectSyncCyclesAtomically(plan, protectionProducerRun, status, producerRunUuid, sequence, requestedMode,
+                effectiveMode, cycleState, baselineState, reseedReason, sourceAt, errorCode, errorMessage);
+    }
+
+    private void projectSyncCyclesAtomically(DrPlanVO plan, DrRunVO protectionProducerRun, FtctlDrStatusAnswer status,
+            String producerRunUuid, Long sequence, String requestedMode, String effectiveMode, String cycleState,
+            String baselineState, String reseedReason, Date sourceAt, String errorCode, String errorMessage) {
+        if (StringUtils.isBlank(producerRunUuid) || sequence == null && status.getLatestCompletedCheckpointSequence() == null) {
+            return;
         }
-        if (status.getLatestCompletedCheckpointSequence() != null
-                && StringUtils.isNotBlank(producerRunUuid)) {
-            DrSyncCycleVO completedCycle = projectLatestCompletedSyncCycle(plan, protectionProducerRun, status,
-                    status.getLatestCompletedCheckpointSequence(), baselineState);
-            if (completedCycle != null) {
-                terminalizeSupersededSyncCycles(plan, completedCycle);
+        Transaction.execute(new TransactionCallback<Void>() {
+            @Override
+            public Void doInTransaction(TransactionStatus transactionStatus) {
+                if (drPlanDao.acquireInLockTable(plan.getId(), 10) == null) {
+                    return null;
+                }
+                try {
+                    if (sequence != null) {
+                        projectCurrentSyncCycle(plan, protectionProducerRun, status, sequence, requestedMode, effectiveMode,
+                                cycleState, baselineState, reseedReason, sourceAt, errorCode, errorMessage);
+                    }
+                    if (status.getLatestCompletedCheckpointSequence() != null) {
+                        DrSyncCycleVO completedCycle = projectLatestCompletedSyncCycle(plan, protectionProducerRun, status,
+                                status.getLatestCompletedCheckpointSequence(), baselineState);
+                        if (completedCycle != null) {
+                            terminalizeSupersededSyncCycles(plan, completedCycle);
+                        }
+                    }
+                    return null;
+                } finally {
+                    drPlanDao.releaseFromLockTable(plan.getId());
+                }
             }
-        }
+        });
     }
 
     void projectLatestCompletedTransferSummary(DrPlanRuntimeVO authority, FtctlDrCycleSnapshot snapshot) {
@@ -691,7 +716,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         if (plan == null || completedCycle == null || completedCycle.getCompleted() == null) {
             return;
         }
-        List<DrSyncCycleVO> incompleteCycles = drSyncCycleDao.listIncompleteBeforeSequence(plan.getId(),
+        List<DrSyncCycleVO> incompleteCycles = drSyncCycleDao.listIncompleteAtOrBeforeSequence(plan.getId(),
                 completedCycle.getSequence(), SUPERSEDED_CYCLE_RECONCILE_LIMIT);
         if (incompleteCycles == null || incompleteCycles.isEmpty()) {
             return;
@@ -787,23 +812,29 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         return seconds > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) seconds;
     }
 
-    private void projectCurrentSyncCycle(DrPlanVO plan, DrRunVO projectionRun, FtctlDrStatusAnswer status,
+    void projectCurrentSyncCycle(DrPlanVO plan, DrRunVO projectionRun, FtctlDrStatusAnswer status,
             long sequence, String requestedMode, String effectiveMode, String cycleState, String baselineState,
             String reseedReason, Date sourceAt, String errorCode, String errorMessage) {
         String engineRunUuid = resolveProtectionProducerRunUuid(status, parseObject(status.getStatusJson()));
-        DrSyncCycleVO cycle = drSyncCycleDao.findByPlanRunSequence(plan.getId(), engineRunUuid, sequence);
+        DrSyncCycleVO cycle = drSyncCycleDao.findByPlanSequence(plan.getId(), sequence);
         if (cycle == null) {
             cycle = new DrSyncCycleVO(plan.getId(), engineRunUuid, sequence);
             cycle.setStarted(new Date());
         }
         if (cycle.getCompleted() != null) {
+            bindAcceptedCycleIfEligible(projectionRun, cycle);
             return;
         }
-        cycle.setRunId(projectionRun != null ? projectionRun.getId() : null);
+        if (cycle.getRunId() == null) {
+            cycle.setRunId(projectionRun != null ? projectionRun.getId() : null);
+        }
         cycle.setSchedulerSessionUuid(status.getSchedulerSessionUuid());
         cycle.setSchedulerLeaseEpoch(status.getSchedulerLeaseEpoch());
         cycle.setAuthoritySequence(status.getAuthoritySequence());
         cycle.setRequestedMode(requestedMode);
+        if (StringUtils.isBlank(cycle.getCycleToken())) {
+            cycle.setCycleToken(plan.getUuid() + ":" + sequence);
+        }
         cycle.setEffectiveMode(effectiveMode);
         cycle.setState(StringUtils.defaultIfBlank(cycleState, status.getState()));
         cycle.setCommitState(status.getDataCommitState());
@@ -821,9 +852,10 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         cycle.setErrorCode(errorCode);
         cycle.setErrorMessage(errorMessage);
         persistSyncCycle(cycle);
+        bindAcceptedCycleIfEligible(projectionRun, cycle);
     }
 
-    private DrSyncCycleVO projectLatestCompletedSyncCycle(DrPlanVO plan, DrRunVO projectionRun, FtctlDrStatusAnswer status,
+    DrSyncCycleVO projectLatestCompletedSyncCycle(DrPlanVO plan, DrRunVO projectionRun, FtctlDrStatusAnswer status,
             long sequence, String baselineState) {
         FtctlDrCycleSnapshot snapshot = latestCompletedCycle(status);
         if (!isCoherentCycleSnapshot(plan, status, snapshot) || snapshot == null) {
@@ -831,7 +863,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         }
         sequence = snapshot.getSequence();
         String engineRunUuid = resolveProtectionProducerRunUuid(status, parseObject(status.getStatusJson()));
-        DrSyncCycleVO cycle = drSyncCycleDao.findByPlanRunSequence(plan.getId(), engineRunUuid, sequence);
+        DrSyncCycleVO cycle = drSyncCycleDao.findByPlanSequence(plan.getId(), sequence);
         if (cycle == null) {
             cycle = new DrSyncCycleVO(plan.getId(), engineRunUuid, sequence);
             cycle.setStarted(parseDate(status.getLatestCompletedSourceCheckpointAt()));
@@ -839,11 +871,14 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         if (cycle.getCompleted() != null && cycle.getBaselineGeneration() != null
                 && cycle.getBaselineGeneration().equals(cycle.getSequence())
                 && StringUtils.equals(cycle.getCycleToken(), snapshot.getCycleToken())) {
+            bindAcceptedCycleIfEligible(projectionRun, cycle);
             return cycle;
         }
         Date sourceAt = parseDate(status.getLatestCompletedSourceCheckpointAt());
         Date durableAt = parseDate(status.getLatestCompletedTargetDurableAt());
-        cycle.setRunId(projectionRun != null ? projectionRun.getId() : null);
+        if (cycle.getRunId() == null) {
+            cycle.setRunId(projectionRun != null ? projectionRun.getId() : null);
+        }
         cycle.setSchedulerSessionUuid(status.getSchedulerSessionUuid());
         cycle.setSchedulerLeaseEpoch(status.getSchedulerLeaseEpoch());
         cycle.setAuthoritySequence(status.getAuthoritySequence());
@@ -885,7 +920,71 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         cycle.setErrorCode(null);
         cycle.setErrorMessage(null);
         persistSyncCycle(cycle);
+        bindAcceptedCycleIfEligible(projectionRun, cycle);
         return cycle;
+    }
+
+    void bindAcceptedCycleIfEligible(DrRunVO run, DrSyncCycleVO cycle) {
+        if (run == null || cycle == null || run.getAcceptedCycleSequence() != null
+                || !isFullReseedRun(run)
+                || !StringUtils.equalsIgnoreCase(cycle.getRequestedMode(), "FULL_RESEED")) {
+            return;
+        }
+        boolean runOwned = cycle.getRunId() != null && cycle.getRunId() == run.getId();
+        if (!runOwned && !StringUtils.equals(run.getUuid(), cycle.getEngineRunUuid())) {
+            return;
+        }
+        String cycleToken = cycle.getCycleToken();
+        if (StringUtils.isBlank(cycleToken)) {
+            return;
+        }
+        run.setAcceptedCycleSequence(cycle.getSequence());
+        run.setAcceptedCycleToken(cycleToken);
+        run.markUpdated();
+        drRunDao.update(run.getId(), run);
+    }
+
+    private boolean isFullReseedRun(DrRunVO run) {
+        if (run == null || !StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_SYNC)) {
+            return false;
+        }
+        return StringUtils.equalsIgnoreCase(stringValue(parseObject(run.getRequestJson()), "mode"), "FULL_RESEED");
+    }
+
+    private DrSyncCycleVO resolveAcceptedCycle(DrRunVO run) {
+        if (run == null) {
+            return null;
+        }
+        DrSyncCycleVO cycle = run.getAcceptedCycleSequence() != null
+                ? drSyncCycleDao.findByPlanSequence(run.getPlanId(), run.getAcceptedCycleSequence())
+                : drSyncCycleDao.findLatestCompletedByRunIdAndRequestedMode(run.getId(), "FULL_RESEED");
+        if (cycle != null && run.getAcceptedCycleSequence() == null) {
+            bindAcceptedCycleIfEligible(run, cycle);
+        }
+        return cycle;
+    }
+
+    boolean isAcceptedFullReseedCycleSatisfied(DrRunVO run, FtctlDrStatusAnswer status, JsonObject runtime) {
+        if (!isFullReseedRun(run) || status == null) {
+            return false;
+        }
+        String controlRequestRunUuid = StringUtils.defaultIfBlank(status.getControlRequestRunUuid(),
+                stringValue(runtime, "control_request_run_uuid"));
+        boolean terminalAuthoritative = Boolean.TRUE.equals(status.getTerminalAuthoritative())
+                || Boolean.TRUE.equals(booleanValue(runtime, "terminal_authoritative"))
+                || StringUtils.equalsIgnoreCase(StringUtils.defaultIfBlank(status.getTerminalSource(),
+                        stringValue(runtime, "terminal_source")), "ENGINE_TERMINAL");
+        DrSyncCycleVO cycle = resolveAcceptedCycle(run);
+        if (!StringUtils.equals(run.getUuid(), controlRequestRunUuid) || !terminalAuthoritative
+                || cycle == null || cycle.getCompleted() == null
+                || !StringUtils.equalsIgnoreCase(cycle.getRequestedMode(), "FULL_RESEED")
+                || !StringUtils.equalsAnyIgnoreCase(cycle.getState(), "READY", "COMPLETED", "TARGET_READY")
+                || !StringUtils.equalsAnyIgnoreCase(cycle.getCommitState(), "LOCAL_DURABLE", "COMMITTED", "DURABLE")) {
+            return false;
+        }
+        return run.getAcceptedCycleSequence() != null
+                && run.getAcceptedCycleSequence() == cycle.getSequence()
+                && StringUtils.equals(run.getAcceptedCycleToken(), cycle.getCycleToken());
     }
 
     private void persistSyncCycle(DrSyncCycleVO cycle) {
@@ -1020,7 +1119,9 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         if (preserveCommittedTargetAuthorityAfterReprotectFailure(plan, status, runtime)) {
             return;
         }
-        String planState = toPlanState(status.getState());
+        String runtimeProtectionState = StringUtils.defaultIfBlank(status.getProtectionState(),
+                stringValue(runtime, "protection_state"));
+        String planState = toPlanState(StringUtils.defaultIfBlank(runtimeProtectionState, status.getState()));
         if (isCutoverReadyRuntime(plan, status, runtime)) {
             try {
                 DrTargetPowerOnResult powerOnResult = drTargetMaterializationService.ensureTargetPoweredOn(plan.getId());
@@ -1042,6 +1143,16 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         }
         boolean targetReferencePresent = hasTargetReferenceForDirection(plan);
         boolean durableCheckpointPresent = hasDurableCheckpoint(status, runtime);
+        Date projectedDurableAt = firstDate(parseDate(status.getLatestCompletedTargetDurableAt()),
+                parseDate(status.getLastTargetDurableAt()), plan.getLastTargetDurableAt());
+        if (StringUtils.equals(planState, DrConstants.PLAN_STATE_READY) && projectedDurableAt != null
+                && plan.getRpoSeconds() != null) {
+            long ageSeconds = Math.max(0L, (System.currentTimeMillis() - projectedDurableAt.getTime()) / 1000L);
+            long graceSeconds = Math.min(30L, Math.max(5L, plan.getRpoSeconds() / 10L));
+            if (ageSeconds > plan.getRpoSeconds() + graceSeconds) {
+                planState = DrConstants.HEALTH_DEGRADED;
+            }
+        }
         if (StringUtils.equals(planState, DrConstants.PLAN_STATE_READY)
                 && (!targetReferencePresent || !durableCheckpointPresent)) {
             planState = DrConstants.PLAN_STATE_SYNCING;
@@ -1816,6 +1927,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             }
             return;
         }
+        bindAcceptedCycleFromControlRequest(plan, run, status, runtime);
         if (StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_TEST_FAILOVER)
                 && drTargetMaterializationService.isTestTargetActive(run.getId())) {
             completeRunFromProjection(plan, run, status);
@@ -1862,6 +1974,35 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         if (StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_SYNC)) {
             markSyncTargetPending(plan, run, status, runtime);
         }
+    }
+
+    void bindAcceptedCycleFromControlRequest(DrPlanVO plan, DrRunVO run,
+            FtctlDrStatusAnswer status, JsonObject runtime) {
+        if (plan == null || run == null || status == null || run.getAcceptedCycleSequence() != null
+                || !isFullReseedRun(run)) {
+            return;
+        }
+        String controlRequestRunUuid = StringUtils.defaultIfBlank(status.getControlRequestRunUuid(),
+                stringValue(runtime, "control_request_run_uuid"));
+        if (!StringUtils.equals(run.getUuid(), controlRequestRunUuid)) {
+            return;
+        }
+        Long sequence = status.getTransferCycleSequence() != null ? status.getTransferCycleSequence()
+                : longValue(runtime, "transfer_cycle_sequence");
+        String mode = StringUtils.defaultIfBlank(status.getTransferMode(), stringValue(runtime, "transfer_mode"));
+        if (sequence == null || !StringUtils.equalsIgnoreCase(mode, "FULL_RESEED")) {
+            return;
+        }
+        DrSyncCycleVO cycle = drSyncCycleDao.findByPlanSequence(plan.getId(), sequence);
+        String expectedToken = plan.getUuid() + ":" + sequence;
+        if (cycle == null || !StringUtils.equalsIgnoreCase(cycle.getRequestedMode(), "FULL_RESEED")
+                || !StringUtils.equals(expectedToken, cycle.getCycleToken())) {
+            return;
+        }
+        run.setAcceptedCycleSequence(sequence);
+        run.setAcceptedCycleToken(expectedToken);
+        run.markUpdated();
+        drRunDao.update(run.getId(), run);
     }
 
     private boolean deferForRuntimeReconciliation(DrPlanVO plan, DrRunVO run,
@@ -2063,15 +2204,8 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         String runtimeState = StringUtils.upperCase(StringUtils.defaultIfBlank(status.getState(), stringValue(runtime, "state")), Locale.ROOT);
         String activeSide = StringUtils.upperCase(StringUtils.defaultIfBlank(plan.getActiveSide(), stringValue(runtime, "active_side")), Locale.ROOT);
         if (StringUtils.equals(runType, DrConstants.RUN_TYPE_SYNC)) {
-            JsonObject request = parseObject(run.getRequestJson());
-            if (StringUtils.equalsIgnoreCase(stringValue(request, "mode"), "FULL_RESEED")) {
-                String producerRunUuid = resolveProtectionProducerRunUuid(status, runtime);
-                String requestedMode = StringUtils.defaultIfBlank(status.getLatestCompletedRequestedMode(),
-                        stringValue(runtime, "latest_completed_requested_mode"));
-                if (!StringUtils.equals(run.getUuid(), producerRunUuid)
-                        || !StringUtils.equalsIgnoreCase(requestedMode, "FULL_RESEED")) {
-                    return false;
-                }
+            if (isFullReseedRun(run) && !isAcceptedFullReseedCycleSatisfied(run, status, runtime)) {
+                return false;
             }
             return isSyncTargetReady(plan, status, runtime, runtimeState);
         }
@@ -3069,6 +3203,9 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         }
         if (StringUtils.equalsAny(normalized, "TARGET_READY", "READY")) {
             return DrConstants.PLAN_STATE_READY;
+        }
+        if (StringUtils.equalsAny(normalized, "DEGRADED", "RPO_EXCEEDED", "STALE")) {
+            return DrConstants.HEALTH_DEGRADED;
         }
         if (StringUtils.equalsAny(normalized, "PAUSED")) {
             return DrConstants.PLAN_STATE_PAUSED;

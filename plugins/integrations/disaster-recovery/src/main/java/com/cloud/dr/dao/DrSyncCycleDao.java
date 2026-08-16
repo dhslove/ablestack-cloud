@@ -13,10 +13,13 @@ import com.cloud.utils.db.GenericDao;
 
 public interface DrSyncCycleDao extends GenericDao<DrSyncCycleVO, Long> {
     DrSyncCycleVO findByPlanRunSequence(long planId, String runUuid, long sequence);
+    DrSyncCycleVO findByPlanSequence(long planId, long sequence);
     DrSyncCycleVO findActiveByPlanId(long planId);
     DrSyncCycleVO findLatestCompletedByPlanId(long planId);
+    DrSyncCycleVO findLatestCompletedByRunIdAndRequestedMode(long runId, String requestedMode);
     DrSyncCycleVO findLatestByPlanId(long planId);
     List<DrSyncCycleVO> listIncompleteBeforeSequence(long planId, long sequence, int limit);
+    List<DrSyncCycleVO> listIncompleteAtOrBeforeSequence(long planId, long sequence, int limit);
     void terminalize(long cycleId, String state, String commitState, Date completedAt);
     List<DrSyncCycleVO> listByPlanId(long planId);
     int removeByPlanId(long planId);

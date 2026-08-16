@@ -755,7 +755,11 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         profile.add("workers", buildWorkers(plan));
         profile.add("policy", parseObject(plan.getPolicyJson()));
         profile.add("mapping", mapping);
-        profile.add("schedule", parseObject(plan.getScheduleJson()));
+        JsonObject schedule = parseObject(plan.getScheduleJson());
+        if (request.has("scheduleJitterSeconds") && request.get("scheduleJitterSeconds").isJsonPrimitive()) {
+            schedule.addProperty("jitterSeconds", Math.max(0, request.get("scheduleJitterSeconds").getAsInt()));
+        }
+        profile.add("schedule", schedule);
         profile.add("quiescePolicy", parseObject(plan.getQuiescePolicyJson()));
         profile.add("request", request);
         return GSON.toJson(profile);

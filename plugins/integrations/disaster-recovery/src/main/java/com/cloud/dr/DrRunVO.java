@@ -73,6 +73,12 @@ public class DrRunVO implements InternalIdentity {
     @Temporal(value = TemporalType.TIMESTAMP)
     private Date acceptedAt;
 
+    @Column(name = "accepted_cycle_sequence")
+    private Long acceptedCycleSequence;
+
+    @Column(name = "accepted_cycle_token")
+    private String acceptedCycleToken;
+
     @Column(name = "dispatch_started")
     @Temporal(value = TemporalType.TIMESTAMP)
     private Date dispatchStarted;
@@ -199,6 +205,14 @@ public class DrRunVO implements InternalIdentity {
         return acceptedAt;
     }
 
+    public Long getAcceptedCycleSequence() {
+        return acceptedCycleSequence;
+    }
+
+    public String getAcceptedCycleToken() {
+        return acceptedCycleToken;
+    }
+
     public Date getDispatchStarted() {
         return dispatchStarted;
     }
@@ -301,6 +315,14 @@ public class DrRunVO implements InternalIdentity {
 
     public void setAcceptedAt(Date acceptedAt) {
         this.acceptedAt = acceptedAt;
+    }
+
+    public void setAcceptedCycleSequence(Long acceptedCycleSequence) {
+        this.acceptedCycleSequence = acceptedCycleSequence;
+    }
+
+    public void setAcceptedCycleToken(String acceptedCycleToken) {
+        this.acceptedCycleToken = acceptedCycleToken;
     }
 
     public void setDispatchStarted(Date dispatchStarted) {

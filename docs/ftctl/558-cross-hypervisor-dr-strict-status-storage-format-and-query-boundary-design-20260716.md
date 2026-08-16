@@ -668,9 +668,9 @@ CREATE TABLE IF NOT EXISTS cloud.dr_sync_cycle (
     removed datetime NULL,
     PRIMARY KEY (id),
     UNIQUE KEY uk_dr_sync_cycle__uuid (uuid),
-    UNIQUE KEY uk_dr_sync_cycle__plan_run_sequence
+    UNIQUE KEY uk_dr_sync_cycle__plan_sequence (plan_id, sequence),
+    KEY i_dr_sync_cycle__plan_run_sequence
         (plan_id, engine_run_uuid, sequence),
-    KEY i_dr_sync_cycle__plan_sequence (plan_id, sequence),
     KEY i_dr_sync_cycle__plan_state_updated (plan_id, state, updated),
     CONSTRAINT fk_dr_sync_cycle__plan_id
         FOREIGN KEY (plan_id) REFERENCES dr_plan (id) ON DELETE CASCADE,
@@ -681,7 +681,8 @@ CREATE TABLE IF NOT EXISTS cloud.dr_sync_cycle (
 
 dr_restore_point remains the durable replicated-copy record. A failed cycle
 does not create or modify a restore point. A LOCAL_DURABLE cycle creates one
-through an idempotency key derived from plan, engine run, and sequence.
+through an idempotency key derived from Plan and sequence. The engine Run is
+retained as producer metadata and is not part of durable Cycle identity.
 
 ### 20.3 Migration rules
 
@@ -831,7 +832,7 @@ A valid status transaction:
 1. validates Plan/run identity and generation;
 2. discards older generations;
 3. upserts dr_plan_runtime;
-4. upserts dr_sync_cycle by plan, engine run, and sequence;
+4. upserts dr_sync_cycle by Plan-wide sequence and retains engine Run as producer metadata;
 5. creates a restore point only for LOCAL_DURABLE;
 6. recomputes protection/freshness;
 7. updates dr_plan summary state and last error;

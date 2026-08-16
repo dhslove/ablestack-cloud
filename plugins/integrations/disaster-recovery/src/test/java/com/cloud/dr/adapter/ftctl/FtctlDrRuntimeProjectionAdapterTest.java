@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.Date;
 
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
@@ -28,6 +29,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnitRunner;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.cloud.agent.AgentManager;
 import com.cloud.agent.api.Answer;
@@ -114,6 +116,12 @@ public class FtctlDrRuntimeProjectionAdapterTest {
 
     @InjectMocks
     private FtctlDrRuntimeProjectionAdapter adapter;
+
+    @Before
+    public void allowCycleProjectionLock() {
+        Mockito.lenient().when(drPlanDao.acquireInLockTable(Mockito.anyLong(), Mockito.anyInt()))
+                .thenReturn(new DrPlanVO("projection-lock", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM));
+    }
 
     @Test
     public void terminalTestCleanupProofRequiresArtifactsAndOwnedLeaseRelease() {
@@ -240,7 +248,7 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         DrSyncCycleVO completed = new DrSyncCycleVO(plan.getId(), "sync-run", 528L);
         completed.setState("READY");
         completed.setCompleted(new Date());
-        Mockito.when(drSyncCycleDao.listIncompleteBeforeSequence(plan.getId(), 528L, 100))
+        Mockito.when(drSyncCycleDao.listIncompleteAtOrBeforeSequence(plan.getId(), 528L, 100))
                 .thenReturn(Arrays.asList(orphan, reverse));
 
         adapter.terminalizeSupersededSyncCycles(plan, completed);
@@ -256,16 +264,79 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         DrPlanVO plan = new DrPlanVO("plan-terminal-restart", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
         DrSyncCycleVO completed = new DrSyncCycleVO(plan.getId(), "sync-run", 528L);
         completed.setCompleted(new Date());
-        Mockito.when(drSyncCycleDao.listIncompleteBeforeSequence(plan.getId(), 528L, 100))
+        Mockito.when(drSyncCycleDao.listIncompleteAtOrBeforeSequence(plan.getId(), 528L, 100))
                 .thenReturn(Collections.emptyList());
 
         adapter.terminalizeSupersededSyncCycles(plan, completed);
         adapter.terminalizeSupersededSyncCycles(plan, completed);
 
         Mockito.verify(drSyncCycleDao, Mockito.times(2))
-                .listIncompleteBeforeSequence(plan.getId(), 528L, 100);
+                .listIncompleteAtOrBeforeSequence(plan.getId(), 528L, 100);
         Mockito.verify(drSyncCycleDao, Mockito.never()).terminalize(Mockito.anyLong(), Mockito.anyString(),
                 Mockito.anyString(), Mockito.any(Date.class));
+    }
+
+    @Test
+    public void durableCycleImmediatelySupersedesSameSequenceAlias() {
+        DrPlanVO plan = new DrPlanVO("plan-same-sequence-alias", 1L, 2L,
+                DrConstants.DIRECTION_VMWARE_TO_KVM);
+        DrSyncCycleVO alias = new DrSyncCycleVO(plan.getId(), "scheduler-run", 528L);
+        ReflectionTestUtils.setField(alias, "id", 527L);
+        alias.setState("TRANSFERRING");
+        DrSyncCycleVO completed = new DrSyncCycleVO(plan.getId(), "operation-run", 528L);
+        completed.setCompleted(new Date());
+        Mockito.when(drSyncCycleDao.listIncompleteAtOrBeforeSequence(plan.getId(), 528L, 100))
+                .thenReturn(Collections.singletonList(alias));
+
+        adapter.terminalizeSupersededSyncCycles(plan, completed);
+
+        Mockito.verify(drSyncCycleDao).terminalize(alias.getId(), "SUPERSEDED",
+                "SUPERSEDED_BY_DURABLE_CYCLE", completed.getCompleted());
+    }
+
+    @Test
+    public void schedulerAndOperationRunUuidsConvergeOnCanonicalPlanSequence() {
+        DrPlanVO plan = new DrPlanVO("canonical-cycle-plan", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
+        ReflectionTestUtils.setField(plan, "id", 77L);
+        DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_SYNC);
+        ReflectionTestUtils.setField(run, "id", 88L);
+        DrSyncCycleVO canonical = new DrSyncCycleVO(plan.getId(), "scheduler-run", 19L);
+        ReflectionTestUtils.setField(canonical, "id", 99L);
+        Mockito.when(drSyncCycleDao.findByPlanSequence(plan.getId(), 19L)).thenReturn(canonical);
+
+        FtctlDrStatusAnswer schedulerStatus = new FtctlDrStatusAnswer(
+                new FtctlDrStatusCommand(plan.getUuid(), null), true, "ok");
+        schedulerStatus.setActiveWorkerRunUuid("scheduler-run");
+        adapter.projectCurrentSyncCycle(plan, run, schedulerStatus, 19L, "FULL_RESEED", "FULL_RESEED",
+                "TRANSFERRING", "PENDING", null, new Date(), null, null);
+
+        FtctlDrStatusAnswer operationStatus = new FtctlDrStatusAnswer(
+                new FtctlDrStatusCommand(plan.getUuid(), "operation-run"), true, "ok");
+        operationStatus.setLatestCompletedProducerRunUuid("operation-run");
+        operationStatus.setLatestCompletedCheckpointSequence(19L);
+        operationStatus.setLatestCompletedSourceCheckpointAt("2026-08-14T01:00:00Z");
+        operationStatus.setLatestCompletedTargetDurableAt("2026-08-14T01:00:01Z");
+        FtctlDrCycleSnapshot snapshot = new FtctlDrCycleSnapshot();
+        snapshot.setPlanUuid(plan.getUuid());
+        snapshot.setRunUuid("operation-run");
+        snapshot.setSequence(19L);
+        snapshot.setCycleToken(plan.getUuid() + ":19");
+        snapshot.setState("READY");
+        snapshot.setEffectiveMode("NO_CHANGE");
+        snapshot.setBaselineGeneration(19L);
+        snapshot.setChangedBytes(0L);
+        snapshot.setTargetWrittenBytes(0L);
+        operationStatus.setLatestCompletedCycle(snapshot);
+
+        DrSyncCycleVO completed = adapter.projectLatestCompletedSyncCycle(plan, run, operationStatus, 19L,
+                "LOCAL_DURABLE");
+
+        Assert.assertSame(canonical, completed);
+        Assert.assertEquals("scheduler-run", completed.getEngineRunUuid());
+        Assert.assertEquals("READY", completed.getState());
+        Assert.assertNotNull(completed.getCompleted());
+        Mockito.verify(drSyncCycleDao, Mockito.never()).persist(Mockito.any(DrSyncCycleVO.class));
+        Mockito.verify(drSyncCycleDao, Mockito.times(2)).update(Mockito.eq(canonical.getId()), Mockito.same(canonical));
     }
 
     @Test
@@ -1634,5 +1705,48 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         ArgumentCaptor<DrRestorePointVO> restorePointCaptor = ArgumentCaptor.forClass(DrRestorePointVO.class);
         Mockito.verify(drRestorePointDao).persist(restorePointCaptor.capture());
         Assert.assertTrue(restorePointCaptor.getValue().getSourceSnapshotRef().contains(syncRun.getUuid()));
+    }
+
+    @Test
+    public void acceptedFullReseedCycleCompletesAfterSchedulerAdvancesToNextIncrementalProducer() {
+        DrPlanVO plan = new DrPlanVO("plan-41", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
+        ReflectionTestUtils.setField(plan, "id", 41L);
+        DrRunVO run = new DrRunVO(41L, DrConstants.RUN_TYPE_SYNC);
+        ReflectionTestUtils.setField(run, "id", 188L);
+        run.setRequestJson("{\"mode\":\"FULL_RESEED\",\"forceFullReseed\":true}");
+
+        DrSyncCycleVO acceptedCycle = new DrSyncCycleVO(41L, "scheduler-full-seed", 1140L);
+        acceptedCycle.setRunId(147L);
+        acceptedCycle.setCycleToken(plan.getUuid() + ":1140");
+        acceptedCycle.setRequestedMode("FULL_RESEED");
+        acceptedCycle.setEffectiveMode("FULL_RESEED");
+        acceptedCycle.setState("READY");
+        acceptedCycle.setCommitState("LOCAL_DURABLE");
+        acceptedCycle.setCompleted(new Date());
+        Mockito.when(drSyncCycleDao.findByPlanSequence(41L, 1140L)).thenReturn(acceptedCycle);
+
+        FtctlDrStatusCommand command = new FtctlDrStatusCommand("plan-41", run.getUuid(),
+                FtctlDrStatusCommand.StatusScope.OPERATION);
+        FtctlDrStatusAnswer status = new FtctlDrStatusAnswer(command, true, "ok");
+        status.setControlRequestRunUuid(run.getUuid());
+        status.setTerminalAuthoritative(true);
+        status.setTerminalSource("ENGINE_TERMINAL");
+        status.setTransferCycleSequence(1140L);
+        status.setTransferMode("FULL_RESEED");
+        status.setLatestCompletedProducerRunUuid("scheduler-next-cycle");
+        status.setLatestCompletedRequestedMode("CBT_INCREMENTAL");
+        JsonObject runtime = new JsonObject();
+        runtime.addProperty("control_request_run_uuid", run.getUuid());
+        runtime.addProperty("terminal_authoritative", true);
+        runtime.addProperty("transfer_cycle_sequence", 1140L);
+        runtime.addProperty("transfer_mode", "FULL_RESEED");
+        runtime.addProperty("latest_completed_producer_run_uuid", "scheduler-next-cycle");
+
+        adapter.bindAcceptedCycleFromControlRequest(plan, run, status, runtime);
+
+        Assert.assertEquals(Long.valueOf(1140L), run.getAcceptedCycleSequence());
+        Assert.assertEquals(plan.getUuid() + ":1140", run.getAcceptedCycleToken());
+        Mockito.verify(drRunDao).update(run.getId(), run);
+        Assert.assertTrue(adapter.isAcceptedFullReseedCycleSatisfied(run, status, runtime));
     }
 }
