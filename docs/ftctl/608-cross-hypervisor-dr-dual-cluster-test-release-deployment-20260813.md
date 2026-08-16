@@ -236,3 +236,122 @@ The next operator action is to create or select a DR plan in the desired
 cluster UI and start the test from that UI. Build, package, service, schema,
 credential-registration, vCenter-connectivity, and one live incremental-cycle
 verification are complete; no additional server-side preparation is required.
+
+## 2026-08-16 Upstream-Aligned Dual-Cluster Test Release
+
+### Source alignment and release builds
+
+The feature branches were first synchronized with their current base branches,
+committed, and pushed before any package was built.
+
+| Repository | Feature source used by build | Synchronized base | Merge commit |
+|---|---|---|---|
+| `dhslove/ablestack-cloud` | `c85cf95d242bcbe7cfbea2e5338f41bb26076e1e` | `upstream/ablestack-europa` at `6a617e5ce3039d0636b5d519af1dff11497885df` | `c85cf95d242bcbe7cfbea2e5338f41bb26076e1e` |
+| `dhslove/ablestack-qemu-exec-tools` | `a30584e3b287b28e596b6362df4b4977cf1c4156` | `upstream/main` and `origin/main` at `72854d47a5355752ffb98d37682e9aeecb177795` | `a30584e3b287b28e596b6362df4b4977cf1c4156` |
+
+GitHub Actions completed successfully from those exact feature commits:
+
+- Cloud full branch development release: run
+  [`31917005031`](https://github.com/dhslove/ablestack-cloud/actions/runs/31917005031)
+- QEMU/V2K/N2K/HangCTL full package build: run
+  [`31917006777`](https://github.com/dhslove/ablestack-qemu-exec-tools/actions/runs/31917006777)
+- FTCTL branch package build: run
+  [`31917008164`](https://github.com/dhslove/ablestack-qemu-exec-tools/actions/runs/31917008164)
+
+The Cloud test package version is
+`4.23.0.0-Mold.Europa.202608160021.1`; the release metadata display version is
+`v4.10.0-Europa-20260816-ALPHA1`.
+
+Focused pre-release verification also passed from clean WSL ext4 clones:
+
+- 44 DR Maven tests covering admission, protection-group execution, and FTCTL
+  runtime projection.
+- Four schema-upgrade tests covering the 4.22.1-to-4.23.0 contract.
+- Production UI build with the asynchronous DR progress and protection-group
+  action markers.
+- FTCTL 10/30/100-plan fleet admission smoke, CBT pagination smoke, V2K CPU
+  offering smoke, and controller CBT smoke.
+
+### Artifact identity
+
+| Package | SHA256 |
+|---|---|
+| `cloudstack-agent` | `42c8bea8e4b1b1b13f2c15f3ed365c8a59ed958241448d3747648256c5833ed1` |
+| `cloudstack-common` | `a35643c781194f55beba7eb8ba3b9e2eb080850582410f8ec7e19cc3b99678ed` |
+| `cloudstack-management` | `668dd2ac59756671ac9c2ec36a145a0597753f3caa0cb360faacfa246c6273a0` |
+| `cloudstack-ui` | `319bdafc3c7674c042bb8fa8e479462a35f817f2dbc6ee2a5c94ed8821be27a5` |
+| `cloudstack-usage` | `3ce45e805069ce926bdeb5cc1aa3f08da6d4cf5b5eb14d3414810c9def4cf190` |
+| `ablestack_n2k-0.9.5-1.el9.el9` | `3fc8475ecf5970efb1e7303cebcc5b578071220dabaa5ac279841f12f84f4748` |
+| `ablestack-qemu-exec-tools-0.9.5-1.el9.el9` | `0da113e90757e7f216ece3d349b53fc3b2412ec429b2d2ad36813469fad4153d` |
+| `ablestack_v2k-0.9.5-1.el9.el9` | `c02399fb632d572a23ba6096fbfea1760ab791ec3829a63d552323663e391f82` |
+| `ablestack_vm_ftctl-0.9.5-1` | `5fe01c40435422ad18b9715d24a9809b9e6b0aa7c296b3cab1989d7a5d89b9d9` |
+| `ablestack_vm_hangctl-0.9.5-1` | `64f3aa4a5ab24ad91bc7e0d1c7a4f01a08b341e68e1147f6708005ac5448317a` |
+
+### Deployment matrix and rollback evidence
+
+The same Cloud package set was installed on management servers
+`10.10.22.10` and `10.10.32.10`. The same Cloud agent and five first-party
+QEMU/FTCTL packages were installed on all six compute hosts. Native `rpm` was
+used on the 22 cluster and the administrator `aspkg` wrapper was used on the
+32 cluster.
+
+Pre-deployment backups exist at
+`/root/dual-dr-release-backup-20260816-092705` on both management servers and
+all six compute hosts. Management backups include the active webapp, Cloud
+JARs, configuration, installed package list, and DB schema. Host backups
+include package lists, Agent state, and installed FTCTL/QEMU/V2K trees.
+
+The 22-cluster HangCTL timers were already intentionally masked and remained
+masked. FTCTL timers are active on all six hosts; HangCTL remains active and
+enabled on the 32 cluster.
+
+### 32-cluster package cleanup recovery
+
+During the 32 management upgrade, the package cleanup script again moved three
+package-owned JARs from the new build into
+`/var/lib/cloudstack/management/legacy-lib/20260816T010712Z`:
+
+- `cloudstack-4.23.0.0-Mold.Europa-202608160021.jar`
+- `cloud-plugin-storage-volume-linstor-4.23.0.0-Mold.Europa-202608160021.jar`
+- `cloud-plugin-storage-volume-storpool-4.23.0.0-Mold.Europa-202608160021.jar`
+
+The exact same-build files were restored before service startup. Subsequent
+`aspkg -V cloudstack-management` reported no missing package-owned JAR, the
+remaining timestamp-only differences matched those restored files, and
+`ClassNotFoundException: org.apache.cloudstack.ServerDaemon` did not occur.
+`WEB-INF` remained present throughout deployment.
+
+After the Agent rollout, hosts 2 and 3 on the 32 cluster initially remained in
+`Connecting`. The management log showed that the two-second DR projection
+scheduler was dispatching to the reconnecting hosts while their host-join
+locks were being acquired. Deployment recovery temporarily set
+`dr.projection.scheduler.enabled=false`, restarted management so all three
+Agents could attach, and restored the setting to `true`. All three hosts then
+converged to `Up/Enabled`, and no new host-lock or FTCTL status-answer warning
+was observed in the post-recovery interval.
+
+### Final verification result
+
+Both clusters passed the same final checks:
+
+- `mold` and `mold-usage` are active; `/client/` returns HTTP 200.
+- The active webapp retains `WEB-INF` and contains `blockingLoadingState`,
+  `fetchSyncProgress`, `extractJobId`, and `startDrProtectionGroupAction`.
+- Administrator session login and `startDrProtectionGroupAction` API discovery
+  succeed on both management servers.
+- Each DB has 23 `dr_%` tables, including `dr_run`, `dr_resource_lease`, and
+  `dr_group_run`; accepted-cycle and protection-group columns are present.
+- Active DR Run, resource lease, and protection-group Run counts are all zero.
+- All six routing hosts are `Up/Enabled` and report Agent version
+  `4.23.0.0-Mold.Europa-202608160021`.
+- `mold-agent` and `ablestack-vm-ftctl.timer` are active on all six hosts.
+- NBD is loaded with `nbds_max=32` and the persistent module configuration is
+  present on all six hosts.
+- Installed FTCTL scripts contain separate Full Seed and Incremental slots,
+  retryable `WAITING_RESOURCE`, and VMware `--device-key` handling. Installed
+  V2K scripts also contain `--device-key` handling.
+
+The paired 22/32 environments are therefore aligned to the same source-built
+test release and are ready for UI-driven single-plan and protection-group DR
+retesting. No additional server-side deployment step is required before the
+operator starts the next test.
