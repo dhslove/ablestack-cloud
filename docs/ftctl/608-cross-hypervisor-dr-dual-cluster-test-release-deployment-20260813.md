@@ -355,3 +355,85 @@ The paired 22/32 environments are therefore aligned to the same source-built
 test release and are ready for UI-driven single-plan and protection-group DR
 retesting. No additional server-side deployment step is required before the
 operator starts the next test.
+
+## 2026-08-18 Requested-Cycle Terminal Race Patch
+
+### Scope and source identity
+
+This deployment closes the race in which a completed Full Seed was followed by
+the next incremental scheduler cycle before Cloud had durably terminated the
+accepted protection-group child Run. The patch preserves the existing
+VMware-to-ABLESTACK RBD data path and changes only terminal evidence,
+canonical-cycle ownership, lease convergence, and the operator-facing
+consistency state.
+
+| Repository | Branch | Deployed commit |
+|---|---|---|
+| `dhslove/ablestack-qemu-exec-tools` | `feature/ftctl-cloud-integration` | `73147967a5f394386ef43a80833d506f6626fd14` |
+| `dhslove/ablestack-cloud` | `feature/ftctl-cloud-integration` | `3847172799` |
+
+The FTCTL package was produced by GitHub Actions run
+[`32079201628`](https://github.com/dhslove/ablestack-qemu-exec-tools/actions/runs/32079201628).
+The resulting `ablestack_vm_ftctl-0.9.5-1.noarch.rpm` SHA256 is
+`dc1c429651cb7f222192e02589ea8f18365210696d922b16ffa6b3c33e1579ca`.
+
+Cloud was built as the changed disaster-recovery Maven module from a clean WSL
+ext4 clone. The 14 changed classes were injected into the installed aggregate
+Cloud JAR, following the changed-class deployment rule. The deployed aggregate
+JAR SHA256 on both management servers is
+`244c513b6ee484eebe66c75f600a1b8f833d3d7742ea89232fd0b30f66c9cecb`.
+The UI overlay archive SHA256 is
+`8ac3226fa3e80d0e1f761f226c5b673a1112a706871029039f5fe37a8bf4a453`.
+
+### Build and smoke verification
+
+- The requested-cycle terminal repair passed the one-disk, two-disk, and
+  Windows test matrix.
+- `DrProtectionGroupServiceImplTest` and
+  `FtctlDrRuntimeProjectionAdapterTest` passed 44 tests with no failures or
+  errors.
+- The production UI build passed and contains the light/dark result-finalizing
+  state and localized transfer-complete/result-verification labels.
+- The full FTCTL self-test runner reached a pre-existing reconcile/fencing
+  harness wait; the two terminal-race cases were therefore rerun directly and
+  passed, and the GitHub Actions package build completed successfully.
+
+### Dual-cluster deployment result
+
+The FTCTL RPM was installed on `10.10.22.1`, `.2`, `.3` with native `rpm` and
+on `10.10.32.1`, `.2`, `.3` with `aspkg`. All six hosts report
+`ablestack_vm_ftctl-0.9.5-1.noarch`, an active FTCTL timer, and the
+`dr-requested-cycle-terminal-v1` capability. Installed script SHA256 values are
+identical across the six hosts:
+
+- `dr_runtime.sh`:
+  `085c35c2dfdc3adc7f8b418cdd66ee2a3e839f31ea28c04dd66fbbb09a077fd8`
+- `dr_scheduler.sh`:
+  `bbba6519137ff905c5baca4b25d2ebae0926d20f90e800687c434e4070566822`
+
+Cloud changed classes and the static UI overlay were deployed to both
+management servers while preserving `WEB-INF`. Rollback backups are stored at
+`/root/ftctl-terminal-race-20260818-081700` on `10.10.32.10` and
+`/root/ftctl-terminal-race-20260818-081809` on `10.10.22.10`.
+
+Both management servers passed the post-deployment checks: `mold` is active,
+`/client/` returns HTTP 200, `WEB-INF` exists, the aggregate JAR and changed
+class hashes match, and no new startup linkage failure was observed. Installed
+terminal-race self-tests also passed on one compute host in each cluster.
+
+### 32-cluster retest cleanup
+
+Three child Runs from protection-group Run 5 predated this patch and had no
+live parent monitor. Their cancel requests were accepted by the public API but
+could not naturally leave `CANCEL_REQUESTED`. The cleanup was therefore bounded
+to Run IDs 189, 190, and 191 and their exact UUIDs; only their open
+`runtime-projection` steps were changed to `CANCELED`. All resource leases are
+`RELEASED`, and no current Run is active for the Windows, Rocky, or Ubuntu
+plans. Historical group Run 5 remains `FAILED` as an audit record.
+
+Windows and Ubuntu are `READY`. Rocky is `DEGRADED` only because its current
+RPO is stale; this is the expected starting condition for a Full Seed recovery
+test and does not represent an active Run or resource conflict. The operator
+can now select the three plans and run **Protection Group Action > Full
+Synchronization** to verify concurrent terminal convergence and immediate
+next-incremental scheduling.
