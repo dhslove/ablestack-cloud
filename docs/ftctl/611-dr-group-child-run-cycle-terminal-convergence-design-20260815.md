@@ -141,3 +141,56 @@ still requires the child and group to finish successfully.
 7. 후속 증분 Cycle이 시작되어도 자식 및 그룹이 모두 `SUCCEEDED`인지 확인
 
 PASS는 전송 성공뿐 아니라 자식 Run, 그룹 Run, canonical Cycle, UI 집계가 모두 terminal 상태로 일치할 때만 부여한다.
+
+## 8. 2026-08-18 terminal journal 경쟁 조건 보강
+
+### 8.1 확인된 실패 경로
+
+Ubuntu/Rocky/Windows 그룹 Full Seed에서 데이터는 모두 영구 저장됐지만 다음 경쟁 조건이 확인됐다.
+
+1. FTCTL 스케줄러가 요청 Cycle N을 `LOCAL_DURABLE`로 완료한다.
+2. 요청 Run 파일은 `full-resync-completed/100%`가 되지만 terminal journal이 없는 짧은 구간이 생긴다.
+3. 다음 CBT Cycle N+1이 시작돼 Plan 범위 owner와 producer가 변경된다.
+4. Cloud가 Cycle N을 아직 참조하는 비종결 자식 Run보다 N+1 투영을 먼저 처리한다.
+5. Cycle N 또는 그 alias가 `SUPERSEDED`되고 자식 Run, 그룹 집계, 자원 lease가 종결되지 않는다.
+
+### 8.2 FTCTL 계약
+
+- 요청 Cycle N의 commit, restore point, latest-completed snapshot 기록이 끝난 직후 다음 sleep/증분 진입 전에 `runs/<run>.journals/terminal.state`를 원자 기록한다.
+- operation Run 파일에는 `control_request_run_uuid`, `requested_cycle_state=COMPLETED`, `terminal_authoritative=true`, `runtime_endpoints_drained=true`를 보존한다.
+- Plan scheduler의 이후 owner 값은 `dr-status --run`의 immutable request owner를 덮어쓰지 않는다.
+- `dr-status --run`은 `full-resync-completed/100%`, completed Full Seed, durable commit, cycle token이 모두 일치하는 경우에만 누락 terminal journal을 복구한다. 전송 중 상태나 불완전 commit은 복구하지 않는다.
+- capability `dr-requested-cycle-terminal-v1`으로 새 계약을 광고한다.
+
+### 8.3 Cloud 계약
+
+- `accepted_cycle_sequence`를 참조하는 비종결 Run이 존재하면 후속 completed Cycle 정리가 그 Cycle을 `SUPERSEDED` 처리하지 않는다.
+- 그룹 Full Seed의 admission lease는 Agent 수락 시 해제하지 않는다. 그룹 감시기가 terminal 수렴 전까지 갱신하고, 자식 terminal + accepted durable Cycle 확인 시 그룹 성공 집계와 함께 해제한다.
+- 그룹 감시기는 관리 서버 재시작 후에도 동일한 수렴 함수를 호출한다.
+- UI progress JSON은 `dataTransferCompleted=true`와 terminalization 상태를 분리한다.
+
+### 8.4 UI 표현
+
+- `RESULT_FINALIZING`: `데이터 전송 완료`, 상세 문구는 영구 결과 확인 중으로 표시한다.
+- `CONSISTENCY_WARNING`: `결과 정합성 확인 실패`, 상세 문구는 전송 실패가 아니라 종결 확인 실패임을 명시한다.
+- 밝은/어두운 테마 모두 기존 DR status 색상 토큰과 고대비 파랑/노랑을 사용한다.
+
+### 8.5 AS-IS / TO-BE
+
+| 구분 | AS-IS | TO-BE |
+|---|---|---|
+| terminal 기록 | 다음 Cycle과 경쟁 | 다음 Cycle 전에 원자 journal 기록 |
+| Run owner | 현재 scheduler owner로 덮어씀 | 요청 Run owner 불변 보존 |
+| 상태 복구 | journal 누락 시 계속 RUNNING | durable 증거 완전 일치 시 제한 복구 |
+| Cycle 정리 | accepted Cycle도 SUPERSEDED 가능 | 비종결 Run이 pin한 Cycle 제외 |
+| admission lease | Agent 수락 직후 해제 | 그룹 자식 terminal까지 갱신 후 해제 |
+| 그룹 집계 | 자식 종결과 별도 갱신 | terminal/Cycle/집계/lease를 한 수렴 트랜잭션에서 확정 |
+| UI | 일반 진행 중 또는 모호한 경고 | 전송 완료와 결과 확인 실패를 구분 |
+
+### 8.6 필수 회귀 검증
+
+1. Linux 1-disk Full Seed 완료 직후 증분 시작
+2. Linux 2-disk Full Seed 완료 직후 증분 시작
+3. Windows 2-disk Full Seed 완료 직후 증분 시작
+4. 각 요청 Run의 terminal journal, owner, accepted sequence/token 유지
+5. pinned Cycle 비대체, 자식 Run `SUCCEEDED`, 그룹 `3/3 SUCCEEDED`, active lease 0

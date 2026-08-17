@@ -11,4 +11,5 @@ import com.cloud.utils.db.GenericDao;
 public interface DrResourceLeaseDao extends GenericDao<DrResourceLeaseVO, Long> {
     List<DrResourceLeaseVO> listActiveByResourceKey(String resourceKey, Date now);
     DrResourceLeaseVO findActiveByRunId(long runId, Date now);
+    DrResourceLeaseVO findByRunId(long runId);
 }

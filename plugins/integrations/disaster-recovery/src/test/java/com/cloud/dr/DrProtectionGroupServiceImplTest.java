@@ -41,6 +41,7 @@ public class DrProtectionGroupServiceImplTest {
     @Mock private DrProjectionService drProjectionService;
     @Mock private DrGroupRunDao drGroupRunDao;
     @Mock private DrSyncCycleDao drSyncCycleDao;
+    @Mock private DrAdmissionController drAdmissionController;
     @Mock private AgentManager agentManager;
 
     @InjectMocks private DrProtectionGroupServiceImpl service;
@@ -178,6 +179,39 @@ public class DrProtectionGroupServiceImplTest {
 
         verify(drProjectionService).refreshPlanProjection(readyPlan.getId(), true);
         Assert.assertEquals(DrConstants.RUN_STATE_SUCCEEDED, result.getState());
+    }
+
+    @Test
+    public void terminalChildReleasesLeaseAndUpdatesGroupCountInOneConvergenceTransaction() {
+        DrGroupRunVO groupRun = new DrGroupRunVO("group-1", "group one", DrConstants.RUN_TYPE_SYNC,
+                "[37]", 1, false, 1);
+        ReflectionTestUtils.setField(groupRun, "id", 501L);
+        DrRunVO child = new DrRunVO(readyPlan.getId(), DrConstants.RUN_TYPE_SYNC);
+        ReflectionTestUtils.setField(child, "id", 502L);
+        child.setIdempotencyKey(groupRun.getUuid() + ":" + readyPlan.getId());
+        child.setState(DrConstants.RUN_STATE_SUCCEEDED);
+        child.setRequestJson("{\"mode\":\"FULL_RESEED\",\"forceFullReseed\":true}");
+        child.setAcceptedCycleSequence(42L);
+        child.setAcceptedCycleToken(readyPlan.getUuid() + ":42");
+        child.setTerminalAuthoritative(true);
+        DrSyncCycleVO cycle = new DrSyncCycleVO(readyPlan.getId(), child.getUuid(), 42L);
+        cycle.setCycleToken(readyPlan.getUuid() + ":42");
+        cycle.setRequestedMode("FULL_RESEED");
+        cycle.setState("READY");
+        cycle.setCommitState("LOCAL_DURABLE");
+        cycle.setCompleted(new Date());
+
+        when(drRunDao.findById(child.getId())).thenReturn(child);
+        when(drSyncCycleDao.findByPlanSequence(readyPlan.getId(), 42L)).thenReturn(cycle);
+        when(drGroupRunDao.findById(groupRun.getId())).thenReturn(groupRun);
+        when(drRunDao.listByPlanId(readyPlan.getId())).thenReturn(Collections.singletonList(child));
+
+        DrRunVO result = service.convergeGroupChildTerminal(groupRun, child);
+
+        Assert.assertEquals(DrConstants.RUN_STATE_SUCCEEDED, result.getState());
+        Assert.assertEquals(1, groupRun.getSucceededCount());
+        verify(drAdmissionController).release(child.getId());
+        verify(drGroupRunDao).update(groupRun.getId(), groupRun);
     }
 
     private DrPlanVO plan(long id, String name, String state, String adminState) {

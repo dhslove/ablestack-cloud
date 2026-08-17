@@ -15,6 +15,7 @@ import com.cloud.utils.db.SearchCriteria;
 public class DrResourceLeaseDaoImpl extends GenericDaoBase<DrResourceLeaseVO, Long> implements DrResourceLeaseDao {
     private final SearchBuilder<DrResourceLeaseVO> activeByResource;
     private final SearchBuilder<DrResourceLeaseVO> activeByRun;
+    private final SearchBuilder<DrResourceLeaseVO> byRun;
 
     public DrResourceLeaseDaoImpl() {
         activeByResource = createSearchBuilder();
@@ -28,6 +29,11 @@ public class DrResourceLeaseDaoImpl extends GenericDaoBase<DrResourceLeaseVO, Lo
         activeByRun.and("state", activeByRun.entity().getState(), SearchCriteria.Op.EQ);
         activeByRun.and("expiresAt", activeByRun.entity().getExpiresAt(), SearchCriteria.Op.GT);
         activeByRun.done();
+
+        byRun = createSearchBuilder();
+        byRun.and("runId", byRun.entity().getRunId(), SearchCriteria.Op.EQ);
+        byRun.and("state", byRun.entity().getState(), SearchCriteria.Op.EQ);
+        byRun.done();
     }
 
     @Override
@@ -45,6 +51,14 @@ public class DrResourceLeaseDaoImpl extends GenericDaoBase<DrResourceLeaseVO, Lo
         sc.setParameters("runId", runId);
         sc.setParameters("state", "ACTIVE");
         sc.setParameters("expiresAt", now);
+        return findOneBy(sc);
+    }
+
+    @Override
+    public DrResourceLeaseVO findByRunId(long runId) {
+        SearchCriteria<DrResourceLeaseVO> sc = byRun.create();
+        sc.setParameters("runId", runId);
+        sc.setParameters("state", "ACTIVE");
         return findOneBy(sc);
     }
 }

@@ -295,6 +295,28 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     }
 
     @Test
+    public void acceptedCycleOfNonTerminalRunIsNotSupersededByNextIncremental() {
+        DrPlanVO plan = new DrPlanVO("plan-pinned-cycle", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
+        ReflectionTestUtils.setField(plan, "id", 77L);
+        DrSyncCycleVO accepted = new DrSyncCycleVO(plan.getId(), "operation-run", 42L);
+        ReflectionTestUtils.setField(accepted, "id", 420L);
+        accepted.setState("TRANSFERRING");
+        DrSyncCycleVO nextCompleted = new DrSyncCycleVO(plan.getId(), "scheduler-run", 43L);
+        nextCompleted.setCompleted(new Date());
+        DrRunVO child = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_SYNC);
+        child.setAcceptedCycleSequence(42L);
+
+        Mockito.when(drSyncCycleDao.listIncompleteAtOrBeforeSequence(plan.getId(), 43L, 100))
+                .thenReturn(Collections.singletonList(accepted));
+        Mockito.when(drRunDao.listByPlanId(plan.getId())).thenReturn(Collections.singletonList(child));
+
+        adapter.terminalizeSupersededSyncCycles(plan, nextCompleted);
+
+        Mockito.verify(drSyncCycleDao, Mockito.never()).terminalize(Mockito.eq(accepted.getId()),
+                Mockito.anyString(), Mockito.anyString(), Mockito.any(Date.class));
+    }
+
+    @Test
     public void schedulerAndOperationRunUuidsConvergeOnCanonicalPlanSequence() {
         DrPlanVO plan = new DrPlanVO("canonical-cycle-plan", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
         ReflectionTestUtils.setField(plan, "id", 77L);

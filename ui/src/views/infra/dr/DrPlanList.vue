@@ -247,7 +247,7 @@
                 <span v-if="record.resourceWaiting" class="cross-dr-group-resource-wait">
                   {{ $t('message.dr.protection.group.resource.wait') }}
                 </span>
-                <span v-else-if="record.terminalizationState === 'RESULT_FINALIZING'">
+                <span v-else-if="record.terminalizationState === 'RESULT_FINALIZING'" class="cross-dr-group-result-finalizing">
                   {{ $t('message.dr.protection.group.result.finalizing') }}
                 </span>
                 <span v-else-if="record.terminalizationState === 'CONSISTENCY_WARNING'" class="cross-dr-group-resource-wait">

@@ -61,8 +61,18 @@ public class DrAdmissionControllerImpl extends ManagerBase implements DrAdmissio
     }
 
     @Override
+    public void renew(long runId) {
+        DrResourceLeaseVO lease = drResourceLeaseDao.findByRunId(runId);
+        if (lease == null) {
+            return;
+        }
+        lease.setExpiresAt(new Date(System.currentTimeMillis() + LEASE_SECONDS * 1000L));
+        drResourceLeaseDao.update(lease.getId(), lease);
+    }
+
+    @Override
     public void release(long runId) {
-        DrResourceLeaseVO lease = drResourceLeaseDao.findActiveByRunId(runId, new Date());
+        DrResourceLeaseVO lease = drResourceLeaseDao.findByRunId(runId);
         if (lease == null) {
             return;
         }

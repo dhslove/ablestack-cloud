@@ -52,6 +52,8 @@ import com.cloud.dr.dao.DrRunDao;
 import com.cloud.dr.dao.DrRunStepDao;
 import com.cloud.utils.component.ManagerBase;
 import com.cloud.utils.concurrency.NamedThreadFactory;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
     private static final Logger LOGGER = LogManager.getLogger(DrRunExecutorImpl.class);
@@ -172,9 +174,22 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
         try {
             executeAdmittedRun(plan, latestRun);
         } finally {
-            if (drAdmissionController != null) {
+            if (drAdmissionController != null && !retainAdmissionLeaseUntilGroupTerminal(latestRun)) {
                 drAdmissionController.release(latestRun.getId());
             }
+        }
+    }
+
+    private boolean retainAdmissionLeaseUntilGroupTerminal(DrRunVO run) {
+        if (run == null || StringUtils.isBlank(run.getRequestJson())) {
+            return false;
+        }
+        try {
+            JsonObject request = JsonParser.parseString(run.getRequestJson()).getAsJsonObject();
+            return request.has("groupRunUuid") && StringUtils.isNotBlank(request.get("groupRunUuid").getAsString())
+                    && request.has("forceFullReseed") && request.get("forceFullReseed").getAsBoolean();
+        } catch (RuntimeException e) {
+            return false;
         }
     }
 

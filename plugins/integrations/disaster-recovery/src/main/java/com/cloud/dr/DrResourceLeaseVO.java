@@ -77,4 +77,5 @@ public class DrResourceLeaseVO implements InternalIdentity {
     public Date getCreated() { return created; }
     public Date getUpdated() { return updated; }
     public void setState(String state) { this.state = state; this.updated = new Date(); }
+    public void setExpiresAt(Date expiresAt) { this.expiresAt = expiresAt; this.updated = new Date(); }
 }

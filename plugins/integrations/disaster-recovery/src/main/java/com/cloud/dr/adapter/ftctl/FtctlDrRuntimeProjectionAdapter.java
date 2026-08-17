@@ -722,12 +722,24 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             return;
         }
         for (DrSyncCycleVO cycle : incompleteCycles) {
+            if (isPinnedByNonTerminalRun(plan.getId(), cycle.getSequence())) {
+                continue;
+            }
             boolean reverseCheckpoint = StringUtils.equalsAnyIgnoreCase(cycle.getState(),
                     "FAILBACK_DATA_READY", "REVERSE_DATA_READY");
             drSyncCycleDao.terminalize(cycle.getId(), reverseCheckpoint ? "CONSUMED" : "SUPERSEDED",
                     reverseCheckpoint ? "CONSUMED_BY_DURABLE_CYCLE" : "SUPERSEDED_BY_DURABLE_CYCLE",
                     completedCycle.getCompleted());
         }
+    }
+
+    boolean isPinnedByNonTerminalRun(long planId, long sequence) {
+        List<DrRunVO> runs = drRunDao.listByPlanId(planId);
+        if (runs == null || runs.isEmpty()) {
+            return false;
+        }
+        return runs.stream().anyMatch(run -> run != null && run.getCompleted() == null
+                && run.getAcceptedCycleSequence() != null && run.getAcceptedCycleSequence() == sequence);
     }
 
     void projectLiveTransferOverlay(DrPlanVO plan, DrRunVO projectionRun, FtctlDrStatusAnswer status) {
