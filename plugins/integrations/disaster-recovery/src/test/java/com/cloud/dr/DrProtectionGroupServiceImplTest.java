@@ -31,6 +31,8 @@ import com.cloud.dr.dao.DrSyncCycleDao;
 import com.cloud.agent.AgentManager;
 import com.cloud.agent.api.FtctlDrStatusAnswer;
 import com.cloud.agent.api.FtctlDrStatusCommand;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 
 @RunWith(MockitoJUnitRunner.class)
 public class DrProtectionGroupServiceImplTest {
@@ -211,6 +213,30 @@ public class DrProtectionGroupServiceImplTest {
         Assert.assertEquals(DrConstants.RUN_STATE_SUCCEEDED, result.getState());
         Assert.assertEquals(1, groupRun.getSucceededCount());
         verify(drAdmissionController).release(child.getId());
+        verify(drGroupRunDao).update(groupRun.getId(), groupRun);
+    }
+
+    @Test
+    public void groupProgressAggregatesTerminalConsistencyStates() {
+        DrGroupRunVO groupRun = new DrGroupRunVO("group-1", "group one", DrConstants.RUN_TYPE_SYNC,
+                "[37,39]", 2, false, 2);
+        ReflectionTestUtils.setField(groupRun, "id", 601L);
+        JsonArray progress = new JsonArray();
+        JsonObject finalizing = new JsonObject();
+        finalizing.addProperty("dataTransferCompleted", true);
+        finalizing.addProperty("terminalizationState", "RESULT_FINALIZING");
+        progress.add(finalizing);
+        JsonObject warning = new JsonObject();
+        warning.addProperty("dataTransferCompleted", true);
+        warning.addProperty("terminalizationState", "CONSISTENCY_WARNING");
+        progress.add(warning);
+
+        ReflectionTestUtils.invokeMethod(service, "updateProgress", groupRun, progress, 0, 0);
+
+        Assert.assertTrue(groupRun.getProgressJson().contains("\"dataTransferCompletedCount\":2"));
+        Assert.assertTrue(groupRun.getProgressJson().contains("\"resultFinalizingCount\":1"));
+        Assert.assertTrue(groupRun.getProgressJson().contains("\"consistencyWarningCount\":1"));
+        Assert.assertTrue(groupRun.getProgressJson().contains("\"resultVerificationState\":\"CONSISTENCY_WARNING\""));
         verify(drGroupRunDao).update(groupRun.getId(), groupRun);
     }
 

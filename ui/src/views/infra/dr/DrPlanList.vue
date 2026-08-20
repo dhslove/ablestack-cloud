@@ -221,6 +221,16 @@
               total: trackedGroupRun.totalcount || 0
             }) }}
           </div>
+          <div
+            v-if="trackedGroupResultFinalizingCount || trackedGroupConsistencyWarningCount"
+            class="cross-dr-group-run-panel__verification">
+            <span v-if="trackedGroupResultFinalizingCount" class="cross-dr-group-result-finalizing">
+              {{ $t('message.dr.protection.group.result.finalizing.count', { count: trackedGroupResultFinalizingCount }) }}
+            </span>
+            <span v-if="trackedGroupConsistencyWarningCount" class="cross-dr-group-resource-wait">
+              {{ $t('message.dr.protection.group.consistency.warning.count', { count: trackedGroupConsistencyWarningCount }) }}
+            </span>
+          </div>
           <a-progress
             :percent="trackedGroupProgressPercent"
             :status="String(trackedGroupRun.state || '').toUpperCase() === 'FAILED' ? 'exception' : 'active'"
@@ -1706,6 +1716,18 @@ export default {
           resourceWaiting
         }
       })
+    },
+    trackedGroupResultFinalizingCount () {
+      const aggregate = Number(this.trackedGroupProgress.resultFinalizingCount)
+      return Number.isFinite(aggregate)
+        ? aggregate
+        : this.trackedGroupPlanResults.filter(record => record.terminalizationState === 'RESULT_FINALIZING').length
+    },
+    trackedGroupConsistencyWarningCount () {
+      const aggregate = Number(this.trackedGroupProgress.consistencyWarningCount)
+      return Number.isFinite(aggregate)
+        ? aggregate
+        : this.trackedGroupPlanResults.filter(record => record.terminalizationState === 'CONSISTENCY_WARNING').length
     },
     trackedGroupProgressPercent () {
       const total = Number(this.trackedGroupRun.totalcount || this.trackedGroupProgress.total || 0)

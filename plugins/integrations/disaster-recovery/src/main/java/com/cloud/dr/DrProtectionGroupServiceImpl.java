@@ -355,9 +355,33 @@ public class DrProtectionGroupServiceImpl extends ManagerBase implements DrProte
 
     private void updateProgress(DrGroupRunVO run, JsonArray progress, int succeeded, int failed) {
         JsonObject summary = new JsonObject();
+        int dataTransferCompleted = 0;
+        int resultFinalizing = 0;
+        int consistencyWarnings = 0;
+        for (JsonElement element : progress) {
+            if (!element.isJsonObject()) {
+                continue;
+            }
+            JsonObject entry = element.getAsJsonObject();
+            if (entry.has("dataTransferCompleted") && entry.get("dataTransferCompleted").getAsBoolean()) {
+                dataTransferCompleted++;
+            }
+            String terminalizationState = entry.has("terminalizationState")
+                    ? entry.get("terminalizationState").getAsString() : null;
+            if (StringUtils.equals(terminalizationState, "RESULT_FINALIZING")) {
+                resultFinalizing++;
+            } else if (StringUtils.equals(terminalizationState, "CONSISTENCY_WARNING")) {
+                consistencyWarnings++;
+            }
+        }
         summary.addProperty("total", run.getTotalCount());
         summary.addProperty("succeeded", succeeded);
         summary.addProperty("failed", failed);
+        summary.addProperty("dataTransferCompletedCount", dataTransferCompleted);
+        summary.addProperty("resultFinalizingCount", resultFinalizing);
+        summary.addProperty("consistencyWarningCount", consistencyWarnings);
+        summary.addProperty("resultVerificationState", consistencyWarnings > 0
+                ? "CONSISTENCY_WARNING" : resultFinalizing > 0 ? "RESULT_FINALIZING" : "CONSISTENT");
         summary.add("plans", progress);
         run.setProgressJson(summary.toString());
         run.setSucceededCount(succeeded);

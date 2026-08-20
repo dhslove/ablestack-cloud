@@ -31,6 +31,8 @@
   "message.dr.protection.group.resource.wait": "Waiting for reserved replication capacity",
   "message.dr.protection.group.result.finalizing": "Data transfer is complete. Verifying the durable group result.",
   "message.dr.protection.group.consistency.warning": "Data transfer for cycle {sequence} is complete, but result consistency verification failed.",
+  "message.dr.protection.group.result.finalizing.count": "Data transferred, finalizing {count} result(s)",
+  "message.dr.protection.group.consistency.warning.count": "Data transferred, {count} consistency warning(s)",
   "message.dr.nbd.capacity.invalid": "The host does not provide the reserved FTCTL NBD range (/dev/nbd16 through /dev/nbd31).",
   "message.dr.resource.busy": "Reserved replication capacity is temporarily unavailable. Retry after active transfers finish.",
   "label.sharedfs.network.mode": "Network configuration",

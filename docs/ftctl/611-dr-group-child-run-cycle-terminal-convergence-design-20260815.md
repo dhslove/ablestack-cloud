@@ -194,3 +194,42 @@ Ubuntu/Rocky/Windows 그룹 Full Seed에서 데이터는 모두 영구 저장됐
 3. Windows 2-disk Full Seed 완료 직후 증분 시작
 4. 각 요청 Run의 terminal journal, owner, accepted sequence/token 유지
 5. pinned Cycle 비대체, 자식 Run `SUCCEEDED`, 그룹 `3/3 SUCCEEDED`, active lease 0
+
+## 9. 2026-08-20 terminal barrier 및 그룹 정합성 집계
+
+### 9.1 Backend 계약
+
+- 그룹 progress의 Plan별 `terminalizationState`를 집계해
+  `resultFinalizingCount`, `consistencyWarningCount`, `dataTransferCompletedCount`를
+  최상위 필드로 제공한다.
+- `consistencyWarningCount > 0`이면 그룹 실행이 아직 성공 terminal이 아니더라도 데이터
+  전송 실패로 오인하지 않도록 `resultVerificationState=CONSISTENCY_WARNING`을 제공한다.
+- 모든 자식 Run의 terminal 증거와 accepted durable Cycle이 수렴한 트랜잭션에서 자식
+  성공, 그룹 성공 카운트, admission lease 해제를 함께 확정한다.
+- FTCTL의 terminal journal이 없는 동안에는 Cloud가 Run을 임의 성공 처리하거나 lease를
+  해제하지 않는다.
+
+### 9.2 UI 계약
+
+- 보호 그룹 진행 패널은 `성공/실패/전체`와 별도로 `결과 반영 중`, `정합성 경고`의
+  구성원 수를 표시한다.
+- 구성원 행은 기존 `RESULT_FINALIZING`/`CONSISTENCY_WARNING` 상태 pill을 유지한다.
+- 다크 모드에서는 기존 DR 상태 토큰을 사용하며 밝은 고정 배경색을 추가하지 않는다.
+- 경고는 전송 실패가 아니라 “데이터 전송 완료 후 종결 증거 확인 실패”임을 명시한다.
+
+### 9.3 배포 및 복구 계약
+
+FTCTL RPM 설치 후 Plan scheduler를 IDLE 시점에 rolling reload한 다음 Cloud/UI를
+배포한다. 기존 Ubuntu/Rocky 비종결 Run은 DB를 직접 수정하지 않고 강화된
+`dr-status --run`의 scheduler sequence fallback으로 terminal journal을 복구해야 한다.
+PASS 조건은 그룹 `3/3 SUCCEEDED`, 자식 Run 모두 terminal authoritative, active lease 0,
+다음 증분 scheduler 정상 실행이다.
+
+### 9.4 AS-IS / TO-BE
+
+| 계층 | AS-IS | TO-BE |
+|---|---|---|
+| FTCTL | terminal 누락 후 다음 증분 진행 가능 | terminal 발행을 다음 증분 전 필수 barrier로 처리 |
+| Cloud | Plan별 경고만 progress JSON에 존재 | 최상위 집계와 구성원 결과를 함께 제공 |
+| UI | 그룹은 일반 RUNNING처럼 보임 | 결과 반영 중/정합성 경고 수를 명시 |
+| 배포 | RPM 파일과 실행 scheduler 코드가 다를 수 있음 | IDLE rolling reload와 hash/start time 확인 |
