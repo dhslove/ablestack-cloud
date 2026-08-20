@@ -437,3 +437,82 @@ test and does not represent an active Run or resource conflict. The operator
 can now select the three plans and run **Protection Group Action > Full
 Synchronization** to verify concurrent terminal convergence and immediate
 next-incremental scheduling.
+
+## 2026-08-20 Scheduler Terminal Publication Barrier
+
+### Scope and source identity
+
+This release makes terminal publication a required scheduler barrier. It also
+allows `dr-status --run` to repair a missing terminal journal only when the Run
+owner, requested and accepted sequence, latest completed sequence and token,
+Full Seed mode, durable evidence, and 100 percent transfer evidence agree.
+The existing VMware-to-ABLESTACK RBD copy path is unchanged.
+
+| Repository | Branch | Deployed commit |
+|---|---|---|
+| `dhslove/ablestack-qemu-exec-tools` | `feature/ftctl-cloud-integration` | `4205f331996ddf3f02522172d07777f750aa35c3` |
+| `dhslove/ablestack-cloud` | `feature/ftctl-cloud-integration` | `25f3232d924fdf6a977ac142e39bda4eae49d822` |
+
+The FTCTL package was produced by GitHub Actions run
+[`32346785309`](https://github.com/dhslove/ablestack-qemu-exec-tools/actions/runs/32346785309).
+The resulting `ablestack_vm_ftctl-0.9.5-1.noarch.rpm` SHA256 is
+`9e7bc8e7bb0d225174bbb7d67213f42936ba26c7a5b5f26f52fcaf778fbbcd0a`.
+
+Cloud was built as the changed disaster-recovery Maven module from the clean
+WSL ext4 clone `/home/ablecloud/work/builds/terminal-barrier-20260820/cloud`.
+Only the four `DrProtectionGroupServiceImpl` classes were injected into the
+installed aggregate JAR. The deployed aggregate JAR SHA256 on both management
+servers is
+`6cded8f32b19c0a0eec2151b201eaa7270b990f3ec731c4c388d37362af386dc`.
+The static UI overlay SHA256 is
+`e56625d5d0d51ca8c997a0425214710a8570c3154510e7d000b552a8b0a28382`.
+
+### Build and smoke verification
+
+- FTCTL one-shot, terminal-repair matrix, terminal-barrier retry, and scheduler
+  systemd launch self-tests passed.
+- `DrProtectionGroupServiceImplTest` passed eight tests with no failures or
+  errors.
+- `DrPlanOverview.spec.js` and `DrProtectionInfoTab.spec.js` passed.
+- The production UI build passed. Its bundle contains
+  `resultVerificationState` and `consistencyWarningCount`, including dark-mode
+  consistency-warning styling and localized member-result labels.
+
+### Dual-cluster deployment and scheduler reload
+
+The same FTCTL RPM was installed on all six compute hosts. The 22 cluster used
+native `rpm`; the 32 cluster used the `aspkg` administrator wrapper. Installed
+script SHA256 values are identical across the clusters:
+
+- `dr_runtime.sh`:
+  `8774fa5175c2ece2a96a202c049e874448645041315fb46e3a1232a3256063e0`
+- `dr_scheduler.sh`:
+  `8ec2e16485fc93a0aed79c9311e198a411af617b7aefa23f88189c1e9839c262`
+- `ablestack_vm_ftctl_dr_rolling_reload`:
+  `3439404b0658578d4b41dfafa49761ba15cfdb1de32de777d64fbf65837e5f95`
+
+The rolling reload tool restarted the three idle DR schedulers on the 32
+cluster and verified that each running process reports the installed scheduler
+hash. The 22 cluster had no active DR schedulers, so no process restart was
+required. There were no deferred or failed reloads.
+
+Cloud changed classes and the static UI overlay were deployed to both
+management servers while preserving `WEB-INF`. Backups are stored at
+`/root/ftctl-terminal-barrier-20260820-171927` on `10.10.32.10` and
+`/root/ftctl-terminal-barrier-20260820-172046` on `10.10.22.10`. Both `mold`
+services are active, both `/client/` endpoints return HTTP 200, and both active
+UI bundles contain the new group-result consistency markers.
+
+### Existing group convergence and retest gate
+
+Protection-group Run `b1c1e089-8e57-4867-b1f2-705e3ec54ead` recovered through
+the terminal-journal repair path without a direct DB state update. Its final
+result is `SUCCEEDED` with three successful members and zero failures. All
+three child Runs are `SUCCEEDED`, have `terminal_authoritative=1`, and have no
+error code. All 14 resource leases are `RELEASED`; the active lease count is
+zero.
+
+This is the required clean retest gate. The next operator action is to select
+the Ubuntu, Rocky, and Windows plans in the 32-cluster DR Plan list and run
+**Protection Group Action > Full Synchronization** once. The expected result is
+group `3/3`, no member left in result finalization, and zero active leases.
