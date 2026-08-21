@@ -47,6 +47,15 @@ import com.cloud.host.dao.HostDao;
 @RunWith(MockitoJUnitRunner.class)
 public class FtctlDrUnifiedActionAdapterTest {
 
+    @Test
+    public void automaticVmwareThumbprintsAreRefreshableButOperatorPinsAreNot() {
+        Assert.assertTrue(FtctlDrUnifiedActionAdapter.shouldRefreshAutoThumbprint("backend-auto"));
+        Assert.assertTrue(FtctlDrUnifiedActionAdapter.shouldRefreshAutoThumbprint("backend-auto-refreshed"));
+        Assert.assertTrue(FtctlDrUnifiedActionAdapter.shouldRefreshAutoThumbprint("backend-auto-fallback"));
+        Assert.assertFalse(FtctlDrUnifiedActionAdapter.shouldRefreshAutoThumbprint("runtime"));
+        Assert.assertFalse(FtctlDrUnifiedActionAdapter.shouldRefreshAutoThumbprint(null));
+    }
+
     @Mock
     private AgentManager agentManager;
     @Mock

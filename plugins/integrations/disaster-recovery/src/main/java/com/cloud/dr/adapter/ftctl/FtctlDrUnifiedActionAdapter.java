@@ -872,7 +872,8 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
             return;
         }
         String thumbprint = firstString(credential, "thumbprint", "tlsThumbprint");
-        if (StringUtils.isNotBlank(thumbprint)) {
+        String thumbprintSource = firstString(credential, "thumbprintSource");
+        if (StringUtils.isNotBlank(thumbprint) && !shouldRefreshAutoThumbprint(thumbprintSource)) {
             credential.addProperty("thumbprint", thumbprint);
             if (StringUtils.isBlank(firstString(credential, "thumbprintSource"))) {
                 credential.addProperty("thumbprintSource", "runtime");
@@ -896,8 +897,20 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         } catch (Exception e) {
             LOGGER.warn("Unable to resolve vCenter thumbprint for DR source endpoint {}: {}", endpoint, e.getMessage());
         }
+        if (StringUtils.isNotBlank(thumbprint)) {
+            credential.addProperty("thumbprint", thumbprint);
+            credential.addProperty("thumbprintPresent", true);
+            credential.addProperty("thumbprintSource", "backend-auto-fallback");
+            return;
+        }
         credential.addProperty("thumbprintPresent", false);
         credential.addProperty("thumbprintSource", "backend-unresolved");
+    }
+
+    static boolean shouldRefreshAutoThumbprint(String thumbprintSource) {
+        return StringUtils.equalsIgnoreCase(StringUtils.trim(thumbprintSource), "backend-auto")
+                || StringUtils.equalsIgnoreCase(StringUtils.trim(thumbprintSource), "backend-auto-refreshed")
+                || StringUtils.equalsIgnoreCase(StringUtils.trim(thumbprintSource), "backend-auto-fallback");
     }
 
     private Long resolveVmwareDataPlaneHostId(DrPlanVO plan) {

@@ -51,3 +51,17 @@ dr_sync_cycle(plan, N) = READY / LOCAL_DURABLE
   if the current scheduler is degraded.
 - After deployment, verify all three 32-cluster plans complete an automatic
   incremental or no-change cycle and expose it through list and detail APIs.
+
+## 6. vCenter Certificate Rollover
+
+Cloud distinguishes automatically discovered vCenter thumbprints from
+operator-pinned values. Credentials marked `backend-auto`,
+`backend-auto-refreshed`, or `backend-auto-fallback` are refreshed from the
+registered vCenter endpoint whenever a DR command profile is rendered. A
+`runtime` thumbprint remains pinned.
+
+This keeps newly dispatched profiles consistent after a vCenter certificate
+rollover. FTCTL independently refreshes the same automatic value at source-open
+time so a persistent scheduler can recover without waiting for another UI/API
+action. Snapshot cleanup state and the latest durable Cycle remain independent
+from this transient source-authentication recovery.
