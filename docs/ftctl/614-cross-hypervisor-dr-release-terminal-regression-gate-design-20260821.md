@@ -68,6 +68,14 @@ VM, 볼륨, 네트워크는 삭제하거나 전원을 변경하지 않는다.
    확인한다. UI 또는 Run 성공만으로 PASS 판정하지 않는다.
 8. 회귀 복구 시 직접 DB 상태 수정으로 결함을 숨기지 않고 정상 projection으로
    기존 Plan을 복구한다.
+9. terminal projection은 정규 상태 열만 갱신해서는 안 된다. 같은 DB transaction에서
+   `status_json`, scheduler unit/process, worker, transfer, current cycle, RPO/error 증거를
+   terminal 상태와 일치하도록 정리해야 한다.
+10. API 응답의 정규 상태와 중첩 runtime 상태가 다르면 배포 검증은 실패다. Release 후
+    `UNPROTECTED/DISABLED/STOPPED`와 `runtimeState=RELEASED`,
+    `runtimeControlState=STOPPED`, `schedulerPidAlive=false`를 함께 확인한다.
+11. 이미 검증된 경로의 공통 status/projection 코드를 변경할 때는 기능별 단위 테스트뿐
+    아니라 terminal 이후 원시 JSON 잔존 여부를 검사하는 교차 경로 회귀 테스트를 추가한다.
 
 ## 5. 테스트 매트릭스
 
@@ -80,6 +88,8 @@ VM, 볼륨, 네트워크는 삭제하거나 전원을 변경하지 않는다.
 | Agent Release 성공 응답 | polling 전에 UNPROTECTED/DISABLED |
 | status 일시 장애 | terminal-pending 후 자동 수렴 |
 | Release 재호출 | idempotent, VM/스토리지/네트워크 무변경 |
+| 이전 READY/RUNNING runtime 보유 후 Release | 정규 열과 status JSON이 함께 RELEASED/STOPPED로 수렴 |
+| Release API 응답 | stale scheduler/worker/transfer 필드 미노출 |
 
 ## 6. AS-IS / TO-BE
 
@@ -88,6 +98,5 @@ VM, 볼륨, 네트워크는 삭제하거나 전원을 변경하지 않는다.
 | FTCTL | profile 삭제 후 status 실패 | tombstone 기반 자기 완결 status |
 | Agent | 성공 응답은 있으나 Cloud가 종결 증거로 사용하지 않음 | typed terminal evidence 전달 |
 | Cloud Backend | polling에만 종결 의존 | 성공 응답 즉시 transaction + polling 복구 |
-| DB | Run 성공, Plan READY 불일치 | Run/Plan/runtime/resource 동시 수렴 |
+| DB | Run 성공 뒤 정규 열만 수렴하고 status JSON은 READY/RUNNING 잔존 | Run/Plan/runtime/resource와 원시 JSON 동시 수렴 |
 | 배포 | 관련 기능 단위 smoke | 기존 DR 전체 action contract gate |
-

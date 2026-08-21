@@ -1728,15 +1728,53 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         if (plan == null) {
             return;
         }
+        JsonObject releasedRuntime = normalizeReleasedRuntime(plan, runtime);
         String statusJson = status != null ? status.getStatusJson() : null;
-        String runtimeJson = compactRuntimeStatusJson(StringUtils.defaultIfBlank(statusJson, GSON.toJson(runtime)));
+        if (StringUtils.isNotBlank(statusJson)) {
+            releasedRuntime = normalizeReleasedRuntime(plan, parseObject(statusJson));
+        }
+        String runtimeJson = compactRuntimeStatusJson(GSON.toJson(releasedRuntime));
+        JsonObject terminalRuntime = releasedRuntime;
         Transaction.execute(new TransactionCallback<Void>() {
             @Override
             public Void doInTransaction(TransactionStatus transactionStatus) {
-                cleanupReleasedProjectionTransaction(plan, runtime, runtimeJson);
+                cleanupReleasedProjectionTransaction(plan, terminalRuntime, runtimeJson);
                 return null;
             }
         });
+    }
+
+    private JsonObject normalizeReleasedRuntime(DrPlanVO plan, JsonObject runtime) {
+        JsonObject released = runtime != null ? runtime.deepCopy() : new JsonObject();
+        String activeSide = StringUtils.upperCase(
+                StringUtils.defaultIfBlank(stringValue(released, "active_side"), plan.getActiveSide()),
+                Locale.ROOT);
+        if (!StringUtils.equalsAny(activeSide,
+                DrConstants.AUTHORITY_SIDE_SOURCE, DrConstants.AUTHORITY_SIDE_TARGET)) {
+            activeSide = DrConstants.AUTHORITY_SIDE_SOURCE;
+        }
+        released.addProperty("state", "RELEASED");
+        released.addProperty("step", "release-completed");
+        released.addProperty("active_side", activeSide);
+        released.addProperty("protection_state", "UNPROTECTED");
+        released.addProperty("scheduler_state", "STOPPED");
+        released.addProperty("scheduler_desired_state", "STOPPED");
+        released.addProperty("control_state", "STOPPED");
+        released.addProperty("cycle_state", "IDLE");
+        released.addProperty("replication_activity_state", "IDLE");
+        released.addProperty("transfer_activity_state", "IDLE");
+        released.addProperty("worker_state", "STOPPED");
+        released.addProperty("profile_exists", false);
+        released.addProperty("scheduler_pid_alive", false);
+        released.addProperty("owned_process_count", 0);
+        released.remove("active_worker_run_uuid");
+        released.remove("active_worker_pid");
+        released.remove("active_worker_start_ticks");
+        released.remove("worker_heartbeat_at");
+        released.remove("scheduler_next_run_at");
+        released.remove("error_code");
+        released.remove("error_message");
+        return released;
     }
 
     private void cleanupReleasedProjectionTransaction(DrPlanVO plan, JsonObject runtime, String runtimeJson) {
@@ -1766,9 +1804,65 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         if (planRuntime != null) {
             planRuntime.setSchedulerState("STOPPED");
             planRuntime.setSchedulerDesiredState("STOPPED");
+            planRuntime.setSchedulerUnitActiveState("inactive");
+            planRuntime.setSchedulerUnitSubState("dead");
+            planRuntime.setSchedulerUnitMainPid(null);
+            planRuntime.setSchedulerCgroup(null);
+            planRuntime.setSchedulerRecoveryState(null);
+            planRuntime.setSchedulerRecoveryTrigger(null);
+            planRuntime.setSchedulerRecoveryAttempts(0);
+            planRuntime.setSchedulerRecoveryErrorCode(null);
+            planRuntime.setSchedulerRecoveryErrorMessage(null);
+            planRuntime.setSchedulerPidAlive(false);
+            planRuntime.setSchedulerSessionUuid(null);
+            planRuntime.setSchedulerHealthState("STOPPED");
+            planRuntime.setActiveWorkerRunUuid(null);
+            planRuntime.setActiveWorkerPid(null);
+            planRuntime.setActiveWorkerStartTicks(null);
+            planRuntime.setWorkerHeartbeatAt(null);
+            planRuntime.setControlRequestRunUuid(null);
+            planRuntime.setOwnerMatched(false);
+            planRuntime.setWorkerState("STOPPED");
+            planRuntime.setWorkerIdentityState(null);
+            planRuntime.setWorkerLivenessState("STOPPED");
+            planRuntime.setWorkerLaunchNonce(null);
+            planRuntime.setWorkerGeneration(null);
+            planRuntime.setTransferActivityState("IDLE");
+            planRuntime.setTransferProgressSchemaVersion(null);
+            planRuntime.setTransferCycleSequence(null);
+            planRuntime.setTransferSampleSequence(null);
+            planRuntime.setTransferPhase(null);
+            planRuntime.setTransferMode(null);
+            planRuntime.setTransferBytesTotal(null);
+            planRuntime.setTransferBytesProcessed(null);
+            planRuntime.setTransferSourceReadBytes(null);
+            planRuntime.setTransferTargetWrittenBytes(null);
+            planRuntime.setTransferVerifiedBytes(null);
+            planRuntime.setTransferPercent(null);
+            planRuntime.setTransferThroughputBps(null);
+            planRuntime.setTransferEtaSeconds(null);
+            planRuntime.setTransferCurrentDiskIndex(null);
+            planRuntime.setTransferDiskCount(null);
+            planRuntime.setTransferProgressEstimated(null);
+            planRuntime.setTransferProgressSampledAt(null);
+            planRuntime.setTransferProgressStale(null);
+            planRuntime.setOwnedProcessCount(0);
+            planRuntime.setRuntimeEndpointsDrained(true);
             planRuntime.setCurrentCycleState("IDLE");
+            planRuntime.setCurrentCycleSequence(null);
+            planRuntime.setCurrentCycleMode(null);
             planRuntime.setProtectionState("UNPROTECTED");
             planRuntime.setReplicationActivityState("IDLE");
+            planRuntime.setFreshnessState(null);
+            planRuntime.setSchedulerNextRunAt(null);
+            planRuntime.setSchedulerExecutionBudgetSeconds(null);
+            planRuntime.setSchedulerCycleWallDurationSeconds(null);
+            planRuntime.setRpoAgeSeconds(null);
+            planRuntime.setRpoOverdue(false);
+            planRuntime.setErrorCode(null);
+            planRuntime.setErrorMessage(null);
+            planRuntime.setStatusJson(runtimeJson);
+            planRuntime.setLastStatusAt(new Date());
             planRuntime.markUpdated();
             drPlanRuntimeDao.update(planRuntime.getId(), planRuntime);
         }

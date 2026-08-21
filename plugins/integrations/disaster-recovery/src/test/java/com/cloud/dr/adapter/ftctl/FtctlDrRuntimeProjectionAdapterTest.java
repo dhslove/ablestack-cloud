@@ -73,6 +73,7 @@ import com.cloud.vm.UserVmVO;
 import com.cloud.vm.VirtualMachine;
 import com.cloud.vm.dao.UserVmDao;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 @RunWith(MockitoJUnitRunner.class)
 public class FtctlDrRuntimeProjectionAdapterTest {
@@ -404,6 +405,17 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         plan.setAdminState(DrConstants.ADMIN_STATE_ENABLED);
         plan.setActiveSide(DrConstants.AUTHORITY_SIDE_TARGET);
         DrPlanRuntimeVO planRuntime = new DrPlanRuntimeVO(plan.getId());
+        planRuntime.setSchedulerState("RUNNING");
+        planRuntime.setSchedulerDesiredState("RUNNING");
+        planRuntime.setSchedulerUnitActiveState("active");
+        planRuntime.setSchedulerUnitSubState("running");
+        planRuntime.setSchedulerUnitMainPid(1234L);
+        planRuntime.setSchedulerPidAlive(true);
+        planRuntime.setWorkerState("RUNNING");
+        planRuntime.setTransferActivityState("TRANSFERRING");
+        planRuntime.setTransferPercent(75D);
+        planRuntime.setStatusJson("{\"state\":\"READY\",\"control_state\":\"RUNNING\"," +
+                "\"scheduler_pid_alive\":true,\"active_worker_pid\":1234}");
         String statusJson = "{\"command\":\"dr-status\",\"result\":\"ok\","
                 + "\"plan_uuid\":\"release-plan\",\"state\":\"RELEASED\","
                 + "\"step\":\"release-completed\",\"active_side\":\"TARGET\","
@@ -430,6 +442,18 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         Assert.assertEquals(DrConstants.AUTHORITY_SIDE_TARGET, plan.getActiveSide());
         Assert.assertEquals("STOPPED", planRuntime.getSchedulerState());
         Assert.assertEquals("UNPROTECTED", planRuntime.getProtectionState());
+        Assert.assertEquals("inactive", planRuntime.getSchedulerUnitActiveState());
+        Assert.assertEquals("dead", planRuntime.getSchedulerUnitSubState());
+        Assert.assertNull(planRuntime.getSchedulerUnitMainPid());
+        Assert.assertFalse(planRuntime.isSchedulerPidAlive());
+        Assert.assertEquals("STOPPED", planRuntime.getWorkerState());
+        Assert.assertEquals("IDLE", planRuntime.getTransferActivityState());
+        Assert.assertNull(planRuntime.getTransferPercent());
+        JsonObject releasedRuntime = JsonParser.parseString(planRuntime.getStatusJson()).getAsJsonObject();
+        Assert.assertEquals("RELEASED", releasedRuntime.get("state").getAsString());
+        Assert.assertEquals("STOPPED", releasedRuntime.get("control_state").getAsString());
+        Assert.assertFalse(releasedRuntime.get("scheduler_pid_alive").getAsBoolean());
+        Assert.assertFalse(releasedRuntime.has("active_worker_pid"));
         Mockito.verify(drPlanDao).update(plan.getId(), plan);
         Mockito.verify(drSyncCycleDao, Mockito.never()).findLatestCompletedByPlanId(plan.getId());
         Mockito.verify(drFailbackLifecycleService, Mockito.never())
@@ -444,6 +468,7 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         plan.setActiveSide(DrConstants.AUTHORITY_SIDE_SOURCE);
         DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_RELEASE);
         DrPlanRuntimeVO planRuntime = new DrPlanRuntimeVO(plan.getId());
+        planRuntime.setStatusJson("{\"state\":\"READY\",\"control_state\":\"RUNNING\"}");
         String detailsJson = "{\"agentAnswer\":{\"action\":\"RELEASE\","
                 + "\"planUuid\":\"release-answer-plan\",\"runUuid\":\"release-run\","
                 + "\"state\":\"RELEASED\",\"step\":\"release-completed\","
@@ -461,6 +486,10 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         Assert.assertEquals(DrConstants.AUTHORITY_SIDE_SOURCE, plan.getActiveSide());
         Assert.assertEquals("STOPPED", planRuntime.getSchedulerState());
         Assert.assertEquals("UNPROTECTED", planRuntime.getProtectionState());
+        JsonObject releasedRuntime = JsonParser.parseString(planRuntime.getStatusJson()).getAsJsonObject();
+        Assert.assertEquals("RELEASED", releasedRuntime.get("state").getAsString());
+        Assert.assertEquals("STOPPED", releasedRuntime.get("control_state").getAsString());
+        Assert.assertFalse(releasedRuntime.get("profile_exists").getAsBoolean());
         Mockito.verify(agentManager, Mockito.never()).easySend(Mockito.anyLong(), Mockito.any());
     }
 
