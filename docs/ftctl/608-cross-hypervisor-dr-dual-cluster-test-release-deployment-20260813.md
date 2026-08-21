@@ -516,3 +516,24 @@ This is the required clean retest gate. The next operator action is to select
 the Ubuntu, Rocky, and Windows plans in the 32-cluster DR Plan list and run
 **Protection Group Action > Full Synchronization** once. The expected result is
 group `3/3`, no member left in result finalization, and zero active leases.
+
+## 2026-08-21 VMware Snapshot Cleanup Durability Update
+
+Cloud completion projection was updated at commit `be91849631ccaf0576cce3010b78c65674744b81`
+to select transfer summaries from the latest completed cycle and to refresh
+only automatically managed vCenter thumbprints. The changed Cloud class was
+deployed to both management servers. Both `mold` services are active,
+`/client/` returns HTTP 200, and `WEB-INF` is preserved.
+
+FTCTL commit `4900bd78ad3dae46b3bf5ca2318de4bf367f7eb8` was built by GitHub Actions
+run `32469879056`. The resulting `ablestack_vm_ftctl-0.9.5-1.noarch.rpm` has
+SHA256 `651a2508ae0bd69d1aee4d9add9b0adb68a2013d897792daedd5094e7c014cc2`
+and was installed on all six compute hosts. The installed mover SHA256 is
+`5262a2862cc3c93375d63d336892f01a0d14d60874a309f71244149961534fe6`
+on every host.
+
+After scheduler reload, the three 32-cluster plans automatically completed
+incremental cycles and projected `RUNNING / HEALTHY / IDLE`, `READY`,
+`WITHIN_RPO`, and `CONSISTENT`. Their source snapshot evidence is `CLEANED`,
+direct vCenter queries show no remaining snapshots, and successful durable
+cycles cleared all stale source-open failure evidence.
