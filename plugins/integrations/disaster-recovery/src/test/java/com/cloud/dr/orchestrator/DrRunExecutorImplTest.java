@@ -210,6 +210,31 @@ public class DrRunExecutorImplTest {
         Mockito.verify(drPlanDao).update(plan.getId(), plan);
     }
 
+    @Test
+    public void terminalReleaseProjectsAgentEvidenceBeforeBestEffortPolling() {
+        DrPlanVO plan = ftctlDrPlan();
+        plan.setState(DrConstants.PLAN_STATE_READY);
+        plan.setAdminState(DrConstants.ADMIN_STATE_ENABLED);
+        DrRunVO run = run(DrConstants.RUN_TYPE_RELEASE);
+        String detailsJson = "{\"agentAnswer\":{\"state\":\"RELEASED\",\"step\":\"release-completed\"}}";
+        Mockito.when(drRunDao.findById(run.getId())).thenReturn(run);
+        Mockito.when(drPlanDao.findById(plan.getId())).thenReturn(plan);
+        Mockito.when(drAdapterRegistry.getReplicationEngine(DrConstants.ENGINE_TYPE_FTCTL_DR,
+                DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR)).thenReturn(replicationEngine);
+        Mockito.when(replicationEngine.validatePlan(plan)).thenReturn(DrAdapterResult.success("valid", null));
+        Mockito.when(replicationEngine.execute(Mockito.any(DrExecutionContext.class)))
+                .thenReturn(DrAdapterResult.success("released", detailsJson));
+        Mockito.when(drProjectionService.projectTerminalActionResult(plan.getId(), run, detailsJson)).thenReturn(true);
+
+        executor.queueRun(run);
+
+        Assert.assertEquals(DrConstants.RUN_STATE_SUCCEEDED, run.getState());
+        Assert.assertEquals("terminal", run.getProjectionState());
+        Assert.assertNotNull(run.getProjectionChecked());
+        Mockito.verify(drProjectionService).projectTerminalActionResult(plan.getId(), run, detailsJson);
+        Mockito.verify(drProjectionService).refreshPlanProjection(plan.getId(), true);
+    }
+
     private DrPlanVO ftctlPlan() {
         DrPlanVO plan = new DrPlanVO("kvm-ftctl-plan", 1L, 2L, "KVM_TO_KVM");
         plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL);

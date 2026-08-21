@@ -23,6 +23,8 @@ import com.cloud.utils.Pair;
 public interface DrProjectionService {
     DrPlanVO refreshPlanProjection(long planId, boolean bestEffort);
 
+    boolean projectTerminalActionResult(long planId, DrRunVO run, String detailsJson);
+
     List<DrReplicaVO> listReplicas(long planId);
 
     List<DrRestorePointVO> listRestorePoints(long planId);

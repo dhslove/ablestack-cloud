@@ -63,6 +63,19 @@ public class DrProjectionServiceImpl extends ManagerBase implements DrProjection
     }
 
     @Override
+    public boolean projectTerminalActionResult(long planId, DrRunVO run, String detailsJson) {
+        DrPlanVO plan = requirePlan(planId);
+        String engineType = StringUtils.defaultIfBlank(plan.getEngineType(), plan.getEngineBindingType());
+        String engineBindingType = StringUtils.defaultIfBlank(plan.getEngineBindingType(), plan.getEngineType());
+        DrProjectionAdapter projectionAdapter = drAdapterRegistry.getProjectionAdapter(engineType, engineBindingType);
+        if (projectionAdapter == null) {
+            return false;
+        }
+        DrAdapterResult result = projectionAdapter.projectTerminalActionResult(plan, run, detailsJson);
+        return result != null && result.isSuccess();
+    }
+
+    @Override
     public List<DrReplicaVO> listReplicas(long planId) {
         requirePlan(planId);
         return drReplicaDao.listActiveByPlanId(planId);

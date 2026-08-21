@@ -437,6 +437,47 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     }
 
     @Test
+    public void releaseActionAnswerConvergesImmediatelyWithoutStatusPolling() {
+        DrPlanVO plan = new DrPlanVO("release-answer-plan", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
+        plan.setState(DrConstants.PLAN_STATE_READY);
+        plan.setAdminState(DrConstants.ADMIN_STATE_ENABLED);
+        plan.setActiveSide(DrConstants.AUTHORITY_SIDE_SOURCE);
+        DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_RELEASE);
+        DrPlanRuntimeVO planRuntime = new DrPlanRuntimeVO(plan.getId());
+        String detailsJson = "{\"agentAnswer\":{\"action\":\"RELEASE\","
+                + "\"planUuid\":\"release-answer-plan\",\"runUuid\":\"release-run\","
+                + "\"state\":\"RELEASED\",\"step\":\"release-completed\","
+                + "\"status\":{\"active_side\":\"SOURCE\",\"protection_state\":\"UNPROTECTED\","
+                + "\"scheduler_state\":\"STOPPED\",\"profile_removed\":true}}}";
+        Mockito.when(drPlanRuntimeDao.findByPlanId(plan.getId())).thenReturn(planRuntime);
+        Mockito.when(drReplicaDao.listActiveByPlanId(plan.getId())).thenReturn(Collections.emptyList());
+        Mockito.when(drRestorePointDao.listActiveByPlanId(plan.getId())).thenReturn(Collections.emptyList());
+
+        DrAdapterResult result = adapter.projectTerminalActionResult(plan, run, detailsJson);
+
+        Assert.assertTrue(result.isSuccess());
+        Assert.assertEquals(DrConstants.PLAN_STATE_UNPROTECTED, plan.getState());
+        Assert.assertEquals(DrConstants.ADMIN_STATE_DISABLED, plan.getAdminState());
+        Assert.assertEquals(DrConstants.AUTHORITY_SIDE_SOURCE, plan.getActiveSide());
+        Assert.assertEquals("STOPPED", planRuntime.getSchedulerState());
+        Assert.assertEquals("UNPROTECTED", planRuntime.getProtectionState());
+        Mockito.verify(agentManager, Mockito.never()).easySend(Mockito.anyLong(), Mockito.any());
+    }
+
+    @Test
+    public void releaseActionAnswerWithoutTerminalEvidenceIsRejected() {
+        DrPlanVO plan = new DrPlanVO("release-answer-invalid", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
+        DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_RELEASE);
+
+        DrAdapterResult result = adapter.projectTerminalActionResult(plan, run,
+                "{\"agentAnswer\":{\"state\":\"READY\",\"step\":\"idle\"}}");
+
+        Assert.assertFalse(result.isSuccess());
+        Assert.assertEquals(DrConstants.ERROR_PROJECTION_UNAVAILABLE, result.getErrorCode());
+        Mockito.verifyNoInteractions(drPlanDao, drPlanRuntimeDao, drReplicaDao, drRestorePointDao);
+    }
+
+    @Test
     public void refreshPlanProjectionCompletesTestFailoverWithoutDowngradingActiveSession() {
         DrPlanVO plan = new DrPlanVO("ftctl-dr-plan", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
         plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);

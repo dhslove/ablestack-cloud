@@ -353,13 +353,27 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
         run.setCurrentStepName("completed");
         run.setErrorCode(null);
         run.setErrorMessage(null);
-        run.setProjectionState("terminal");
+        boolean releaseRun = StringUtils.equals(run.getRunType(), DrConstants.RUN_TYPE_RELEASE);
+        run.setProjectionState(releaseRun ? "terminal-pending" : "terminal");
         run.setRetryable(false);
         run.setRetryAfterSeconds(null);
         run.setNextRetryAt(null);
         run.setLastStatusJson(result.getDetailsJson());
         run.markUpdated();
         drRunDao.update(run.getId(), run);
+        if (releaseRun) {
+            try {
+                if (drProjectionService.projectTerminalActionResult(plan.getId(), run, result.getDetailsJson())) {
+                    run.setProjectionState("terminal");
+                    run.setProjectionChecked(new Date());
+                    run.markUpdated();
+                    drRunDao.update(run.getId(), run);
+                }
+            } catch (RuntimeException e) {
+                LOGGER.warn("Immediate terminal projection failed for released DR plan {}; periodic projection will retry: {}",
+                        plan.getUuid(), e.getMessage());
+            }
+        }
         if (drTargetMaterializationService != null
                 && StringUtils.equals(run.getRunType(), DrConstants.RUN_TYPE_TEST_CLEANUP)) {
             drTargetMaterializationService.completeTestCleanup(plan.getId());

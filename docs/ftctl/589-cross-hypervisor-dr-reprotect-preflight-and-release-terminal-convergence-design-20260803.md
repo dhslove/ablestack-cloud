@@ -1,12 +1,18 @@
 # 589. Cross-Hypervisor DR Reprotect Preflight And Release Terminal Convergence Design
 
 - 작성일: 2026-08-03
-- 상태: 상세 코드 설계 완료, 구현 대기
+- 상태: 구현 완료, 2026-08-21 profile-independent status 회귀 보강
 - 검증 Plan: `2514a846-64a2-4bc7-ba88-38a874410782`
 - 적용 범위: UI, API, Cloud Backend, Mold Agent, FTCTL 계약, Cloud DB
 - FTCTL 부속 설계:
   `ablestack-qemu-exec-tools/docs/ftctl/446-ftctl-dr-transition-preflight-v2-and-release-tombstone-contract-design-20260803.md`
 - 선행 설계: 570, 578, 584, 587, 588
+- 후속 회귀 방지 설계: 614
+
+> 2026-08-21 보강: Release가 profile을 삭제한 뒤에도 FTCTL tombstone만으로
+> 상태를 재구성하고, Cloud는 성공한 Agent terminal 응답으로 즉시
+> `UNPROTECTED / DISABLED`를 커밋한다. 공통 status 변경 시 Release를 포함한
+> 전체 DR action contract suite를 배포 게이트로 실행한다.
 
 ## 1. 목적과 최종 결정
 

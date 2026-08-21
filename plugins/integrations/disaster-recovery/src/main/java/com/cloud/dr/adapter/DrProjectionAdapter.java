@@ -17,6 +17,7 @@
 package com.cloud.dr.adapter;
 
 import com.cloud.dr.DrPlanVO;
+import com.cloud.dr.DrRunVO;
 
 public interface DrProjectionAdapter {
     String getEngineType();
@@ -24,4 +25,8 @@ public interface DrProjectionAdapter {
     String getEngineBindingType();
 
     DrAdapterResult refreshPlanProjection(DrPlanVO plan);
+
+    default DrAdapterResult projectTerminalActionResult(DrPlanVO plan, DrRunVO run, String detailsJson) {
+        return DrAdapterResult.success("Terminal action does not require an engine-specific projection", detailsJson);
+    }
 }

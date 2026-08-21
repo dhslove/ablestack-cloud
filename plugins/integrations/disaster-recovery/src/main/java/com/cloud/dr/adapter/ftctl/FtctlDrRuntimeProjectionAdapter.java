@@ -155,6 +155,36 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
     }
 
     @Override
+    public DrAdapterResult projectTerminalActionResult(DrPlanVO plan, DrRunVO run, String detailsJson) {
+        if (run == null || !StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_RELEASE)) {
+            return DrAdapterResult.success("FTCTL_DR terminal action does not require release convergence", detailsJson);
+        }
+        JsonObject details = parseObject(detailsJson);
+        JsonObject agentAnswer = objectValue(details, "agentAnswer");
+        JsonObject runtime = objectValue(agentAnswer, "status").deepCopy();
+        copyTerminalProperty(agentAnswer, runtime, "state", "state");
+        copyTerminalProperty(agentAnswer, runtime, "step", "step");
+        copyTerminalProperty(agentAnswer, runtime, "planUuid", "plan_uuid");
+        copyTerminalProperty(agentAnswer, runtime, "runUuid", "run_uuid");
+        if (!isReleasedRuntime(null, runtime)) {
+            return DrAdapterResult.failure(DrConstants.ERROR_PROJECTION_UNAVAILABLE,
+                    "FTCTL_DR release answer does not contain RELEASED / release-completed terminal evidence",
+                    detailsJson);
+        }
+        if (!runtime.has("active_side")) {
+            runtime.addProperty("active_side", plan.getActiveSide());
+        }
+        if (!runtime.has("protection_state")) {
+            runtime.addProperty("protection_state", "UNPROTECTED");
+        }
+        if (!runtime.has("scheduler_state")) {
+            runtime.addProperty("scheduler_state", "STOPPED");
+        }
+        cleanupReleasedProjection(plan, null, runtime);
+        return DrAdapterResult.success("FTCTL_DR release terminal projection committed", GSON.toJson(runtime));
+    }
+
+    @Override
     public DrAdapterResult refreshPlanProjection(DrPlanVO plan) {
         Long hostId = resolveCoordinatorHostId(plan);
         if (hostId == null) {
@@ -1686,8 +1716,10 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
     }
 
     private boolean isReleasedRuntime(FtctlDrStatusAnswer status, JsonObject runtime) {
-        String runtimeState = StringUtils.upperCase(StringUtils.defaultIfBlank(status.getState(), stringValue(runtime, "state")), Locale.ROOT);
-        String step = StringUtils.defaultIfBlank(status.getStep(), stringValue(runtime, "step"));
+        String statusState = status != null ? status.getState() : null;
+        String statusStep = status != null ? status.getStep() : null;
+        String runtimeState = StringUtils.upperCase(StringUtils.defaultIfBlank(statusState, stringValue(runtime, "state")), Locale.ROOT);
+        String step = StringUtils.defaultIfBlank(statusStep, stringValue(runtime, "step"));
         return StringUtils.equals(runtimeState, "RELEASED")
                 || StringUtils.equalsIgnoreCase(step, "release-completed");
     }
@@ -1696,7 +1728,18 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         if (plan == null) {
             return;
         }
-        String runtimeJson = compactRuntimeStatusJson(StringUtils.defaultIfBlank(status.getStatusJson(), GSON.toJson(runtime)));
+        String statusJson = status != null ? status.getStatusJson() : null;
+        String runtimeJson = compactRuntimeStatusJson(StringUtils.defaultIfBlank(statusJson, GSON.toJson(runtime)));
+        Transaction.execute(new TransactionCallback<Void>() {
+            @Override
+            public Void doInTransaction(TransactionStatus transactionStatus) {
+                cleanupReleasedProjectionTransaction(plan, runtime, runtimeJson);
+                return null;
+            }
+        });
+    }
+
+    private void cleanupReleasedProjectionTransaction(DrPlanVO plan, JsonObject runtime, String runtimeJson) {
         removeActiveReplicas(plan, runtimeJson);
         removeActiveRestorePoints(plan);
 
@@ -1729,6 +1772,13 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             planRuntime.markUpdated();
             drPlanRuntimeDao.update(planRuntime.getId(), planRuntime);
         }
+    }
+
+    private void copyTerminalProperty(JsonObject source, JsonObject target, String sourceName, String targetName) {
+        if (source == null || target == null || !source.has(sourceName) || source.get(sourceName).isJsonNull()) {
+            return;
+        }
+        target.add(targetName, source.get(sourceName).deepCopy());
     }
 
     private void removeActiveReplicas(DrPlanVO plan, String detailsJson) {
@@ -3356,6 +3406,14 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         compact.add("source_open", compactStatusObject(runtime, "source_open"));
         compact.add("source_snapshot", compactStatusObject(runtime, "source_snapshot"));
         copyJsonProperty(runtime, compact, "scheduler_state");
+        copyJsonProperty(runtime, compact, "scheduler_desired_state");
+        copyJsonProperty(runtime, compact, "release_state");
+        copyJsonProperty(runtime, compact, "profile_removed");
+        copyJsonProperty(runtime, compact, "runtime_removed");
+        copyJsonProperty(runtime, compact, "vm_mutated");
+        copyJsonProperty(runtime, compact, "storage_mutated");
+        copyJsonProperty(runtime, compact, "network_mutated");
+        copyJsonProperty(runtime, compact, "released_at");
         copyJsonProperty(runtime, compact, "scheduler_pid_alive");
         copyJsonProperty(runtime, compact, "runtime_generation");
         copyJsonProperty(runtime, compact, "scheduler_session_uuid");
