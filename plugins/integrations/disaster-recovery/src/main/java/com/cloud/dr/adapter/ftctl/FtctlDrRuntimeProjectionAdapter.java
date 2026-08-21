@@ -450,8 +450,8 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                 ? Math.max(0L, committedRpoSeconds)
                 : durableAt != null ? Math.max(0L, (now.getTime() - durableAt.getTime()) / 1000L) : Long.MAX_VALUE;
         long rpoLimit = plan.getRpoSeconds() != null ? Math.max(1, plan.getRpoSeconds()) : 300L;
-        boolean overdue = !committedTargetAuthority
-                && (durableAt == null || rpoAge > rpoLimit + Math.min(30L, Math.max(5L, rpoLimit / 10L)));
+        String evaluatedFreshnessState = classifyRpoFreshness(committedTargetAuthority, durableAt, rpoAge, rpoLimit);
+        boolean overdue = StringUtils.equals(evaluatedFreshnessState, "OVERDUE");
         String engineProtectionState = StringUtils.defaultIfBlank(status.getProtectionState(),
                 stringValue(runtime, "protection_state"));
         boolean runtimeFailed = !committedTargetAuthority
@@ -471,7 +471,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                 || Boolean.TRUE.equals(booleanValue(runtime, "target_materialized"));
 
         String protectionState;
-        String freshnessState = overdue ? "OVERDUE" : "WITHIN_RPO";
+        String freshnessState = evaluatedFreshnessState;
         if (nbdQuarantined) {
             protectionState = "DEGRADED";
             freshnessState = "RECOVERY_REQUIRED";
@@ -616,9 +616,11 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         authority.setLastModeDecisionCode(StringUtils.defaultIfBlank(status.getLatestCompletedModeDecisionCode(), modeDecisionCode));
         authority.setConsecutiveAutomaticReseedCount(status.getConsecutiveAutomaticReseedCount() != null
                 ? status.getConsecutiveAutomaticReseedCount() : 0);
-        if (status.getLatestCompletedCheckpointSequence() != null) {
-            authority.setLatestCompletedCycleSequence(status.getLatestCompletedCheckpointSequence());
-            authority.setProjectionIntegritySequence(status.getLatestCompletedCheckpointSequence());
+        Long latestCompletedCycleSequence = status.getLatestCompletedCycleSequence() != null
+                ? status.getLatestCompletedCycleSequence() : status.getLatestCompletedCheckpointSequence();
+        if (latestCompletedCycleSequence != null) {
+            authority.setLatestCompletedCycleSequence(latestCompletedCycleSequence);
+            authority.setProjectionIntegritySequence(latestCompletedCycleSequence);
         }
         if (status.getLatestCompletedIncrementalVerified() != null) {
             authority.setLatestCompletedIncrementalVerified(status.getLatestCompletedIncrementalVerified());
@@ -632,6 +634,9 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         authority.setNbdTeardownErrorMessage(nbdTeardownErrorMessage);
         authority.setProtectionState(protectionState);
         authority.setFreshnessState(freshnessState);
+        authority.setSchedulerNextRunAt(parseDate(status.getSchedulerNextRunAt()));
+        authority.setSchedulerExecutionBudgetSeconds(status.getSchedulerExecutionBudgetSeconds());
+        authority.setSchedulerCycleWallDurationSeconds(status.getSchedulerCycleWallDurationSeconds());
         authority.setLastStatusAt(now);
         authority.setLastSourceCheckpointAt(sourceAt);
         authority.setLastTargetDurableAt(durableAt);
@@ -3243,6 +3248,18 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         } catch (ParseException e) {
             return DateUtil.parseDateString(TimeZone.getTimeZone("GMT"), value);
         }
+    }
+
+    String classifyRpoFreshness(boolean committedTargetAuthority, Date durableAt, long rpoAge, long rpoLimit) {
+        if (committedTargetAuthority) {
+            return "WITHIN_RPO";
+        }
+        long normalizedLimit = Math.max(1L, rpoLimit);
+        if (durableAt == null || rpoAge > normalizedLimit) {
+            return "OVERDUE";
+        }
+        return rpoAge >= Math.max(1L, (normalizedLimit * 80L) / 100L)
+                ? "RPO_DUE_SOON" : "WITHIN_RPO";
     }
 
     private JsonObject parseObject(String json) {

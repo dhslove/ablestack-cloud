@@ -318,6 +318,9 @@ public class DrProtectionViewServiceImpl extends ManagerBase implements DrProtec
         json.addProperty("lastTargetDurableAt", formatDate(runtime.getLastTargetDurableAt()));
         json.addProperty("rpoAgeSeconds", runtime.getRpoAgeSeconds());
         json.addProperty("rpoOverdue", runtime.isRpoOverdue());
+        json.addProperty("schedulerNextRunAt", formatDate(runtime.getSchedulerNextRunAt()));
+        json.addProperty("schedulerExecutionBudgetSeconds", runtime.getSchedulerExecutionBudgetSeconds());
+        json.addProperty("schedulerCycleWallDurationSeconds", runtime.getSchedulerCycleWallDurationSeconds());
         copyRuntimeFields(runtime.getStatusJson(), json);
         if (shouldProjectLatestCompletedCycle(runtime, currentSyncCycle, latestCompletedSyncCycle)) {
             projectLatestCompletedCycle(json, latestCompletedSyncCycle);

@@ -222,6 +222,9 @@ public class DrResponseGeneratorTest {
         runtime.setTransferMode("FULL_RESEED");
         runtime.setTransferBytesTotal(107374182400L);
         runtime.setTransferPayloadBytes(107374182400L);
+        runtime.setSchedulerNextRunAt(new Date(1776113000000L));
+        runtime.setSchedulerExecutionBudgetSeconds(40);
+        runtime.setSchedulerCycleWallDurationSeconds(32);
 
         DrSyncCycleVO cycle = new DrSyncCycleVO(plan.getId(), "run-477", 477L);
         cycle.setEffectiveMode("CBT_INCREMENTAL");
@@ -246,6 +249,9 @@ public class DrResponseGeneratorTest {
         Assert.assertEquals(8949399552L, json.get("transfersourcereadbytes").getAsLong());
         Assert.assertEquals(100D, json.get("transferpercent").getAsDouble(), 0D);
         Assert.assertEquals("COMPLETED", json.get("transferphase").getAsString());
+        Assert.assertTrue(json.has("schedulernextrunat"));
+        Assert.assertEquals(40, json.get("schedulerexecutionbudgetseconds").getAsInt());
+        Assert.assertEquals(32, json.get("schedulercyclewalldurationseconds").getAsInt());
     }
 
     private DrPlanRuntimeVO readyRuntime(long planId) {

@@ -561,6 +561,9 @@ CREATE TABLE IF NOT EXISTS `cloud`.`dr_plan_runtime` (
     `latest_completed_incremental_verified` tinyint(1) DEFAULT NULL,
     `protection_state` varchar(32) NOT NULL DEFAULT 'UNKNOWN',
     `freshness_state` varchar(32) NOT NULL DEFAULT 'UNKNOWN',
+    `scheduler_next_run_at` datetime DEFAULT NULL,
+    `scheduler_execution_budget_seconds` int unsigned DEFAULT NULL,
+    `scheduler_cycle_wall_duration_seconds` int unsigned DEFAULT NULL,
     `last_status_at` datetime DEFAULT NULL,
     `last_source_checkpoint_at` datetime DEFAULT NULL,
     `last_target_durable_at` datetime DEFAULT NULL,
@@ -626,6 +629,9 @@ CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'last_mode_decisio
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'consecutive_automatic_reseed_count', 'int unsigned NOT NULL DEFAULT 0 AFTER `last_mode_decision_code`');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'latest_completed_cycle_sequence', 'bigint unsigned NULL AFTER `consecutive_automatic_reseed_count`');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'latest_completed_incremental_verified', 'tinyint(1) NULL AFTER `latest_completed_cycle_sequence`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'scheduler_next_run_at', 'datetime NULL AFTER `freshness_state`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'scheduler_execution_budget_seconds', 'int unsigned NULL AFTER `scheduler_next_run_at`');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_plan_runtime', 'scheduler_cycle_wall_duration_seconds', 'int unsigned NULL AFTER `scheduler_execution_budget_seconds`');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_sync_cycle', 'automatic_reseed', 'tinyint(1) NULL AFTER `reseed_reason`');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_sync_cycle', 'mode_decision_code', 'varchar(128) NULL AFTER `automatic_reseed`');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.dr_sync_cycle', 'invalid_baseline_disk_count', 'int unsigned NULL AFTER `mode_decision_code`');

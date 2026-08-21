@@ -188,6 +188,13 @@ public class DrPlanRuntimeVO implements InternalIdentity {
     @Column(name = "freshness_state")
     private String freshnessState;
     @Temporal(TemporalType.TIMESTAMP)
+    @Column(name = "scheduler_next_run_at")
+    private Date schedulerNextRunAt;
+    @Column(name = "scheduler_execution_budget_seconds")
+    private Integer schedulerExecutionBudgetSeconds;
+    @Column(name = "scheduler_cycle_wall_duration_seconds")
+    private Integer schedulerCycleWallDurationSeconds;
+    @Temporal(TemporalType.TIMESTAMP)
     @Column(name = "last_status_at")
     private Date lastStatusAt;
     @Temporal(TemporalType.TIMESTAMP)
@@ -300,6 +307,9 @@ public class DrPlanRuntimeVO implements InternalIdentity {
     public String getNbdTeardownErrorMessage() { return nbdTeardownErrorMessage; }
     public String getProtectionState() { return protectionState; }
     public String getFreshnessState() { return freshnessState; }
+    public Date getSchedulerNextRunAt() { return schedulerNextRunAt; }
+    public Integer getSchedulerExecutionBudgetSeconds() { return schedulerExecutionBudgetSeconds; }
+    public Integer getSchedulerCycleWallDurationSeconds() { return schedulerCycleWallDurationSeconds; }
     public Date getLastStatusAt() { return lastStatusAt; }
     public Date getLastSourceCheckpointAt() { return lastSourceCheckpointAt; }
     public Date getLastTargetDurableAt() { return lastTargetDurableAt; }
@@ -390,6 +400,9 @@ public class DrPlanRuntimeVO implements InternalIdentity {
     public void setNbdTeardownErrorMessage(String value) { nbdTeardownErrorMessage = value; }
     public void setProtectionState(String value) { protectionState = value; }
     public void setFreshnessState(String value) { freshnessState = value; }
+    public void setSchedulerNextRunAt(Date value) { schedulerNextRunAt = value; }
+    public void setSchedulerExecutionBudgetSeconds(Integer value) { schedulerExecutionBudgetSeconds = value; }
+    public void setSchedulerCycleWallDurationSeconds(Integer value) { schedulerCycleWallDurationSeconds = value; }
     public void setLastStatusAt(Date value) { lastStatusAt = value; }
     public void setLastSourceCheckpointAt(Date value) { lastSourceCheckpointAt = value; }
     public void setLastTargetDurableAt(Date value) { lastTargetDurableAt = value; }

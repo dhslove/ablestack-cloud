@@ -309,8 +309,13 @@
             <template v-else-if="column.key === 'enginetype'">
               {{ $t(engineLabel(text)) }}
             </template>
-            <template v-else-if="column.key === 'targetreadyrposeconds'">
-              {{ formatRpo(record) }}
+            <template v-else-if="column.key === 'displayrposeconds'">
+              <span class="cross-dr-rpo-cell">
+                <span>{{ formatRpo(record) }}</span>
+                <dr-status-pill
+                  v-if="isRpoAttentionState(record.freshnessstate)"
+                  :status="record.freshnessstate" />
+              </span>
             </template>
           </template>
         </a-table>
@@ -1310,7 +1315,7 @@ export default {
         maxparallel: 2,
         quiescerequired: false
       },
-      selectedColumns: ['name', 'state', 'direction', 'sourcesiteid', 'targetsiteid', 'targetreadyrposeconds', 'enginetype'],
+      selectedColumns: ['name', 'state', 'direction', 'sourcesiteid', 'targetsiteid', 'displayrposeconds', 'enginetype'],
       page: 1,
       pageSize: this.$store.getters.defaultListViewPageSize || 20,
       filters: {
@@ -1358,7 +1363,7 @@ export default {
         { key: 'direction', title: this.$t('label.dr.direction'), dataIndex: 'direction', sorter: this.sortBy('direction') },
         { key: 'sourcesiteid', title: this.$t('label.dr.source.site'), dataIndex: 'sourcesiteid', sorter: this.sortBy('sourcesiteid') },
         { key: 'targetsiteid', title: this.$t('label.dr.target.site'), dataIndex: 'targetsiteid', sorter: this.sortBy('targetsiteid') },
-        { key: 'targetreadyrposeconds', title: this.$t('label.dr.target.rpo'), dataIndex: 'targetreadyrposeconds', sorter: this.sortBy('targetreadyrposeconds') },
+        { key: 'displayrposeconds', title: this.$t('label.dr.target.rpo'), dataIndex: 'displayrposeconds', sorter: this.sortBy('displayrposeconds') },
         { key: 'enginetype', title: this.$t('label.dr.engine'), dataIndex: 'enginetype', sorter: this.sortBy('enginetype') }
       ]
     }
@@ -1696,8 +1701,9 @@ export default {
       return results.map(record => {
         const plan = this.plans.find(item => String(item.id || '') === String(record.planId || ''))
         if (!plan) return record
-        const currentRpo = plan.targetreadyrposeconds !== null && plan.targetreadyrposeconds !== undefined && plan.targetreadyrposeconds !== ''
-          ? Number(plan.targetreadyrposeconds) : Number.NaN
+        const currentRpoValue = plan.displayrposeconds ?? plan.rpoageseconds ?? plan.targetreadyrposeconds
+        const currentRpo = currentRpoValue !== null && currentRpoValue !== undefined && currentRpoValue !== ''
+          ? Number(currentRpoValue) : Number.NaN
         const targetRpo = plan.rposeconds !== null && plan.rposeconds !== undefined && plan.rposeconds !== ''
           ? Number(plan.rposeconds) : Number.NaN
         const errorCode = String(plan.lasterrorcode || '').toUpperCase()
@@ -2654,8 +2660,15 @@ export default {
         'rtoseconds',
         'lastsourcecheckpointat',
         'lasttargetdurableat',
+        'freshnessstate',
+        'schedulernextrunat',
+        'schedulerexecutionbudgetseconds',
+        'schedulercyclewalldurationseconds',
         'targetreadyat',
         'targetreadyrposeconds',
+        'displayrposeconds',
+        'rpoageseconds',
+        'rpostatus',
         'lasterrorcode',
         'lasterrormessage',
         'failedcomponent',
@@ -3832,9 +3845,13 @@ export default {
       return `${Math.round(value / 86400)}d`
     },
     formatRpo (plan) {
-      const current = this.formatSeconds(plan.targetreadyrposeconds)
+      const currentValue = plan.displayrposeconds ?? plan.rpoageseconds ?? plan.targetreadyrposeconds
+      const current = this.formatSeconds(currentValue)
       const target = this.formatSeconds(plan.rposeconds)
       return `${current} / ${target}`
+    },
+    isRpoAttentionState (state) {
+      return ['RPO_DUE_SOON', 'OVERDUE'].includes(String(state || '').toUpperCase())
     },
     effectivePlanState (plan) {
       return resolveDrPlanState(plan)
@@ -3844,6 +3861,13 @@ export default {
 </script>
 
 <style lang="less">
+.cross-dr-rpo-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .cross-dr-action-modal {
   display: grid;
   gap: 10px;

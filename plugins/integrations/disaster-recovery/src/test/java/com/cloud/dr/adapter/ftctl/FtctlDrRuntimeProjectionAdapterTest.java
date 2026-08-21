@@ -239,6 +239,18 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     }
 
     @Test
+    public void rpoFreshnessUsesDeadlineWithoutImplicitGrace() {
+        Date durableAt = new Date();
+
+        Assert.assertEquals("WITHIN_RPO", adapter.classifyRpoFreshness(false, durableAt, 239L, 300L));
+        Assert.assertEquals("RPO_DUE_SOON", adapter.classifyRpoFreshness(false, durableAt, 240L, 300L));
+        Assert.assertEquals("RPO_DUE_SOON", adapter.classifyRpoFreshness(false, durableAt, 300L, 300L));
+        Assert.assertEquals("OVERDUE", adapter.classifyRpoFreshness(false, durableAt, 301L, 300L));
+        Assert.assertEquals("OVERDUE", adapter.classifyRpoFreshness(false, null, 0L, 300L));
+        Assert.assertEquals("WITHIN_RPO", adapter.classifyRpoFreshness(true, null, 900L, 300L));
+    }
+
+    @Test
     public void laterDurableCycleConsumesReverseCheckpointAndSupersedesOrphanCycle() {
         DrPlanVO plan = new DrPlanVO("plan-terminal-cycles", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
         DrSyncCycleVO orphan = new DrSyncCycleVO(plan.getId(), "sync-run", 523L);

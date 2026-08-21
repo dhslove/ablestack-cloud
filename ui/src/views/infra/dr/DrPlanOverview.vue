@@ -168,6 +168,9 @@ export default {
         { key: 'workerHeartbeatAt', label: this.$t('label.dr.scheduler.heartbeat'), value: this.plan.workerheartbeatat },
         { key: 'lastSourceCheckpoint', label: this.$t('label.dr.last.source.checkpoint'), value: this.plan.lastsourcecheckpointat },
         { key: 'lastTargetDurable', label: this.$t('label.dr.last.target.durable'), value: this.plan.lasttargetdurableat },
+        { key: 'schedulerNextRunAt', label: this.$t('label.dr.scheduler.next.run.at'), value: this.plan.schedulernextrunat },
+        { key: 'schedulerExecutionBudget', label: this.$t('label.dr.scheduler.execution.budget'), value: this.formatSeconds(this.plan.schedulerexecutionbudgetseconds) },
+        { key: 'schedulerCycleWallDuration', label: this.$t('label.dr.scheduler.cycle.wall.duration'), value: this.formatSeconds(this.plan.schedulercyclewalldurationseconds) },
         { key: 'created', label: this.$t('label.created'), value: this.plan.created }
       ]
     },

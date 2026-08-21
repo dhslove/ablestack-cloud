@@ -238,6 +238,21 @@
         <a-descriptions-item :label="$t('label.dr.latest.completed.checkpoint')">
           {{ latestCompletedSyncCycle.sequence || '-' }}
         </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.freshness.state')">
+          <dr-status-pill :status="protectionPlan.freshnessstate || 'UNKNOWN'" />
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.last.target.durable')">
+          {{ protectionPlan.lasttargetdurableat || '-' }}
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.scheduler.next.run.at')">
+          {{ protectionPlan.schedulernextrunat || '-' }}
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.scheduler.execution.budget')">
+          {{ formatSeconds(protectionPlan.schedulerexecutionbudgetseconds) }}
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.scheduler.cycle.wall.duration')">
+          {{ formatSeconds(protectionPlan.schedulercyclewalldurationseconds) }}
+        </a-descriptions-item>
         <a-descriptions-item :label="$t('label.dr.nbd.teardown.state')">
           <dr-status-pill :status="currentNbdTeardownState" />
         </a-descriptions-item>
@@ -618,6 +633,13 @@ export default {
       if (!Number.isFinite(numeric) || numeric < 0) return '-'
       if (numeric < 1000) return `${numeric} ms`
       return `${(numeric / 1000).toFixed(numeric < 10000 ? 2 : 1)} s`
+    },
+    formatSeconds (value) {
+      const numeric = Number(value)
+      if (!Number.isFinite(numeric) || numeric < 0) return '-'
+      if (numeric < 60) return `${Math.round(numeric)}s`
+      if (numeric < 3600) return `${Math.round(numeric / 60)}m`
+      return `${Math.round(numeric / 3600)}h`
     }
   }
 }

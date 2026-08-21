@@ -301,6 +301,9 @@ public class DrResponseGenerator extends ManagerBase {
             response.setReseedReason(authority.getReseedReason());
             response.setRpoAgeSeconds(authority.getRpoAgeSeconds());
             response.setRpoOverdue(authority.isRpoOverdue());
+            response.setSchedulerNextRunAt(authority.getSchedulerNextRunAt());
+            response.setSchedulerExecutionBudgetSeconds(authority.getSchedulerExecutionBudgetSeconds());
+            response.setSchedulerCycleWallDurationSeconds(authority.getSchedulerCycleWallDurationSeconds());
             response.setEffectiveState(authority.getProtectionState());
             populateCurrentProtectionControlState(response, authority.getRuntime());
         }

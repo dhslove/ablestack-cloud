@@ -149,6 +149,18 @@ public class DrPlanResponse extends BaseResponse {
     @Param(description = "the scheduler ownership and heartbeat health")
     private String schedulerHealth;
 
+    @SerializedName("schedulernextrunat")
+    @Param(description = "the next scheduler start time calculated from the durable RPO deadline")
+    private Date schedulerNextRunAt;
+
+    @SerializedName("schedulerexecutionbudgetseconds")
+    @Param(description = "the P95 transfer execution budget reserved before the RPO deadline")
+    private Integer schedulerExecutionBudgetSeconds;
+
+    @SerializedName("schedulercyclewalldurationseconds")
+    @Param(description = "the most recent scheduler cycle wall-clock duration")
+    private Integer schedulerCycleWallDurationSeconds;
+
     @SerializedName("replicationactivity")
     @Param(description = "the current replication activity independent of protection state")
     private String replicationActivity;
@@ -767,6 +779,9 @@ public class DrPlanResponse extends BaseResponse {
     public void setSchedulerLeaseEpoch(Long value) { schedulerLeaseEpoch = value; }
     public void setAuthoritySequence(Long value) { authoritySequence = value; }
     public void setSchedulerHealth(String value) { schedulerHealth = value; }
+    public void setSchedulerNextRunAt(Date value) { schedulerNextRunAt = value; }
+    public void setSchedulerExecutionBudgetSeconds(Integer value) { schedulerExecutionBudgetSeconds = value; }
+    public void setSchedulerCycleWallDurationSeconds(Integer value) { schedulerCycleWallDurationSeconds = value; }
     public void setReplicationActivity(String value) { replicationActivity = value; }
     public void setActiveWorkerRunUuid(String value) { activeWorkerRunUuid = value; }
     public void setWorkerHeartbeatAt(Date value) { workerHeartbeatAt = value; }

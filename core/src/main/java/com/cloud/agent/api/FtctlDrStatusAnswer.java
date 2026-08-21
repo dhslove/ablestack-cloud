@@ -28,6 +28,10 @@ public class FtctlDrStatusAnswer extends Answer {
     private String lastSourceCheckpointAt;
     private String lastTargetDurableAt;
     private Integer targetReadyRpoSeconds;
+    private Integer targetRpoSeconds;
+    private String schedulerNextRunAt;
+    private Integer schedulerExecutionBudgetSeconds;
+    private Integer schedulerCycleWallDurationSeconds;
     private Boolean targetMaterialized;
     private Boolean targetVmPresent;
     private Boolean targetStoragePresent;
@@ -97,6 +101,7 @@ public class FtctlDrStatusAnswer extends Answer {
     private String currentCheckpointRef;
     private String currentCheckpointState;
     private Long latestCompletedCheckpointSequence;
+    private Long latestCompletedCycleSequence;
     private String latestCompletedCheckpointCycleType;
     private String latestCompletedCheckpointRef;
     private String latestCompletedCheckpointState;
@@ -405,6 +410,38 @@ public class FtctlDrStatusAnswer extends Answer {
         return targetReadyRpoSeconds;
     }
 
+    public Integer getTargetRpoSeconds() {
+        return targetRpoSeconds;
+    }
+
+    public void setTargetRpoSeconds(Integer targetRpoSeconds) {
+        this.targetRpoSeconds = targetRpoSeconds;
+    }
+
+    public String getSchedulerNextRunAt() {
+        return schedulerNextRunAt;
+    }
+
+    public void setSchedulerNextRunAt(String schedulerNextRunAt) {
+        this.schedulerNextRunAt = schedulerNextRunAt;
+    }
+
+    public Integer getSchedulerExecutionBudgetSeconds() {
+        return schedulerExecutionBudgetSeconds;
+    }
+
+    public void setSchedulerExecutionBudgetSeconds(Integer schedulerExecutionBudgetSeconds) {
+        this.schedulerExecutionBudgetSeconds = schedulerExecutionBudgetSeconds;
+    }
+
+    public Integer getSchedulerCycleWallDurationSeconds() {
+        return schedulerCycleWallDurationSeconds;
+    }
+
+    public void setSchedulerCycleWallDurationSeconds(Integer schedulerCycleWallDurationSeconds) {
+        this.schedulerCycleWallDurationSeconds = schedulerCycleWallDurationSeconds;
+    }
+
     public Boolean getTargetMaterialized() {
         return targetMaterialized;
     }
@@ -709,6 +746,14 @@ public class FtctlDrStatusAnswer extends Answer {
 
     public void setLatestCompletedCheckpointSequence(Long latestCompletedCheckpointSequence) {
         this.latestCompletedCheckpointSequence = latestCompletedCheckpointSequence;
+    }
+
+    public Long getLatestCompletedCycleSequence() {
+        return latestCompletedCycleSequence;
+    }
+
+    public void setLatestCompletedCycleSequence(Long latestCompletedCycleSequence) {
+        this.latestCompletedCycleSequence = latestCompletedCycleSequence;
     }
 
     public String getLatestCompletedCheckpointCycleType() {

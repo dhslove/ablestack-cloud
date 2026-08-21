@@ -143,6 +143,12 @@ public class LibvirtFtctlDrStatusCommandWrapper extends CommandWrapper<FtctlDrSt
                 LibvirtFtctlDrCommandHelper.getString(payload, "error_code"),
                 exitValue, output, payload != null ? payload.toString() : null);
         answer.setStatusScope(LibvirtFtctlDrCommandHelper.getString(payload, "status_scope"));
+        answer.setTargetRpoSeconds(LibvirtFtctlDrCommandHelper.getInteger(payload, "target_rpo_seconds"));
+        answer.setSchedulerNextRunAt(LibvirtFtctlDrCommandHelper.getString(payload, "scheduler_next_run_at"));
+        answer.setSchedulerExecutionBudgetSeconds(
+                LibvirtFtctlDrCommandHelper.getInteger(payload, "scheduler_execution_budget_seconds"));
+        answer.setSchedulerCycleWallDurationSeconds(
+                LibvirtFtctlDrCommandHelper.getInteger(payload, "scheduler_cycle_wall_duration_seconds"));
         answer.setErrorMessage(payloadErrorMessage);
         answer.setFailedComponent(LibvirtFtctlDrCommandHelper.getString(payload, "failed_component"));
         answer.setDataCommitState(LibvirtFtctlDrCommandHelper.getString(payload, "data_commit_state"));
@@ -183,6 +189,7 @@ public class LibvirtFtctlDrStatusCommandWrapper extends CommandWrapper<FtctlDrSt
         answer.setCurrentCheckpointRef(LibvirtFtctlDrCommandHelper.getString(payload, "current_checkpoint_ref"));
         answer.setCurrentCheckpointState(LibvirtFtctlDrCommandHelper.getString(payload, "current_checkpoint_state"));
         answer.setLatestCompletedCheckpointSequence(LibvirtFtctlDrCommandHelper.getLong(payload, "latest_completed_checkpoint_sequence"));
+        answer.setLatestCompletedCycleSequence(LibvirtFtctlDrCommandHelper.getLong(payload, "latest_completed_cycle_sequence"));
         answer.setLatestCompletedCheckpointCycleType(LibvirtFtctlDrCommandHelper.getString(payload, "latest_completed_checkpoint_cycle_type"));
         answer.setLatestCompletedCheckpointRef(LibvirtFtctlDrCommandHelper.getString(payload, "latest_completed_checkpoint_ref"));
         answer.setLatestCompletedCheckpointState(LibvirtFtctlDrCommandHelper.getString(payload, "latest_completed_checkpoint_state"));
@@ -527,11 +534,14 @@ public class LibvirtFtctlDrStatusCommandWrapper extends CommandWrapper<FtctlDrSt
                 return false;
             }
         }
-        String[] numbers = {"progress", "target_ready_rpo_seconds", "events_offset", "events_next_offset",
+        String[] numbers = {"progress", "target_ready_rpo_seconds", "target_rpo_seconds",
+                "scheduler_execution_budget_seconds", "scheduler_cycle_wall_duration_seconds",
+                "events_offset", "events_next_offset",
                 "events_invalid_count", "target_disk_count", "target_disk_invalid_count", "worker_pid",
                 "worker_start_ticks", "worker_exit_code", "driver_exit_code", "retry_after_sec",
                 "current_checkpoint_sequence", "guestprep_checkpoint_sequence",
-                "latest_completed_checkpoint_sequence", "latest_completed_target_ready_rpo_seconds",
+                "latest_completed_checkpoint_sequence", "latest_completed_cycle_sequence",
+                "latest_completed_target_ready_rpo_seconds",
                 "test_artifact_count",
                 "latest_completed_virtual_bytes", "latest_completed_changed_bytes", "latest_completed_source_read_bytes",
                 "latest_completed_target_written_bytes", "latest_completed_transfer_payload_bytes",
