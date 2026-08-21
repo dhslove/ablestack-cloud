@@ -76,6 +76,9 @@ VM, 볼륨, 네트워크는 삭제하거나 전원을 변경하지 않는다.
     `runtimeControlState=STOPPED`, `schedulerPidAlive=false`를 함께 확인한다.
 11. 이미 검증된 경로의 공통 status/projection 코드를 변경할 때는 기능별 단위 테스트뿐
     아니라 terminal 이후 원시 JSON 잔존 여부를 검사하는 교차 경로 회귀 테스트를 추가한다.
+12. terminal 정리값은 운영 DB의 `NOT NULL` 계약을 따라야 한다. 의미가 사라진 상태도
+    `freshness_state=UNKNOWN`, `scheduler_recovery_state=NONE`처럼 명시적 중립값을 사용하고,
+    nullable 여부를 단위 테스트와 실제 projection preflight에서 함께 검증한다.
 
 ## 5. 테스트 매트릭스
 

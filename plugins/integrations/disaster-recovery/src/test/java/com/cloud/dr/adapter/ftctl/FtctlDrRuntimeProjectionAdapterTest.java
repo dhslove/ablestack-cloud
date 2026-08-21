@@ -442,6 +442,8 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         Assert.assertEquals(DrConstants.AUTHORITY_SIDE_TARGET, plan.getActiveSide());
         Assert.assertEquals("STOPPED", planRuntime.getSchedulerState());
         Assert.assertEquals("UNPROTECTED", planRuntime.getProtectionState());
+        Assert.assertEquals("UNKNOWN", planRuntime.getFreshnessState());
+        Assert.assertEquals("NONE", planRuntime.getSchedulerRecoveryState());
         Assert.assertEquals("inactive", planRuntime.getSchedulerUnitActiveState());
         Assert.assertEquals("dead", planRuntime.getSchedulerUnitSubState());
         Assert.assertNull(planRuntime.getSchedulerUnitMainPid());
@@ -486,6 +488,8 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         Assert.assertEquals(DrConstants.AUTHORITY_SIDE_SOURCE, plan.getActiveSide());
         Assert.assertEquals("STOPPED", planRuntime.getSchedulerState());
         Assert.assertEquals("UNPROTECTED", planRuntime.getProtectionState());
+        Assert.assertEquals("UNKNOWN", planRuntime.getFreshnessState());
+        Assert.assertEquals("NONE", planRuntime.getSchedulerRecoveryState());
         JsonObject releasedRuntime = JsonParser.parseString(planRuntime.getStatusJson()).getAsJsonObject();
         Assert.assertEquals("RELEASED", releasedRuntime.get("state").getAsString());
         Assert.assertEquals("STOPPED", releasedRuntime.get("control_state").getAsString());

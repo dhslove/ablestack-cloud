@@ -1808,7 +1808,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             planRuntime.setSchedulerUnitSubState("dead");
             planRuntime.setSchedulerUnitMainPid(null);
             planRuntime.setSchedulerCgroup(null);
-            planRuntime.setSchedulerRecoveryState(null);
+            planRuntime.setSchedulerRecoveryState("NONE");
             planRuntime.setSchedulerRecoveryTrigger(null);
             planRuntime.setSchedulerRecoveryAttempts(0);
             planRuntime.setSchedulerRecoveryErrorCode(null);
@@ -1853,7 +1853,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             planRuntime.setCurrentCycleMode(null);
             planRuntime.setProtectionState("UNPROTECTED");
             planRuntime.setReplicationActivityState("IDLE");
-            planRuntime.setFreshnessState(null);
+            planRuntime.setFreshnessState("UNKNOWN");
             planRuntime.setSchedulerNextRunAt(null);
             planRuntime.setSchedulerExecutionBudgetSeconds(null);
             planRuntime.setSchedulerCycleWallDurationSeconds(null);
