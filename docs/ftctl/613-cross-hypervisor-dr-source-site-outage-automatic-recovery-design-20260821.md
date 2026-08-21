@@ -28,6 +28,9 @@ VMware 원본 사이트 전체 전원 장애 후 복구 시 Cloud UI, API, Backe
 
 - Agent는 기존 비동기 start/status 계약을 유지한다.
 - FTCTL은 `DR_SOURCE_SITE_UNAVAILABLE`을 retryable로 반환하고 같은 Cycle sequence로 backoff 재시도한다.
+- vCenter UI가 먼저 복구되고 SOAP SDK `/sdk`만 `503 Service Unavailable` 또는
+  `no healthy upstream`인 부분 복구 상태도 `DR_SOURCE_SITE_UNAVAILABLE`로 분류한다.
+  이 상태는 VDDK 인자 오류가 아니며 Cloud가 새 Run을 반복 생성하지 않는다.
 - 과거 changeId 조회가 실패하지만 현재 changeId preflight가 성공하면 같은 sequence와
   owner Run에서 `SOURCE_CBT_EPOCH_RESET` 사유의 Full Reseed를 한 번만 수행한다.
 - 자동 재시드를 시도한 baseline generation을 영구 가드로 남겨 systemd 재시작 뒤에도
@@ -63,3 +66,15 @@ VMware 원본 사이트 전체 전원 장애 후 복구 시 Cloud UI, API, Backe
    `CBT_INCREMENTAL` 또는 `NO_CHANGE`로 완료된다.
 6. latest durable sequence가 증가하고 재시드 전 마지막 정상 기준선은 commit 전까지 보존된다.
 7. Scheduler는 RUNNING/HEALTHY, Plan은 READY 또는 RPO 평가에 따른 DEGRADED다.
+
+## 5. 2026-08-21 전원 복구 실환경 보강
+
+- `/ui/`: HTTP 200
+- VAPI: 인증 challenge/세션 생성 응답
+- `/sdk`: HTTP 503, `no healthy upstream`
+- `govc snapshot.create`: `POST "/sdk": 503 Service Unavailable`
+
+따라서 자동 증분 복구는 `/ui` 접근 가능 여부가 아니라 SOAP SDK와 snapshot.create
+성공을 source-ready 기준으로 사용한다. SDK 503 동안 FTCTL은 `WAITING_SOURCE`에서
+동일 Cycle과 마지막 durable 기준선을 유지한다. SDK가 정상화되면 같은 실행이 CBT
+epoch를 검증하고, 기존 epoch가 무효한 경우에만 제한된 Full Reseed를 수행한다.
