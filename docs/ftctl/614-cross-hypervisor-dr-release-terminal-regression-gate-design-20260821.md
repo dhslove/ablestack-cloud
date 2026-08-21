@@ -1,7 +1,7 @@
 # 614. Cross-Hypervisor DR Release Terminal Regression Gate Design
 
 - 작성일: 2026-08-21
-- 상태: 설계 및 구현 완료, 테스트 배포 검증 대기
+- 상태: 설계, 구현, 양 클러스터 테스트 배포 및 기존 Plan 재투영 검증 완료
 - 검증 Plan: `ef73f5f3-9740-4bbd-8c9a-74a972e5f19f`
 - 적용 범위: Cloud Backend, Agent 응답 계약, FTCTL status, DB projection, CI
 - FTCTL 부속 설계: `463-ftctl-dr-release-tombstone-profile-independent-status-contract-20260821.md`
@@ -103,3 +103,25 @@ VM, 볼륨, 네트워크는 삭제하거나 전원을 변경하지 않는다.
 | Cloud Backend | polling에만 종결 의존 | 성공 응답 즉시 transaction + polling 복구 |
 | DB | Run 성공 뒤 정규 열만 수렴하고 status JSON은 READY/RUNNING 잔존 | Run/Plan/runtime/resource와 원시 JSON 동시 수렴 |
 | 배포 | 관련 기능 단위 smoke | 기존 DR 전체 action contract gate |
+
+## 7. 테스트 배포 및 재투영 검증
+
+- Cloud 변경 클래스 커밋: `4e54377325`
+- FTCTL 패키지 커밋: `25f4375`
+- FTCTL GitHub Actions: `32474231801`
+- FTCTL RPM: `ablestack_vm_ftctl-0.9.5-1.noarch.rpm`
+- FTCTL RPM SHA256: `89418717ead900a4bc3715ab216cc045dda8a5e7d84ed43f99b6c4b611d8d590`
+- Cloud 변경 클래스 번들 SHA256: `50ca69df1fa774eaa7fde1c89f36d55593edc4cd32108d6656efe8d108736c6a`
+- 배포 대상: `10.10.32.1/2/3/10`, `10.10.22.1/2/3/10`
+- Maven 검증: 관련 34개 reactor 모듈 성공, 지정 테스트 47개 성공
+- 기존 Plan 재투영 async job: `8c02184a-9187-4c57-accb-1bc234c76ae8`, 성공
+- 재투영 결과:
+  - Plan: `UNPROTECTED / DISABLED / SOURCE`
+  - Runtime: `STOPPED / UNPROTECTED / UNKNOWN / IDLE`
+  - raw status: `RELEASED / release-completed / STOPPED / IDLE`
+  - scheduler unit/process: `inactive / dead / pidAlive=false`
+  - active replica/restore point: `0 / 0`
+
+이 검증은 DB 행을 직접 수정하지 않고 `refreshDrProtectionView`의 정상 projection
+경로로 수행했다. 이후 공통 DR 코드 변경은 4절의 조건을 충족하지 못하면 테스트
+배포 및 재테스트 준비 완료로 판정하지 않는다.
