@@ -454,7 +454,12 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         boolean overdue = StringUtils.equals(evaluatedFreshnessState, "OVERDUE");
         String engineProtectionState = StringUtils.defaultIfBlank(status.getProtectionState(),
                 stringValue(runtime, "protection_state"));
+        boolean sourceRecoveryWaiting = (Boolean.TRUE.equals(booleanValue(runtime, "retryable"))
+                && StringUtils.equalsIgnoreCase(errorCode, "DR_SOURCE_SITE_UNAVAILABLE"))
+                || StringUtils.equalsIgnoreCase(schedulerHealth, "WAITING_SOURCE")
+                || StringUtils.equalsIgnoreCase(cycleState, "WAITING_SOURCE");
         boolean runtimeFailed = !committedTargetAuthority
+                && !sourceRecoveryWaiting
                 && (StringUtils.equalsAnyIgnoreCase(engineProtectionState, "ERROR", "FAILED")
                 || StringUtils.equalsAnyIgnoreCase(cycleState, "ERROR", "FAILED")
                 || StringUtils.equalsAnyIgnoreCase(schedulerHealth, "DEAD", "OWNER_MISMATCH", "DUPLICATE_WORKER"));
@@ -481,6 +486,9 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         } else if (committedTargetAuthority) {
             protectionState = "FAILED_OVER_UNPROTECTED";
             freshnessState = "WITHIN_RPO";
+        } else if (sourceRecoveryWaiting) {
+            protectionState = "DEGRADED";
+            freshnessState = "SOURCE_UNAVAILABLE";
         } else if (runtimeFailed) {
             protectionState = DrConstants.PLAN_STATE_ERROR;
         } else if (reseeding) {

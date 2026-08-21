@@ -15,6 +15,10 @@
   - [566-cross-hypervisor-dr-current-protection-activity-and-operation-history-projection-design-20260721.md](566-cross-hypervisor-dr-current-protection-activity-and-operation-history-projection-design-20260721.md)
   - [569-cross-hypervisor-dr-nbd-deterministic-drain-and-cycle-observability-design-20260723.md](569-cross-hypervisor-dr-nbd-deterministic-drain-and-cycle-observability-design-20260723.md)
   - [570-cross-hypervisor-dr-reprotect-canonical-authority-preservation-design-20260723.md](570-cross-hypervisor-dr-reprotect-canonical-authority-preservation-design-20260723.md)
+  - [613-cross-hypervisor-dr-source-site-outage-automatic-recovery-design-20260821.md](613-cross-hypervisor-dr-source-site-outage-automatic-recovery-design-20260821.md)
+
+> 2026-08-21 보강: 원본 사이트 전체 단절과 복구는 문서 613의 연속 헬스
+> gate, 비동기 RECOVER_SYNC, 기존 durable baseline 보존 계약을 우선 적용한다.
 
 ## 1. 목적
 

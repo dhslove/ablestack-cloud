@@ -44,6 +44,17 @@ describe('DR protection state helpers', () => {
     expect(resolveDrPlanSeverity(plan)).toBe('INFO')
   })
 
+  it('shows a retryable source outage as waiting instead of a terminal error', () => {
+    const plan = {
+      schedulerrecoverystate: 'FAILED',
+      schedulerhealth: 'WAITING_SOURCE',
+      runtimeerrorcode: 'DR_SOURCE_SITE_UNAVAILABLE',
+      protectionstate: 'DEGRADED'
+    }
+
+    expect(resolveDrPlanState(plan)).toBe('WAITING_SOURCE_RECOVERY')
+  })
+
   it('uses the frozen cutover RPO supplied by the API', () => {
     const presentation = resolveDrRpoPresentation({
       rpoevaluationmode: 'CUTOVER_FROZEN',

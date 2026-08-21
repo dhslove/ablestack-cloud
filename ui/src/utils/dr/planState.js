@@ -16,6 +16,11 @@ export function isActiveDrSyncCycle (cycle = {}) {
 
 export function resolveDrPlanState (plan = {}, currentRun = null) {
   const latestRun = currentRun || plan.lastrun || {}
+  const runtimeError = String(plan.runtimeerrorcode || latestRun.runtimeerrorcode || '').toUpperCase()
+  const schedulerHealth = String(plan.schedulerhealth || '').toUpperCase()
+  if (runtimeError === 'DR_SOURCE_SITE_UNAVAILABLE' || schedulerHealth === 'WAITING_SOURCE') {
+    return 'WAITING_SOURCE_RECOVERY'
+  }
   const recoveryState = String(plan.schedulerrecoverystate || plan.schedulerRecoveryState || '').toUpperCase()
   if (['PENDING', 'RECOVERING'].includes(recoveryState)) {
     return recoveryState === 'PENDING' ? 'RECOVERY_PENDING' : 'RECOVERING'
@@ -28,7 +33,6 @@ export function resolveDrPlanState (plan = {}, currentRun = null) {
   if (operatingSide === 'TARGET' && protectionPhase) {
     return protectionPhase
   }
-  const schedulerHealth = String(plan.schedulerhealth || '').toUpperCase()
   const ownerMatched = plan.ownermatched
   if (['DEAD', 'OWNER_MISMATCH', 'DUPLICATE_WORKER', 'STALE'].includes(schedulerHealth) ||
       (schedulerHealth && ownerMatched === false)) {
@@ -45,7 +49,6 @@ export function resolveDrPlanState (plan = {}, currentRun = null) {
   const runtime = String(plan.runtimestate || latestRun.runtimestate || '').toUpperCase()
   const worker = String(latestRun.workerstate || '').toUpperCase()
   const runState = String(latestRun.state || '').toUpperCase()
-  const runtimeError = plan.runtimeerrorcode || latestRun.runtimeerrorcode
   const runError = runState === 'FAILED' ? latestRun.errorcode : null
   if (['ERROR', 'FAILED'].includes(runtime) || worker === 'FAILED' || runtimeError || runError) {
     return 'ERROR'

@@ -394,7 +394,8 @@ public class DrPlanServiceImpl extends ManagerBase implements DrPlanService {
 
     private boolean isRecoverSyncRequired(DrPlanVO plan, DrPlanRuntimeVO runtime, boolean sourceAuthority) {
         if (plan == null || runtime == null || !sourceAuthority
-                || !StringUtils.equalsAny(plan.getState(), DrConstants.PLAN_STATE_READY, DrConstants.PLAN_STATE_SYNCING)) {
+                || !StringUtils.equalsAnyIgnoreCase(plan.getState(), DrConstants.PLAN_STATE_READY,
+                        DrConstants.PLAN_STATE_SYNCING, DrConstants.PLAN_STATE_ERROR, "DEGRADED")) {
             return false;
         }
         if (StringUtils.equalsAnyIgnoreCase(runtime.getSchedulerRecoveryState(),

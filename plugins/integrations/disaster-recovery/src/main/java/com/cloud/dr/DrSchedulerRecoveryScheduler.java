@@ -16,6 +16,7 @@
 // under the License.
 package com.cloud.dr;
 
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
@@ -28,12 +29,17 @@ import javax.naming.ConfigurationException;
 import org.apache.cloudstack.framework.config.ConfigKey;
 import org.apache.cloudstack.framework.config.Configurable;
 import org.apache.cloudstack.managed.context.ManagedContextRunnable;
+import org.apache.commons.lang3.StringUtils;
 
 import com.cloud.dr.cluster.DisasterRecoveryClusterService;
 import com.cloud.dr.dao.DrPlanDao;
 import com.cloud.dr.dao.DrPlanRuntimeDao;
+import com.cloud.dr.dao.DrSiteDao;
+import com.cloud.dr.dao.DrSiteHealthCheckDao;
+import com.cloud.utils.Pair;
 import com.cloud.utils.component.ManagerBase;
 import com.cloud.utils.concurrency.NamedThreadFactory;
+import com.cloud.utils.db.Filter;
 import com.cloud.utils.db.GlobalLock;
 import com.google.gson.JsonObject;
 
@@ -42,15 +48,23 @@ public class DrSchedulerRecoveryScheduler extends ManagerBase implements Configu
     private static final long INITIAL_DELAY_SECONDS = 20L;
 
     public static final ConfigKey<Boolean> DrSchedulerRecoveryEnabled = new ConfigKey<>("Advanced", Boolean.class,
-            "dr.scheduler.recovery.enabled", "false",
+            "dr.scheduler.recovery.enabled", "true",
             "Enable automatic recovery of eligible FTCTL_DR Plan schedulers.", false);
     public static final ConfigKey<Integer> DrSchedulerRecoveryInterval = new ConfigKey<>("Advanced", Integer.class,
             "dr.scheduler.recovery.interval", "30", "DR scheduler recovery evaluation interval in seconds.", false);
     public static final ConfigKey<Integer> DrSchedulerRecoveryBatchSize = new ConfigKey<>("Advanced", Integer.class,
             "dr.scheduler.recovery.batch.size", "25", "Maximum DR scheduler recoveries evaluated per tick.", false);
+    public static final ConfigKey<Integer> DrSchedulerRecoverySourceHealthyChecks = new ConfigKey<>("Advanced", Integer.class,
+            "dr.scheduler.recovery.source.healthy.checks", "3",
+            "Consecutive healthy source-site checks required before automatic scheduler recovery.", false);
+    public static final ConfigKey<Integer> DrSchedulerRecoverySourceHealthMaxAge = new ConfigKey<>("Advanced", Integer.class,
+            "dr.scheduler.recovery.source.health.max.age", "180",
+            "Maximum age in seconds of source-site health evidence used for automatic scheduler recovery.", false);
 
     @Inject private DrPlanDao drPlanDao;
     @Inject private DrPlanRuntimeDao drPlanRuntimeDao;
+    @Inject private DrSiteDao drSiteDao;
+    @Inject private DrSiteHealthCheckDao drSiteHealthCheckDao;
     @Inject private DrPlanService drPlanService;
     @Inject private DrRunService drRunService;
     private ScheduledExecutorService executor;
@@ -87,7 +101,8 @@ public class DrSchedulerRecoveryScheduler extends ManagerBase implements Configu
     @Override
     public ConfigKey<?>[] getConfigKeys() {
         return new ConfigKey<?>[] {DrSchedulerRecoveryEnabled, DrSchedulerRecoveryInterval,
-                DrSchedulerRecoveryBatchSize};
+                DrSchedulerRecoveryBatchSize, DrSchedulerRecoverySourceHealthyChecks,
+                DrSchedulerRecoverySourceHealthMaxAge};
     }
 
     private final class RecoveryTask extends ManagedContextRunnable {
@@ -118,10 +133,13 @@ public class DrSchedulerRecoveryScheduler extends ManagerBase implements Configu
         List<DrPlanVO> plans = drPlanDao.listActive();
         int remaining = Math.max(1, DrSchedulerRecoveryBatchSize.value());
         for (DrPlanVO plan : plans) {
-            if (remaining-- <= 0) {
+            if (remaining <= 0) {
                 break;
             }
             try {
+                if (!isSourceSiteStable(plan)) {
+                    continue;
+                }
                 Map<String, Boolean> eligibility = drPlanService.getActionEligibility(plan.getId());
                 if (!Boolean.TRUE.equals(eligibility.get("recoverSync"))) {
                     continue;
@@ -134,9 +152,39 @@ public class DrSchedulerRecoveryScheduler extends ManagerBase implements Configu
                 drRunService.startRun(plan.getId(), DrConstants.RUN_TYPE_RECOVER_SYNC,
                         String.format("scheduler-recovery:%s:%s", plan.getUuid(), authoritySequence),
                         null, null, request.toString());
+                remaining--;
             } catch (RuntimeException e) {
                 logger.warn(String.format("Failed to recover DR scheduler for plan %s", plan.getId()), e);
             }
         }
+    }
+
+    private boolean isSourceSiteStable(DrPlanVO plan) {
+        DrSiteVO sourceSite = drSiteDao.findById(plan.getSourceSiteId());
+        if (sourceSite == null || sourceSite.getRemoved() != null
+                || !StringUtils.equalsIgnoreCase(sourceSite.getHealthState(), DrConstants.HEALTH_CONNECTED)
+                || sourceSite.getLastChecked() == null) {
+            return false;
+        }
+        long maxAgeMillis = Math.max(30, DrSchedulerRecoverySourceHealthMaxAge.value()) * 1000L;
+        if (System.currentTimeMillis() - sourceSite.getLastChecked().getTime() > maxAgeMillis) {
+            return false;
+        }
+        int requiredChecks = Math.max(1, DrSchedulerRecoverySourceHealthyChecks.value());
+        Date checkedAfter = new Date(System.currentTimeMillis() - maxAgeMillis);
+        Filter filter = new Filter(DrSiteHealthCheckVO.class, "checkedAt", false, 0L, (long) requiredChecks);
+        Pair<List<DrSiteHealthCheckVO>, Integer> result = drSiteHealthCheckDao.searchBySite(
+                sourceSite.getId(), null, null, checkedAfter, null, filter);
+        List<DrSiteHealthCheckVO> checks = result != null ? result.first() : null;
+        if (checks == null || checks.size() < requiredChecks) {
+            return false;
+        }
+        for (DrSiteHealthCheckVO check : checks) {
+            if (check == null || check.getCheckedAt() == null
+                    || !StringUtils.equalsIgnoreCase(check.getHealthState(), DrConstants.HEALTH_CONNECTED)) {
+                return false;
+            }
+        }
+        return true;
     }
 }
