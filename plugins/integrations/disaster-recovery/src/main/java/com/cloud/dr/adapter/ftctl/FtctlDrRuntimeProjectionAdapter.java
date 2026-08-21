@@ -551,11 +551,12 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         authority.setWorkerLaunchNonce(workerLaunchNonce);
         authority.setWorkerGeneration(workerGeneration);
         FtctlDrCycleSnapshot latestCompletedSnapshot = latestCompletedCycle(status);
+        Long latestCompletedSequence = latestCompletedSequence(status);
         boolean latestCompletedSummary = StringUtils.equalsIgnoreCase(replicationActivity, "IDLE")
                 && latestCompletedSnapshot != null
                 && isCoherentCycleSnapshot(plan, status, latestCompletedSnapshot)
-                && status.getLatestCompletedCheckpointSequence() != null
-                && status.getLatestCompletedCheckpointSequence().equals(latestCompletedSnapshot.getSequence());
+                && latestCompletedSequence != null
+                && latestCompletedSequence.equals(latestCompletedSnapshot.getSequence());
         boolean validTransferSnapshot = transferProgressSchemaVersion != null && transferProgressSchemaVersion >= 2
                 && transferBytesTotal != null && transferBytesTotal > 0;
         boolean retainedTransferSnapshot = authority.getTransferProgressSchemaVersion() != null
@@ -670,7 +671,8 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
     private void projectSyncCyclesAtomically(DrPlanVO plan, DrRunVO protectionProducerRun, FtctlDrStatusAnswer status,
             String producerRunUuid, Long sequence, String requestedMode, String effectiveMode, String cycleState,
             String baselineState, String reseedReason, Date sourceAt, String errorCode, String errorMessage) {
-        if (StringUtils.isBlank(producerRunUuid) || sequence == null && status.getLatestCompletedCheckpointSequence() == null) {
+        Long completedSequence = latestCompletedSequence(status);
+        if (StringUtils.isBlank(producerRunUuid) || sequence == null && completedSequence == null) {
             return;
         }
         Transaction.execute(new TransactionCallback<Void>() {
@@ -684,9 +686,9 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                         projectCurrentSyncCycle(plan, protectionProducerRun, status, sequence, requestedMode, effectiveMode,
                                 cycleState, baselineState, reseedReason, sourceAt, errorCode, errorMessage);
                     }
-                    if (status.getLatestCompletedCheckpointSequence() != null) {
+                    if (completedSequence != null) {
                         DrSyncCycleVO completedCycle = projectLatestCompletedSyncCycle(plan, protectionProducerRun, status,
-                                status.getLatestCompletedCheckpointSequence(), baselineState);
+                                completedSequence, baselineState);
                         if (completedCycle != null) {
                             terminalizeSupersededSyncCycles(plan, completedCycle);
                         }
@@ -1023,13 +1025,14 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
 
     private FtctlDrCycleSnapshot latestCompletedCycle(FtctlDrStatusAnswer status) {
         FtctlDrCycleSnapshot snapshot = status.getLatestCompletedCycle();
-        if (snapshot != null || status.getLatestCompletedCheckpointSequence() == null) {
+        Long completedSequence = latestCompletedSequence(status);
+        if (snapshot != null || completedSequence == null) {
             return snapshot;
         }
         snapshot = new FtctlDrCycleSnapshot();
         snapshot.setPlanUuid(status.getPlanUuid());
         snapshot.setRunUuid(resolveProtectionProducerRunUuid(status, parseObject(status.getStatusJson())));
-        snapshot.setSequence(status.getLatestCompletedCheckpointSequence());
+        snapshot.setSequence(completedSequence);
         snapshot.setCycleToken(status.getLatestCompletedCycleToken());
         snapshot.setState(status.getLatestCompletedCheckpointState());
         snapshot.setRequestedMode(status.getLatestCompletedRequestedMode());
@@ -1057,6 +1060,15 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         snapshot.setSourceCheckpointAt(status.getLatestCompletedSourceCheckpointAt());
         snapshot.setTargetDurableAt(status.getLatestCompletedTargetDurableAt());
         return snapshot;
+    }
+
+    private Long latestCompletedSequence(FtctlDrStatusAnswer status) {
+        if (status == null) {
+            return null;
+        }
+        return status.getLatestCompletedCycleSequence() != null
+                ? status.getLatestCompletedCycleSequence()
+                : status.getLatestCompletedCheckpointSequence();
     }
 
     private boolean isCoherentCycleSnapshot(DrPlanVO plan, FtctlDrStatusAnswer status,

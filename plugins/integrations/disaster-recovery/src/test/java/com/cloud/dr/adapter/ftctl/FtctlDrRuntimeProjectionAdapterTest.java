@@ -374,6 +374,27 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     }
 
     @Test
+    public void latestCycleAliasBuildsDurableSnapshotWithoutLegacyCheckpointAlias() {
+        FtctlDrStatusAnswer status = new FtctlDrStatusAnswer(
+                new FtctlDrStatusCommand("snapshot-cleanup-plan", "scheduler-run"), true, "ok");
+        status.setLatestCompletedCycleSequence(57L);
+        status.setLatestCompletedCycleToken("snapshot-cleanup-plan:57");
+        status.setLatestCompletedCheckpointState("READY");
+        status.setLatestCompletedRequestedMode("FULL_RESEED");
+        status.setLatestCompletedEffectiveMode("FULL_RESEED");
+        status.setLatestCompletedBaselineGeneration(57L);
+        status.setLatestCompletedTargetDurableAt("2026-08-21T08:00:00Z");
+
+        FtctlDrCycleSnapshot snapshot = ReflectionTestUtils.invokeMethod(adapter, "latestCompletedCycle", status);
+
+        Assert.assertNotNull(snapshot);
+        Assert.assertEquals(Long.valueOf(57L), snapshot.getSequence());
+        Assert.assertEquals("snapshot-cleanup-plan:57", snapshot.getCycleToken());
+        Assert.assertEquals("FULL_RESEED", snapshot.getEffectiveMode());
+        Assert.assertEquals(Long.valueOf(57L), snapshot.getBaselineGeneration());
+    }
+
+    @Test
     public void releaseTombstoneConvergesPlanToDisabledUnprotectedWithoutChangingAuthority() {
         DrPlanVO plan = new DrPlanVO("release-plan", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
         plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
