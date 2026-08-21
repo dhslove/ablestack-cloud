@@ -15,7 +15,7 @@ VMware 원본 사이트 전체 전원 장애 후 복구 시 Cloud UI, API, Backe
 ### API / Backend
 
 - ERROR/DEGRADED 계획도 source authority, desired RUNNING, scheduler DEAD 조건이면 `recoverSync` 대상이 될 수 있다.
-- 자동 복구 Controller는 원본 사이트가 `CONNECTED`이고 최근 180초 안의 연속 3개 health check가 모두 정상일 때만 `RECOVER_SYNC` Run을 제출한다.
+- 자동 복구 Controller는 원본 사이트가 `CONNECTED`이고 최신 health check가 180초 이내이며, 최신 연속 3개 health check가 모두 정상일 때만 `RECOVER_SYNC` Run을 제출한다. 사이트 점검 주기보다 짧은 freshness 창을 과거 연속성 이력 전체에 적용하지 않는다.
 - idempotency key는 Plan UUID와 authority sequence를 사용해 중복 복구를 막는다.
 - 복구 요청은 `forceFullReseed=false`이며 Agent/FTCTL이 기존 baseline을 검증한다.
 
@@ -37,7 +37,7 @@ VMware 원본 사이트 전체 전원 장애 후 복구 시 Cloud UI, API, Backe
 |---|---|---|
 | UI | VDDK terminal 오류 | 원본 사이트 복구 대기 |
 | API | ERROR 계획 recoverSync 비활성 | 장애 복구 목적의 제한적 활성 |
-| Backend | 자동 복구 기본 비활성, 사이트 안정성 미검증 | 연속 3회 정상 후 비동기 자동 복구 |
+| Backend | 자동 복구 기본 비활성, 사이트 안정성 미검증 | 최신 점검 freshness와 최신 3회 연속 정상 상태를 분리 검증한 후 비동기 자동 복구 |
 | Agent | terminal VDDK 오류 전달 | retryable source outage 전달 |
 | FTCTL | 빠른 실패와 StartLimit | 동일 Cycle backoff, baseline 보존 |
 | DB | 과거 durable와 terminal 오류 혼재 | 최신 durable 유지 후 복구 Cycle로 원자적 전환 |
@@ -47,9 +47,8 @@ VMware 원본 사이트 전체 전원 장애 후 복구 시 Cloud UI, API, Backe
 자동 증분 복구 PASS는 다음을 모두 만족해야 한다.
 
 1. vCenter와 원본 VM CBT가 정상이다.
-2. 원본 사이트 헬스가 연속 3회 `CONNECTED`다.
+2. 원본 사이트의 최신 헬스가 freshness 범위 안에 있고, 최신 3회가 연속 `CONNECTED`다. 5분 점검 주기에서도 최신 점검의 신선도만 180초로 판정하고 과거 두 점검은 연속성 증거로 사용한다.
 3. RECOVER_SYNC는 하나만 생성되고 비동기로 수락된다.
 4. 첫 완료 Cycle은 `CBT_INCREMENTAL` 또는 `NO_CHANGE`다.
 5. latest durable sequence가 증가하고 기존 baseline generation이 불필요하게 초기화되지 않는다.
 6. Scheduler는 RUNNING/HEALTHY, Plan은 READY 또는 RPO 평가에 따른 DEGRADED다.
-

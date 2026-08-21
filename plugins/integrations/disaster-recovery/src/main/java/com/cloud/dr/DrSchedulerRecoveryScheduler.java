@@ -16,7 +16,6 @@
 // under the License.
 package com.cloud.dr;
 
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
@@ -171,10 +170,9 @@ public class DrSchedulerRecoveryScheduler extends ManagerBase implements Configu
             return false;
         }
         int requiredChecks = Math.max(1, DrSchedulerRecoverySourceHealthyChecks.value());
-        Date checkedAfter = new Date(System.currentTimeMillis() - maxAgeMillis);
         Filter filter = new Filter(DrSiteHealthCheckVO.class, "checkedAt", false, 0L, (long) requiredChecks);
         Pair<List<DrSiteHealthCheckVO>, Integer> result = drSiteHealthCheckDao.searchBySite(
-                sourceSite.getId(), null, null, checkedAfter, null, filter);
+                sourceSite.getId(), null, null, null, null, filter);
         List<DrSiteHealthCheckVO> checks = result != null ? result.first() : null;
         if (checks == null || checks.size() < requiredChecks) {
             return false;
