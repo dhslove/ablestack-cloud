@@ -54,6 +54,33 @@ public class DrSchedulerRecoverySchedulerTest {
         Assert.assertFalse(ReflectionTestUtils.invokeMethod(scheduler, "isSourceSiteStable", plan));
     }
 
+    @Test
+    public void rejectsAutomaticRetryForCbtEpochRecoveryOwnedByFtctl() {
+        DrPlanRuntimeVO runtime = new DrPlanRuntimeVO(42L);
+        runtime.setSchedulerRecoveryState(DrConstants.SCHEDULER_RECOVERY_FAILED);
+        runtime.setErrorCode("DR_CBT_RESEED_REQUIRED");
+
+        Assert.assertFalse(ReflectionTestUtils.invokeMethod(scheduler, "isAutomaticRetryAllowed", runtime));
+    }
+
+    @Test
+    public void rejectsAutomaticRetryWhileBaselineRecoveryIsRunning() {
+        DrPlanRuntimeVO runtime = new DrPlanRuntimeVO(42L);
+        runtime.setSchedulerHealthState("RECOVERING_BASELINE");
+        runtime.setReplicationActivityState("RESEEDING");
+
+        Assert.assertFalse(ReflectionTestUtils.invokeMethod(scheduler, "isAutomaticRetryAllowed", runtime));
+    }
+
+    @Test
+    public void allowsSourceTransportRecoveryAfterSiteBecomesStable() {
+        DrPlanRuntimeVO runtime = new DrPlanRuntimeVO(42L);
+        runtime.setSchedulerRecoveryState(DrConstants.SCHEDULER_RECOVERY_FAILED);
+        runtime.setErrorCode("DR_SOURCE_SITE_UNAVAILABLE");
+
+        Assert.assertTrue(ReflectionTestUtils.invokeMethod(scheduler, "isAutomaticRetryAllowed", runtime));
+    }
+
     private DrSiteVO connectedSite(long id) {
         DrSiteVO site = new DrSiteVO("source", "VMWARE_DIRECT", "VMWARE");
         ReflectionTestUtils.setField(site, "id", id);

@@ -144,6 +144,9 @@ public class DrSchedulerRecoveryScheduler extends ManagerBase implements Configu
                     continue;
                 }
                 DrPlanRuntimeVO runtime = drPlanRuntimeDao.findByPlanId(plan.getId());
+                if (!isAutomaticRetryAllowed(runtime)) {
+                    continue;
+                }
                 long authoritySequence = runtime != null ? runtime.getAuthoritySequence() : 0L;
                 JsonObject request = new JsonObject();
                 request.addProperty("trigger", "AUTO_CONTROLLER");
@@ -156,6 +159,33 @@ public class DrSchedulerRecoveryScheduler extends ManagerBase implements Configu
                 logger.warn(String.format("Failed to recover DR scheduler for plan %s", plan.getId()), e);
             }
         }
+    }
+
+    private boolean isAutomaticRetryAllowed(DrPlanRuntimeVO runtime) {
+        if (runtime == null) {
+            return true;
+        }
+        String errorCode = StringUtils.upperCase(StringUtils.defaultString(runtime.getErrorCode()));
+        String recoveryErrorCode = StringUtils.upperCase(
+                StringUtils.defaultString(runtime.getSchedulerRecoveryErrorCode()));
+        String schedulerHealth = StringUtils.upperCase(
+                StringUtils.defaultString(runtime.getSchedulerHealthState()));
+        String replicationActivity = StringUtils.upperCase(
+                StringUtils.defaultString(runtime.getReplicationActivityState()));
+        if (StringUtils.equalsAny(schedulerHealth, "RECOVERING_BASELINE")
+                || StringUtils.equalsAny(replicationActivity, "RESEEDING")) {
+            return false;
+        }
+        if (StringUtils.startsWith(errorCode, "DR_CBT_")
+                || StringUtils.startsWith(recoveryErrorCode, "DR_CBT_")) {
+            return false;
+        }
+        if (StringUtils.equalsIgnoreCase(runtime.getSchedulerRecoveryState(), DrConstants.SCHEDULER_RECOVERY_FAILED)) {
+            return StringUtils.equalsAny(errorCode, "DR_SOURCE_SITE_UNAVAILABLE", "DR_VMWARE_VDDK_CONNECT_INVALID")
+                    || StringUtils.equalsAny(recoveryErrorCode,
+                            "DR_SOURCE_SITE_UNAVAILABLE", "DR_VMWARE_VDDK_CONNECT_INVALID");
+        }
+        return true;
     }
 
     private boolean isSourceSiteStable(DrPlanVO plan) {

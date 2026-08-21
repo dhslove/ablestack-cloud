@@ -7372,5 +7372,6 @@
   "label.dr.cutover.completed.at": "페일오버 완료 시각",
   "message.dr.action.target.authority": "현재 DR 대상 측이 운영 권한을 보유하므로 이 작업을 실행할 수 없습니다.",
   "label.dr.state.waiting_source_recovery": "원본 사이트 복구 대기",
+  "label.dr.state.recovering_baseline": "복제 기준선 재구성 중",
   "message.dr.error.dr.source.site.unavailable": "원본 사이트에 일시적으로 연결할 수 없습니다. 마지막 내구성 기준선은 보존되며 연속 상태 점검이 정상화되면 증분 보호를 자동으로 재개합니다."
 }

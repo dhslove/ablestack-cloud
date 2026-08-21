@@ -7372,5 +7372,6 @@
   "label.dr.cutover.completed.at": "Failover completed",
   "message.dr.action.target.authority": "This action is unavailable while the DR target side owns workload authority.",
   "label.dr.state.waiting_source_recovery": "Waiting for source site recovery",
+  "label.dr.state.recovering_baseline": "Rebuilding replication baseline",
   "message.dr.error.dr.source.site.unavailable": "The source site is temporarily unreachable. The last durable baseline is preserved and incremental protection will resume automatically after stable health checks."
 }

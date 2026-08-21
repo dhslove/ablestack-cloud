@@ -55,6 +55,18 @@ describe('DR protection state helpers', () => {
     expect(resolveDrPlanState(plan)).toBe('WAITING_SOURCE_RECOVERY')
   })
 
+  it('shows CBT epoch baseline recovery as an active recovery state', () => {
+    const plan = {
+      schedulerrecoverystate: 'FAILED',
+      schedulerhealth: 'RECOVERING_BASELINE',
+      replicationactivity: 'RESEEDING',
+      runtimeerrorcode: 'DR_CBT_RESEED_REQUIRED',
+      protectionstate: 'DEGRADED'
+    }
+
+    expect(resolveDrPlanState(plan)).toBe('RECOVERING_BASELINE')
+  })
+
   it('uses the frozen cutover RPO supplied by the API', () => {
     const presentation = resolveDrRpoPresentation({
       rpoevaluationmode: 'CUTOVER_FROZEN',

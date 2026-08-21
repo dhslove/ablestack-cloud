@@ -21,6 +21,10 @@ export function resolveDrPlanState (plan = {}, currentRun = null) {
   if (runtimeError === 'DR_SOURCE_SITE_UNAVAILABLE' || schedulerHealth === 'WAITING_SOURCE') {
     return 'WAITING_SOURCE_RECOVERY'
   }
+  const replicationActivity = String(plan.replicationactivity || plan.replicationActivity || '').toUpperCase()
+  if (runtimeError === 'DR_CBT_RESEED_REQUIRED' || schedulerHealth === 'RECOVERING_BASELINE' || replicationActivity === 'RESEEDING') {
+    return 'RECOVERING_BASELINE'
+  }
   const recoveryState = String(plan.schedulerrecoverystate || plan.schedulerRecoveryState || '').toUpperCase()
   if (['PENDING', 'RECOVERING'].includes(recoveryState)) {
     return recoveryState === 'PENDING' ? 'RECOVERY_PENDING' : 'RECOVERING'
