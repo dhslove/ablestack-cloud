@@ -50,6 +50,9 @@ public class DrProtectionAuthoritySnapshot {
     public Date getLastTargetDurableAt() { return runtime != null ? runtime.getLastTargetDurableAt() : null; }
     public Long getRpoAgeSeconds() { return runtime != null ? runtime.getRpoAgeSeconds() : null; }
     public boolean isRpoOverdue() { return runtime == null || runtime.isRpoOverdue(); }
+    public Date getSchedulerNextRunAt() { return runtime != null ? runtime.getSchedulerNextRunAt() : null; }
+    public Integer getSchedulerExecutionBudgetSeconds() { return runtime != null ? runtime.getSchedulerExecutionBudgetSeconds() : null; }
+    public Integer getSchedulerCycleWallDurationSeconds() { return runtime != null ? runtime.getSchedulerCycleWallDurationSeconds() : null; }
     public boolean isNormalCutoverReady() { return normalCutoverReady; }
     public String getNormalCutoverReason() { return normalCutoverReason; }
 }
