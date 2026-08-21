@@ -78,3 +78,25 @@ VMware 원본 사이트 전체 전원 장애 후 복구 시 Cloud UI, API, Backe
 성공을 source-ready 기준으로 사용한다. SDK 503 동안 FTCTL은 `WAITING_SOURCE`에서
 동일 Cycle과 마지막 durable 기준선을 유지한다. SDK가 정상화되면 같은 실행이 CBT
 epoch를 검증하고, 기존 epoch가 무효한 경우에만 제한된 Full Reseed를 수행한다.
+
+## 6. 2026-08-21 양 클러스터 배포 검증
+
+| 항목 | 32번 클러스터 | 22번 클러스터 |
+|---|---|---|
+| Cloud 복구 클래스 SHA256 | `40eb8aafba57f0af2fe467cd3afe4b616480d6dedb9dfa47f090886645cfdd01` | 동일 |
+| 관리 서비스 | `mold=active`, `/client/` HTTP 200 | `mold=active`, `/client/` HTTP 200 |
+| UI | `WEB-INF` 보존, 한/영 복구 상태 marker 확인 | 동일 |
+| FTCTL RPM | `0.9.5-1`, Run `32458925978` | 동일 |
+| mover SHA256 | `0cffb6987835adaa6796c309898181ece8bd90bb3b3faf5ff3a34f570ed25d13` | 동일 |
+
+32번에서는 세 계획이 `DR_SOURCE_SITE_UNAVAILABLE / WAITING_SOURCE`로 Cloud DB에
+투영됐다. 동일 sequence를 재사용하면서 지수 backoff가 증가했고, 자동 Controller를
+다시 활성화한 뒤 70초 관찰에서 전체 `RECOVER_SYNC` Run 수는 `30 -> 30`으로
+유지됐다. 따라서 source SDK 장애 중 중복 Cloud Run을 생성하지 않고 FTCTL
+scheduler가 재시도 소유권을 유지한다.
+
+현재 `/sdk` HTTP 503은 외부 vCenter 서비스 복구가 필요한 상태다. 이 상태에서는
+실제 Full Reseed와 후속 증분 완료를 PASS로 판정하지 않는다. SOAP SDK가 정상화되면
+사용자 수동 전체 동기화 없이 같은 대기 Run이 자동으로 source preflight를 재개하고,
+필요한 경우 한 번의 Full Reseed 후 다음 Cycle의 `CBT_INCREMENTAL` 또는
+`NO_CHANGE`까지 검증한다.
