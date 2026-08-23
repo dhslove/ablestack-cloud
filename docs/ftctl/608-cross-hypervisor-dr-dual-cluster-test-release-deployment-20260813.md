@@ -537,3 +537,81 @@ incremental cycles and projected `RUNNING / HEALTHY / IDLE`, `READY`,
 `WITHIN_RPO`, and `CONSISTENT`. Their source snapshot evidence is `CLEANED`,
 direct vCenter queries show no remaining snapshots, and successful durable
 cycles cleared all stale source-open failure evidence.
+
+## 2026-08-24 Origin Branch Full Test Release Deployment
+
+### Source and build identity
+
+The complete test release was built from the exact tips of the two origin work
+branches. The Cloud source contains the latest `upstream/ablestack-europa`
+baseline, and the qemu source contains the latest `upstream/main` baseline that
+was available when the release was started.
+
+| Repository | Branch | Built commit | GitHub Actions run |
+|---|---|---|---|
+| `dhslove/ablestack-cloud` | `feature/ftctl-cloud-integration` | `0d6ed725b4f7f000939b7f226c3b101321e5592d` | [`32645230251`](https://github.com/dhslove/ablestack-cloud/actions/runs/32645230251) |
+| `dhslove/ablestack-qemu-exec-tools` | `feature/ftctl-cloud-integration` | `d1701561adf2e4aca5aa780e7e6e87bed1133ef4` | [`32645236471`](https://github.com/dhslove/ablestack-qemu-exec-tools/actions/runs/32645236471) |
+| FTCTL branch release | `feature/ftctl-cloud-integration` | `d1701561adf2e4aca5aa780e7e6e87bed1133ef4` | [`32645243261`](https://github.com/dhslove/ablestack-qemu-exec-tools/actions/runs/32645243261) |
+
+All three workflows completed successfully. The Cloud product version is
+`4.23.0.0-Mold.Europa.202608231423.1`; the FTCTL/qemu/v2k/N2K/HangCTL version
+is `0.9.5-1`. The management package SHA256 values are:
+
+- `cloudstack-common`: `77924102fa58525947bf33ab1e6118a10691f4142e031d9423967fdd802dbf04`
+- `cloudstack-management`: `b4d052c0f4304f715b6823c4d4df392ed459a573a08e5c89097ad3395335d533`
+- `cloudstack-ui`: `47f771edb8b0159b68b95a4fea05fb0acb380b0186d16b56eab081406832fa2b`
+- `cloudstack-usage`: `2d394ea06ae1befce9c0d7a69be5ccb1e8c47fc6606a724f112a380ba928c34e`
+- `ablestack_vm_ftctl`: `f9e412711171f0fa56a1ebb17ca4312b82778a10c47127349da7dad1a3dc1942`
+
+The Rocky 9.6 host artifacts were used for the 22 cluster and the Rocky 9.7
+artifacts for the 32 cluster. Remote SHA256 verification passed on both
+management servers and all six compute hosts before installation.
+
+### Dual-cluster installation result
+
+The four Cloud packages were installed on `10.10.22.10` and `10.10.32.10`.
+The six compute hosts received the matching `cloudstack-agent` package plus the
+qemu-exec-tools, FTCTL, HangCTL, v2k, and N2K packages. The 22 cluster used
+native `rpm`; the 32 cluster used the required `aspkg` wrapper.
+
+Management rollback backups are stored at:
+
+- `10.10.22.10`: `/root/dual-dr-release-backup-20260824-000951`
+- `10.10.32.10`: `/root/dual-dr-release-backup-20260824-001712`
+
+Per-host backups are under `/root/dual-dr-host-backup-*`. Host installation was
+performed one host at a time within each cluster. The 22-cluster HangCTL timer
+remained intentionally masked/inactive, while the 32-cluster HangCTL timer
+remained active.
+
+The 32-cluster package cleanup hook reproduced the known same-build JAR
+quarantine problem. It moved three RPM-owned JARs, including the aggregate
+`cloudstack` JAR, into `legacy-lib` and temporarily prevented `ServerDaemon`
+startup. Each quarantined file was compared with the newly installed RPM
+payload and had an identical SHA256. The exact RPM-owned files and metadata
+were restored, after which `aspkg -V cloudstack-management` reported no missing
+JAR and `mold` returned to service. No package from another build was used.
+
+### Post-deployment verification
+
+Both management servers passed the following checks:
+
+- `mold` and `mold-usage` are active.
+- `/client/` returns HTTP 200 and `WEB-INF` is present.
+- The active UI bundle contains `blockingLoadingState`, `fetchSyncProgress`,
+  `extractJobId`, and `startDrProtectionGroupAction`.
+- All DR schema tables are present.
+- Active DR Runs, protection-group Runs, and resource leases are all zero.
+
+All six compute hosts report `Up / Enabled` in Cloud with Agent version
+`4.23.0.0-Mold.Europa-202608231423`. Their Agent and FTCTL timers are active,
+NBD `nbds_max` is 32, and no transfer worker remained active after deployment.
+The installed runtime files are identical on all six hosts:
+
+- `dr_runtime.sh`: `187bd4040e26df676bc5f96e0e30709ad4dd09e0a1013ebede9f7a3c2f39c28c`
+- `dr_scheduler.sh`: `9c441088b91de0071c03859af67c527cc339d528ef52b8de621fdf377fb3f6b5`
+
+The installed scripts contain the resource-wait and VMware device-key paths,
+and the obsolete cloud-managed `reverse_sync_timeout` behavior is absent. The
+two clusters are therefore aligned to the same origin-built test release and
+are ready for UI-driven DR regression testing.
