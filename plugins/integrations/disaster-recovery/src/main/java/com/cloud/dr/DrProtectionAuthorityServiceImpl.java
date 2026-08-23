@@ -21,7 +21,7 @@ public class DrProtectionAuthorityServiceImpl extends ManagerBase implements DrP
         DrPlanRuntimeVO runtime = drPlanRuntimeDao.findByPlanId(planId);
         boolean ready = runtime != null
                 && StringUtils.equals(runtime.getProtectionState(), DrConstants.PLAN_STATE_READY)
-                && StringUtils.equals(runtime.getFreshnessState(), "WITHIN_RPO")
+                && isWithinCutoverRpo(runtime)
                 && runtime.isSchedulerPidAlive()
                 && runtime.isOwnerMatched()
                 && StringUtils.equals(runtime.getSchedulerHealthState(), "HEALTHY")
@@ -43,7 +43,7 @@ public class DrProtectionAuthorityServiceImpl extends ManagerBase implements DrP
         if (!StringUtils.equals(runtime.getProtectionState(), DrConstants.PLAN_STATE_READY)) {
             return "DR_PROTECTION_NOT_READY";
         }
-        if (!StringUtils.equals(runtime.getFreshnessState(), "WITHIN_RPO") || runtime.isRpoOverdue()) {
+        if (!isWithinCutoverRpo(runtime)) {
             return "DR_RPO_OVERDUE";
         }
         if (!runtime.isSchedulerPidAlive()) {
@@ -68,5 +68,11 @@ public class DrProtectionAuthorityServiceImpl extends ManagerBase implements DrP
             return runtime.getErrorCode();
         }
         return "DR_AUTHORITY_NOT_READY";
+    }
+
+    private boolean isWithinCutoverRpo(DrPlanRuntimeVO runtime) {
+        return runtime != null
+                && !runtime.isRpoOverdue()
+                && StringUtils.equalsAny(runtime.getFreshnessState(), "WITHIN_RPO", "RPO_DUE_SOON");
     }
 }

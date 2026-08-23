@@ -5,6 +5,7 @@
 // to you under the Apache License, Version 2.0.
 package com.cloud.dr.orchestrator;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import com.cloud.dr.DrConstants;
@@ -46,5 +47,12 @@ public class DrOrchestratorImplTest {
         existing.setRequestJson("{\"actionIntent\":\"TEST_FAILOVER\"}");
         orchestrator.validateIdempotentRun(existing, DrConstants.RUN_TYPE_TEST_FAILOVER,
                 "{\"actionIntent\":\"TEST_FAILOVER\"}");
+    }
+
+    @Test
+    public void cancellationRequestedRunIsRedispatchable() {
+        Assert.assertTrue(orchestrator.isExecutorDispatchableState(DrConstants.RUN_STATE_CANCEL_REQUESTED));
+        Assert.assertTrue(orchestrator.isExecutorDispatchableState(DrConstants.RUN_STATE_QUEUED));
+        Assert.assertFalse(orchestrator.isExecutorDispatchableState(DrConstants.RUN_STATE_RUNNING));
     }
 }

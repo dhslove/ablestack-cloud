@@ -338,6 +338,131 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
         }
     }
 
+    @Override
+    public void validateReleaseDisposition(long planId, String resourceDisposition) {
+        String disposition = normalizeReleaseDisposition(resourceDisposition);
+        if (StringUtils.equals(disposition, DrConstants.RELEASE_DISPOSITION_RETAIN_OPERATIONAL_VM)) {
+            return;
+        }
+        DrPlanVO plan = drPlanDao.findById(planId);
+        if (plan == null || plan.getRemoved() != null) {
+            throw new CloudRuntimeException(DrConstants.ERROR_PLAN_NOT_FOUND + ": DR plan was not found");
+        }
+        if (StringUtils.equalsIgnoreCase(plan.getActiveSide(), DrConstants.AUTHORITY_SIDE_TARGET)
+                || StringUtils.equalsIgnoreCase(plan.getState(), DrConstants.PLAN_STATE_FAILED_OVER)) {
+            throw new CloudRuntimeException(DrConstants.ERROR_RELEASE_TARGET_AUTHORITY_ACTIVE
+                    + ": the target VM currently owns production authority and must be retained");
+        }
+        for (DrReplicaVO replica : drReplicaDao.listActiveByPlanId(planId)) {
+            if (replica == null || replica.getTargetVmId() == null) {
+                continue;
+            }
+            if (plan.getSourceVmId() != null && plan.getSourceVmId().equals(replica.getTargetVmId())) {
+                throw new CloudRuntimeException(DrConstants.ERROR_RELEASE_TARGET_NOT_DELETABLE
+                        + ": the selected target is also the source VM");
+            }
+            UserVmVO targetVm = userVmDao.findById(replica.getTargetVmId());
+            if (targetVm == null || targetVm.getRemoved() != null) {
+                continue;
+            }
+            targetResourceOwnershipService.assertVmOwnedBy(plan, replica, targetVm);
+            if (targetVm.getState() != VirtualMachine.State.Stopped) {
+                throw new CloudRuntimeException(DrConstants.ERROR_RELEASE_TARGET_NOT_DELETABLE
+                        + ": standby replica VM must be Stopped before deletion; current state=" + targetVm.getState());
+            }
+        }
+    }
+
+    @Override
+    public boolean cleanupReleasedStandbyTarget(long planId, long releaseRunId, String resourceDisposition) {
+        String disposition = normalizeReleaseDisposition(resourceDisposition);
+        if (StringUtils.equals(disposition, DrConstants.RELEASE_DISPOSITION_RETAIN_OPERATIONAL_VM)) {
+            return true;
+        }
+        try {
+            validateReleaseDisposition(planId, disposition);
+            DrPlanVO plan = drPlanDao.findById(planId);
+            AccountVO owner = resolveOwner(plan);
+            for (DrReplicaVO replica : drReplicaDao.listActiveByPlanId(planId)) {
+                if (replica == null || replica.getRemoved() != null) {
+                    continue;
+                }
+                java.util.List<DrReplicaDiskVO> disks = drReplicaDiskDao.listActiveByReplicaId(replica.getId());
+                normalizeReplicaVolumePaths(disks);
+                if (replica.getTargetVmId() != null) {
+                    UserVmVO targetVm = userVmDao.findById(replica.getTargetVmId());
+                    if (targetVm != null && targetVm.getRemoved() == null) {
+                        targetResourceOwnershipService.assertVmOwnedBy(plan, replica, targetVm);
+                        userVmService.destroyVm(targetVm.getId(), true);
+                        UserVmVO destroyedTargetVm = userVmDao.findById(targetVm.getId());
+                        if (destroyedTargetVm != null && destroyedTargetVm.getRemoved() == null
+                                && !userVmManager.expunge(destroyedTargetVm)) {
+                            throw new CloudRuntimeException(DrConstants.ERROR_RELEASE_TARGET_NOT_DELETABLE
+                                    + ": Cloud-managed expunge returned false for DR standby VM " + targetVm.getUuid());
+                        }
+                    }
+                }
+                if (disks != null) {
+                    for (DrReplicaDiskVO disk : disks) {
+                        if (disk == null || disk.getTargetVolumeId() == null) {
+                            continue;
+                        }
+                        VolumeVO volume = volumeDao.findById(disk.getTargetVolumeId());
+                        if (volume != null && volume.getRemoved() == null) {
+                            volumeApiService.destroyVolume(volume.getId(), owner, true, true);
+                        }
+                        disk.setState("CLOUD_VOLUME_REMOVED");
+                        disk.markUpdated();
+                        drReplicaDiskDao.update(disk.getId(), disk);
+                    }
+                }
+                replica.setState("CLOUD_RESOURCES_REMOVED");
+                replica.setOwnershipState("RELEASED_AND_DELETED");
+                replica.markUpdated();
+                drReplicaDao.update(replica.getId(), replica);
+            }
+            LOGGER.info("Deleted Cloud-managed standby replica resources for DR plan {} release run {}",
+                    plan.getUuid(), releaseRunId);
+            return true;
+        } catch (ConcurrentOperationException | ResourceUnavailableException e) {
+            throw new CloudRuntimeException(DrConstants.ERROR_RELEASE_TARGET_NOT_DELETABLE
+                    + ": failed to remove Cloud-managed standby replica resources: " + e.getMessage(), e);
+        }
+    }
+
+    private String normalizeReleaseDisposition(String resourceDisposition) {
+        String disposition = StringUtils.upperCase(StringUtils.defaultIfBlank(resourceDisposition,
+                DrConstants.RELEASE_DISPOSITION_RETAIN_OPERATIONAL_VM));
+        if (!StringUtils.equalsAny(disposition,
+                DrConstants.RELEASE_DISPOSITION_RETAIN_OPERATIONAL_VM,
+                DrConstants.RELEASE_DISPOSITION_DELETE_STANDBY_REPLICA)) {
+            throw new CloudRuntimeException(DrConstants.ERROR_RELEASE_DISPOSITION_INVALID
+                    + ": unsupported resource disposition " + resourceDisposition);
+        }
+        return disposition;
+    }
+
+    private void normalizeReplicaVolumePaths(java.util.List<DrReplicaDiskVO> disks) {
+        if (disks == null) {
+            return;
+        }
+        for (DrReplicaDiskVO disk : disks) {
+            if (disk == null || disk.getTargetVolumeId() == null) {
+                continue;
+            }
+            VolumeVO volume = volumeDao.findById(disk.getTargetVolumeId());
+            if (volume == null || volume.getRemoved() != null || volume.getPoolId() == null) {
+                continue;
+            }
+            StoragePoolVO pool = primaryDataStoreDao.findById(volume.getPoolId());
+            String normalizedPath = cloudVolumePath(firstNonBlank(disk.getTargetDiskRef(), volume.getPath()), pool);
+            if (StringUtils.isNotBlank(normalizedPath) && !StringUtils.equals(normalizedPath, volume.getPath())) {
+                volume.setPath(normalizedPath);
+                volumeDao.update(volume.getId(), volume);
+            }
+        }
+    }
+
     private void materializeTestTarget(long planId, long runId, String runtimeStatusJson) {
         DrPlanVO plan = drPlanDao.findById(planId);
         DrRunVO run = drRunDao.findById(runId);
@@ -376,7 +501,10 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
             if (placement == null || !placement.getBlockingReasons().isEmpty()) {
                 throw new CloudRuntimeException("DR test target placement is not ready");
             }
-            applyTestNetwork(placement, networkMode, networkId);
+            Long resolvedNetworkId = applyTestNetwork(placement, networkMode, networkId);
+            session.setNetworkId(resolvedNetworkId);
+            session.markUpdated();
+            drTestSessionDao.update(session.getId(), session);
             JsonArray records = testArtifactRecords(runtime);
             if (records.size() == 0 || records.size() != placement.getDisks().size()) {
                 throw new CloudRuntimeException("DR_TEST_ARTIFACT_MANIFEST_INVALID: artifact and mapped disk counts differ");
@@ -454,11 +582,13 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
             drTestSessionDao.update(session.getId(), session);
             completeTestFailoverRunIfReady(plan, run, session, runtimeStatusJson);
         } catch (Exception e) {
+            String errorCode = testMaterializationErrorCode(e);
             session.setState("FAILED");
-            session.setErrorCode("DR_TEST_CLOUD_MATERIALIZATION_FAILED");
+            session.setErrorCode(errorCode);
             session.setErrorMessage(e.getMessage());
             session.markUpdated();
             drTestSessionDao.update(session.getId(), session);
+            failTestMaterializationRun(plan, run, runtimeStatusJson, errorCode, e.getMessage());
             LOGGER.warn("Failed to materialize Cloud-managed test VM for plan {} run {}: {}", plan.getUuid(), run.getUuid(), e.getMessage(), e);
         }
     }
@@ -548,18 +678,72 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
         }
     }
 
-    private void applyTestNetwork(DrResolvedTargetPlacement placement, String networkMode, Long networkId) {
-        placement.getNetworks().clear();
+    Long applyTestNetwork(DrResolvedTargetPlacement placement, String networkMode, Long networkId) {
         if (StringUtils.equals(networkMode, "NO_NIC")) {
-            return;
+            placement.getNetworks().clear();
+            return null;
         }
-        if (networkId == null) {
+        DrResolvedNetworkMapping selected = null;
+        if (networkId != null) {
+            selected = new DrResolvedNetworkMapping();
+            selected.setNetworkLocalId(String.valueOf(networkId));
+            selected.setNetworkId(String.valueOf(networkId));
+        } else {
+            for (DrResolvedNetworkMapping mapped : placement.getNetworks()) {
+                if (parseLong(mapped.getNetworkLocalId()) == null) {
+                    continue;
+                }
+                if (selected == null || StringUtils.equalsIgnoreCase(mapped.getRole(), "default")) {
+                    selected = mapped;
+                }
+                if (StringUtils.equalsIgnoreCase(mapped.getRole(), "default")) {
+                    break;
+                }
+            }
+        }
+        if (selected == null) {
             throw new CloudRuntimeException("DR_TEST_NETWORK_REQUIRED: networkid is required for Cloud-managed Test Failover");
         }
-        DrResolvedNetworkMapping network = new DrResolvedNetworkMapping();
-        network.setNetworkLocalId(String.valueOf(networkId));
-        network.setNetworkId(String.valueOf(networkId));
-        placement.addNetwork(network);
+        Long resolvedNetworkId = parseLong(selected.getNetworkLocalId());
+        placement.getNetworks().clear();
+        placement.addNetwork(selected);
+        return resolvedNetworkId;
+    }
+
+    private String testMaterializationErrorCode(Exception error) {
+        String message = error != null ? StringUtils.trimToEmpty(error.getMessage()) : "";
+        int separator = message.indexOf(':');
+        String candidate = separator > 0 ? message.substring(0, separator) : message;
+        return StringUtils.startsWith(candidate, "DR_")
+                ? candidate : "DR_TEST_CLOUD_MATERIALIZATION_FAILED";
+    }
+
+    private void failTestMaterializationRun(DrPlanVO plan, DrRunVO run, String runtimeStatusJson,
+            String errorCode, String errorMessage) {
+        DrRunVO latestRun = drRunDao.findById(run.getId());
+        if (latestRun == null || latestRun.getRemoved() != null || latestRun.getCompleted() != null) {
+            return;
+        }
+        String message = StringUtils.defaultIfBlank(errorMessage, "Cloud-managed DR test VM materialization failed");
+        String details = failureDetailsJson(runtimeStatusJson, errorCode, message);
+        upsertRunStep(latestRun, "target-materialization", STEP_ORDER_TARGET_MATERIALIZATION,
+                DrConstants.STEP_STATE_FAILED, 100, details, errorCode, message);
+        latestRun.setState(DrConstants.RUN_STATE_FAILED);
+        latestRun.setCompleted(new Date());
+        latestRun.setCurrentStepName("target-materialization");
+        latestRun.setProjectionState("failed");
+        latestRun.setProjectionChecked(new Date());
+        latestRun.setRetryable(false);
+        latestRun.setRetryAfterSeconds(null);
+        latestRun.setNextRetryAt(null);
+        latestRun.setLastStatusJson(details);
+        latestRun.setErrorCode(errorCode);
+        latestRun.setErrorMessage(message);
+        latestRun.markUpdated();
+        drRunDao.update(latestRun.getId(), latestRun);
+        closeOpenRunSteps(latestRun, errorCode, message);
+        recordEvent(plan.getId(), latestRun.getId(), DrConstants.EVENT_RUN_FAILED,
+                DrConstants.EVENT_SEVERITY_ERROR, message, details);
     }
 
     private JsonArray testArtifactRecords(JsonObject runtime) {

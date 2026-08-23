@@ -133,6 +133,47 @@ public class DrFailbackLifecycleServiceImplTest {
     }
 
     @Test
+    public void failbackBootValidationUsesExplicitPowerStatePolicy() {
+        plan.setPolicyJson("{\"failbackBootValidationMode\":\"POWER_STATE_ONLY\","
+                + "\"testBootValidationMode\":\"QGA_REQUIRED\"}");
+
+        Assert.assertEquals("POWER_STATE_ONLY", service.resolveFailbackBootValidationMode(plan));
+    }
+
+    @Test
+    public void failbackBootValidationUsesExistingPlanPolicyForCompatibility() {
+        plan.setPolicyJson("{\"testBootValidationMode\":\"POWER_STATE_ONLY\"}");
+
+        Assert.assertEquals("POWER_STATE_ONLY", service.resolveFailbackBootValidationMode(plan));
+    }
+
+    @Test
+    public void windowsFailbackRequiresGuestHeartbeatDespitePowerOnlyTestPolicy() {
+        plan.setPolicyJson("{\"testBootValidationMode\":\"POWER_STATE_ONLY\"}");
+        plan.setMappingJson("{\"source\":{\"hardware\":{"
+                + "\"guestId\":\"windows2019srvNext_64Guest\"}}}");
+
+        Assert.assertTrue(service.isWindowsSource(plan));
+        Assert.assertEquals("GUEST_HEARTBEAT_REQUIRED", service.resolveFailbackBootValidationMode(plan));
+    }
+
+    @Test
+    public void linuxFailbackKeepsExplicitPowerStateCompatibility() {
+        plan.setPolicyJson("{\"failbackBootValidationMode\":\"POWER_STATE_ONLY\"}");
+        plan.setMappingJson("{\"source\":{\"hardware\":{\"guestId\":\"rhel9_64Guest\"}}}");
+
+        Assert.assertFalse(service.isWindowsSource(plan));
+        Assert.assertEquals("POWER_STATE_ONLY", service.resolveFailbackBootValidationMode(plan));
+    }
+
+    @Test
+    public void failbackBootValidationKeepsGuestHeartbeatAsSafeDefault() {
+        plan.setPolicyJson("{\"testBootValidationMode\":\"QGA_REQUIRED\"}");
+
+        Assert.assertEquals("GUEST_HEARTBEAT_REQUIRED", service.resolveFailbackBootValidationMode(plan));
+    }
+
+    @Test
     public void reverseWorkerFailureKeepsTargetAuthorityWhileCleanupIsPending() {
         plan.setState(DrConstants.PLAN_STATE_FAILED_OVER);
         plan.setActiveSide("TARGET");

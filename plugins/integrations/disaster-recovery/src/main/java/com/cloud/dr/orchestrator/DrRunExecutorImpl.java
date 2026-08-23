@@ -215,7 +215,14 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
         }
         if (result != null && result.isSuccess()) {
             if (result.isTerminal()) {
-                completeRun(plan, latestRun, result);
+                try {
+                    completeReleaseResourceDisposition(plan, latestRun);
+                    completeRun(plan, latestRun, result);
+                } catch (RuntimeException e) {
+                    LOGGER.warn("DR run {} failed during Cloud-owned release resource disposition: {}",
+                            latestRun.getId(), e.getMessage(), e);
+                    failRun(latestRun, classifyExecutionError(e), e.getMessage(), result.getDetailsJson());
+                }
             } else {
                 acceptRun(plan, latestRun, result);
             }
@@ -229,6 +236,25 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
             return;
         }
         failRun(latestRun, errorCode, message, detailsJson);
+    }
+
+    private void completeReleaseResourceDisposition(DrPlanVO plan, DrRunVO run) {
+        if (plan == null || run == null || drTargetMaterializationService == null
+                || !StringUtils.equals(run.getRunType(), DrConstants.RUN_TYPE_RELEASE)) {
+            return;
+        }
+        String disposition = DrConstants.RELEASE_DISPOSITION_RETAIN_OPERATIONAL_VM;
+        if (StringUtils.isNotBlank(run.getRequestJson())) {
+            JsonObject request = JsonParser.parseString(run.getRequestJson()).getAsJsonObject();
+            if (request.has("resourceDisposition") && !request.get("resourceDisposition").isJsonNull()) {
+                disposition = request.get("resourceDisposition").getAsString();
+            }
+        }
+        drTargetMaterializationService.validateReleaseDisposition(plan.getId(), disposition);
+        if (!drTargetMaterializationService.cleanupReleasedStandbyTarget(plan.getId(), run.getId(), disposition)) {
+            throw new IllegalStateException(DrConstants.ERROR_RELEASE_TARGET_NOT_DELETABLE
+                    + ": Cloud-managed standby replica cleanup did not complete");
+        }
     }
 
     private DrRunVO findConflictingActiveRun(DrRunVO run) {
@@ -310,6 +336,15 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
         }
         if (StringUtils.startsWith(message, DrConstants.ERROR_WORKER_BINDING_INVALID)) {
             return DrConstants.ERROR_WORKER_BINDING_INVALID;
+        }
+        if (StringUtils.startsWith(message, DrConstants.ERROR_RELEASE_DISPOSITION_INVALID)) {
+            return DrConstants.ERROR_RELEASE_DISPOSITION_INVALID;
+        }
+        if (StringUtils.startsWith(message, DrConstants.ERROR_RELEASE_TARGET_AUTHORITY_ACTIVE)) {
+            return DrConstants.ERROR_RELEASE_TARGET_AUTHORITY_ACTIVE;
+        }
+        if (StringUtils.startsWith(message, DrConstants.ERROR_RELEASE_TARGET_NOT_DELETABLE)) {
+            return DrConstants.ERROR_RELEASE_TARGET_NOT_DELETABLE;
         }
         return DrConstants.ERROR_ENGINE_ACTION_FAILED;
     }

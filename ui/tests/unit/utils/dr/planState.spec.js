@@ -9,6 +9,7 @@ import {
   isActiveDrSyncCycle,
   resolveDrPlanSeverity,
   resolveDrPlanState,
+  resolveDrReplicationResumeState,
   resolveDrRpoPresentation
 } from '@/utils/dr/planState'
 
@@ -65,6 +66,38 @@ describe('DR protection state helpers', () => {
     }
 
     expect(resolveDrPlanState(plan)).toBe('RECOVERING_BASELINE')
+  })
+
+  it('keeps a released plan unprotected when its scheduler is intentionally stopped', () => {
+    const plan = {
+      state: 'UNPROTECTED',
+      adminstate: 'DISABLED',
+      schedulerhealth: 'DEAD',
+      schedulerstate: 'STOPPED',
+      ownermatched: false,
+      readinessstate: 'DEGRADED'
+    }
+
+    expect(resolveDrPlanState(plan)).toBe('UNPROTECTED')
+  })
+
+  it('does not let stale target readiness override a released protection state', () => {
+    const plan = {
+      state: 'UNPROTECTED',
+      protectionstate: 'UNPROTECTED',
+      readinessstate: 'TARGET_READY',
+      targetmaterializationstate: 'TARGET_READY'
+    }
+
+    expect(resolveDrPlanState(plan)).toBe('UNPROTECTED')
+  })
+
+  it('shows an operator-canceled scheduler as requiring explicit recovery', () => {
+    expect(resolveDrReplicationResumeState({
+      schedulerrecoverystate: 'REQUIRED',
+      schedulerstate: 'STOPPED',
+      schedulerhealth: 'STOPPED'
+    })).toBe('RECOVERY_REQUIRED')
   })
 
   it('uses the frozen cutover RPO supplied by the API', () => {

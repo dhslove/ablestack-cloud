@@ -129,8 +129,15 @@ public final class DrConstants {
     public static final String RUN_TYPE_ADOPT = "ADOPT";
     public static final String RUN_TYPE_RELEASE = "RELEASE";
 
+    public static final String RELEASE_DISPOSITION_RETAIN_OPERATIONAL_VM = "RETAIN_OPERATIONAL_VM";
+    public static final String RELEASE_DISPOSITION_DELETE_STANDBY_REPLICA = "DELETE_STANDBY_REPLICA";
+    public static final String ERROR_RELEASE_DISPOSITION_INVALID = "DR_RELEASE_DISPOSITION_INVALID";
+    public static final String ERROR_RELEASE_TARGET_AUTHORITY_ACTIVE = "DR_RELEASE_TARGET_AUTHORITY_ACTIVE";
+    public static final String ERROR_RELEASE_TARGET_NOT_DELETABLE = "DR_RELEASE_TARGET_NOT_DELETABLE";
+
     public static final String SCHEDULER_RECOVERY_NONE = "NONE";
     public static final String SCHEDULER_RECOVERY_PENDING = "PENDING";
+    public static final String SCHEDULER_RECOVERY_REQUIRED = "REQUIRED";
     public static final String SCHEDULER_RECOVERY_RECOVERING = "RECOVERING";
     public static final String SCHEDULER_RECOVERY_SUCCEEDED = "SUCCEEDED";
     public static final String SCHEDULER_RECOVERY_FAILED = "FAILED";

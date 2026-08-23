@@ -47,7 +47,7 @@ public class DrPlanGuidedSpecBuilder extends ManagerBase {
         }
         generated.setMappingJson(GSON.toJson(buildMapping(plan, guided, placement, sourceHardware)));
         generated.setScheduleJson(GSON.toJson(buildSchedule(plan, guided)));
-        generated.setPolicyJson(GSON.toJson(buildPolicy(plan, guided)));
+        generated.setPolicyJson(GSON.toJson(buildPolicy(plan, guided, sourceHardware)));
         generated.setQuiescePolicyJson(GSON.toJson(buildQuiescePolicy(guided)));
         if (placement != null) {
             generated.getBlockingReasons().addAll(placement.getBlockingReasons());
@@ -261,7 +261,8 @@ public class DrPlanGuidedSpecBuilder extends ManagerBase {
         return schedule;
     }
 
-    private JsonObject buildPolicy(DrPlanVO plan, DrPlanGuidedSpec spec) {
+    private JsonObject buildPolicy(DrPlanVO plan, DrPlanGuidedSpec spec,
+            DrSourceVmHardware sourceHardware) {
         JsonObject policy = new JsonObject();
         policy.addProperty("schemaVersion", "DR_POLICY_V1");
         if (plan != null) {
@@ -271,6 +272,9 @@ public class DrPlanGuidedSpecBuilder extends ManagerBase {
         policy.addProperty("consistencyMode", StringUtils.defaultIfBlank(StringUtils.upperCase(spec.getConsistencyMode()), "CRASH_CONSISTENT"));
         policy.addProperty("testNetworkMode", StringUtils.defaultIfBlank(StringUtils.upperCase(spec.getTestNetworkMode()), "ISOLATED"));
         policy.addProperty("testBootValidationMode", StringUtils.defaultIfBlank(StringUtils.upperCase(spec.getTestBootValidationMode()), "POWER_STATE_ONLY"));
+        if (sourceHardware != null && StringUtils.containsIgnoreCase(sourceHardware.getGuestId(), "windows")) {
+            policy.addProperty("failbackBootValidationMode", "GUEST_HEARTBEAT_REQUIRED");
+        }
         policy.addProperty("testBootTimeoutSeconds", positiveOrDefault(spec.getTestBootTimeoutSeconds(), 180));
         JsonObject guestPreparation = new JsonObject();
         guestPreparation.addProperty("requiredForVmwareToKvm", true);

@@ -366,6 +366,33 @@ public class DrPlanServiceImplTest {
     }
 
     @Test
+    public void ftctlDrOperatorCanceledTransferRequiresExplicitSynchronizationRecovery() {
+        DrPlanVO plan = new DrPlanVO("ftctl-dr-operator-canceled", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
+        plan.setAdminState(DrConstants.ADMIN_STATE_ENABLED);
+        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
+        plan.setState(DrConstants.PLAN_STATE_READY);
+        plan.setTargetReadyAt(new Date());
+        DrPlanRuntimeVO runtime = new DrPlanRuntimeVO(plan.getId());
+        runtime.setSchedulerDesiredState("STOPPED");
+        runtime.setSchedulerRecoveryState(DrConstants.SCHEDULER_RECOVERY_REQUIRED);
+        runtime.setSchedulerPidAlive(false);
+        runtime.setSchedulerHealthState("STOPPED");
+        runtime.setSchedulerUnitActiveState("inactive");
+
+        Mockito.when(drPlanDao.findById(plan.getId())).thenReturn(plan);
+        Mockito.when(drPlanRuntimeDao.findByPlanId(plan.getId())).thenReturn(runtime);
+        Mockito.when(drAdapterRegistry.getReplicationEngine(DrConstants.ENGINE_TYPE_FTCTL_DR,
+                DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR)).thenReturn(replicationEngine);
+
+        Map<String, Boolean> eligibility = service.getActionEligibility(plan.getId());
+
+        Assert.assertTrue(eligibility.get("recoverSync"));
+        Assert.assertFalse(eligibility.get("sync"));
+        Assert.assertFalse(eligibility.get("pauseSync"));
+    }
+
+    @Test
     public void ftctlDrAllowsAllFourDirectionsAtPlanValidation() {
         assertFtctlDrPlanCanBeCreated(DrConstants.DIRECTION_KVM_TO_KVM, DrConstants.HYPERVISOR_TYPE_KVM, DrConstants.HYPERVISOR_TYPE_KVM);
         assertFtctlDrPlanCanBeCreated(DrConstants.DIRECTION_KVM_TO_VMWARE, DrConstants.HYPERVISOR_TYPE_KVM, DrConstants.HYPERVISOR_TYPE_VMWARE);

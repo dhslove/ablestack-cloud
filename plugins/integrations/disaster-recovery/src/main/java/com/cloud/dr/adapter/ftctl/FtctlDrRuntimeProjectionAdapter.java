@@ -51,6 +51,7 @@ import com.cloud.dr.DrPlanVO;
 import com.cloud.dr.DrPlanRuntimeVO;
 import com.cloud.dr.DrReplicaDiskVO;
 import com.cloud.dr.DrReplicaVO;
+import com.cloud.dr.DrResolvedSiteCredential;
 import com.cloud.dr.DrRestorePointVO;
 import com.cloud.dr.DrRunStepVO;
 import com.cloud.dr.DrRunVO;
@@ -58,8 +59,11 @@ import com.cloud.dr.DrSyncCycleVO;
 import com.cloud.dr.DrSyncWorkflowProgress;
 import com.cloud.dr.DrTestSessionVO;
 import com.cloud.dr.DrTargetMaterializationService;
+import com.cloud.dr.DrTargetResourceOwnershipService;
 import com.cloud.dr.DrTargetPowerOnResult;
 import com.cloud.dr.DrTestSessionState;
+import com.cloud.dr.DrSiteCredentialService;
+import com.cloud.dr.DrSiteVO;
 import com.cloud.dr.adapter.DrAdapterResult;
 import com.cloud.dr.adapter.DrProjectionAdapter;
 import com.cloud.dr.dao.DrEventDao;
@@ -73,8 +77,10 @@ import com.cloud.dr.dao.DrReplicaDao;
 import com.cloud.dr.dao.DrRestorePointDao;
 import com.cloud.dr.dao.DrRunDao;
 import com.cloud.dr.dao.DrRunStepDao;
+import com.cloud.dr.dao.DrSiteDao;
 import com.cloud.dr.dao.DrSyncCycleDao;
 import com.cloud.dr.dao.DrTestSessionDao;
+import com.cloud.dr.inventory.DrVmwareInventoryClient;
 import com.cloud.utils.DateUtil;
 import com.cloud.utils.component.ManagerBase;
 import com.cloud.utils.db.Transaction;
@@ -82,6 +88,7 @@ import com.cloud.utils.db.TransactionCallback;
 import com.cloud.utils.db.TransactionStatus;
 import com.cloud.storage.VolumeVO;
 import com.cloud.storage.dao.VolumeDao;
+import com.cloud.utils.exception.CloudRuntimeException;
 import com.cloud.vm.UserVmVO;
 import com.cloud.vm.VirtualMachine;
 import com.cloud.vm.dao.UserVmDao;
@@ -125,6 +132,14 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
     private DrRunStepDao drRunStepDao;
     @Inject
     private DrTargetMaterializationService drTargetMaterializationService;
+    @Inject
+    private DrTargetResourceOwnershipService drTargetResourceOwnershipService;
+    @Inject
+    private DrSiteDao drSiteDao;
+    @Inject
+    private DrSiteCredentialService drSiteCredentialService;
+    @Inject
+    private DrVmwareInventoryClient drVmwareInventoryClient;
     @Inject
     private DrCutoverSessionDao drCutoverSessionDao;
     @Inject
@@ -1171,7 +1186,12 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         JsonObject runtime = parseObject(status.getStatusJson());
         DrCutoverSessionVO cutoverSession = upsertCutoverSession(plan, projectionRun, status, runtime);
         DrFailbackSessionVO failbackSession = drFailbackLifecycleService.reconcile(plan, projectionRun, runtime);
+        DrRunVO terminalReconciliationRun = resolveCanceledFailoverReconciliationRun(plan, projectionRun);
+        if (reconcileCanceledFailoverPreparation(plan, terminalReconciliationRun, runtime)) {
+            return;
+        }
         if (isReleasedRuntime(status, runtime)) {
+            applyReleasedResourceDisposition(plan, projectionRun);
             cleanupReleasedProjection(plan, status, runtime);
             reconcileAcceptedRunFromStatus(plan, status, runtime);
             return;
@@ -1191,8 +1211,23 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         String planState = toPlanState(StringUtils.defaultIfBlank(runtimeProtectionState, status.getState()));
         if (isCutoverReadyRuntime(plan, status, runtime)) {
             try {
+                ensurePlannedVmwareSourceIsolation(plan, cutoverSession, runtime);
+            } catch (RuntimeException e) {
+                LOGGER.warn("Unable to isolate VMware source before DR cutover for plan {}",
+                        plan.getUuid(), e);
+                plan.setState(DrConstants.PLAN_STATE_COMMIT_VERIFYING);
+                plan.setActiveSide(DrConstants.AUTHORITY_SIDE_SOURCE);
+                plan.setLastErrorCode(DrConstants.ERROR_SOURCE_ISOLATION_NOT_READY);
+                plan.setLastErrorMessage(e.getMessage());
+                plan.markUpdated();
+                drPlanDao.update(plan.getId(), plan);
+                return;
+            }
+            try {
                 DrTargetPowerOnResult powerOnResult = drTargetMaterializationService.ensureTargetPoweredOn(plan.getId());
-                commitCloudOwnedCutover(plan, projectionRun, cutoverSession, status, runtime, powerOnResult);
+                if (!commitCloudOwnedCutover(plan, projectionRun, cutoverSession, status, runtime, powerOnResult)) {
+                    return;
+                }
                 runtime.addProperty("state", "FAILED_OVER");
                 runtime.addProperty("active_side", "TARGET");
                 runtime.addProperty("target_power_state", "POWERED_ON");
@@ -1277,8 +1312,8 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                     "SOURCE", StringUtils.defaultIfBlank(stringValue(runtime, "target_power_state"),
                             DrConstants.REPLICA_POWER_STATE_POWERED_OFF));
         } else if (isReprotectedRuntime(planState, runtime)) {
-            if (!StringUtils.equals(plan.getState(), DrConstants.PLAN_STATE_READY)) {
-                plan.setState(DrConstants.PLAN_STATE_READY);
+            if (!StringUtils.equals(plan.getState(), planState)) {
+                plan.setState(planState);
                 changed = true;
             }
             if (!StringUtils.equals(plan.getActiveSide(), "TARGET")) {
@@ -1304,6 +1339,42 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             drPlanDao.update(plan.getId(), plan);
         }
         reconcileAcceptedRunFromStatus(plan, status, runtime);
+    }
+
+    private void ensurePlannedVmwareSourceIsolation(DrPlanVO plan, DrCutoverSessionVO session,
+            JsonObject runtime) {
+        if (plan == null || session == null
+                || !StringUtils.equalsIgnoreCase(plan.getDirection(), DrConstants.DIRECTION_VMWARE_TO_KVM)
+                || !StringUtils.equalsIgnoreCase(stringValue(runtime, "failover_mode"), "planned")) {
+            return;
+        }
+        if (StringUtils.equalsAnyIgnoreCase(session.getSourceFenceState(), "ACKNOWLEDGED", "VERIFIED")
+                && StringUtils.equalsIgnoreCase(session.getSourcePowerState(), "POWERED_OFF")) {
+            return;
+        }
+        DrSiteVO sourceSite = drSiteDao.findById(plan.getSourceSiteId());
+        if (sourceSite == null
+                || (!StringUtils.equalsIgnoreCase(sourceSite.getHypervisorType(), DrConstants.HYPERVISOR_TYPE_VMWARE)
+                        && !StringUtils.equalsIgnoreCase(sourceSite.getSiteType(), "VMWARE_DIRECT"))) {
+            throw new IllegalStateException("Planned VMware failover requires a registered VMware source site");
+        }
+        if (StringUtils.isBlank(plan.getSourceExternalRef())) {
+            throw new IllegalStateException("Planned VMware failover source VM reference is missing");
+        }
+        String sourcePowerState;
+        try (DrResolvedSiteCredential credential = drSiteCredentialService.resolveCredential(sourceSite)) {
+            sourcePowerState = drVmwareInventoryClient.ensureVirtualMachinePowerState(
+                    credential, plan.getSourceExternalRef(), false);
+        }
+        if (!StringUtils.equalsIgnoreCase(sourcePowerState, "POWERED_OFF")) {
+            throw new IllegalStateException("VMware source VM did not reach POWERED_OFF before target promotion");
+        }
+        session.setSourceFenceState("VERIFIED");
+        session.setSourcePowerState("POWERED_OFF");
+        session.markUpdated();
+        drCutoverSessionDao.update(session.getId(), session);
+        runtime.addProperty("source_fence_state", "VERIFIED");
+        runtime.addProperty("source_power_state", "POWERED_OFF");
     }
 
     private boolean isCutoverReadyRuntime(DrPlanVO plan, FtctlDrStatusAnswer status, JsonObject runtime) {
@@ -1381,7 +1452,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         return session;
     }
 
-    private void commitCloudOwnedCutover(DrPlanVO plan, DrRunVO run, DrCutoverSessionVO session,
+    private boolean commitCloudOwnedCutover(DrPlanVO plan, DrRunVO run, DrCutoverSessionVO session,
             FtctlDrStatusAnswer status, JsonObject runtime, DrTargetPowerOnResult powerOnResult) {
         if (run == null || session == null || powerOnResult == null || !powerOnResult.isReady()) {
             throw new IllegalStateException("Cloud target promotion evidence is incomplete");
@@ -1456,7 +1527,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             drPlanDao.update(plan.getId(), plan);
             recordRunStep(run, "engine-state-reconciliation", STEP_ORDER_ENGINE_ACK, DrConstants.STEP_STATE_RUNNING,
                     95, GSON.toJson(runtime), "DR_CUTOVER_COMMIT_FAILED", message);
-            return;
+            return false;
         }
 
         Date now = new Date();
@@ -1489,6 +1560,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         applyFailedOverRuntime(plan, status, generation, now);
         upsertCutoverDisks(plan, session, runtime);
         completeRunFromProjection(plan, run, status);
+        return true;
     }
 
     private void applyFailedOverRuntime(DrPlanVO plan, FtctlDrStatusAnswer status, long authorityGeneration,
@@ -1744,6 +1816,23 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         });
     }
 
+    private void applyReleasedResourceDisposition(DrPlanVO plan, DrRunVO run) {
+        if (plan == null || run == null || drTargetMaterializationService == null
+                || !StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_RELEASE)) {
+            return;
+        }
+        String disposition = DrConstants.RELEASE_DISPOSITION_RETAIN_OPERATIONAL_VM;
+        JsonObject request = parseObject(run.getRequestJson());
+        if (request.has("resourceDisposition") && !request.get("resourceDisposition").isJsonNull()) {
+            disposition = request.get("resourceDisposition").getAsString();
+        }
+        drTargetMaterializationService.validateReleaseDisposition(plan.getId(), disposition);
+        if (!drTargetMaterializationService.cleanupReleasedStandbyTarget(plan.getId(), run.getId(), disposition)) {
+            throw new CloudRuntimeException(DrConstants.ERROR_RELEASE_TARGET_NOT_DELETABLE
+                    + ": Cloud-managed standby replica cleanup did not complete");
+        }
+    }
+
     private JsonObject normalizeReleasedRuntime(DrPlanVO plan, JsonObject runtime) {
         JsonObject released = runtime != null ? runtime.deepCopy() : new JsonObject();
         String activeSide = StringUtils.upperCase(
@@ -1778,6 +1867,9 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
     }
 
     private void cleanupReleasedProjectionTransaction(DrPlanVO plan, JsonObject runtime, String runtimeJson) {
+        if (drTargetResourceOwnershipService != null) {
+            drTargetResourceOwnershipService.releasePlanClaims(plan.getId());
+        }
         removeActiveReplicas(plan, runtimeJson);
         removeActiveRestorePoints(plan);
 
@@ -1929,7 +2021,9 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         DrRunVO latestRun = drRunDao.findLatestByPlanId(plan.getId());
         if (latestRun == null || latestRun.getCompleted() == null
                 || !StringUtils.equals(latestRun.getState(), DrConstants.RUN_STATE_FAILED)
-                || !StringUtils.equals(latestRun.getErrorCode(), DrConstants.ERROR_TARGET_VM_MATERIALIZE_FAILED)) {
+                || !StringUtils.equalsAny(latestRun.getErrorCode(),
+                        DrConstants.ERROR_TARGET_VM_MATERIALIZE_FAILED,
+                        DrConstants.ERROR_TARGET_OWNERSHIP_CONFLICT)) {
             return false;
         }
         boolean changed = false;
@@ -2089,7 +2183,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
     }
 
     private boolean isReprotectedRuntime(String planState, JsonObject runtime) {
-        return StringUtils.equals(planState, DrConstants.PLAN_STATE_READY)
+        return StringUtils.equalsAny(planState, DrConstants.PLAN_STATE_READY, DrConstants.HEALTH_DEGRADED)
                 && StringUtils.equalsIgnoreCase(stringValue(runtime, "active_side"), "TARGET")
                 && (StringUtils.isNotBlank(stringValue(runtime, "reprotect_session_id"))
                 || StringUtils.isNotBlank(stringValue(runtime, "reprotect_completed_at")));
@@ -2155,6 +2249,43 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         if (StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_SYNC)) {
             markSyncTargetPending(plan, run, status, runtime);
         }
+    }
+
+    private boolean reconcileCanceledFailoverPreparation(DrPlanVO plan, DrRunVO run, JsonObject runtime) {
+        if (plan == null || run == null || runtime == null
+                || !StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_FAILOVER)
+                || !StringUtils.equalsIgnoreCase(run.getState(), DrConstants.RUN_STATE_CANCELED)
+                || !StringUtils.equalsAnyIgnoreCase(stringValue(runtime, "state"), "CUTOVER_READY", "READY")
+                || !StringUtils.equalsIgnoreCase(stringValue(runtime, "active_side"), "SOURCE")
+                || !StringUtils.equalsIgnoreCase(stringValue(runtime, "target_power_state"), "POWERED_OFF")) {
+            return false;
+        }
+        return abortFailedFailoverPreparation(plan, run, runtime,
+                "DR_FAILOVER_CANCELED",
+                "Canceled failover preparation was reconciled before target promotion");
+    }
+
+    private DrRunVO resolveCanceledFailoverReconciliationRun(DrPlanVO plan, DrRunVO projectionRun) {
+        if (projectionRun != null
+                && StringUtils.equalsIgnoreCase(projectionRun.getRunType(), DrConstants.RUN_TYPE_FAILOVER)
+                && StringUtils.equalsIgnoreCase(projectionRun.getState(), DrConstants.RUN_STATE_CANCELED)) {
+            return projectionRun;
+        }
+        if (plan == null || drRunDao == null
+                || !StringUtils.equalsIgnoreCase(plan.getActiveSide(), DrConstants.AUTHORITY_SIDE_TARGET)
+                || !StringUtils.equalsAnyIgnoreCase(plan.getState(), DrConstants.PLAN_STATE_FAILED_OVER,
+                        DrConstants.PLAN_STATE_COMMIT_VERIFYING, DrConstants.PLAN_STATE_READY)) {
+            return projectionRun;
+        }
+        List<DrRunVO> runs = drRunDao.listByPlanId(plan.getId());
+        if (runs == null || runs.isEmpty()) {
+            return null;
+        }
+        return runs.stream()
+                .filter(run -> StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_FAILOVER))
+                .findFirst()
+                .filter(run -> StringUtils.equalsIgnoreCase(run.getState(), DrConstants.RUN_STATE_CANCELED))
+                .orElse(null);
     }
 
     void bindAcceptedCycleFromControlRequest(DrPlanVO plan, DrRunVO run,
@@ -2417,9 +2548,28 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                     && session.getPostFailbackCheckpointSequence() != null;
         }
         if (StringUtils.equals(runType, DrConstants.RUN_TYPE_REPROTECT)) {
-            return StringUtils.equals(plan.getState(), DrConstants.PLAN_STATE_READY)
+            String controlRequestRunUuid = StringUtils.defaultIfBlank(status.getControlRequestRunUuid(),
+                    stringValue(runtime, "control_request_run_uuid"));
+            String terminalSource = StringUtils.defaultIfBlank(status.getTerminalSource(),
+                    stringValue(runtime, "terminal_source"));
+            boolean terminalAuthoritative = Boolean.TRUE.equals(status.getTerminalAuthoritative())
+                    || Boolean.TRUE.equals(booleanValue(runtime, "terminal_authoritative"))
+                    || StringUtils.equalsIgnoreCase(terminalSource, "ENGINE_TERMINAL");
+            boolean endpointsDrained = Boolean.TRUE.equals(status.getRuntimeEndpointsDrained())
+                    || Boolean.TRUE.equals(booleanValue(runtime, "runtime_endpoints_drained"));
+            String runtimeStep = StringUtils.defaultIfBlank(status.getStep(), stringValue(runtime, "step"));
+            String baselineState = StringUtils.defaultIfBlank(stringValue(runtime, "baseline_state"),
+                    stringValue(runtime, "baseline_file_state"));
+            return StringUtils.equals(run.getUuid(), controlRequestRunUuid)
+                    && terminalAuthoritative && endpointsDrained
+                    && StringUtils.equals(runtimeState, DrConstants.PLAN_STATE_READY)
+                    && StringUtils.equalsIgnoreCase(runtimeStep, "reprotect-ready")
                     && StringUtils.equals(activeSide, "TARGET")
-                    && StringUtils.isNotBlank(stringValue(runtime, "reprotect_session_id"));
+                    && StringUtils.equalsAnyIgnoreCase(baselineState, "LOCAL_DURABLE", "DURABLE", "COMMITTED")
+                    && StringUtils.isNotBlank(stringValue(runtime, "reprotect_session_id"))
+                    && StringUtils.isNotBlank(stringValue(runtime, "reprotect_completed_at"))
+                    && StringUtils.isNotBlank(stringValue(runtime, "reprotect_manifest_path"))
+                    && StringUtils.isNotBlank(stringValue(runtime, "reprotect_checkpoint_path"));
         }
         if (StringUtils.equals(runType, DrConstants.RUN_TYPE_TEST_CLEANUP)) {
             return drTargetMaterializationService.isTestTargetCleaned(plan.getId())
@@ -2526,7 +2676,6 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             String errorCode, String message) {
         if (plan == null || run == null
                 || !StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_FAILOVER)
-                || StringUtils.equalsIgnoreCase(plan.getActiveSide(), "TARGET")
                 || StringUtils.equalsIgnoreCase(stringValue(runtime, "active_side"), "TARGET")
                 || StringUtils.equalsIgnoreCase(stringValue(runtime, "target_power_state"), "POWERED_ON")) {
             return false;
@@ -2721,9 +2870,15 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         String errorCode = StringUtils.defaultIfBlank(status != null ? status.getErrorCode() : null,
                 stringValue(runtime, "error_code"));
         String action = stringValue(runtime, "action");
+        String runtimeState = StringUtils.defaultIfBlank(status != null ? status.getState() : null,
+                stringValue(runtime, "state"));
+        boolean reprotectFailure = status == null || !status.getResult()
+                || StringUtils.equalsAnyIgnoreCase(runtimeState, "ERROR", "FAILED")
+                || StringUtils.isNotBlank(errorCode);
         if (plan == null || !StringUtils.equalsIgnoreCase(plan.getActiveSide(), "TARGET")
                 || !(StringUtils.equalsIgnoreCase(action, "dr-reprotect")
-                        || StringUtils.startsWithIgnoreCase(errorCode, "DR_REPROTECT_"))) {
+                        || StringUtils.startsWithIgnoreCase(errorCode, "DR_REPROTECT_"))
+                || !reprotectFailure) {
             return false;
         }
         DrCutoverSessionVO cutover = drCutoverSessionDao != null

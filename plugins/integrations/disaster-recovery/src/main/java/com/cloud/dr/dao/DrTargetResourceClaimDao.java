@@ -7,10 +7,13 @@
 // with the License.
 package com.cloud.dr.dao;
 
+import java.util.List;
+
 import com.cloud.dr.DrTargetResourceClaimVO;
 import com.cloud.utils.db.GenericDao;
 
 public interface DrTargetResourceClaimDao extends GenericDao<DrTargetResourceClaimVO, Long> {
     DrTargetResourceClaimVO findActiveByResourceKey(String activeResourceKey);
     DrTargetResourceClaimVO findActiveByRoleKey(String activeRoleKey);
+    List<DrTargetResourceClaimVO> listActiveByPlanId(long planId);
 }

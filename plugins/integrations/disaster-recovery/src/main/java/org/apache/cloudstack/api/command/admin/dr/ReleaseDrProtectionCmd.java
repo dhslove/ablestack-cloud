@@ -18,11 +18,16 @@ package org.apache.cloudstack.api.command.admin.dr;
 
 import org.apache.cloudstack.acl.RoleType;
 import org.apache.cloudstack.api.APICommand;
+import org.apache.cloudstack.api.Parameter;
 import org.apache.cloudstack.api.ResponseObject;
 import org.apache.cloudstack.api.response.dr.DrRunResponse;
 
 import com.cloud.dr.DrConstants;
+import com.cloud.dr.DrTargetMaterializationService;
 import com.cloud.dr.cluster.DisasterRecoveryClusterEventTypes;
+import com.google.gson.JsonObject;
+
+import javax.inject.Inject;
 
 @APICommand(name = ReleaseDrProtectionCmd.APINAME, description = "Release DR protection", responseObject = DrRunResponse.class,
         responseView = ResponseObject.ResponseView.Full, authorized = {RoleType.Admin})
@@ -47,5 +52,28 @@ public class ReleaseDrProtectionCmd extends AbstractDrPlanActionCmd {
     @Override
     public String getEventDescription() {
         return "Releasing DR protection for plan " + getPlanId();
+    }
+
+    @Inject
+    private DrTargetMaterializationService drTargetMaterializationService;
+
+    @Parameter(name = "resourcedisposition", type = CommandType.STRING,
+            description = "resource disposition: RETAIN_OPERATIONAL_VM (default) or DELETE_STANDBY_REPLICA")
+    private String resourceDisposition;
+
+    public String getResourceDisposition() {
+        return resourceDisposition != null ? resourceDisposition
+                : DrConstants.RELEASE_DISPOSITION_RETAIN_OPERATIONAL_VM;
+    }
+
+    @Override
+    protected void validateActionAllowed() {
+        super.validateActionAllowed();
+        drTargetMaterializationService.validateReleaseDisposition(getPlanId(), getResourceDisposition());
+    }
+
+    @Override
+    protected void addRequestProperties(JsonObject request) {
+        addProperty(request, "resourceDisposition", getResourceDisposition());
     }
 }

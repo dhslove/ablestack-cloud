@@ -60,7 +60,7 @@ public class DrSchedulerRecoverySchedulerTest {
         runtime.setSchedulerRecoveryState(DrConstants.SCHEDULER_RECOVERY_FAILED);
         runtime.setErrorCode("DR_CBT_RESEED_REQUIRED");
 
-        Assert.assertFalse(ReflectionTestUtils.invokeMethod(scheduler, "isAutomaticRetryAllowed", runtime));
+        Assert.assertFalse(ReflectionTestUtils.invokeMethod(scheduler, "isAutomaticRetryAllowed", runtime, null));
     }
 
     @Test
@@ -69,7 +69,27 @@ public class DrSchedulerRecoverySchedulerTest {
         runtime.setSchedulerHealthState("RECOVERING_BASELINE");
         runtime.setReplicationActivityState("RESEEDING");
 
-        Assert.assertFalse(ReflectionTestUtils.invokeMethod(scheduler, "isAutomaticRetryAllowed", runtime));
+        Assert.assertFalse(ReflectionTestUtils.invokeMethod(scheduler, "isAutomaticRetryAllowed", runtime, null));
+    }
+
+    @Test
+    public void rejectsAutomaticRetryForOperatorCanceledTransfer() {
+        DrPlanRuntimeVO runtime = new DrPlanRuntimeVO(42L);
+        runtime.setSchedulerRecoveryState("REQUIRED");
+        runtime.setReseedReason("OPERATOR_CANCELED_TRANSFER");
+
+        Assert.assertFalse(ReflectionTestUtils.invokeMethod(scheduler, "isAutomaticRetryAllowed", runtime, null));
+    }
+
+    @Test
+    public void rejectsAutomaticRetryWhenCanceledSyncIsNewerThanRuntimeProjection() {
+        DrPlanRuntimeVO staleRuntime = new DrPlanRuntimeVO(42L);
+        staleRuntime.setSchedulerRecoveryState("REQUIRED");
+        DrRunVO canceledSync = new DrRunVO(42L, DrConstants.RUN_TYPE_SYNC);
+        canceledSync.setState(DrConstants.RUN_STATE_CANCELED);
+
+        Assert.assertFalse(ReflectionTestUtils.invokeMethod(
+                scheduler, "isAutomaticRetryAllowed", staleRuntime, canceledSync));
     }
 
     @Test
@@ -78,7 +98,7 @@ public class DrSchedulerRecoverySchedulerTest {
         runtime.setSchedulerRecoveryState(DrConstants.SCHEDULER_RECOVERY_FAILED);
         runtime.setErrorCode("DR_SOURCE_SITE_UNAVAILABLE");
 
-        Assert.assertTrue(ReflectionTestUtils.invokeMethod(scheduler, "isAutomaticRetryAllowed", runtime));
+        Assert.assertTrue(ReflectionTestUtils.invokeMethod(scheduler, "isAutomaticRetryAllowed", runtime, null));
     }
 
     private DrSiteVO connectedSite(long id) {

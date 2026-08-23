@@ -510,6 +510,9 @@ public class DrFailbackLifecycleServiceImpl extends ManagerBase implements DrFai
     }
 
     private String validateSourceBootState(DrPlanVO plan) {
+        if (StringUtils.equals(resolveFailbackBootValidationMode(plan), "POWER_STATE_ONLY")) {
+            return "POWER_STATE_VALIDATED";
+        }
         DrSiteVO sourceSite = drSiteDao.findById(plan.getSourceSiteId());
         if (sourceSite != null && (StringUtils.equalsAnyIgnoreCase(sourceSite.getHypervisorType(), "VMWARE", "VMware")
                 || StringUtils.equalsIgnoreCase(sourceSite.getSiteType(), "VMWARE_DIRECT"))) {
@@ -518,6 +521,28 @@ public class DrFailbackLifecycleServiceImpl extends ManagerBase implements DrFai
             }
         }
         return "POWER_STATE_VALIDATED";
+    }
+
+    String resolveFailbackBootValidationMode(DrPlanVO plan) {
+        if (isWindowsSource(plan)) {
+            return "GUEST_HEARTBEAT_REQUIRED";
+        }
+        JsonObject policy = plan != null ? parseObject(plan.getPolicyJson()) : null;
+        String mode = policy != null ? stringValue(policy, "failbackBootValidationMode") : null;
+        if (StringUtils.isBlank(mode) && policy != null) {
+            mode = stringValue(policy, "testBootValidationMode");
+        }
+        return StringUtils.equalsIgnoreCase(mode, "POWER_STATE_ONLY")
+                ? "POWER_STATE_ONLY" : "GUEST_HEARTBEAT_REQUIRED";
+    }
+
+    boolean isWindowsSource(DrPlanVO plan) {
+        JsonObject mapping = plan != null ? parseObject(plan.getMappingJson()) : null;
+        JsonObject source = objectValue(mapping, "source");
+        JsonObject hardware = objectValue(source, "hardware");
+        JsonObject vm = objectValue(source, "vm");
+        String guestId = defaultValue(stringValue(hardware, "guestId"), stringValue(vm, "guestId"));
+        return StringUtils.containsIgnoreCase(guestId, "windows");
     }
 
     private String ensureLocalPowerState(UserVmVO vm, Long hostId, boolean poweredOn)
@@ -1454,6 +1479,11 @@ public class DrFailbackLifecycleServiceImpl extends ManagerBase implements DrFai
     private String stringValue(JsonObject object, String key) {
         JsonElement value = object != null ? object.get(key) : null;
         return value != null && !value.isJsonNull() ? StringUtils.trimToNull(value.getAsString()) : null;
+    }
+
+    private JsonObject objectValue(JsonObject object, String key) {
+        JsonElement value = object != null ? object.get(key) : null;
+        return value != null && value.isJsonObject() ? value.getAsJsonObject() : null;
     }
 
     private Boolean booleanValue(JsonObject object, String key) {

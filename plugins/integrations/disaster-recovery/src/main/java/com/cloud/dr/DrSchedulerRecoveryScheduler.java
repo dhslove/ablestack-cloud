@@ -33,6 +33,7 @@ import org.apache.commons.lang3.StringUtils;
 import com.cloud.dr.cluster.DisasterRecoveryClusterService;
 import com.cloud.dr.dao.DrPlanDao;
 import com.cloud.dr.dao.DrPlanRuntimeDao;
+import com.cloud.dr.dao.DrRunDao;
 import com.cloud.dr.dao.DrSiteDao;
 import com.cloud.dr.dao.DrSiteHealthCheckDao;
 import com.cloud.utils.Pair;
@@ -62,6 +63,7 @@ public class DrSchedulerRecoveryScheduler extends ManagerBase implements Configu
 
     @Inject private DrPlanDao drPlanDao;
     @Inject private DrPlanRuntimeDao drPlanRuntimeDao;
+    @Inject private DrRunDao drRunDao;
     @Inject private DrSiteDao drSiteDao;
     @Inject private DrSiteHealthCheckDao drSiteHealthCheckDao;
     @Inject private DrPlanService drPlanService;
@@ -144,7 +146,8 @@ public class DrSchedulerRecoveryScheduler extends ManagerBase implements Configu
                     continue;
                 }
                 DrPlanRuntimeVO runtime = drPlanRuntimeDao.findByPlanId(plan.getId());
-                if (!isAutomaticRetryAllowed(runtime)) {
+                DrRunVO latestRun = drRunDao.findLatestByPlanId(plan.getId());
+                if (!isAutomaticRetryAllowed(runtime, latestRun)) {
                     continue;
                 }
                 long authoritySequence = runtime != null ? runtime.getAuthoritySequence() : 0L;
@@ -161,9 +164,18 @@ public class DrSchedulerRecoveryScheduler extends ManagerBase implements Configu
         }
     }
 
-    private boolean isAutomaticRetryAllowed(DrPlanRuntimeVO runtime) {
+    private boolean isAutomaticRetryAllowed(DrPlanRuntimeVO runtime, DrRunVO latestRun) {
+        if (latestRun != null
+                && StringUtils.equalsIgnoreCase(latestRun.getRunType(), DrConstants.RUN_TYPE_SYNC)
+                && StringUtils.equalsIgnoreCase(latestRun.getState(), DrConstants.RUN_STATE_CANCELED)) {
+            return false;
+        }
         if (runtime == null) {
             return true;
+        }
+        if (StringUtils.equalsIgnoreCase(runtime.getSchedulerRecoveryState(), "REQUIRED")
+                && StringUtils.equalsIgnoreCase(runtime.getReseedReason(), "OPERATOR_CANCELED_TRANSFER")) {
+            return false;
         }
         String errorCode = StringUtils.upperCase(StringUtils.defaultString(runtime.getErrorCode()));
         String recoveryErrorCode = StringUtils.upperCase(

@@ -224,6 +224,8 @@ public class DrRunExecutorImplTest {
         Mockito.when(replicationEngine.validatePlan(plan)).thenReturn(DrAdapterResult.success("valid", null));
         Mockito.when(replicationEngine.execute(Mockito.any(DrExecutionContext.class)))
                 .thenReturn(DrAdapterResult.success("released", detailsJson));
+        Mockito.when(drTargetMaterializationService.cleanupReleasedStandbyTarget(plan.getId(), run.getId(),
+                DrConstants.RELEASE_DISPOSITION_RETAIN_OPERATIONAL_VM)).thenReturn(true);
         Mockito.when(drProjectionService.projectTerminalActionResult(plan.getId(), run, detailsJson)).thenReturn(true);
 
         executor.queueRun(run);
@@ -232,6 +234,10 @@ public class DrRunExecutorImplTest {
         Assert.assertEquals("terminal", run.getProjectionState());
         Assert.assertNotNull(run.getProjectionChecked());
         Mockito.verify(drProjectionService).projectTerminalActionResult(plan.getId(), run, detailsJson);
+        Mockito.verify(drTargetMaterializationService).validateReleaseDisposition(plan.getId(),
+                DrConstants.RELEASE_DISPOSITION_RETAIN_OPERATIONAL_VM);
+        Mockito.verify(drTargetMaterializationService).cleanupReleasedStandbyTarget(plan.getId(), run.getId(),
+                DrConstants.RELEASE_DISPOSITION_RETAIN_OPERATIONAL_VM);
         Mockito.verify(drProjectionService).refreshPlanProjection(plan.getId(), true);
     }
 

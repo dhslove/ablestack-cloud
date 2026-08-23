@@ -78,7 +78,7 @@ public class DrTargetResourceOwnershipService {
         List<DrReplicaDiskVO> history = replicaDiskDao.listByTargetVolumeId(volume.getId());
         if (history != null) {
             for (DrReplicaDiskVO previousDisk : history) {
-                if (previousDisk.getId() == disk.getId()) {
+                if (previousDisk.getId() == disk.getId() || previousDisk.getRemoved() != null) {
                     continue;
                 }
                 DrReplicaVO previousReplica = replicaDao.findByIdIncludingRemoved(previousDisk.getReplicaId());
@@ -95,6 +95,20 @@ public class DrTargetResourceOwnershipService {
             if (!StringUtils.equals(String.valueOf(plan.getId()), attachedPlanId)) {
                 throw ownershipConflict("VOLUME", volume.getId(), attachedPlanId, vmDetails.get("dr.plan.uuid"));
             }
+        }
+    }
+
+    public void releasePlanClaims(long planId) {
+        List<DrTargetResourceClaimVO> claims = claimDao.listActiveByPlanId(planId);
+        if (claims == null) {
+            return;
+        }
+        for (DrTargetResourceClaimVO claim : claims) {
+            if (claim == null || !StringUtils.equals("CLAIMED", claim.getClaimState())) {
+                continue;
+            }
+            claim.release();
+            claimDao.update(claim.getId(), claim);
         }
     }
 

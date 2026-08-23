@@ -15,6 +15,13 @@ export function isActiveDrSyncCycle (cycle = {}) {
 }
 
 export function resolveDrPlanState (plan = {}, currentRun = null) {
+  const state = String(plan.state || '').toUpperCase()
+  const adminState = String(plan.adminstate || plan.adminState || '').toUpperCase()
+  const protection = String(plan.protectionstate || '').toUpperCase()
+  if (state === 'UNPROTECTED' || protection === 'UNPROTECTED' ||
+      (adminState === 'DISABLED' && state !== 'ERROR')) {
+    return 'UNPROTECTED'
+  }
   const latestRun = currentRun || plan.lastrun || {}
   const runtimeError = String(plan.runtimeerrorcode || latestRun.runtimeerrorcode || '').toUpperCase()
   const schedulerHealth = String(plan.schedulerhealth || '').toUpperCase()
@@ -42,7 +49,6 @@ export function resolveDrPlanState (plan = {}, currentRun = null) {
       (schedulerHealth && ownerMatched === false)) {
     return 'DEGRADED'
   }
-  const protection = String(plan.protectionstate || '').toUpperCase()
   if (protection) {
     return protection
   }
@@ -59,7 +65,6 @@ export function resolveDrPlanState (plan = {}, currentRun = null) {
   }
   const readiness = String(plan.readinessstate || '').toUpperCase()
   const materialization = String(plan.targetmaterializationstate || '').toUpperCase()
-  const state = String(plan.state || '').toUpperCase()
   if (readiness === 'TARGET_READY' || materialization === 'TARGET_READY') {
     return 'READY'
   }
@@ -117,6 +122,7 @@ export function hasDrSourceAuthority (plan = {}) {
 }
 
 export function resolveDrReplicationResumeState (plan = {}) {
+  const recoveryState = String(plan.schedulerrecoverystate || plan.schedulerRecoveryState || '').toUpperCase()
   const schedulerHealth = String(plan.schedulerhealth || '').toUpperCase()
   const schedulerState = String(plan.schedulerstate || '').toUpperCase()
   const protectionState = String(plan.protectionstate || '').toUpperCase()
@@ -124,6 +130,9 @@ export function resolveDrReplicationResumeState (plan = {}) {
   const controlState = String(plan.controlstate || '').toUpperCase()
   if (['DEAD', 'OWNER_MISMATCH', 'DUPLICATE_WORKER', 'STALE'].includes(schedulerHealth) || plan.ownermatched === false) {
     return 'DEGRADED'
+  }
+  if (recoveryState === 'REQUIRED') {
+    return 'RECOVERY_REQUIRED'
   }
   if (protectionState === 'PAUSED' || schedulerState === 'PAUSED' || controlState === 'PAUSED') {
     return 'PAUSED'

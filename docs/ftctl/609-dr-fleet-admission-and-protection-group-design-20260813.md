@@ -78,6 +78,22 @@ Each plan may store group UUID, name, order, maximum parallel count, and quiesce
 - Required quiesce rejects any plan without `quiesce_policy_json`.
 - Progress JSON records each plan UUID, order, child run UUID, state, and error.
 
+### 5.1 Group test-failover placement contract
+
+Protection-group execution must preserve each plan's validated target placement.
+For `TEST_FAILOVER`, an explicit test network in an individual request has the
+highest priority. When a group request has no `networkId`, Cloud resolves the
+persisted default target network from that plan's guided mapping
+(`mapping_json.target.networks[].networkLocalId`) independently for every child
+Run. `NO_NIC` is the only networkless mode. If neither an explicit nor a mapped
+network exists, execution is blocked or fails with `DR_TEST_NETWORK_REQUIRED`.
+
+Cloud test VM materialization is a finite child-Run phase. Volume import,
+network resolution, VM creation, and boot failures must terminalize both the
+test session and child `DrRun` with the same error evidence. The group monitor
+then terminates the aggregate Run and releases admission resources. A failed
+test session must never coexist indefinitely with a `RUNNING` child Run.
+
 ## 6. Worker placement and preflight
 
 Explicit worker bindings remain authoritative. Only when every worker binding is absent may Cloud select the least-assigned Up KVM host in the ABLESTACK site zone. Before execution, plan placement resolution, host existence, storage state, disk mapping, offering, and network checks still run. Future provider adapters add their own capacity evidence without changing the admission state machine.
@@ -237,6 +253,17 @@ counts, and ordered per-plan state/error. Polling is bounded and is canceled on
 route leave or component destruction. A Cloud async-job success means only that
 the group request was accepted; it is not presented as execution success.
 
+### 13.2.1 Durable cancellation after executor loss
+
+Run cancellation is a durable asynchronous transition, not an in-memory signal.
+When the UI requests cancellation for an active Run, Cloud persists
+`CANCEL_REQUESTED` and requeues that Run through the DR executor. The executor
+accepts both `QUEUED` and `CANCEL_REQUESTED`; the latter closes open steps,
+records the terminal cancellation event, sets `completed`, and releases the Run
+as an admission blocker. This also applies after a management-server restart,
+when the executor context that originally dispatched the Run no longer exists.
+A queued Run may still be canceled directly without redispatch.
+
 ### 13.3 Layer ownership
 
 | Layer | Responsibility |
@@ -315,3 +342,84 @@ plan RPO plus the established grace window, runtime projection sets the Plan to
 | Resource wait | Hidden behind a successful initial group result | Per-member waiting state and reason are visible |
 | RPO breach | Plan can remain READY while actual RPO is overdue | Plan projects DEGRADED until a fresh durable checkpoint restores RPO |
 | Dark mode | Generic state column cannot distinguish lifecycle axes | Dedicated state/RPO columns use existing dark-mode surfaces and contrast tokens |
+
+## 15. Planned VMware failover source-isolation barrier (2026-08-21)
+
+### 15.1 Failure cause
+
+The proven VMware-to-ABLESTACK RBD transfer reached `CUTOVER_READY`, but Cloud
+powered on the target before it had powered off and verified the VMware source.
+FTCTL correctly rejected the commit because its provisional evidence was
+`source_fence_state=REQUESTED` and `source_power_state=UNKNOWN`. Cloud then
+overwrote its own `COMMIT_VERIFYING` result with `FAILED_OVER`, creating a false
+authority projection while the engine still owned SOURCE authority.
+
+### 15.2 Required order and ownership
+
+For a UI-submitted planned `VMWARE_TO_KVM` Failover, Cloud must execute this
+strict barrier sequence:
+
+1. Resolve the registered source-site credential from the credential service.
+2. Request source VM power-off through the vCenter inventory client and verify
+   the returned state is `POWERED_OFF`.
+3. Persist `VERIFIED/POWERED_OFF` source-isolation evidence in the cutover
+   session and pass the same evidence to FTCTL.
+4. Power on and validate the Cloud-owned target VM.
+5. Submit the V2 cutover commit envelope.
+6. Project `FAILED_OVER/TARGET` only after the FTCTL acknowledgement succeeds.
+
+Disaster mode remains acknowledgement-driven and is not changed by this
+planned-failover path. UI never invokes vCenter, Agent, or FTCTL directly; it
+submits the asynchronous action and renders Cloud API/DB projection.
+
+### 15.3 AS-IS / TO-BE
+
+| Area | AS-IS | TO-BE |
+|---|---|---|
+| Source isolation | Target can start while VMware source is still running | Verified source power-off is a mandatory pre-promotion barrier |
+| Evidence | FTCTL provisional `REQUESTED/UNKNOWN` is reused | Cloud persists and commits `VERIFIED/POWERED_OFF` |
+| Commit failure | `COMMIT_VERIFYING` can be overwritten by `FAILED_OVER` | Authority stays SOURCE and the Run remains retryable |
+| Existing success path | Transfer and materialization are reimplemented | Existing VMware mover, RBD target, guest preparation, and target materialization remain unchanged |
+| Regression coverage | Successful ACK only | Ordering plus failed-ACK authority preservation are tested |
+
+### 15.4 Canceled failover preparation reconciliation
+
+When a UI-submitted failover Run is canceled after FTCTL reaches `CUTOVER_READY`, Cloud must not leave
+the plan projected as `FAILED_OVER/TARGET` unless FTCTL has committed target authority. During the next
+UI refresh or scheduled projection, Cloud invokes the existing `dr-failover-abort` path only when all of
+the following evidence is present:
+
+- the latest Run is `FAILOVER/CANCELED`;
+- FTCTL reports `CUTOVER_READY` or scheduler-resumed `READY`, with `active_side=SOURCE`;
+- FTCTL reports `target_power_state=POWERED_OFF`;
+- Cloud confirms every managed target VM is stopped.
+
+The abort resumes source protection and atomically restores the plan and replica projection to
+`READY/SOURCE`. A running target, target authority, or conflicting runtime evidence blocks automatic
+reconciliation. This recovery is initiated by the normal UI refresh path and does not create a separate
+backend-only operator workflow.
+
+Because a canceled Run is no longer returned by the active-Run query and a later scheduler Run may be newer,
+the projection refresh scans the plan history for the newest Failover Run when the Cloud plan still claims
+`FAILED_OVER/TARGET`, `COMMIT_VERIFYING/TARGET`, or the transient `READY/TARGET` state written while a failed
+promotion is normalized. Recovery proceeds only when that newest Failover Run is `CANCELED`; an unrelated
+active scheduler Run must not hide it. A newer successful or active Failover Run prevents this fallback, so
+normal target authority and the proven cutover path remain unchanged. Consequently, a UI cancel followed by
+the normal UI refresh can recover the plan without direct API, DB, Agent, or FTCTL operator commands, while a
+non-canceled or conflicting Run keeps the existing projection behavior.
+
+### 15.5 RPO warning state and cutover authority
+
+`RPO_DUE_SOON` means that the latest durable checkpoint has entered the final
+20 percent of its target RPO window. It is an operator warning, not an RPO
+violation. Planned Failover and Test Failover therefore remain available while
+the protection runtime is otherwise healthy. `OVERDUE`, an explicit
+`rpo_overdue` flag, an unverified incremental checkpoint, or an unhealthy
+scheduler continues to block cutover.
+
+| Area | AS-IS | TO-BE |
+|---|---|---|
+| Freshness gate | Only `WITHIN_RPO` permits cutover | `WITHIN_RPO` and `RPO_DUE_SOON` permit cutover |
+| Actual breach | Warning and breach are both rejected | Only `OVERDUE` or `rpo_overdue=true` is rejected |
+| UI workflow | Action appears but is disabled near the next deadline | UI remains actionable and continues to show the due-soon warning |
+| Existing path | Risk of changing transfer or scheduler behavior | Authority-only change; VMware mover, RBD transfer, and FTCTL control protocol remain unchanged |

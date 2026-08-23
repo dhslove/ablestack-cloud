@@ -7,6 +7,8 @@
 // with the License.
 package com.cloud.dr.dao;
 
+import java.util.List;
+
 import com.cloud.dr.DrTargetResourceClaimVO;
 import com.cloud.utils.db.DB;
 import com.cloud.utils.db.GenericDaoBase;
@@ -18,6 +20,7 @@ public class DrTargetResourceClaimDaoImpl extends GenericDaoBase<DrTargetResourc
         implements DrTargetResourceClaimDao {
     private final SearchBuilder<DrTargetResourceClaimVO> resourceKeySearch;
     private final SearchBuilder<DrTargetResourceClaimVO> roleKeySearch;
+    private final SearchBuilder<DrTargetResourceClaimVO> activePlanSearch;
 
     public DrTargetResourceClaimDaoImpl() {
         resourceKeySearch = createSearchBuilder();
@@ -26,6 +29,10 @@ public class DrTargetResourceClaimDaoImpl extends GenericDaoBase<DrTargetResourc
         roleKeySearch = createSearchBuilder();
         roleKeySearch.and("activeRoleKey", roleKeySearch.entity().getActiveRoleKey(), SearchCriteria.Op.EQ);
         roleKeySearch.done();
+        activePlanSearch = createSearchBuilder();
+        activePlanSearch.and("planId", activePlanSearch.entity().getPlanId(), SearchCriteria.Op.EQ);
+        activePlanSearch.and("claimState", activePlanSearch.entity().getClaimState(), SearchCriteria.Op.EQ);
+        activePlanSearch.done();
     }
 
     @Override
@@ -40,5 +47,13 @@ public class DrTargetResourceClaimDaoImpl extends GenericDaoBase<DrTargetResourc
         SearchCriteria<DrTargetResourceClaimVO> sc = roleKeySearch.create();
         sc.setParameters("activeRoleKey", activeRoleKey);
         return findOneBy(sc);
+    }
+
+    @Override
+    public List<DrTargetResourceClaimVO> listActiveByPlanId(long planId) {
+        SearchCriteria<DrTargetResourceClaimVO> sc = activePlanSearch.create();
+        sc.setParameters("planId", planId);
+        sc.setParameters("claimState", "CLAIMED");
+        return listBy(sc);
     }
 }

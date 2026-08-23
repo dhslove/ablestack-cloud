@@ -818,6 +818,17 @@ Failover 완료 후 TARGET이 운영 사이트인 동안에는 해당 cutover se
 조회한다. SOURCE 복귀 후에도 과거 `PROMOTED` 정보가 현재 권한처럼 보이거나
 작업 메뉴 갱신에 브라우저 강제 새로고침이 필요하면 projection 결함으로
 판정한다.
+
+## 보호 관계 종료 시 대상 자원 처분
+
+`보호 관계 종료`의 기본값은 대상 가상머신과 디스크 보존이다. TARGET이 운영
+권한을 가진 상태에서는 삭제 선택을 허용하지 않으며, 보존된 가상머신을 새 원본
+workload로 사용해 새 DR 계획을 구성한다. SOURCE 권한의 대기 복제 자원을 완전히
+철거할 때만 운영자가 삭제를 명시적으로 선택한다. Cloud는 Stopped 상태와 plan
+ownership을 재검증한 뒤 대상 VM과 plan-owned volume만 삭제한다. `DR 계획 삭제`는
+메타데이터 전용이며 물리 자원을 삭제하지 않는다. 상세 계약은
+`../616-dr-release-resource-disposition-and-target-retention-design-20260823.md`를
+따른다.
 ## 2026-07-30 Failback 상태 해석 보강
 
 Failback은 비동기 작업이다. 요청 접수 후 `COMMIT_VERIFYING`과

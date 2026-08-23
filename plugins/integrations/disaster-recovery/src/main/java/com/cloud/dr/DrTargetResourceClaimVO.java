@@ -127,4 +127,11 @@ public class DrTargetResourceClaimVO implements InternalIdentity {
 
     public void setClaimState(String claimState) { this.claimState = claimState; this.updated = new Date(); }
     public void setManifestSha256(String manifestSha256) { this.manifestSha256 = manifestSha256; this.updated = new Date(); }
+    public void release() {
+        this.claimState = "RELEASED";
+        this.activeResourceKey = null;
+        this.activeRoleKey = null;
+        this.released = new Date();
+        this.updated = this.released;
+    }
 }

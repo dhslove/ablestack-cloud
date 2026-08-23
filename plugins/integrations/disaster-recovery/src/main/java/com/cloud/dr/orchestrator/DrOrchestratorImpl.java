@@ -293,13 +293,20 @@ public class DrOrchestratorImpl extends ManagerBase implements DrOrchestrator {
         if (run.getCompleted() != null) {
             return run;
         }
-        if (!StringUtils.equals(DrConstants.RUN_STATE_QUEUED, run.getState())) {
+        if (!isExecutorDispatchableState(run.getState())) {
             return run;
         }
-        recordEvent(run.getPlanId(), run.getId(), DrConstants.EVENT_RUN_QUEUED, DrConstants.EVENT_SEVERITY_INFO, DrConstants.EVENT_SOURCE_CLOUD,
-                "DR run accepted for asynchronous executor dispatch", null);
+        if (StringUtils.equals(DrConstants.RUN_STATE_QUEUED, run.getState())) {
+            recordEvent(run.getPlanId(), run.getId(), DrConstants.EVENT_RUN_QUEUED, DrConstants.EVENT_SEVERITY_INFO,
+                    DrConstants.EVENT_SOURCE_CLOUD, "DR run accepted for asynchronous executor dispatch", null);
+        }
         drRunExecutor.queueRun(run);
         return drRunDao.findById(runId);
+    }
+
+    boolean isExecutorDispatchableState(String state) {
+        return StringUtils.equalsAny(state, DrConstants.RUN_STATE_QUEUED,
+                DrConstants.RUN_STATE_CANCEL_REQUESTED);
     }
 
     @Override

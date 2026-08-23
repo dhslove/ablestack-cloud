@@ -402,6 +402,10 @@ public class DrPlanServiceImpl extends ManagerBase implements DrPlanService {
                 DrConstants.SCHEDULER_RECOVERY_PENDING, DrConstants.SCHEDULER_RECOVERY_RECOVERING)) {
             return false;
         }
+        if (StringUtils.equalsIgnoreCase(runtime.getSchedulerRecoveryState(),
+                DrConstants.SCHEDULER_RECOVERY_REQUIRED)) {
+            return true;
+        }
         String desiredState = StringUtils.defaultIfBlank(runtime.getSchedulerDesiredState(), "RUNNING");
         if (!StringUtils.equalsIgnoreCase(desiredState, "RUNNING")) {
             return false;

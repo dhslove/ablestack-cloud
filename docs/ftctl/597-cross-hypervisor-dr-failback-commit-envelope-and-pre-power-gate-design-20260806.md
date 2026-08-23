@@ -137,7 +137,7 @@ reverse checkpoint sequence와 Cloud DB run ID는 대체 값이 될 수 없다.
 | checkpoint/baseline | FTCTL | reverse-final durable evidence |
 | authority generation | Cloud | active committed `dr_cutover_session` |
 | target/source power | Cloud | Host Agent 및 vCenter 검증 결과 |
-| boot validation | Cloud | VMware guest heartbeat 검증 |
+| boot validation | Cloud | 계획 정책에 따른 VMware 전원 또는 guest heartbeat 검증 |
 | attempt ID | Cloud | DB에 먼저 생성하는 UUID |
 | journal/outcome | FTCTL | durable failback commit journal |
 
@@ -180,6 +180,28 @@ constructor는 null을 허용하지 않는다. `validate()`는 다음 오류를 
 - `DR_FAILBACK_EVIDENCE_RUN_MISMATCH`
 - `DR_FAILBACK_COMMIT_POWER_STATE_INVALID`
 - `DR_FAILBACK_BOOT_VALIDATION_INCOMPLETE`
+
+### 5.1.1 페일백 부팅 검증 정책 정합성
+
+Cloud는 원본 VM이 `POWERED_ON`에 도달한 뒤 계획 정책에 따라 부팅 검증 강도를
+선택한다.
+
+- `failbackBootValidationMode=POWER_STATE_ONLY`: vCenter 전원 상태 확인 결과를
+  `POWER_STATE_VALIDATED`로 기록하고 guest identity API를 호출하지 않는다.
+- `failbackBootValidationMode`가 없고 기존 계획의
+  `testBootValidationMode=POWER_STATE_ONLY`인 경우에도 같은 동작을 적용한다.
+- 그 외 값과 정책 누락은 기존 안전 기본값인 `GUEST_HEARTBEAT_REQUIRED`로
+  처리하며 VMware Tools guest identity가 확인되어야 한다.
+
+이 분기는 역방향 데이터 전송, target stop, source start 순서를 변경하지 않는다.
+특히 HTTP 503을 일반 성공으로 간주하지 않고, 운영자가 명시적으로 선택한
+`POWER_STATE_ONLY` 정책에서만 guest heartbeat 검증을 생략한다.
+
+| 구분 | AS-IS | TO-BE |
+|---|---|---|
+| 정책 적용 | 계획의 `POWER_STATE_ONLY`를 페일백이 무시 | 페일백도 저장된 검증 강도를 적용 |
+| VMware Tools 미가용 | guest identity HTTP 503으로 정상 전원 기동까지 롤백 | 명시적 power-only 계획은 전원 상태로 검증 |
+| 기본 안전성 | 항상 guest identity 강제 | 정책 누락 및 강화 모드는 기존 guest heartbeat 유지 |
 
 ### 5.2 Session reconcile backfill
 
@@ -559,3 +581,94 @@ Cloud와 FTCTL 계약이 동시에 배포되기 전에는 현재 session 복구 
 - physical serving side와 engine authority가 일치하기 전 Ready가 노출되지 않는다.
 - 현재 Run 141이 data retransmission 없이 terminal success로 수렴한다.
 - first post-failback checkpoint가 reverse baseline보다 증가한다.
+
+## 17. Windows 페일백 정상 부팅 검증 보강 (2026-08-22)
+
+### 17.1 원인과 원칙
+
+계획 생성 UI의 `testBootValidationMode=POWER_STATE_ONLY`는 격리된 테스트
+페일오버 옵션이며 Windows 페일백의 source authority 확정 기준으로 재사용하지
+않는다. VMware 원본 `guestId`가 Windows인 계획은 Cloud가 자동으로
+`failbackBootValidationMode=GUEST_HEARTBEAT_REQUIRED`를 생성하고, 기존 계획도
+mapping의 guestId를 읽어 같은 규칙을 적용한다.
+
+### 17.2 Cloud 처리
+
+1. 계획 생성 시 source hardware의 `guestId`를 판독한다.
+2. Windows이면 failback policy를 `GUEST_HEARTBEAT_REQUIRED`로 고정한다.
+3. source VM을 시작한 뒤 vCenter guest identity가 실제로 조회될 때까지 bounded
+   poll한다.
+4. 검증 성공 시에만 `GUEST_HEARTBEAT_VALIDATED`를 commit envelope에 넣는다.
+5. 검증 실패 시 target authority를 유지하고 기존 rollback 경로를 수행한다.
+
+기존 Linux 및 명시적 비 Windows power-only 경로는 유지하여 검증된 동작을
+회귀시키지 않는다. UI에는 내부 정책 선택을 추가하지 않고 시스템이 guest OS에
+맞는 안전한 기준을 적용한다.
+
+### 17.3 FTCTL 상호 검증
+
+FTCTL은 reverse profile의 original VMware guestId를 독립적으로 확인한다.
+Windows인데 Cloud가 power-only 증거를 보내면 commit 전에 거부한다. 따라서 Cloud
+버전 혼재 또는 오래된 계획 정책이 있어도 Windows source authority가 전원 상태만으로
+확정되지 않는다.
+
+### 17.4 테스트
+
+- Windows mapping은 기존 POWER_STATE_ONLY 계획에서도 heartbeat-required로 해석
+- 새 Windows 계획 policy에 failback 전용 안전 기본값 저장
+- Linux 명시적 power-only 호환성 유지
+- vCenter guest identity 성공 전 commit 미호출
+- FTCTL Windows power-only envelope 거부 및 heartbeat envelope 승인
+- 기존 sync, test failover/cleanup, failover, failback, release 계약 회귀 실행
+
+### 17.5 AS-IS / TO-BE
+
+| 영역 | AS-IS | TO-BE |
+| --- | --- | --- |
+| 정책 | 테스트 부팅 정책을 페일백에 재사용 | Windows failback 전용 heartbeat 정책 |
+| Cloud 관측 | poweredOn만으로 성공 가능 | vCenter guest identity 확인 필수 |
+| Engine commit | power-only envelope 수용 | Windows power-only envelope 거부 |
+| UI | 사용자가 내부 검증 방식을 결정 | OS 기반 안전 정책을 자동 적용 |
+| 전송/기준선 | 검증된 기존 경로 | 변경 없음 |
+
+## 18. 호환성 사전 조건과 실제 부팅 증거 분리 (2026-08-22)
+
+최종 UI 회귀에서 역방향 전송과 기준선은 정상 완료됐지만 FTCTL이 검증된
+`VMWARE -> ABLESTACK -> VMWARE` 계보까지 `VALIDATION_REQUIRED`로 초기화하여
+Cloud 데이터 게이트가 source 전원 기동 전에 차단했다. 이는 Windows heartbeat
+강화와 무관한 기존 성공 경로 회귀다.
+
+- 동일한 VMware 원본 VM 및 디스크 계보로 되돌리는 경로는
+  `ORIGINAL_VMWARE_COMPATIBILITY_PRESERVED`를 유지한다.
+- 호환성 보존은 전송/컨트롤러 사전 조건일 뿐 정상 부팅 성공 증거가 아니다.
+- Windows source authority commit은 보존 상태와 별개로 반드시
+  `GUEST_HEARTBEAT_VALIDATED`를 요구한다.
+- 기타 provider 조합은 `VALIDATION_REQUIRED`를 유지한다.
+- Cloud 데이터 게이트는 호환성 보존 상태에서 lifecycle을 계속 진행하고,
+  source 기동 후 vCenter guest identity 검증이 실패하면 target authority를 유지한다.
+
+| 구분 | AS-IS | TO-BE |
+| --- | --- | --- |
+| 호환성 게이트 | 모든 역방향 경로를 검증 대기로 초기화 | VMware 원본 계보는 기존 보존 상태 유지 |
+| 부팅 성공 | 호환성과 부팅 증거가 혼재 | Windows는 별도 guest heartbeat 필수 |
+| 회귀 영향 | 기존 성공 페일백이 source 기동 전 차단 | 검증된 전송 경로 유지 후 강화된 부팅 검증 수행 |
+
+## 19. 계획 단위 SOURCE 권한 읽기 수렴 (2026-08-22)
+
+Windows 실부팅, 페일백 commit, vCenter guest heartbeat, 후속 증분 Cycle이 모두
+성공해도 FTCTL의 계획 단위 `status.state`가 이전 페일오버의
+`FAILED_OVER / TARGET`을 유지할 수 있다. 원인은 scheduler recovery가 failback
+sidecar의 최종 `COMPLETED`보다 먼저 실행된 뒤 다시 호출되지 않는 순서 경쟁이다.
+
+FTCTL 계획 상태 조회는 완료 sidecar와 commit journal, authority generation,
+양측 전원, 후속 체크포인트 및 failover/failback 완료 시각을 모두 검증한 뒤에만
+`READY / SOURCE`를 영속 수렴한다. 더 최신 페일오버가 있으면 TARGET을 유지한다.
+Cloud는 이 수렴 결과를 기존 비동기 projection 경로로 소비하며 별도 DB 보정이나
+VM 제어를 수행하지 않는다.
+
+| 영역 | AS-IS | TO-BE |
+| --- | --- | --- |
+| FTCTL 계획 상태 | 성공한 페일백 뒤 과거 TARGET이 남을 수 있음 | 엄격한 durable 증거로 SOURCE read repair |
+| 신규 페일오버 보호 | 모든 TARGET을 단순 보존 | 완료 시각과 generation이 더 최신인 TARGET만 보존 |
+| Cloud | Run/DB는 SOURCE이나 plan status가 뒤처질 수 있음 | 동일한 SOURCE 권한을 비동기 투영 |
+| 성공 경로 영향 | 상태 발행 공용 경로의 순서 경쟁 | 전송, VM 전원, librbd/krbd 경로는 변경 없음 |
