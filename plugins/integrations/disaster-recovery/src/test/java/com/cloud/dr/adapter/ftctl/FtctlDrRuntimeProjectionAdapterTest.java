@@ -1980,6 +1980,33 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     }
 
     @Test
+    public void durableKvmCycleReconcilesPrecreatedReplicaAfterInitiatingRunCompleted() {
+        DrPlanVO plan = new DrPlanVO("kvm-owner-plan", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        DrRunVO completedRun = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_RECOVER_SYNC);
+        completedRun.setState(DrConstants.RUN_STATE_SUCCEEDED);
+        completedRun.setCompleted(new Date());
+        DrReplicaVO replica = new DrReplicaVO(plan.getId(), plan.getTargetSiteId());
+        replica.setTargetVmId(91L);
+        replica.setState(DrConstants.REPLICA_STATE_SKELETON_READY);
+        replica.setOwnershipState("VALID");
+        Mockito.when(drReplicaDao.listActiveByPlanId(plan.getId())).thenReturn(Collections.singletonList(replica));
+
+        FtctlDrStatusCommand command = new FtctlDrStatusCommand(plan.getUuid(), null,
+                FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY);
+        FtctlDrStatusAnswer status = new FtctlDrStatusAnswer(command, true, "ok", plan.getUuid(), completedRun.getUuid(),
+                "ok", "READY", "target-checkpoint-ready", 100,
+                "2026-08-24T09:51:42Z", "2026-08-24T09:51:44Z", 2,
+                91L, null, 0, "", "{}");
+        JsonObject runtime = JsonParser.parseString("{\"last_target_durable_at\":\"2026-08-24T09:51:44Z\"," +
+                "\"latest_completed_commit_state\":\"LOCAL_DURABLE\"}").getAsJsonObject();
+
+        adapter.reconcileDurableTargetMaterialization(plan, completedRun, status, runtime);
+
+        Mockito.verify(drTargetMaterializationService).enqueueDurableReconciliation(
+                Mockito.eq(plan.getId()), Mockito.eq(completedRun.getId()), Mockito.anyString());
+    }
+
+    @Test
     public void refreshPlanProjectionAcceptsLowerSequenceFromNewSchedulerLeaseEpoch() {
         DrPlanVO plan = new DrPlanVO("ftctl-dr-plan", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
         plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);

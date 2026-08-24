@@ -258,6 +258,9 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         DrRunVO protectionProducerRun = resolveProtectionProducerRun(plan, authorityStatus, authorityRuntime);
         projectProtectionAuthority(plan, protectionProducerRun, authorityStatus, authorityRuntime);
         upsertRestorePointFromStatus(plan, protectionProducerRun, authorityStatus, authorityRuntime);
+        reconcileDurableTargetMaterialization(plan,
+                projectionRun != null ? projectionRun : protectionProducerRun,
+                authorityStatus, authorityRuntime);
 
         FtctlDrStatusAnswer status = authorityStatus;
         if (projectionRun != null) {
@@ -3165,6 +3168,37 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         if (durablePresent && !targetReferencePresent && drTargetMaterializationService != null) {
             drTargetMaterializationService.enqueueMaterialization(plan.getId(), run.getId(), compactStatusJson);
         }
+    }
+
+    void reconcileDurableTargetMaterialization(DrPlanVO plan, DrRunVO correlationRun,
+            FtctlDrStatusAnswer status, JsonObject runtime) {
+        if (plan == null || correlationRun == null || drTargetMaterializationService == null
+                || drReplicaDao == null
+                || !StringUtils.equalsIgnoreCase(plan.getDirection(), DrConstants.DIRECTION_KVM_TO_KVM)
+                || !hasDurableCheckpoint(status, runtime)) {
+            return;
+        }
+        List<DrReplicaVO> replicas = drReplicaDao.listActiveByPlanId(plan.getId());
+        if (replicas == null || replicas.isEmpty()) {
+            return;
+        }
+        boolean reconciliationRequired = false;
+        for (DrReplicaVO replica : replicas) {
+            if (replica == null || replica.getRemoved() != null || replica.getTargetVmId() == null) {
+                continue;
+            }
+            if (!StringUtils.equalsIgnoreCase(replica.getState(), DrConstants.REPLICA_STATE_READY)
+                    || StringUtils.isBlank(replica.getMaterializationDigest())) {
+                reconciliationRequired = true;
+                break;
+            }
+        }
+        if (!reconciliationRequired) {
+            return;
+        }
+        String compactStatusJson = compactRuntimeStatusJson(StringUtils.defaultIfBlank(
+                status != null ? status.getStatusJson() : null, GSON.toJson(runtime)));
+        drTargetMaterializationService.enqueueDurableReconciliation(plan.getId(), correlationRun.getId(), compactStatusJson);
     }
 
     private void recordRunProjectionStep(DrRunVO run, String state, Integer progress, String detailsJson,

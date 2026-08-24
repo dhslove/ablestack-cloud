@@ -19,6 +19,7 @@ package com.cloud.dr;
 public interface DrTargetMaterializationService {
     boolean prepareSyncTarget(long planId, long runId);
     boolean enqueueMaterialization(long planId, long runId, String runtimeStatusJson);
+    boolean enqueueDurableReconciliation(long planId, long runId, String runtimeStatusJson);
     boolean enqueueTestMaterialization(long planId, long runId, String runtimeStatusJson);
     boolean cleanupTestTarget(long planId, long cleanupRunId);
     void validateReleaseDisposition(long planId, String resourceDisposition);

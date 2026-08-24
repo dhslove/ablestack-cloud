@@ -822,13 +822,23 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
 
     @Override
     public boolean enqueueMaterialization(final long planId, final long runId, final String runtimeStatusJson) {
+        return enqueueMaterialization(planId, runId, runtimeStatusJson, false);
+    }
+
+    @Override
+    public boolean enqueueDurableReconciliation(final long planId, final long runId, final String runtimeStatusJson) {
+        return enqueueMaterialization(planId, runId, runtimeStatusJson, true);
+    }
+
+    private boolean enqueueMaterialization(final long planId, final long runId, final String runtimeStatusJson,
+            final boolean allowCompletedRun) {
         if (!inFlightPlans.add(planId)) {
             return false;
         }
         ExecutorService currentExecutor = executor;
         if (currentExecutor == null) {
             try {
-                materialize(planId, runId, runtimeStatusJson);
+                materialize(planId, runId, runtimeStatusJson, allowCompletedRun);
             } finally {
                 inFlightPlans.remove(planId);
             }
@@ -839,7 +849,7 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
                 @Override
                 protected void runInContext() {
                     try {
-                        materialize(planId, runId, runtimeStatusJson);
+                        materialize(planId, runId, runtimeStatusJson, allowCompletedRun);
                     } finally {
                         inFlightPlans.remove(planId);
                     }
@@ -853,9 +863,14 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
     }
 
     private void materialize(long planId, long runId, String runtimeStatusJson) {
+        materialize(planId, runId, runtimeStatusJson, false);
+    }
+
+    private void materialize(long planId, long runId, String runtimeStatusJson, boolean allowCompletedRun) {
         DrPlanVO plan = drPlanDao.findById(planId);
         DrRunVO run = drRunDao.findById(runId);
-        if (plan == null || plan.getRemoved() != null || run == null || run.getRemoved() != null || run.getCompleted() != null) {
+        if (plan == null || plan.getRemoved() != null || run == null || run.getRemoved() != null
+                || (!allowCompletedRun && run.getCompleted() != null)) {
             return;
         }
         if (!StringUtils.endsWithIgnoreCase(plan.getDirection(), "_KVM")) {
@@ -1695,7 +1710,7 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
     private void completeMaterialization(long planId, long runId, MaterializationResult result, String runtimeStatusJson) {
         DrPlanVO plan = drPlanDao.findById(planId);
         DrRunVO run = drRunDao.findById(runId);
-        if (plan == null || run == null || run.getCompleted() != null) {
+        if (plan == null || run == null) {
             return;
         }
         Date now = new Date();
@@ -1710,6 +1725,11 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
         }
         plan.markUpdated();
         drPlanDao.update(plan.getId(), plan);
+        if (run.getCompleted() != null) {
+            recordEvent(plan.getId(), run.getId(), DrConstants.EVENT_TARGET_MATERIALIZED, DrConstants.EVENT_SEVERITY_INFO,
+                    "Existing DR target VM was reconciled to the durable checkpoint", materializationDetailsJson(result, runtimeStatusJson));
+            return;
+        }
         String details = materializationDetailsJson(result, runtimeStatusJson);
         upsertRunStep(run, "runtime-projection", STEP_ORDER_RUNTIME_PROJECTION, DrConstants.STEP_STATE_SUCCEEDED, 100, details, null, null);
         upsertRunStep(run, "target-materialization", STEP_ORDER_TARGET_MATERIALIZATION, DrConstants.STEP_STATE_SUCCEEDED, 100, details, null, null);

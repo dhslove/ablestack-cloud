@@ -291,6 +291,34 @@ Post-deployment verification requires all of the following before UI testing:
 This deployment met every gate. UI lifecycle verification is therefore allowed
 to proceed without a direct DB state repair or backend-only action.
 
+### 7.3 Durable target finalization and incremental-cycle contract
+
+The first live 22 -> 32 UI run exposed two state-boundary defects that are now
+part of the regression contract:
+
+- the Plan Owner may create the stopped target VM and RBD volumes before the
+  first durable checkpoint exists. Target finalization must therefore depend on
+  the durable checkpoint plus the replica materialization digest, not on a
+  missing target VM reference;
+- scheduler cycle names are wire values and are case-insensitive. `incremental`,
+  `CBT_INCREMENTAL`, and equivalent normalized values must select the RBD diff
+  writer when a committed source baseline exists. They must never silently
+  select `qemu-img convert` because of letter case.
+
+After any durable ABLESTACK-to-ABLESTACK cycle, Cloud reconciles an existing
+`SKELETON_READY` replica to `READY`, validates and claims the existing target
+VM and volumes, sends `TARGET_MATERIALIZED`, stores the immutable SHA-256
+materialization digest, and updates target readiness. This reconciliation is
+idempotent and is allowed to use the completed initiating Run as correlation
+evidence; it does not rewrite that Run's terminal result.
+
+FTCTL normalizes the scheduler cycle mode before dispatch. A committed baseline
+selects the site-agent RBD diff path, keeps the previous source snapshot until
+the new target write is durable, and only then advances the baseline. A missing
+baseline may perform one explicit full-seed fallback and must record the reseed
+reason. Tests cover lowercase scheduler input, committed-baseline incremental
+selection, and the pre-created-target/durable-finalization race.
+
 ## 8. AS-IS / TO-BE
 
 | Area | AS-IS | TO-BE |
@@ -301,7 +329,8 @@ to proceed without a direct DB state repair or backend-only action.
 | Broker response contract | nested Cloud API object is mistaken for a missing typed answer | Plan Owner accepts the flat and standard object-wrapped response forms and validates the typed Agent payload |
 | KVM inventory | VM summary only; disks and hardware absent | complete VM, RBD disk, NIC, and hardware inventory by UUID |
 | Target placement | Plan Owner local DAOs used for every KVM target | selected target site's Mold inventory and lifecycle APIs |
-| KVM replication | repeated local `qemu-img convert` full seed | remote-NBD full/incremental plus optional QEMU live mirror |
+| KVM replication | lowercase scheduled `incremental` can fall through to repeated `qemu-img convert` full seed | normalized cycle mode selects remote-NBD RBD diff when the baseline is committed |
+| Target readiness | pre-created VM makes the missing-reference trigger false, leaving `SKELETON_READY` after durable data | durable reconciliation stores the materialization digest and converges the existing replica to `READY` without rewriting terminal Run history |
 | Target export failure | a partial multi-disk start can leave an exporter running | Plan-scoped manifest, reserved-range fallback, and all-or-nothing rollback |
 | VM lifecycle | local target materializer assumptions | Cloud owning each VM performs create/start/stop/delete |
 | UI | KVM_TO_KVM appears selectable before end-to-end readiness | capability-gated mode and complete asynchronous lifecycle |
