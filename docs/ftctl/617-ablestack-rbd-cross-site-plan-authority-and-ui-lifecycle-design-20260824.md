@@ -593,3 +593,52 @@ Projection therefore follows these rules:
 | Plan state | Successful Run can become `DEGRADED` | Remains `FAILED_OVER / TARGET` with cleared errors |
 | Active operation | Authority source is implicit | Finite Failback/Reprotect run owns its correlated projection |
 | VMware regression | Shared refresh change could alter VMware | Fast path requires remote `KVM_TO_KVM` plus committed target authority |
+
+## 13. Plan-Owner Dual Runtime Commit
+
+The Cloud that stores the DR Site and Plan remains the sole controller. Remote
+source credentials provide a narrow execution channel; they do not transfer
+Plan ownership to the source Cloud. For remote `KVM_TO_KVM`, however, a
+successful production cutover must converge both FTCTL projections because the
+target projection becomes the execution point for Failback.
+
+The Plan Owner transaction is:
+
+1. receive source FTCTL `CUTOVER_READY` with durable checkpoint and manifest;
+2. pause and power off the registered remote source VM;
+3. send `TARGET_EXPORT_STOP` to the target Agent with the accepted checkpoint;
+4. require target FTCTL to prepare the reverse RBD baseline before target VM
+   power-on;
+5. power on and validate the existing Cloud-managed target VM;
+6. send one immutable `DR_CUTOVER_COMMIT_V2` envelope to the remote source
+   worker as role `coordinator`;
+7. send the same envelope to the local target worker as role `target`;
+8. commit `dr_cutover_session`, `dr_plan.active_side=TARGET`, and the target
+   runtime projection only after both Agents acknowledge it.
+
+The Agent must forward the command role unchanged. FTCTL records that role in
+a Plan-scoped local journal so identical profiles on the source and target do
+not cause profile-only scheduler decisions. `source` continues forward
+replication; only `target` is eligible for duplicate-forward-scheduler
+suppression.
+
+If either acknowledgement is absent, the Plan stays `COMMIT_VERIFYING` and the
+same envelope is retried. A committed session is also an idempotent repair
+source: idle projection first probes the target transition authority and
+replays only the target acknowledgement when an older deployment left it
+missing. This repair never edits FTCTL state through SQL.
+
+UI actions remain asynchronous. Failback becomes eligible only after the
+target-side preflight confirms the committed generation. The UI shows the
+single Plan authority result rather than exposing two engine acknowledgements.
+
+### 13.1 AS-IS / TO-BE
+
+| Layer | AS-IS | TO-BE |
+| --- | --- | --- |
+| UI/API | Failover can appear complete while Failback is blocked | Completion implies both runtime authorities are ready |
+| Backend | Source Agent ACK is the only engine commit | Source ACK plus target ACK are required |
+| Agent | Target handles export only | Target prepares reverse baseline and accepts target authority |
+| FTCTL | Target local status can remain `ERROR` or empty authority | Target is `FAILED_OVER / TARGET`, scheduler suppressed |
+| DB | Cloud session can be ahead of target runtime | Committed session repairs target projection idempotently |
+| Regression scope | Shared cutover path risks VMware | Logic is gated by remote `KVM_TO_KVM` only |

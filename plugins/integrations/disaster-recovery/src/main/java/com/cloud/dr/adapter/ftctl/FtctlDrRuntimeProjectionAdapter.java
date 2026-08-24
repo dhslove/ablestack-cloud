@@ -1291,7 +1291,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                 return;
             }
             try {
-                stopPlanOwnedTargetExportForPromotion(plan, projectionRun);
+                stopPlanOwnedTargetExportForPromotion(plan, projectionRun, cutoverSession);
                 DrTargetPowerOnResult powerOnResult = drTargetMaterializationService.ensureTargetPoweredOn(plan.getId());
                 if (!commitCloudOwnedCutover(plan, projectionRun, cutoverSession, status, runtime, powerOnResult)) {
                     return;
@@ -1515,11 +1515,13 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                 && StringUtils.equalsIgnoreCase(plan.getDirection(), DrConstants.DIRECTION_KVM_TO_KVM);
     }
 
-    private void stopPlanOwnedTargetExportForPromotion(DrPlanVO plan, DrRunVO run) {
+    private void stopPlanOwnedTargetExportForPromotion(DrPlanVO plan, DrRunVO run,
+            DrCutoverSessionVO session) {
         if (!isRemoteKvmToKvmPlan(plan)) {
             return;
         }
-        Answer answer = sendTargetExportTransition(plan, run, FtctlDrActionCommand.Action.TARGET_EXPORT_STOP);
+        Answer answer = sendTargetExportTransition(plan, run, FtctlDrActionCommand.Action.TARGET_EXPORT_STOP,
+                session != null ? session.getCheckpointSequence() : null);
         if (answer == null || !answer.getResult()) {
             throw new CloudRuntimeException(StringUtils.defaultIfBlank(
                     answer != null ? answer.getDetails() : null,
@@ -1531,7 +1533,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         if (!isRemoteKvmToKvmPlan(plan)) {
             return;
         }
-        Answer answer = sendTargetExportTransition(plan, run, FtctlDrActionCommand.Action.TARGET_EXPORT_START);
+        Answer answer = sendTargetExportTransition(plan, run, FtctlDrActionCommand.Action.TARGET_EXPORT_START, null);
         if (answer == null || !answer.getResult()) {
             throw new CloudRuntimeException(StringUtils.defaultIfBlank(
                     answer != null ? answer.getDetails() : null,
@@ -1540,7 +1542,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
     }
 
     private Answer sendTargetExportTransition(DrPlanVO plan, DrRunVO run,
-            FtctlDrActionCommand.Action action) {
+            FtctlDrActionCommand.Action action, Long checkpointSequence) {
         if (plan == null || run == null || plan.getTargetWorkerHostId() == null) {
             return null;
         }
@@ -1550,6 +1552,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         command.setRunType(run.getRunType());
         command.setDirection(plan.getDirection());
         command.setRole("target");
+        command.setCutoverCheckpointSequence(checkpointSequence);
         command.setWaitForCompletion(true);
         command.setWait(45);
         return agentManager.easySend(plan.getTargetWorkerHostId(), command);
@@ -1757,9 +1760,32 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         if (hostId == null) {
             return null;
         }
+        FtctlDrActionCommand command = buildCutoverCommitCommand(plan, run, session, powerOnResult, generation,
+                "coordinator");
+        if (command == null) {
+            return null;
+        }
+        if (isRemoteKvmToKvmPlan(plan)) {
+            Answer sourceAnswer = drRemoteAgentClient.execute(plan, "ACTION", command,
+                    remoteSourceWorkerUuid(plan), FtctlDrActionAnswer.class);
+            if (sourceAnswer == null || !sourceAnswer.getResult()) {
+                return sourceAnswer;
+            }
+            FtctlDrActionCommand targetCommand = buildCutoverCommitCommand(plan, run, session,
+                    powerOnResult, generation, "target");
+            return plan.getTargetWorkerHostId() != null
+                    ? agentManager.easySend(plan.getTargetWorkerHostId(), targetCommand)
+                    : new Answer(targetCommand, false, "DR_CUTOVER_TARGET_HOST_MISSING: target worker is not configured");
+        }
+        return agentManager.easySend(hostId, command);
+    }
+
+    private FtctlDrActionCommand buildCutoverCommitCommand(DrPlanVO plan, DrRunVO run,
+            DrCutoverSessionVO session, DrTargetPowerOnResult powerOnResult, long generation,
+            String role) {
         FtctlDrActionCommand command = new FtctlDrActionCommand(FtctlDrActionCommand.Action.CUTOVER_COMMIT,
                 plan.getUuid(), run.getUuid());
-        command.setRole("coordinator");
+        command.setRole(role);
         command.setWaitForCompletion(true);
         command.setWait(30);
         command.setCutoverCommitContractVersion(session.getCommitContractVersion());
@@ -1780,13 +1806,9 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                 command.getCutoverManifestSha256(), command.getCutoverCommitAttemptId(),
                 command.getCutoverCommitEnvelopeSha256(), command.getCutoverTargetExternalRef(),
                 command.getCutoverSourceFenceState(), command.getCutoverSourcePowerState())) {
-            return new Answer(command, false, "DR_CUTOVER_COMMIT_EVIDENCE_INCOMPLETE: typed cutover evidence is incomplete");
+            return null;
         }
-        if (isRemoteKvmToKvmPlan(plan)) {
-            return drRemoteAgentClient.execute(plan, "ACTION", command,
-                    remoteSourceWorkerUuid(plan), FtctlDrActionAnswer.class);
-        }
-        return agentManager.easySend(hostId, command);
+        return command;
     }
 
     private void reconcileCloudManagedTestTarget(DrPlanVO plan, DrRunVO run, FtctlDrStatusAnswer status, JsonObject runtime) {
@@ -3069,6 +3091,56 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             drPlanRuntimeDao.update(planRuntime.getId(), planRuntime);
         }
         preserveServingTargetReplica(plan);
+        ensureCommittedTargetAuthorityProjection(plan);
+    }
+
+    private void ensureCommittedTargetAuthorityProjection(DrPlanVO plan) {
+        if (!isRemoteKvmToKvmPlan(plan) || plan.getTargetWorkerHostId() == null
+                || drCutoverSessionDao == null || drRunDao == null) {
+            return;
+        }
+        DrCutoverSessionVO session = findCommittedTargetAuthority(plan);
+        if (session == null || session.getRunId() <= 0 || session.getCloudAuthorityGeneration() == null) {
+            return;
+        }
+        FtctlDrStatusCommand probe = new FtctlDrStatusCommand(plan.getUuid(), null,
+                FtctlDrStatusCommand.StatusScope.TRANSITION_PREFLIGHT);
+        probe.setTransitionOperation("failback");
+        probe.setExpectedAuthoritySide(DrConstants.AUTHORITY_SIDE_TARGET);
+        probe.setExpectedAuthorityGeneration(session.getCloudAuthorityGeneration());
+        Answer probeAnswer = agentManager.easySend(plan.getTargetWorkerHostId(), probe);
+        FtctlDrStatusAnswer typedProbe = probeAnswer instanceof FtctlDrStatusAnswer
+                ? (FtctlDrStatusAnswer) probeAnswer : null;
+        if (typedProbe != null && probeAnswer.getResult()
+                && Boolean.TRUE.equals(typedProbe.getTransitionReady())
+                && StringUtils.equalsIgnoreCase(typedProbe.getTransitionActiveSide(),
+                        DrConstants.AUTHORITY_SIDE_TARGET)
+                && session.getCloudAuthorityGeneration().equals(
+                        typedProbe.getTransitionAuthorityGeneration())) {
+            return;
+        }
+        DrRunVO run = drRunDao.findById(session.getRunId());
+        if (run == null) {
+            LOGGER.warn("Unable to repair target FTCTL authority for Plan {}: cutover Run {} is missing",
+                    plan.getUuid(), session.getRunId());
+            return;
+        }
+        try {
+            DrTargetPowerOnResult powerOnResult = drTargetMaterializationService.ensureTargetPoweredOn(plan.getId());
+            if (powerOnResult == null || !powerOnResult.isReady()) {
+                return;
+            }
+            FtctlDrActionCommand command = buildCutoverCommitCommand(plan, run, session, powerOnResult,
+                    session.getCloudAuthorityGeneration(), "target");
+            Answer repair = command != null
+                    ? agentManager.easySend(plan.getTargetWorkerHostId(), command) : null;
+            if (repair == null || !repair.getResult()) {
+                LOGGER.warn("Target FTCTL authority repair is pending for Plan {}: {}", plan.getUuid(),
+                        repair != null ? repair.getDetails() : "no Agent answer");
+            }
+        } catch (RuntimeException e) {
+            LOGGER.warn("Unable to repair target FTCTL authority projection for Plan {}", plan.getUuid(), e);
+        }
     }
 
     private boolean preserveCommittedTargetAuthorityAfterReprotectFailure(DrPlanVO plan,
