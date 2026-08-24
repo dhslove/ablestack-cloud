@@ -787,10 +787,13 @@ helper when loaded, and finally the canonical Plan runtime directory. The
 fallback does not weaken evidence validation: repair still requires an exact
 same-Plan, same-Run, same-sequence `failover-final` checkpoint that is
 `TARGET_READY`, `LOCAL_DURABLE`, write-verified, and NBD-drained.
+An immediately durable checkpoint may report an RPO of zero seconds; this is a
+valid value and must not be normalized to a missing evidence field.
 
 | Area | AS-IS | TO-BE |
 | --- | --- | --- |
 | Source quiesce status | May omit the restore-point journal path | Canonical Plan path remains discoverable |
+| Final RPO | Zero seconds can be lost as an empty trailing field | Zero remains explicit evidence |
 | Cloud retry | Same sequence 5 envelope repeatedly receives mismatch | Idempotent retry converges without DB repair |
 | UI terminal state | Healthy UEFI VM can coexist with `COMMIT_VERIFYING` | Plan reaches failed-over terminal state after dual ACK |
 | Existing routes | Broad fallback could hide invalid evidence | Fallback locates files only; strict identity checks remain |
