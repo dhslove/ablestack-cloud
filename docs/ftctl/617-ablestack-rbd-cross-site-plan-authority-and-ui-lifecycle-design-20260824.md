@@ -136,6 +136,13 @@ returns the typed Agent answer. The legacy DR-plugin-owned broker command is not
 used for cross-site execution because a worker site is not required to enable
 the DR Plan service.
 
+Cloud API serialization may expose the broker fields either directly below
+`executeftctldrsiteagentcommandresponse` or below its
+`ftctldrsiteagentcommand` object. The Plan Owner client unwraps both forms and
+requires `answerclass` plus `answerjson` before accepting the remote execution.
+This wire-compatibility rule is covered by regression tests so a valid
+site-local Agent answer cannot be misclassified as a remote engine outage.
+
 ## 5. UI Lifecycle
 
 All mutations are UI initiated and immediately return an accepted Run. The UI
@@ -191,6 +198,7 @@ blocked if either contract regresses.
 | Controller | worker binding assumes local source/target hosts | Plan Owner Cloud controls either remote site through broker APIs |
 | Authority placement | target-side ownership is implicit in the tested path | whichever Cloud stores the plan remains authoritative; source/target location does not transfer control |
 | Remote execution API | broker registration depends on the remote DR Plan plugin being enabled | FTCTL service always exposes the narrow site-local broker while the Plan Owner retains lifecycle authority |
+| Broker response contract | nested Cloud API object is mistaken for a missing typed answer | Plan Owner accepts the flat and standard object-wrapped response forms and validates the typed Agent payload |
 | KVM inventory | VM summary only; disks and hardware absent | complete VM, RBD disk, NIC, and hardware inventory by UUID |
 | Target placement | Plan Owner local DAOs used for every KVM target | selected target site's Mold inventory and lifecycle APIs |
 | KVM replication | repeated local `qemu-img convert` full seed | remote-NBD full/incremental plus optional QEMU live mirror |

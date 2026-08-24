@@ -249,7 +249,13 @@ public class DrMoldInventoryClient {
         params.put("commandjson", commandJson);
         params.put("workerhostuuid", StringUtils.trim(workerHostUuid));
         JsonObject response = execute(credential, COMMAND_EXECUTE_DR_SITE_AGENT, params, true);
-        return getObjectIgnoreCase(response, "executeftctldrsiteagentcommandresponse");
+        return extractSiteAgentCommandResponse(response);
+    }
+
+    JsonObject extractSiteAgentCommandResponse(JsonObject response) {
+        JsonObject payload = getObjectIgnoreCase(response, "executeftctldrsiteagentcommandresponse");
+        JsonObject typedPayload = getObjectIgnoreCase(payload, "ftctldrsiteagentcommand");
+        return typedPayload.entrySet().isEmpty() ? payload : typedPayload;
     }
 
     public JsonObject prepareRemoteSshAccess(DrResolvedSiteCredential sourceCredential,
