@@ -12,6 +12,59 @@ The already validated `VMWARE_TO_KVM` path is a regression-protected contract.
 Provider-specific changes in this design must not alter VMware inventory, VDDK,
 CBT, target materialization, failover, or failback behavior.
 
+### 1.1 Plan-owner data-plane correction
+
+The Cloud instance that stores the DR Site and DR Plan is the sole control
+authority. For the 22-to-32 validation, the 32 management server owns the Plan
+even though the protected VM runs on the 22 site. The source Agent and FTCTL
+are data-plane workers; they do not SSH to, provision, or administrate the
+target site.
+
+The first remote KVM implementation violated this boundary by placing a
+`qemu+ssh` URI and a target-host SSH key in the source FTCTL profile. It also
+allowed the source worker to synthesize `/dev/rbd/<pool>/<image>` before the
+target Cloud had created its VM and volume records. That path is removed for
+remote `KVM_TO_KVM` plans.
+
+Corrected ordering:
+
+1. The Plan Owner resolves target placement and creates the stopped target VM
+   and Cloud-owned RBD volume records before dispatching the first Sync.
+2. The Plan Owner sends `TARGET_EXPORT_START` to the selected target Agent.
+   Target FTCTL validates or creates the Cloud-selected RBD image and exposes
+   it with librbd-backed `qemu-nbd` on the reserved DR port range.
+3. The Plan Owner receives the typed export manifest and adds only NBD endpoint
+   metadata to the source command profile.
+4. The Plan Owner sends `SYNC` or `RECOVER_SYNC` to the source Site through the
+   registered Mold API and Agent broker.
+5. Source FTCTL reads source RBD through librbd. Full Seed writes to the target
+   NBD export. Incremental cycles retain only source RBD snapshot baselines,
+   calculate changed extents with `rbd diff`, and apply those extents to the
+   target NBD export. No target SSH command or target RBD snapshot is used.
+6. After a durable checkpoint, the existing materialization completion and
+   `TARGET_MATERIALIZED` notification contract marks the replica Ready.
+7. Before production target VM power-on, and on Release or Delete, the export
+   is stopped and checked before Cloud starts the VM through its normal krbd
+   runtime path.
+
+`profile.transport.mode` is `site-agent-nbd`. It contains no SSH user, key, or
+libvirt URI. `profile.transport.exports[]` contains `device`, `host`, `port`,
+`name`, `uri`, and the canonical target locator. The required FTCTL capability
+is `dr-site-agent-rbd-transport-v1`.
+
+This branch is selected only for remote-source `KVM_TO_KVM`. VMware-to-KVM
+continues to use the validated VDDK/librbd mover, while local KVM-to-KVM and
+existing HA/FT `remote-nbd` profiles retain their contracts.
+
+| Area | AS-IS | TO-BE |
+|---|---|---|
+| Control authority | Source FTCTL administers target by SSH | Plan Owner controls both Sites through API and Agent |
+| Target resources | Synthetic path before Cloud ownership | Stopped target VM and Cloud volume created first |
+| Full Seed | Source starts target qemu-nbd through SSH | Target Agent starts export; source connects to NBD |
+| Incremental | `rbd export-diff` piped to target SSH | source changed extents applied over target NBD |
+| Credentials | target root SSH material reaches source | no target SSH credential in source runtime |
+| VM runtime | export can overlap target VM power-on | export stopped before VM starts with krbd |
+
 ## 2. Authority Model
 
 The Cloud that owns `dr_site`, `dr_plan`, `dr_run`, and the operator UI is the
@@ -178,8 +231,28 @@ polls cached Plan projection and does not block on Agent or FTCTL work.
 
 Preflight must verify signed API calls in both directions, source VM inventory,
 target placement UUIDs, RBD feature compatibility, NBD device/port capacity,
-QEMU mirror capability, SSH/NBD reachability, available capacity, and stopped
-target VM state.
+QEMU mirror capability, Agent-controlled NBD reachability, available capacity,
+and stopped target VM state. Source FTCTL never receives target SSH credentials
+and never starts a process on the target host directly.
+
+The target Agent allocates an export port from the configured reserved range.
+It starts every disk export as one operation and records a Plan-scoped manifest.
+If any disk, RBD image, port, or `qemu-nbd` start fails, all exports opened by
+that attempt are stopped and the incomplete manifest is removed. A collision on
+the deterministic first port searches the remaining reserved range before the
+operation becomes `WAITING_RESOURCE`.
+
+### 7.1 Verified 22 -> 32 data-plane preflight
+
+The implementation preflight on 2026-08-24 used a temporary 64 MiB image in
+the 32-cluster RBD pool. The 32.2 target Agent host exported it with
+`qemu-nbd` on the configured `11809-11872/tcp` range. The 22.1 source host read
+the export metadata, wrote a 4 KiB `0x5a` pattern, and read the same pattern
+back successfully. The exporter and temporary RBD image were then removed.
+This proves the Plan Owner selected data path without touching a protected VM
+disk. The deployed configuration has duplicate port declarations; the last
+declaration is effective and package deployment must converge the file to one
+canonical declaration.
 
 Deployment preflight must also call `listApis` or issue a signed broker probe on
 every ABLESTACK site and verify `executeFtctlDrSiteAgentCommand` is present
@@ -202,5 +275,6 @@ blocked if either contract regresses.
 | KVM inventory | VM summary only; disks and hardware absent | complete VM, RBD disk, NIC, and hardware inventory by UUID |
 | Target placement | Plan Owner local DAOs used for every KVM target | selected target site's Mold inventory and lifecycle APIs |
 | KVM replication | repeated local `qemu-img convert` full seed | remote-NBD full/incremental plus optional QEMU live mirror |
+| Target export failure | a partial multi-disk start can leave an exporter running | Plan-scoped manifest, reserved-range fallback, and all-or-nothing rollback |
 | VM lifecycle | local target materializer assumptions | Cloud owning each VM performs create/start/stop/delete |
 | UI | KVM_TO_KVM appears selectable before end-to-end readiness | capability-gated mode and complete asynchronous lifecycle |

@@ -251,8 +251,8 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         }
         FtctlDrActionCommand command;
         try {
-            prepareRemoteTransport(context, action);
             command = buildActionCommand(context, action);
+            preparePlanOwnedTransport(context, action, command);
             if (reprotectPreflight != null) {
                 command.setAuthorityContractVersion(DrReprotectAuthoritySpec.CONTRACT_VERSION);
                 command.setAuthoritySpecJson(GSON.toJson(reprotectPreflight.getAuthoritySpec()));
@@ -346,13 +346,86 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         return agentManager.send(localHostId, command);
     }
 
-    private void prepareRemoteTransport(DrExecutionContext context, FtctlDrActionCommand.Action action) {
-        if (!dispatchesOnRemoteSource(context.getPlan(), action)
+    private void preparePlanOwnedTransport(DrExecutionContext context, FtctlDrActionCommand.Action action,
+            FtctlDrActionCommand sourceCommand) {
+        DrPlanVO plan = context.getPlan();
+        if (action == FtctlDrActionCommand.Action.FAILOVER || action == FtctlDrActionCommand.Action.RELEASE) {
+            stopPlanOwnedTargetExport(context, sourceCommand);
+            return;
+        }
+        if (!dispatchesOnRemoteSource(plan, action)
                 || (action != FtctlDrActionCommand.Action.SYNC && action != FtctlDrActionCommand.Action.RECOVER_SYNC)) {
             return;
         }
-        HostVO targetHost = hostDao.findById(context.getPlan().getTargetWorkerHostId());
-        drRemoteAgentClient.prepareTransport(context.getPlan(), targetHost, "/dev/rbd");
+        HostVO targetHost = hostDao.findById(plan.getTargetWorkerHostId());
+        if (targetHost == null || StringUtils.isBlank(targetHost.getPrivateIpAddress())) {
+            throw new CloudRuntimeException("DR target worker host and data address are required");
+        }
+        FtctlDrActionCommand targetCommand = new FtctlDrActionCommand(
+                FtctlDrActionCommand.Action.TARGET_EXPORT_START, plan.getUuid(), context.getRun().getUuid());
+        targetCommand.setActionName(FtctlDrActionCommand.Action.TARGET_EXPORT_START.name());
+        targetCommand.setCliCommand(FtctlDrActionCommand.Action.TARGET_EXPORT_START.getCliCommand());
+        targetCommand.setRunType(context.getRun().getRunType());
+        targetCommand.setDirection(plan.getDirection());
+        targetCommand.setRole("target");
+        targetCommand.setTargetWorkerUuid(targetHost.getUuid());
+        targetCommand.setProfileJson(sourceCommand.getProfileJson());
+        targetCommand.setWaitForCompletion(true);
+        targetCommand.setWait(AGENT_ACCEPT_TIMEOUT_SECONDS);
+        Answer rawAnswer = agentManager.easySend(targetHost.getId(), targetCommand);
+        if (!(rawAnswer instanceof FtctlDrActionAnswer) || !rawAnswer.getResult()) {
+            throw new CloudRuntimeException(StringUtils.defaultIfBlank(
+                    rawAnswer != null ? rawAnswer.getDetails() : null,
+                    "Target Agent did not prepare the Plan-owned RBD export"));
+        }
+        FtctlDrActionAnswer answer = (FtctlDrActionAnswer) rawAnswer;
+        JsonObject payload = parseObject(answer.getStatusJson());
+        JsonArray exports = firstArray(payload, "exports");
+        if (exports.size() == 0) {
+            throw new CloudRuntimeException("Target Agent returned no RBD export endpoints");
+        }
+        JsonObject profile = parseObject(sourceCommand.getProfileJson());
+        JsonObject transport = objectAt(profile, "transport");
+        transport.addProperty("mode", "site-agent-nbd");
+        transport.remove("secondaryUri");
+        transport.remove("sshUser");
+        transport.remove("sshPort");
+        transport.remove("sshKeyFile");
+        transport.add("exports", exports);
+        sourceCommand.setProfileJson(GSON.toJson(profile));
+    }
+
+    private void stopPlanOwnedTargetExport(DrExecutionContext context, FtctlDrActionCommand sourceCommand) {
+        DrPlanVO plan = context.getPlan();
+        if (plan == null || !isRemoteKvmToKvmPlan(plan)) {
+            return;
+        }
+        HostVO targetHost = hostDao.findById(plan.getTargetWorkerHostId());
+        if (targetHost == null) {
+            throw new CloudRuntimeException("DR target worker host is required to stop the Plan-owned export");
+        }
+        FtctlDrActionCommand stopCommand = new FtctlDrActionCommand(
+                FtctlDrActionCommand.Action.TARGET_EXPORT_STOP, plan.getUuid(), context.getRun().getUuid());
+        stopCommand.setActionName(FtctlDrActionCommand.Action.TARGET_EXPORT_STOP.name());
+        stopCommand.setCliCommand(FtctlDrActionCommand.Action.TARGET_EXPORT_STOP.getCliCommand());
+        stopCommand.setRunType(context.getRun().getRunType());
+        stopCommand.setDirection(plan.getDirection());
+        stopCommand.setRole("target");
+        stopCommand.setTargetWorkerUuid(targetHost.getUuid());
+        stopCommand.setProfileJson(sourceCommand.getProfileJson());
+        stopCommand.setWaitForCompletion(true);
+        stopCommand.setWait(AGENT_ACCEPT_TIMEOUT_SECONDS);
+        Answer answer = agentManager.easySend(targetHost.getId(), stopCommand);
+        if (answer == null || !answer.getResult()) {
+            throw new CloudRuntimeException(StringUtils.defaultIfBlank(
+                    answer != null ? answer.getDetails() : null,
+                    "Target Agent did not stop the Plan-owned RBD export"));
+        }
+    }
+
+    private boolean isRemoteKvmToKvmPlan(DrPlanVO plan) {
+        return drRemoteAgentClient != null && drRemoteAgentClient.isRemoteKvmSource(plan)
+                && StringUtils.equalsIgnoreCase(plan.getDirection(), DrConstants.DIRECTION_KVM_TO_KVM);
     }
 
     private boolean dispatchesOnRemoteSource(DrPlanVO plan, FtctlDrActionCommand.Action action) {
@@ -569,6 +642,10 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         }
         if (action == FtctlDrActionCommand.Action.RELEASE) {
             requiredFeatures.add("dr-release-tombstone-v1");
+        }
+        if (drRemoteAgentClient != null && drRemoteAgentClient.isRemoteKvmSource(context.getPlan())
+                && (action == FtctlDrActionCommand.Action.SYNC || action == FtctlDrActionCommand.Action.RECOVER_SYNC)) {
+            requiredFeatures.add("dr-site-agent-rbd-transport-v1");
         }
         command.setRequiredFeatures(requiredFeatures);
         try {
@@ -1043,17 +1120,13 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         JsonObject hardware = objectAt(source, "hardware");
         String instanceName = firstNonBlank(firstString(hardware, "instanceName"),
                 firstString(source, "instanceName"));
-        transport.addProperty("mode", "remote-nbd");
+        transport.addProperty("mode", "site-agent-nbd");
         if (targetHost != null) {
             addIfNotBlank(transport, "targetHostUuid", targetHost.getUuid());
             addIfNotBlank(transport, "targetHostAddress", targetHost.getPrivateIpAddress());
-            addIfNotBlank(transport, "secondaryUri", "qemu+ssh://root@" + targetHost.getPrivateIpAddress() + "/system");
             addIfNotBlank(transport, "remoteNbdExportAddress", targetHost.getPrivateIpAddress());
         }
-        addIfNotBlank(transport, "sshUser", "root");
-        addIfNotBlank(transport, "sshPort", "22");
-        addIfNotBlank(transport, "sshKeyFile", StringUtils.isNotBlank(instanceName)
-                ? "/root/.ssh/ftctl-dr/" + instanceName + "/id_ed25519" : null);
+        transport.addProperty("controlMode", "site-agent");
         transport.addProperty("targetStorageScope", "secondary-local");
         return transport;
     }

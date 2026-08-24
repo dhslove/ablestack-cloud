@@ -36,6 +36,8 @@ public class FtctlDrActionCommand extends Command {
         FAILBACK("dr-failback"),
         REPROTECT("dr-reprotect"),
         TARGET_MATERIALIZED("dr-target-materialized"),
+        TARGET_EXPORT_START("dr-target-export-start"),
+        TARGET_EXPORT_STOP("dr-target-export-stop"),
         CUTOVER_COMMIT("dr-cutover-commit"),
         CUTOVER_COMMIT_STATUS("dr-cutover-commit-status"),
         FAILOVER_ABORT("dr-failover-abort"),

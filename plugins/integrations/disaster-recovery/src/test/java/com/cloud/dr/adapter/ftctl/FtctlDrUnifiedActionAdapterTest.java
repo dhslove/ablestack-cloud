@@ -129,6 +129,7 @@ public class FtctlDrUnifiedActionAdapterTest {
                 + "\"target\":{\"storageRef\":\"target-pool-uuid\",\"path\":\"target-image\",\"format\":\"raw\"}}]}");
         DrRunVO run = run(DrConstants.RUN_TYPE_SYNC, "{\"mode\":\"FULL_RESEED\",\"forceImmediateCycle\":true}");
         HostVO targetHost = Mockito.mock(HostVO.class);
+        Mockito.when(targetHost.getId()).thenReturn(102L);
         Mockito.when(targetHost.getUuid()).thenReturn("target-host-uuid");
         Mockito.when(targetHost.getPrivateIpAddress()).thenReturn("10.10.32.2");
         Mockito.when(hostDao.findById(102L)).thenReturn(targetHost);
@@ -137,9 +138,19 @@ public class FtctlDrUnifiedActionAdapterTest {
                 Mockito.isA(FtctlDrCapabilitiesCommand.class), Mockito.eq("source-host-uuid"),
                 Mockito.eq(FtctlDrCapabilitiesAnswer.class))).thenAnswer(invocation -> {
                     FtctlDrCapabilitiesAnswer answer = new FtctlDrCapabilitiesAnswer(invocation.getArgument(2), true, "ok");
-                    answer.setSupportedFeatures(java.util.Arrays.asList("control-protocol-v2"));
+                    answer.setSupportedFeatures(java.util.Arrays.asList(
+                            "control-protocol-v2", "dr-site-agent-rbd-transport-v1"));
                     return answer;
                 });
+        ArgumentCaptor<FtctlDrActionCommand> targetCommandCaptor = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
+        Mockito.when(agentManager.easySend(Mockito.eq(102L), targetCommandCaptor.capture())).thenAnswer(invocation -> {
+            FtctlDrActionCommand command = invocation.getArgument(1);
+            return new FtctlDrActionAnswer(command, true, "ready", FtctlDrActionCommand.Action.TARGET_EXPORT_START,
+                    plan.getUuid(), run.getUuid(), "completed", true, "READY", "target-export-ready",
+                    100, run.getUuid(), 0L, null, 0, "{\"result\":\"ok\"}",
+                    "{\"exports\":[{\"device\":\"sda\",\"host\":\"10.10.32.2\",\"port\":12032,"
+                            + "\"name\":\"dr-export-sda\",\"uri\":\"nbd://10.10.32.2:12032/dr-export-sda\"}]}");
+        });
         Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("ACTION"),
                 Mockito.isA(FtctlDrActionCommand.class), Mockito.eq("source-host-uuid"),
                 Mockito.eq(FtctlDrActionAnswer.class))).thenAnswer(invocation -> {
@@ -154,15 +165,17 @@ public class FtctlDrUnifiedActionAdapterTest {
 
         Assert.assertTrue(result.isSuccess());
         Assert.assertFalse(result.isTerminal());
-        Mockito.verify(drRemoteAgentClient).prepareTransport(plan, targetHost, "/dev/rbd");
+        Assert.assertEquals(FtctlDrActionCommand.Action.TARGET_EXPORT_START, targetCommandCaptor.getValue().getAction());
         Mockito.verify(agentManager, Mockito.never()).send(Mockito.anyLong(), Mockito.isA(FtctlDrActionCommand.class));
         ArgumentCaptor<FtctlDrActionCommand> actionCaptor = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
         Mockito.verify(drRemoteAgentClient).execute(Mockito.eq(plan), Mockito.eq("ACTION"), actionCaptor.capture(),
                 Mockito.eq("source-host-uuid"), Mockito.eq(FtctlDrActionAnswer.class));
         FtctlDrActionCommand command = actionCaptor.getValue();
         Assert.assertEquals("source-host-uuid", command.getSourceWorkerUuid());
-        Assert.assertTrue(command.getProfileJson().contains("\"mode\":\"remote-nbd\""));
+        Assert.assertTrue(command.getProfileJson().contains("\"mode\":\"site-agent-nbd\""));
         Assert.assertTrue(command.getProfileJson().contains("\"targetHostAddress\":\"10.10.32.2\""));
+        Assert.assertTrue(command.getProfileJson().contains("\"name\":\"dr-export-sda\""));
+        Assert.assertFalse(command.getProfileJson().contains("sshUser"));
         Assert.assertFalse(command.getProfileJson().contains("moldSecretKey"));
     }
 

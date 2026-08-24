@@ -806,6 +806,21 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
     }
 
     @Override
+    public boolean prepareSyncTarget(long planId, long runId) {
+        DrPlanVO plan = drPlanDao.findById(planId);
+        DrRunVO run = drRunDao.findById(runId);
+        if (plan == null || plan.getRemoved() != null || run == null || run.getRemoved() != null) {
+            return false;
+        }
+        if (!StringUtils.equalsIgnoreCase(plan.getDirection(), DrConstants.DIRECTION_KVM_TO_KVM)
+                || plan.getSourceVmId() != null || StringUtils.isBlank(plan.getSourceExternalRef())) {
+            return true;
+        }
+        MaterializationResult result = materializeTarget(plan, run, new JsonObject(), false);
+        return result != null && result.targetVmId > 0L && StringUtils.isNotBlank(result.targetVolumeMapJson);
+    }
+
+    @Override
     public boolean enqueueMaterialization(final long planId, final long runId, final String runtimeStatusJson) {
         if (!inFlightPlans.add(planId)) {
             return false;
@@ -853,7 +868,7 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
         try {
             upsertRunStep(run, "target-materialization", STEP_ORDER_TARGET_MATERIALIZATION, DrConstants.STEP_STATE_RUNNING, 96,
                     runtimeStatusJson, null, "Materializing target VM from durable FTCTL_DR checkpoint");
-            MaterializationResult result = materializeTarget(plan, run, runtime);
+            MaterializationResult result = materializeTarget(plan, run, runtime, true);
             notifyFtctlTargetMaterialized(plan, run, result);
             completeMaterialization(plan.getId(), run.getId(), result, runtimeStatusJson);
             LOGGER.info("Materialized DR target VM {} for plan {}", result.targetVmId, plan.getUuid());
@@ -864,6 +879,10 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
     }
 
     private MaterializationResult materializeTarget(DrPlanVO plan, DrRunVO run, JsonObject runtime) {
+        return materializeTarget(plan, run, runtime, true);
+    }
+
+    private MaterializationResult materializeTarget(DrPlanVO plan, DrRunVO run, JsonObject runtime, boolean durable) {
         DrReplicaVO replica = firstActiveReplica(plan);
         if (replica == null) {
             throw new CloudRuntimeException("DR target materialization requires a prepared replica row");
@@ -874,10 +893,27 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
                 targetResourceOwnershipService.claimVm(plan, replica, run, existing);
                 verifyTargetVmHardware(plan, existing);
                 observeReplicaPowerState(replica, existing);
+                List<DrReplicaDiskVO> existingDisks = drReplicaDiskDao.listActiveByReplicaId(replica.getId());
+                for (DrReplicaDiskVO disk : existingDisks) {
+                    disk.setState(durable ? DrConstants.REPLICA_STATE_READY : DrConstants.REPLICA_STATE_SKELETON_READY);
+                    disk.markUpdated();
+                    drReplicaDiskDao.update(disk.getId(), disk);
+                }
+                replica.setState(durable ? DrConstants.REPLICA_STATE_READY : DrConstants.REPLICA_STATE_SKELETON_READY);
                 replica.setOwnershipState("VALID");
                 replica.markUpdated();
                 drReplicaDao.update(replica.getId(), replica);
-                return buildResult(plan, replica, existing, drReplicaDiskDao.listActiveByReplicaId(replica.getId()));
+                List<VolumeVO> existingVolumes = new ArrayList<VolumeVO>();
+                for (DrReplicaDiskVO disk : existingDisks) {
+                    if (disk.getTargetVolumeId() != null) {
+                        VolumeVO volume = volumeDao.findById(disk.getTargetVolumeId());
+                        if (volume != null && volume.getRemoved() == null) {
+                            existingVolumes.add(volume);
+                        }
+                    }
+                }
+                updatePlanMapping(plan, existing, existingVolumes);
+                return buildResult(plan, replica, existing, existingDisks);
             }
         }
 
@@ -902,13 +938,15 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
         int device = 1;
         for (DrResolvedDiskMapping disk : placement.getDisks()) {
             if (disk == rootDisk) {
-                updateReplicaDisk(replicaDisks, disk, rootVolume, DrConstants.REPLICA_STATE_READY);
+                updateReplicaDisk(replicaDisks, disk, rootVolume,
+                        durable ? DrConstants.REPLICA_STATE_READY : DrConstants.REPLICA_STATE_SKELETON_READY);
                 continue;
             }
             DrReplicaDiskVO dataReplicaDisk = requireReplicaDisk(replicaDisks, disk);
             VolumeVO dataVolume = ensureImportedVolume(plan, replica, dataReplicaDisk, run, owner, placement, disk, false, (long) device);
             attachDataVolumeIfNeeded(targetVm, dataVolume, (long) device);
-            updateReplicaDisk(replicaDisks, disk, dataVolume, DrConstants.REPLICA_STATE_READY);
+            updateReplicaDisk(replicaDisks, disk, dataVolume,
+                    durable ? DrConstants.REPLICA_STATE_READY : DrConstants.REPLICA_STATE_SKELETON_READY);
             importedVolumes.add(dataVolume);
             device++;
         }
@@ -916,7 +954,7 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
         replica.setTargetVmId(targetVm.getId());
         replica.setTargetExternalRef(targetVm.getUuid());
         replica.setTargetVmName(targetVm.getDisplayName());
-        replica.setState(DrConstants.REPLICA_STATE_READY);
+        replica.setState(durable ? DrConstants.REPLICA_STATE_READY : DrConstants.REPLICA_STATE_SKELETON_READY);
         observeReplicaPowerState(replica, targetVm);
         replica.setHypervisorType(DrConstants.HYPERVISOR_TYPE_KVM);
         replica.setActiveSide("TARGET");

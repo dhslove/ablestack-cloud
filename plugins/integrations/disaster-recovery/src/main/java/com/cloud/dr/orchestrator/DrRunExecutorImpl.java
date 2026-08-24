@@ -308,8 +308,23 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
         if (!isFtctlDrSyncRun(plan, run) || drProtectionOrchestrator == null) {
             return plan;
         }
+        if (requiresPlanOwnedTargetPreparation(plan) && drTargetMaterializationService != null
+                && !drTargetMaterializationService.prepareSyncTarget(plan.getId(), run.getId())) {
+            throw new IllegalStateException("Plan owner could not prepare the DR target VM and volumes before sync");
+        }
+        DrPlanVO refreshed = drPlanDao.findById(plan.getId());
+        if (refreshed != null) {
+            plan = refreshed;
+        }
         DrPlanVO prepared = drProtectionOrchestrator.prepareSyncRun(plan, run);
         return prepared != null ? prepared : plan;
+    }
+
+    private boolean requiresPlanOwnedTargetPreparation(DrPlanVO plan) {
+        return plan != null
+                && StringUtils.equalsIgnoreCase(plan.getDirection(), DrConstants.DIRECTION_KVM_TO_KVM)
+                && plan.getSourceVmId() == null
+                && StringUtils.isNotBlank(plan.getSourceExternalRef());
     }
 
     private void cleanupCloudTestResourcesBeforeEngine(DrPlanVO plan, DrRunVO run) {
@@ -324,7 +339,8 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
 
     private boolean isFtctlDrSyncRun(DrPlanVO plan, DrRunVO run) {
         return plan != null && run != null
-                && StringUtils.equalsIgnoreCase(DrConstants.RUN_TYPE_SYNC, run.getRunType())
+                && StringUtils.equalsAnyIgnoreCase(run.getRunType(),
+                        DrConstants.RUN_TYPE_SYNC, DrConstants.RUN_TYPE_RECOVER_SYNC)
                 && (StringUtils.equalsIgnoreCase(DrConstants.ENGINE_TYPE_FTCTL_DR, plan.getEngineType())
                         || StringUtils.equalsIgnoreCase(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR, plan.getEngineBindingType()));
     }

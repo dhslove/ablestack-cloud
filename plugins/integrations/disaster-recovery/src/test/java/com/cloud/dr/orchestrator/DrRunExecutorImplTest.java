@@ -149,6 +149,28 @@ public class DrRunExecutorImplTest {
     }
 
     @Test
+    public void remoteKvmSyncMaterializesPlanOwnedTargetBeforePreparingFtctlProfile() {
+        DrPlanVO plan = remoteKvmFtctlDrPlan();
+        DrPlanVO refreshed = remoteKvmFtctlDrPlan();
+        DrRunVO run = run(DrConstants.RUN_TYPE_SYNC);
+        Mockito.when(drRunDao.findById(run.getId())).thenReturn(run);
+        Mockito.when(drPlanDao.findById(plan.getId())).thenReturn(plan, refreshed);
+        Mockito.when(drTargetMaterializationService.prepareSyncTarget(plan.getId(), run.getId())).thenReturn(true);
+        Mockito.when(drProtectionOrchestrator.prepareSyncRun(refreshed, run)).thenReturn(refreshed);
+        Mockito.when(drAdapterRegistry.getReplicationEngine(DrConstants.ENGINE_TYPE_FTCTL_DR,
+                DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR)).thenReturn(replicationEngine);
+        Mockito.when(replicationEngine.validatePlan(refreshed)).thenReturn(DrAdapterResult.success("valid", null));
+        Mockito.when(replicationEngine.execute(Mockito.any(DrExecutionContext.class)))
+                .thenReturn(DrAdapterResult.accepted("accepted", "{}", "remote-job"));
+
+        executor.queueRun(run);
+
+        Mockito.verify(drTargetMaterializationService).prepareSyncTarget(plan.getId(), run.getId());
+        Mockito.verify(drProtectionOrchestrator).prepareSyncRun(refreshed, run);
+        Assert.assertEquals(DrConstants.RUN_STATE_ACCEPTED, run.getState());
+    }
+
+    @Test
     public void missingKvmFtctlAdapterFailsRunWithoutCallingProjectionRefresh() {
         DrPlanVO plan = ftctlPlan();
         DrRunVO run = run(DrConstants.RUN_TYPE_FAILOVER);
@@ -255,6 +277,16 @@ public class DrRunExecutorImplTest {
         plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
         plan.setSourceVmId(101L);
         plan.setSourceWorkerHostId(101L);
+        plan.setTargetWorkerHostId(102L);
+        plan.setCoordinatorWorkerHostId(103L);
+        return plan;
+    }
+
+    private DrPlanVO remoteKvmFtctlDrPlan() {
+        DrPlanVO plan = new DrPlanVO("remote-kvm-ftctl-dr-plan", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
+        plan.setSourceExternalRef("remote-source-vm");
         plan.setTargetWorkerHostId(102L);
         plan.setCoordinatorWorkerHostId(103L);
         return plan;
