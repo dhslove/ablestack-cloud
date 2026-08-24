@@ -135,6 +135,15 @@ public class DrProtectionGroupServiceImplTest {
     }
 
     @Test
+    public void targetExportOutageIsReportedAsContinuousProtectionResourceWait() {
+        readyPlan.setLastErrorCode("DR_TARGET_EXPORT_UNAVAILABLE");
+
+        String state = ReflectionTestUtils.invokeMethod(service, "continuousProtectionState", readyPlan);
+
+        Assert.assertEquals("WAITING_RESOURCE", state);
+    }
+
+    @Test
     public void successfulGroupCompletionTerminalizesCycleAliasesInSameTransaction() {
         DrGroupRunVO groupRun = new DrGroupRunVO("group-1", "group one", DrConstants.RUN_TYPE_SYNC,
                 "[37]", 1, false, 1);

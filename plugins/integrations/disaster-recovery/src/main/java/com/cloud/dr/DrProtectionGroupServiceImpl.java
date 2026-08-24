@@ -407,7 +407,7 @@ public class DrProtectionGroupServiceImpl extends ManagerBase implements DrProte
         entry.addProperty("targetRpoSeconds", plan.getRpoSeconds());
         entry.addProperty("currentRpoSeconds", plan.getTargetReadyRpoSeconds());
         entry.addProperty("resourceWaiting", StringUtils.equalsAnyIgnoreCase(plan.getLastErrorCode(),
-                "DR_RESOURCE_BUSY", "DR_NBD_CAPACITY_INVALID"));
+                "DR_RESOURCE_BUSY", "DR_NBD_CAPACITY_INVALID", "DR_TARGET_EXPORT_UNAVAILABLE"));
         DrSyncCycleVO acceptedCycle = run != null ? acceptedDurableCycle(run) : null;
         if (acceptedCycle != null && !StringUtils.equalsAny(state, DrConstants.RUN_STATE_SUCCEEDED,
                 DrConstants.RUN_STATE_FAILED, DrConstants.RUN_STATE_CANCELED)) {
@@ -499,7 +499,8 @@ public class DrProtectionGroupServiceImpl extends ManagerBase implements DrProte
     }
 
     private String continuousProtectionState(DrPlanVO plan) {
-        if (StringUtils.equalsAnyIgnoreCase(plan.getLastErrorCode(), "DR_RESOURCE_BUSY", "DR_NBD_CAPACITY_INVALID")) {
+        if (StringUtils.equalsAnyIgnoreCase(plan.getLastErrorCode(), "DR_RESOURCE_BUSY", "DR_NBD_CAPACITY_INVALID",
+                "DR_TARGET_EXPORT_UNAVAILABLE")) {
             return "WAITING_RESOURCE";
         }
         Integer actual = plan.getTargetReadyRpoSeconds();

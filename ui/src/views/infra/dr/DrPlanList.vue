@@ -1748,7 +1748,7 @@ export default {
         const targetRpo = plan.rposeconds !== null && plan.rposeconds !== undefined && plan.rposeconds !== ''
           ? Number(plan.rposeconds) : Number.NaN
         const errorCode = String(plan.lasterrorcode || '').toUpperCase()
-        const resourceWaiting = ['DR_RESOURCE_BUSY', 'DR_NBD_CAPACITY_INVALID'].includes(errorCode)
+        const resourceWaiting = ['DR_RESOURCE_BUSY', 'DR_NBD_CAPACITY_INVALID', 'DR_TARGET_EXPORT_UNAVAILABLE'].includes(errorCode)
         let continuousProtectionState = String(this.effectivePlanState(plan) || plan.state || 'PENDING').toUpperCase()
         if (resourceWaiting) {
           continuousProtectionState = 'WAITING_RESOURCE'

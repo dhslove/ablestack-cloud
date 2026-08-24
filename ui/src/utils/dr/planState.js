@@ -28,6 +28,10 @@ export function resolveDrPlanState (plan = {}, currentRun = null) {
   if (runtimeError === 'DR_SOURCE_SITE_UNAVAILABLE' || schedulerHealth === 'WAITING_SOURCE') {
     return 'WAITING_SOURCE_RECOVERY'
   }
+  if (['DR_RESOURCE_BUSY', 'DR_NBD_CAPACITY_INVALID', 'DR_TARGET_EXPORT_UNAVAILABLE'].includes(runtimeError) ||
+      schedulerHealth === 'WAITING_RESOURCE') {
+    return 'WAITING_RESOURCE'
+  }
   const replicationActivity = String(plan.replicationactivity || plan.replicationActivity || '').toUpperCase()
   if (runtimeError === 'DR_CBT_RESEED_REQUIRED' || schedulerHealth === 'RECOVERING_BASELINE' || replicationActivity === 'RESEEDING') {
     return 'RECOVERING_BASELINE'

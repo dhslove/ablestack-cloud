@@ -35,6 +35,8 @@
   "message.dr.protection.group.consistency.warning.count": "Data transferred, {count} consistency warning(s)",
   "message.dr.nbd.capacity.invalid": "The host does not provide the reserved FTCTL NBD range (/dev/nbd16 through /dev/nbd31).",
   "message.dr.resource.busy": "Reserved replication capacity is temporarily unavailable. Retry after active transfers finish.",
+  "message.dr.error.dr.target.export.unavailable": "The target site's replication endpoint is being restored. Replication will resume automatically.",
+  "label.dr.state.waiting_resource": "Waiting for replication resources",
   "label.sharedfs.network.mode": "Network configuration",
   "label.sharedfs.ip.cidr": "IP address / prefix",
   "label.static.ip": "Static IP",

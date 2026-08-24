@@ -348,6 +348,33 @@ started only after NBD cleanup succeeds. These changes are shared runtime
 safety fixes, so the VMware-to-ABLESTACK action contract suite remains a
 release gate and no VMware data-plane behavior is changed.
 
+### 7.5 Target export durability and Plan Owner recovery ordering
+
+For a remote `KVM_TO_KVM` Plan, the target RBD image is Cloud-owned but the
+`qemu-nbd` endpoint is an Agent-managed lease. The Plan Owner must regard the
+lease as a recoverable prerequisite, not as an incidental process created only
+by the first Sync Run.
+
+Before `SYNC` or `RECOVER_SYNC` is dispatched to the remote source, Cloud sends
+the idempotent `TARGET_EXPORT_START` command to the selected target Agent and
+requires a semantically successful answer containing all expected disk
+exports. The target FTCTL persists a redacted desired-state contract and its
+timer restores missing exporters after package replacement, Agent restart, or
+host reboot. Cloud does not store target credentials in the FTCTL contract and
+does not ask the source site to control the target host.
+
+Runtime projection maps `DR_TARGET_EXPORT_UNAVAILABLE` to a retryable
+`WAITING_RESOURCE` state. The UI shows that protection is waiting for the
+target data path and keeps actions asynchronous; it must not present the Plan
+as terminally failed or claim that a new Full Seed is running. Automatic
+recovery and an operator Full Resync both create a tracked Cloud Run. The Run
+is accepted only after target export preflight succeeds and the remote source
+Agent accepts the command.
+
+This ordering applies only to the Plan Owner controlled
+`KVM_TO_KVM/site-agent-nbd` provider pair. The validated
+VMware-to-ABLESTACK path does not enter this branch.
+
 ## 8. AS-IS / TO-BE
 
 | Area | AS-IS | TO-BE |
@@ -363,5 +390,7 @@ release gate and no VMware data-plane behavior is changed.
 | Recovery result | `result=ok` from a status query can hide `state=ERROR` and terminate `RECOVER_SYNC` as successful | Agent and Plan Owner require accepted state, no error code, and a non-error operation state |
 | NBD recovery | scheduler calls an undefined mover resolver and returns an untyped recovery failure | installed recovery tool is resolved explicitly; stage and original RC are preserved |
 | Target export failure | a partial multi-disk start can leave an exporter running | Plan-scoped manifest, reserved-range fallback, and all-or-nothing rollback |
+| Target export restart | package/host restart can remove the exporter while source scheduling continues | target desired-state is durable; Agent reconcile restores the fixed endpoints before source retry |
+| Export outage projection | repeated failed Cycles may appear as terminal replication errors | one pending Cycle waits with a typed resource error and bounded backoff |
 | VM lifecycle | local target materializer assumptions | Cloud owning each VM performs create/start/stop/delete |
 | UI | KVM_TO_KVM appears selectable before end-to-end readiness | capability-gated mode and complete asynchronous lifecycle |

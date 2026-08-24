@@ -56,6 +56,17 @@ describe('DR protection state helpers', () => {
     expect(resolveDrPlanState(plan)).toBe('WAITING_SOURCE_RECOVERY')
   })
 
+  it('shows a missing target export as a retryable resource wait', () => {
+    const plan = {
+      schedulerrecoverystate: 'FAILED',
+      schedulerhealth: 'WAITING_RESOURCE',
+      runtimeerrorcode: 'DR_TARGET_EXPORT_UNAVAILABLE',
+      protectionstate: 'DEGRADED'
+    }
+
+    expect(resolveDrPlanState(plan)).toBe('WAITING_RESOURCE')
+  })
+
   it('shows CBT epoch baseline recovery as an active recovery state', () => {
     const plan = {
       schedulerrecoverystate: 'FAILED',
