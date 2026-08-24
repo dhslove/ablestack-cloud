@@ -28,5 +28,6 @@
                       >
 
     <bean id="ftctlServiceImpl" class="com.cloud.ftctl.FtctlServiceImpl" />
+    <bean id="ftctlDrSiteAgentBrokerServiceImpl" class="com.cloud.ftctl.FtctlDrSiteAgentBrokerServiceImpl" />
     <bean id="ftctlProtectionProvisioningServiceImpl" class="com.cloud.ftctl.FtctlProtectionProvisioningServiceImpl" />
 </beans>

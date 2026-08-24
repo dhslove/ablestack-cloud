@@ -46,7 +46,7 @@ public class DrMoldInventoryClient {
     private static final String COMMAND_LIST_STORAGE_POOLS = "listStoragePools";
     private static final String COMMAND_START_VM = "startVirtualMachine";
     private static final String COMMAND_STOP_VM = "stopVirtualMachine";
-    private static final String COMMAND_EXECUTE_DR_SITE_AGENT = "executeDrSiteAgentCommand";
+    private static final String COMMAND_EXECUTE_DR_SITE_AGENT = "executeFtctlDrSiteAgentCommand";
     private static final String COMMAND_PREPARE_REMOTE_SSH = "prepareFtctlDrRemoteSshAccess";
 
     public List<DrInventoryOption> listZones(DrResolvedSiteCredential credential) {
@@ -249,7 +249,7 @@ public class DrMoldInventoryClient {
         params.put("commandjson", commandJson);
         params.put("workerhostuuid", StringUtils.trim(workerHostUuid));
         JsonObject response = execute(credential, COMMAND_EXECUTE_DR_SITE_AGENT, params, true);
-        return getObjectIgnoreCase(response, "executedrsiteagentcommandresponse");
+        return getObjectIgnoreCase(response, "executeftctldrsiteagentcommandresponse");
     }
 
     public JsonObject prepareRemoteSshAccess(DrResolvedSiteCredential sourceCredential,

@@ -74,6 +74,7 @@ import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlCheckCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlEventsCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlHealthCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.GetFtctlProtectionCmd;
+import org.apache.cloudstack.api.command.admin.ftctl.ExecuteFtctlDrSiteAgentCommandCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.FailbackFtctlDrReplicaCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.InstallFtctlDrRemoteSshKeyCmd;
 import org.apache.cloudstack.api.command.admin.ftctl.ListFtctlRemoteMoldHostsCmd;
@@ -5614,6 +5615,7 @@ public class FtctlServiceImpl extends ManagerBase implements FtctlService {
         cmdList.add(GetFtctlCheckCmd.class);
         cmdList.add(GetFtctlEventsCmd.class);
         cmdList.add(GetFtctlHealthCmd.class);
+        cmdList.add(ExecuteFtctlDrSiteAgentCommandCmd.class);
         cmdList.add(org.apache.cloudstack.api.command.admin.ftctl.PauseFtctlProtectionCmd.class);
         cmdList.add(org.apache.cloudstack.api.command.admin.ftctl.ResumeFtctlProtectionCmd.class);
         cmdList.add(org.apache.cloudstack.api.command.admin.ftctl.FailoverFtctlProtectionCmd.class);

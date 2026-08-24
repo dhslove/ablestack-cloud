@@ -39,6 +39,14 @@ returns an accepted operation reference. Status and cancellation use the Plan
 UUID, Run UUID, and operation reference. API secrets are decrypted only for the
 outbound request and are never written to an FTCTL profile or event.
 
+The execution broker is an FTCTL site capability, not a DR Plan API. Therefore
+it is registered by the always-on `ftctl-service` plugin whenever
+`cloud.ftctl.service.enabled=true`; it must not depend on the remote site's
+`cloud.dr.service.enabled` value. A site may execute delegated work for a Plan
+Owner without exposing DR Site or DR Plan menus locally. The Plan Owner alone
+creates Runs and decides lifecycle state; the remote broker only validates and
+executes the allow-listed site-local command.
+
 The broker boundary has two independent contracts:
 
 1. `SiteExecutionBroker` resolves a site-local host UUID and submits or polls
@@ -120,6 +128,14 @@ idempotent.
 `getFtctlDrSiteActionStatus` and `cancelFtctlDrSiteAction` use the same identity.
 The Plan Owner projects source and target evidence into one canonical Run.
 
+The concrete signed API command is `executeFtctlDrSiteAgentCommand`. Its
+parameters are limited to `commandtype`, `commandjson`, and `workerhostuuid`.
+The local FTCTL service accepts only `ACTION`, `STATUS`, `CAPABILITIES`, and
+`REVERSE_PREFLIGHT`, resolves the host by UUID, requires an Up KVM host, and
+returns the typed Agent answer. The legacy DR-plugin-owned broker command is not
+used for cross-site execution because a worker site is not required to enable
+the DR Plan service.
+
 ## 5. UI Lifecycle
 
 All mutations are UI initiated and immediately return an accepted Run. The UI
@@ -158,6 +174,11 @@ target placement UUIDs, RBD feature compatibility, NBD device/port capacity,
 QEMU mirror capability, SSH/NBD reachability, available capacity, and stopped
 target VM state.
 
+Deployment preflight must also call `listApis` or issue a signed broker probe on
+every ABLESTACK site and verify `executeFtctlDrSiteAgentCommand` is present
+before a Plan Run is accepted. Missing API registration is a deployment error,
+not a credential error and not a terminal Plan failure.
+
 Before deployment, run the FTCTL baseline contract suite for sync,
 pause/resume, release/tombstone, test failover/cleanup, failover, failback, and
 reprotect. Run the existing VMware-to-ABLESTACK tests unchanged. The release is
@@ -169,6 +190,7 @@ blocked if either contract regresses.
 | --- | --- | --- |
 | Controller | worker binding assumes local source/target hosts | Plan Owner Cloud controls either remote site through broker APIs |
 | Authority placement | target-side ownership is implicit in the tested path | whichever Cloud stores the plan remains authoritative; source/target location does not transfer control |
+| Remote execution API | broker registration depends on the remote DR Plan plugin being enabled | FTCTL service always exposes the narrow site-local broker while the Plan Owner retains lifecycle authority |
 | KVM inventory | VM summary only; disks and hardware absent | complete VM, RBD disk, NIC, and hardware inventory by UUID |
 | Target placement | Plan Owner local DAOs used for every KVM target | selected target site's Mold inventory and lifecycle APIs |
 | KVM replication | repeated local `qemu-img convert` full seed | remote-NBD full/incremental plus optional QEMU live mirror |
