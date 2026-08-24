@@ -261,6 +261,65 @@ public class FtctlDrUnifiedActionAdapterTest {
     }
 
     @Test
+    public void crossSiteKvmFailbackPreparesReverseExportOnOriginalSite() throws Exception {
+        DrPlanVO plan = new DrPlanVO("cross-site-kvm-failback", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
+        plan.setSourceExternalRef("source-vm-uuid");
+        plan.setActiveSide("TARGET");
+        plan.setTargetWorkerHostId(102L);
+        plan.setCoordinatorWorkerHostId(103L);
+        plan.setMappingJson("{\"source\":{\"hardware\":{\"sourceHostUuid\":\"source-host-uuid\","
+                + "\"instanceName\":\"i-2-332-VM\"}},\"target\":{\"storagePoolType\":\"RBD\",\"storagePath\":\"rbd\"},"
+                + "\"disks\":[{\"device\":\"sda\",\"sourcePath\":\"rbd:rbd/source-image\","
+                + "\"targetPath\":\"target-image\",\"targetStorageRef\":\"target-pool-uuid\","
+                + "\"targetStoragePath\":\"rbd\",\"targetStorageType\":\"RBD\","
+                + "\"target\":{\"storageRef\":\"target-pool-uuid\",\"storagePath\":\"rbd\","
+                + "\"storagePoolType\":\"RBD\",\"path\":\"target-image\",\"format\":\"raw\"}}]}");
+        DrRunVO run = run(DrConstants.RUN_TYPE_FAILBACK, "{}");
+        Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        Mockito.when(drFailbackPreflightService.validate(plan, run))
+                .thenReturn(DrFailbackPreflightResult.success(null, null, null));
+        Mockito.when(agentManager.send(Mockito.eq(103L), Mockito.isA(FtctlDrCapabilitiesCommand.class)))
+                .thenAnswer(invocation -> {
+                    FtctlDrCapabilitiesAnswer answer = new FtctlDrCapabilitiesAnswer(invocation.getArgument(1), true, "ok");
+                    answer.setSupportedFeatures(java.util.Arrays.asList("control-protocol-v2",
+                            "dr-transition-preflight-v2", "dr-reverse-site-agent-rbd-transport-v1"));
+                    return answer;
+                });
+        ArgumentCaptor<FtctlDrActionCommand> remoteCommand = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
+        Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("ACTION"), remoteCommand.capture(),
+                Mockito.eq("source-host-uuid"), Mockito.eq(FtctlDrActionAnswer.class))).thenAnswer(invocation -> {
+                    FtctlDrActionCommand command = invocation.getArgument(2);
+                    return new FtctlDrActionAnswer(command, true, "ready",
+                            FtctlDrActionCommand.Action.TARGET_EXPORT_START, plan.getUuid(), run.getUuid(),
+                            "completed", true, "READY", "target-export-ready", 100, run.getUuid(), 0L,
+                            null, 0, "{\"result\":\"ok\"}",
+                            "{\"exports\":[{\"device\":\"sda\",\"host\":\"10.10.22.1\",\"port\":12022,"
+                                    + "\"name\":\"dr-reverse-sda\",\"uri\":\"nbd://10.10.22.1:12022/dr-reverse-sda\"}]}");
+                });
+        ArgumentCaptor<FtctlDrActionCommand> failbackCommand = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
+        Mockito.when(agentManager.send(Mockito.eq(103L), failbackCommand.capture())).thenAnswer(invocation -> {
+            FtctlDrActionCommand command = invocation.getArgument(1);
+            return new FtctlDrActionAnswer(command, true, "accepted", FtctlDrActionCommand.Action.FAILBACK,
+                    plan.getUuid(), run.getUuid(), "accepted", true, "FAILBACK_SYNCING", "reverse-transfer",
+                    1, run.getUuid(), 0L, null, 0, "{\"result\":\"accepted\"}",
+                    "{\"state\":\"FAILBACK_SYNCING\"}");
+        });
+
+        DrAdapterResult result = adapter.execute(new DrExecutionContext(plan, run));
+
+        Assert.assertTrue(result.isSuccess());
+        Assert.assertEquals(FtctlDrActionCommand.Action.TARGET_EXPORT_START, remoteCommand.getValue().getAction());
+        Assert.assertEquals("reverse-target", remoteCommand.getValue().getRole());
+        Assert.assertTrue(remoteCommand.getValue().getProfileJson().contains("\"reverseTargetExport\":true"));
+        Assert.assertEquals(FtctlDrActionCommand.Action.FAILBACK, failbackCommand.getValue().getAction());
+        Assert.assertTrue(failbackCommand.getValue().getProfileJson().contains("\"mode\":\"site-agent-nbd\""));
+        Assert.assertTrue(failbackCommand.getValue().getProfileJson().contains("dr-reverse-sda"));
+        Mockito.verify(agentManager, Mockito.never()).easySend(Mockito.eq(102L), Mockito.any());
+    }
+
+    @Test
     public void testFailoverDispatchesRestorePointReferenceToFtctlProfile() throws Exception {
         DrPlanVO plan = ftctlDrPlan();
         DrRunVO run = run(DrConstants.RUN_TYPE_TEST_FAILOVER,

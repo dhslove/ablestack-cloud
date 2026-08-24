@@ -27,6 +27,7 @@ import com.cloud.agent.api.FtctlDrActionAnswer;
 import com.cloud.agent.api.FtctlDrActionCommand;
 import com.cloud.agent.api.FtctlDrStatusAnswer;
 import com.cloud.agent.api.FtctlDrStatusCommand;
+import com.cloud.dr.adapter.ftctl.DrRemoteAgentClient;
 import com.cloud.dr.dao.DrEventDao;
 import com.cloud.dr.dao.DrCutoverSessionDao;
 import com.cloud.dr.dao.DrFailbackSessionDao;
@@ -92,6 +93,7 @@ public class DrFailbackLifecycleServiceImpl extends ManagerBase implements DrFai
     @Inject private DrRunStepDao drRunStepDao;
     @Inject private DrSourceIsolationPreflightService drSourceIsolationPreflightService;
     @Inject private DrFailbackDataGateService drFailbackDataGateService;
+    @Inject private DrRemoteAgentClient drRemoteAgentClient;
 
     private final Set<Long> inFlightRuns = ConcurrentHashMap.newKeySet();
     private ExecutorService executor;
@@ -376,6 +378,8 @@ public class DrFailbackLifecycleServiceImpl extends ManagerBase implements DrFai
             session.setTargetPowerState(targetState);
             session.setTargetStoppedAt(new Date());
             updateSession(session, "TARGET_STOPPED", null);
+
+            stopReversePlanOwnedExport(plan, run);
 
             updateSession(session, "SOURCE_STARTING", null);
             String sourceState = ensureSourcePowerState(plan, true);
@@ -674,6 +678,33 @@ public class DrFailbackLifecycleServiceImpl extends ManagerBase implements DrFai
             command.setContextParam("rollbackPhase", rollbackPhase);
         }
         return agentManager.easySend(hostId, command);
+    }
+
+    void stopReversePlanOwnedExport(DrPlanVO plan, DrRunVO run) {
+        if (plan == null || run == null || drRemoteAgentClient == null
+                || !drRemoteAgentClient.isRemoteKvmSource(plan)
+                || !StringUtils.equalsIgnoreCase(plan.getDirection(), DrConstants.DIRECTION_KVM_TO_KVM)) {
+            return;
+        }
+        String workerUuid = drRemoteAgentClient.sourceWorkerUuid(plan);
+        FtctlDrActionCommand command = new FtctlDrActionCommand(
+                FtctlDrActionCommand.Action.TARGET_EXPORT_STOP, plan.getUuid(), run.getUuid());
+        command.setActionName(FtctlDrActionCommand.Action.TARGET_EXPORT_STOP.name());
+        command.setCliCommand(FtctlDrActionCommand.Action.TARGET_EXPORT_STOP.getCliCommand());
+        command.setRunType(DrConstants.RUN_TYPE_FAILBACK);
+        command.setActionIntent(DrConstants.RUN_TYPE_FAILBACK);
+        command.setDirection(plan.getDirection());
+        command.setRole("reverse-target");
+        command.setTargetWorkerUuid(workerUuid);
+        command.setWaitForCompletion(true);
+        command.setWait(45);
+        Answer answer = drRemoteAgentClient.execute(plan, "ACTION", command,
+                workerUuid, FtctlDrActionAnswer.class);
+        if (answer == null || !answer.getResult()) {
+            throw new CloudRuntimeException(StringUtils.defaultIfBlank(
+                    answer != null ? answer.getDetails() : null,
+                    "Original-site Agent did not drain the reverse RBD export"));
+        }
     }
 
     private JsonObject fetchStatusRuntime(DrPlanVO plan, DrRunVO run,

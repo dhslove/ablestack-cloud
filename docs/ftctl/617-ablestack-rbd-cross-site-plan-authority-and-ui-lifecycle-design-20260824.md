@@ -642,3 +642,40 @@ single Plan authority result rather than exposing two engine acknowledgements.
 | FTCTL | Target local status can remain `ERROR` or empty authority | Target is `FAILED_OVER / TARGET`, scheduler suppressed |
 | DB | Cloud session can be ahead of target runtime | Committed session repairs target projection idempotently |
 | Regression scope | Shared cutover path risks VMware | Logic is gated by remote `KVM_TO_KVM` only |
+
+## 14. Plan-Owner Failback Transport Transaction
+
+The Cloud that stores the DR Site and Plan owns Failback even when the original
+VM belongs to a remote ABLESTACK site. The original site is an execution
+endpoint reached through its registered Mold Agent; it is not a second Plan
+controller. Site credentials remain in the Cloud credential service and are
+never copied into FTCTL profiles.
+
+For `remote KVM_TO_KVM + activeSide=TARGET + FAILBACK`, the backend performs:
+
+1. build the normal redacted Plan profile;
+2. send `TARGET_EXPORT_START` with `reverseTargetExport=true` to the original
+   source worker via `DrRemoteAgentClient`;
+3. require a typed non-empty export list and inject it into the local Failback
+   command as `site-agent-nbd` transport;
+4. submit Failback asynchronously to the active target coordinator;
+5. after durable reverse data evidence, stop the active target VM;
+6. stop the original-site reverse export through the same remote Agent and
+   require success;
+7. start and validate the original VM, then run the existing authority commit.
+
+The UI remains asynchronous and displays the aggregate operation state. It
+does not request source-site credentials and does not expose the internal NBD
+endpoints. A transport preparation failure is retryable and cannot change VM
+power or Plan authority.
+
+### 14.1 AS-IS / TO-BE
+
+| Layer | AS-IS | TO-BE |
+| --- | --- | --- |
+| UI/API | Failback can be submitted without a usable reverse writer | Accepted only after Plan-owned transport preparation succeeds |
+| Backend | Forward target export exists, Failback export is omitted | Direction-aware remote export prepare/drain transaction |
+| Agent | Original site receives no reverse transport action | Original Agent owns temporary writer lifecycle |
+| FTCTL | Local mover sees a malformed source and no destination export | Canonical RBD source plus typed site-agent exports |
+| DB | Run fails safely but only records a generic mover error | Run evidence identifies the RBD transport component and remains target-authoritative on failure |
+| VMware regression | Shared preparation could alter the validated route | New branch requires remote `KVM_TO_KVM`, `TARGET`, and `FAILBACK` |

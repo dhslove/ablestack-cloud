@@ -353,6 +353,12 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
             stopPlanOwnedTargetExport(context, sourceCommand);
             return;
         }
+        if (isRemoteKvmToKvmPlan(plan)
+                && action == FtctlDrActionCommand.Action.FAILBACK
+                && StringUtils.equalsIgnoreCase(plan.getActiveSide(), "TARGET")) {
+            prepareReversePlanOwnedTransport(context, sourceCommand);
+            return;
+        }
         if (!dispatchesOnRemoteSource(plan, action)
                 || (action != FtctlDrActionCommand.Action.SYNC
                         && action != FtctlDrActionCommand.Action.RECOVER_SYNC
@@ -386,7 +392,45 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         if (exports.size() == 0) {
             throw new CloudRuntimeException("Target Agent returned no RBD export endpoints");
         }
-        JsonObject profile = parseObject(sourceCommand.getProfileJson());
+        injectPlanOwnedExports(sourceCommand, exports);
+    }
+
+    private void prepareReversePlanOwnedTransport(DrExecutionContext context,
+            FtctlDrActionCommand failbackCommand) {
+        DrPlanVO plan = context.getPlan();
+        String sourceWorkerUuid = remoteSourceWorkerUuid(plan);
+        if (StringUtils.isBlank(sourceWorkerUuid)) {
+            throw new CloudRuntimeException("DR original-site worker UUID is required for reverse RBD export");
+        }
+        JsonObject exportProfile = parseObject(failbackCommand.getProfileJson());
+        objectAt(exportProfile, "request").addProperty("reverseTargetExport", true);
+        FtctlDrActionCommand exportCommand = new FtctlDrActionCommand(
+                FtctlDrActionCommand.Action.TARGET_EXPORT_START, plan.getUuid(), context.getRun().getUuid());
+        exportCommand.setActionName(FtctlDrActionCommand.Action.TARGET_EXPORT_START.name());
+        exportCommand.setCliCommand(FtctlDrActionCommand.Action.TARGET_EXPORT_START.getCliCommand());
+        exportCommand.setRunType(context.getRun().getRunType());
+        exportCommand.setDirection(plan.getDirection());
+        exportCommand.setRole("reverse-target");
+        exportCommand.setTargetWorkerUuid(sourceWorkerUuid);
+        exportCommand.setProfileJson(GSON.toJson(exportProfile));
+        exportCommand.setWaitForCompletion(true);
+        exportCommand.setWait(AGENT_ACCEPT_TIMEOUT_SECONDS);
+        Answer rawAnswer = drRemoteAgentClient.execute(plan, "ACTION", exportCommand,
+                sourceWorkerUuid, FtctlDrActionAnswer.class);
+        if (!(rawAnswer instanceof FtctlDrActionAnswer) || !rawAnswer.getResult()) {
+            throw new CloudRuntimeException(StringUtils.defaultIfBlank(
+                    rawAnswer != null ? rawAnswer.getDetails() : null,
+                    "Original-site Agent did not prepare the reverse RBD export"));
+        }
+        JsonArray exports = firstArray(parseObject(((FtctlDrActionAnswer) rawAnswer).getStatusJson()), "exports");
+        if (exports.size() == 0) {
+            throw new CloudRuntimeException("Original-site Agent returned no reverse RBD export endpoints");
+        }
+        injectPlanOwnedExports(failbackCommand, exports);
+    }
+
+    private void injectPlanOwnedExports(FtctlDrActionCommand command, JsonArray exports) {
+        JsonObject profile = parseObject(command.getProfileJson());
         JsonObject transport = objectAt(profile, "transport");
         transport.addProperty("mode", "site-agent-nbd");
         transport.remove("secondaryUri");
@@ -394,7 +438,7 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         transport.remove("sshPort");
         transport.remove("sshKeyFile");
         transport.add("exports", exports);
-        sourceCommand.setProfileJson(GSON.toJson(profile));
+        command.setProfileJson(GSON.toJson(profile));
     }
 
     private void stopPlanOwnedTargetExport(DrExecutionContext context, FtctlDrActionCommand sourceCommand) {
@@ -670,6 +714,10 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         if (action == FtctlDrActionCommand.Action.FAILBACK
                 || action == FtctlDrActionCommand.Action.REPROTECT) {
             requiredFeatures.add("dr-transition-preflight-v2");
+        }
+        if (isRemoteKvmToKvmPlan(context.getPlan())
+                && action == FtctlDrActionCommand.Action.FAILBACK) {
+            requiredFeatures.add("dr-reverse-site-agent-rbd-transport-v1");
         }
         if (action == FtctlDrActionCommand.Action.RELEASE) {
             requiredFeatures.add("dr-release-tombstone-v1");

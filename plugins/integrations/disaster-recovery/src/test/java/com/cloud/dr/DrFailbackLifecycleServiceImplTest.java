@@ -14,6 +14,9 @@ import org.mockito.Mockito;
 import org.mockito.Spy;
 import org.mockito.junit.MockitoJUnitRunner;
 
+import com.cloud.agent.api.FtctlDrActionAnswer;
+import com.cloud.agent.api.FtctlDrActionCommand;
+import com.cloud.dr.adapter.ftctl.DrRemoteAgentClient;
 import com.cloud.dr.dao.DrCutoverSessionDao;
 import com.cloud.dr.dao.DrEventDao;
 import com.cloud.dr.dao.DrFailbackSessionDao;
@@ -31,6 +34,7 @@ public class DrFailbackLifecycleServiceImplTest {
     @Mock private DrReplicaDao drReplicaDao;
     @Mock private DrEventDao drEventDao;
     @Mock private DrCutoverSessionDao drCutoverSessionDao;
+    @Mock private DrRemoteAgentClient drRemoteAgentClient;
 
     @Spy
     @InjectMocks
@@ -117,6 +121,31 @@ public class DrFailbackLifecycleServiceImplTest {
 
         session.setEngineAckState("UNKNOWN");
         Assert.assertFalse(service.protectionResumed(plan, session, runtime));
+    }
+
+    @Test
+    public void remoteKvmFailbackDrainsOriginalSiteExportBeforeSourceStart() {
+        plan.setDirection(DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setSourceExternalRef("remote-source-vm");
+        plan.setActiveSide("TARGET");
+        Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        Mockito.when(drRemoteAgentClient.sourceWorkerUuid(plan)).thenReturn("source-host-uuid");
+        Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("ACTION"),
+                Mockito.isA(FtctlDrActionCommand.class), Mockito.eq("source-host-uuid"),
+                Mockito.eq(FtctlDrActionAnswer.class))).thenAnswer(invocation -> {
+                    FtctlDrActionCommand command = invocation.getArgument(2);
+                    return new FtctlDrActionAnswer(command, true, "stopped",
+                            FtctlDrActionCommand.Action.TARGET_EXPORT_STOP, plan.getUuid(), run.getUuid(),
+                            "completed", true, "STOPPED", "target-export-stopped", 100, run.getUuid(),
+                            0L, null, 0, "{\"result\":\"ok\"}", "{\"state\":\"STOPPED\"}");
+                });
+
+        service.stopReversePlanOwnedExport(plan, run);
+
+        Mockito.verify(drRemoteAgentClient).execute(Mockito.eq(plan), Mockito.eq("ACTION"),
+                Mockito.argThat(command -> command.getAction() == FtctlDrActionCommand.Action.TARGET_EXPORT_STOP
+                        && "reverse-target".equals(command.getRole())),
+                Mockito.eq("source-host-uuid"), Mockito.eq(FtctlDrActionAnswer.class));
     }
 
     @Test
