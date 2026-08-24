@@ -203,6 +203,64 @@ public class FtctlDrUnifiedActionAdapterTest {
     }
 
     @Test
+    public void crossSiteKvmFailoverKeepsTargetExportAndDispatchesFinalDeltaToRemoteSource() throws Exception {
+        DrPlanVO plan = new DrPlanVO("cross-site-kvm-failover", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
+        plan.setSourceExternalRef("source-vm-uuid");
+        plan.setActiveSide("SOURCE");
+        plan.setTargetWorkerHostId(102L);
+        plan.setCoordinatorWorkerHostId(103L);
+        plan.setMappingJson("{\"source\":{\"hardware\":{\"sourceHostUuid\":\"source-host-uuid\","
+                + "\"instanceName\":\"i-2-332-VM\"}},\"target\":{\"storagePoolType\":\"RBD\"},"
+                + "\"disks\":[{\"device\":\"sda\",\"sourcePath\":\"rbd:rbd/source-image\","
+                + "\"targetPath\":\"rbd:rbd/target-image\",\"targetStorageRef\":\"target-pool-uuid\","
+                + "\"target\":{\"storageRef\":\"target-pool-uuid\",\"path\":\"target-image\",\"format\":\"raw\"}}]}");
+        DrRunVO run = run(DrConstants.RUN_TYPE_FAILOVER, "{\"mode\":\"planned\",\"finalSync\":true}");
+        DrRestorePointVO checkpoint = checkpoint(plan, "ftctl:" + plan.getUuid() + ":source-run:12");
+        Mockito.when(drRestorePointDao.findLatestTargetReadyByPlanId(plan.getId())).thenReturn(checkpoint);
+        HostVO targetHost = Mockito.mock(HostVO.class);
+        Mockito.when(targetHost.getId()).thenReturn(102L);
+        Mockito.when(targetHost.getUuid()).thenReturn("target-host-uuid");
+        Mockito.when(targetHost.getPrivateIpAddress()).thenReturn("10.10.32.2");
+        Mockito.when(hostDao.findById(102L)).thenReturn(targetHost);
+        Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("CAPABILITIES"),
+                Mockito.isA(FtctlDrCapabilitiesCommand.class), Mockito.eq("source-host-uuid"),
+                Mockito.eq(FtctlDrCapabilitiesAnswer.class))).thenAnswer(invocation -> {
+                    FtctlDrCapabilitiesAnswer answer = new FtctlDrCapabilitiesAnswer(invocation.getArgument(2), true, "ok");
+                    answer.setSupportedFeatures(java.util.Arrays.asList(
+                            "control-protocol-v2", "dr-site-agent-rbd-transport-v1"));
+                    return answer;
+                });
+        ArgumentCaptor<FtctlDrActionCommand> targetCommandCaptor = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
+        Mockito.when(agentManager.easySend(Mockito.eq(102L), targetCommandCaptor.capture())).thenAnswer(invocation -> {
+            FtctlDrActionCommand command = invocation.getArgument(1);
+            return new FtctlDrActionAnswer(command, true, "ready", FtctlDrActionCommand.Action.TARGET_EXPORT_START,
+                    plan.getUuid(), run.getUuid(), "completed", true, "READY", "target-export-ready",
+                    100, run.getUuid(), 0L, null, 0, "{\"result\":\"ok\"}",
+                    "{\"exports\":[{\"device\":\"sda\",\"host\":\"10.10.32.2\",\"port\":12032,"
+                            + "\"name\":\"dr-export-sda\",\"uri\":\"nbd://10.10.32.2:12032/dr-export-sda\"}]}");
+        });
+        ArgumentCaptor<FtctlDrActionCommand> sourceCommandCaptor = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
+        Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("ACTION"), sourceCommandCaptor.capture(),
+                Mockito.eq("source-host-uuid"), Mockito.eq(FtctlDrActionAnswer.class))).thenAnswer(invocation -> {
+                    FtctlDrActionCommand command = invocation.getArgument(2);
+                    return new FtctlDrActionAnswer(command, true, "accepted", FtctlDrActionCommand.Action.FAILOVER,
+                            plan.getUuid(), run.getUuid(), "accepted", true, "RUNNING", "final-delta",
+                            1, run.getUuid(), 0L, null, 0, "{\"result\":\"accepted\"}", "{\"state\":\"RUNNING\"}");
+                });
+
+        DrAdapterResult result = adapter.execute(new DrExecutionContext(plan, run));
+
+        Assert.assertTrue(result.isSuccess());
+        Assert.assertEquals(FtctlDrActionCommand.Action.TARGET_EXPORT_START, targetCommandCaptor.getValue().getAction());
+        Assert.assertEquals(FtctlDrActionCommand.Action.FAILOVER, sourceCommandCaptor.getValue().getAction());
+        Assert.assertTrue(sourceCommandCaptor.getValue().getProfileJson().contains("\"mode\":\"site-agent-nbd\""));
+        Mockito.verify(agentManager, Mockito.never()).send(Mockito.anyLong(), Mockito.isA(FtctlDrActionCommand.class));
+    }
+
+    @Test
     public void testFailoverDispatchesRestorePointReferenceToFtctlProfile() throws Exception {
         DrPlanVO plan = ftctlDrPlan();
         DrRunVO run = run(DrConstants.RUN_TYPE_TEST_FAILOVER,

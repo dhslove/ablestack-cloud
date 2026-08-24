@@ -361,7 +361,8 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         }
         return StringUtils.equalsAnyIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_SYNC,
                 DrConstants.RUN_TYPE_RECOVER_SYNC, DrConstants.RUN_TYPE_PAUSE_SYNC,
-                DrConstants.RUN_TYPE_RESUME_SYNC, DrConstants.RUN_TYPE_RELEASE);
+                DrConstants.RUN_TYPE_RESUME_SYNC, DrConstants.RUN_TYPE_FAILOVER,
+                DrConstants.RUN_TYPE_RELEASE);
     }
 
     private String remoteSourceWorkerUuid(DrPlanVO plan) {
@@ -1284,6 +1285,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                 return;
             }
             try {
+                stopPlanOwnedTargetExportForPromotion(plan, projectionRun);
                 DrTargetPowerOnResult powerOnResult = drTargetMaterializationService.ensureTargetPoweredOn(plan.getId());
                 if (!commitCloudOwnedCutover(plan, projectionRun, cutoverSession, status, runtime, powerOnResult)) {
                     return;
@@ -1505,6 +1507,46 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         return plan != null && drRemoteAgentClient != null
                 && drRemoteAgentClient.isRemoteKvmSource(plan)
                 && StringUtils.equalsIgnoreCase(plan.getDirection(), DrConstants.DIRECTION_KVM_TO_KVM);
+    }
+
+    private void stopPlanOwnedTargetExportForPromotion(DrPlanVO plan, DrRunVO run) {
+        if (!isRemoteKvmToKvmPlan(plan)) {
+            return;
+        }
+        Answer answer = sendTargetExportTransition(plan, run, FtctlDrActionCommand.Action.TARGET_EXPORT_STOP);
+        if (answer == null || !answer.getResult()) {
+            throw new CloudRuntimeException(StringUtils.defaultIfBlank(
+                    answer != null ? answer.getDetails() : null,
+                    "Target Agent did not drain the Plan-owned RBD export before VM promotion"));
+        }
+    }
+
+    private void restorePlanOwnedTargetExportAfterAbort(DrPlanVO plan, DrRunVO run) {
+        if (!isRemoteKvmToKvmPlan(plan)) {
+            return;
+        }
+        Answer answer = sendTargetExportTransition(plan, run, FtctlDrActionCommand.Action.TARGET_EXPORT_START);
+        if (answer == null || !answer.getResult()) {
+            throw new CloudRuntimeException(StringUtils.defaultIfBlank(
+                    answer != null ? answer.getDetails() : null,
+                    "Target Agent did not restore the Plan-owned RBD export after failover abort"));
+        }
+    }
+
+    private Answer sendTargetExportTransition(DrPlanVO plan, DrRunVO run,
+            FtctlDrActionCommand.Action action) {
+        if (plan == null || run == null || plan.getTargetWorkerHostId() == null) {
+            return null;
+        }
+        FtctlDrActionCommand command = new FtctlDrActionCommand(action, plan.getUuid(), run.getUuid());
+        command.setActionName(action.name());
+        command.setCliCommand(action.getCliCommand());
+        command.setRunType(run.getRunType());
+        command.setDirection(plan.getDirection());
+        command.setRole("target");
+        command.setWaitForCompletion(true);
+        command.setWait(45);
+        return agentManager.easySend(plan.getTargetWorkerHostId(), command);
     }
 
     private DrCutoverSessionVO upsertCutoverSession(DrPlanVO plan, DrRunVO run, FtctlDrStatusAnswer status, JsonObject runtime) {
@@ -1733,6 +1775,10 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                 command.getCutoverCommitEnvelopeSha256(), command.getCutoverTargetExternalRef(),
                 command.getCutoverSourceFenceState(), command.getCutoverSourcePowerState())) {
             return new Answer(command, false, "DR_CUTOVER_COMMIT_EVIDENCE_INCOMPLETE: typed cutover evidence is incomplete");
+        }
+        if (isRemoteKvmToKvmPlan(plan)) {
+            return drRemoteAgentClient.execute(plan, "ACTION", command,
+                    remoteSourceWorkerUuid(plan), FtctlDrActionAnswer.class);
         }
         return agentManager.easySend(hostId, command);
     }
@@ -2836,7 +2882,10 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         if (StringUtils.isNotBlank(engineSessionId)) {
             command.setContextParam("cutoverSessionId", engineSessionId);
         }
-        Answer answer = agentManager.easySend(hostId, command);
+        Answer answer = isRemoteKvmToKvmPlan(plan)
+                ? drRemoteAgentClient.execute(plan, "ACTION", command,
+                        remoteSourceWorkerUuid(plan), FtctlDrActionAnswer.class)
+                : agentManager.easySend(hostId, command);
         if (answer == null || !answer.getResult()) {
             String abortMessage = answer != null ? answer.getDetails()
                     : "Agent returned no failover preparation abort acknowledgement";
@@ -2856,6 +2905,27 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             session.markUpdated();
             drCutoverSessionDao.update(session.getId(), session);
             return false;
+        }
+
+        if (isRemoteKvmToKvmPlan(plan)) {
+            try {
+                restorePlanOwnedTargetExportAfterAbort(plan, run);
+                FtctlDrActionAnswer resumeAnswer = drRemoteAgentClient.transitionSourceScheduler(plan,
+                        FtctlDrActionCommand.Action.RESUME_SYNC, run.getUuid());
+                if (resumeAnswer == null || !resumeAnswer.getResult()) {
+                    throw new CloudRuntimeException(StringUtils.defaultIfBlank(
+                            resumeAnswer != null ? resumeAnswer.getDetails() : null,
+                            "Remote source scheduler did not resume after failover abort"));
+                }
+            } catch (RuntimeException e) {
+                session.setState("ABORT_FAILED");
+                session.setCleanupRequired(true);
+                session.setErrorCode("DR_FAILOVER_ABORT_RECOVERY_FAILED");
+                session.setErrorMessage(e.getMessage());
+                session.markUpdated();
+                drCutoverSessionDao.update(session.getId(), session);
+                return false;
+            }
         }
 
         Date now = new Date();

@@ -349,12 +349,14 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
     private void preparePlanOwnedTransport(DrExecutionContext context, FtctlDrActionCommand.Action action,
             FtctlDrActionCommand sourceCommand) {
         DrPlanVO plan = context.getPlan();
-        if (action == FtctlDrActionCommand.Action.FAILOVER || action == FtctlDrActionCommand.Action.RELEASE) {
+        if (action == FtctlDrActionCommand.Action.RELEASE) {
             stopPlanOwnedTargetExport(context, sourceCommand);
             return;
         }
         if (!dispatchesOnRemoteSource(plan, action)
-                || (action != FtctlDrActionCommand.Action.SYNC && action != FtctlDrActionCommand.Action.RECOVER_SYNC)) {
+                || (action != FtctlDrActionCommand.Action.SYNC
+                        && action != FtctlDrActionCommand.Action.RECOVER_SYNC
+                        && action != FtctlDrActionCommand.Action.FAILOVER)) {
             return;
         }
         HostVO targetHost = hostDao.findById(plan.getTargetWorkerHostId());
@@ -435,6 +437,7 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         }
         return action == FtctlDrActionCommand.Action.SYNC
                 || action == FtctlDrActionCommand.Action.RECOVER_SYNC
+                || action == FtctlDrActionCommand.Action.FAILOVER
                 || action == FtctlDrActionCommand.Action.PAUSE_SYNC
                 || action == FtctlDrActionCommand.Action.RESUME_SYNC
                 || action == FtctlDrActionCommand.Action.RELEASE;
@@ -672,7 +675,9 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
             requiredFeatures.add("dr-release-tombstone-v1");
         }
         if (drRemoteAgentClient != null && drRemoteAgentClient.isRemoteKvmSource(context.getPlan())
-                && (action == FtctlDrActionCommand.Action.SYNC || action == FtctlDrActionCommand.Action.RECOVER_SYNC)) {
+                && (action == FtctlDrActionCommand.Action.SYNC
+                        || action == FtctlDrActionCommand.Action.RECOVER_SYNC
+                        || action == FtctlDrActionCommand.Action.FAILOVER)) {
             requiredFeatures.add("dr-site-agent-rbd-transport-v1");
         }
         command.setRequiredFeatures(requiredFeatures);

@@ -426,11 +426,11 @@ fixtures use the same spelling.
 ## 9. Target-Side Transition Checkpoint Contract
 
 The Plan Owner remains authoritative when the source and target belong to
-different ABLESTACK sites. A `KVM_TO_KVM` scheduler is dispatched to the remote
-source worker, but `TEST_PREPARE` and `FAILOVER` are dispatched to the target
-worker because Cloud owns target VM lifecycle there. Consequently, a target
-Agent must not be expected to have the source worker's local
-`restore-points.jsonl`.
+different ABLESTACK sites. A `KVM_TO_KVM` scheduler and the production
+`FAILOVER` final-delta operation are dispatched to the remote source worker.
+`TEST_PREPARE` remains a target-worker artifact operation. Cloud owns target VM
+lifecycle, but that ownership does not move the RBD reader: only the source
+worker can read the source RBD and its local `restore-points.jsonl`.
 
 Before either action is dispatched, Cloud selects the latest active
 `dr_restore_point` in `READY` state and writes an immutable controller
@@ -455,9 +455,11 @@ remain unchanged regression gates.
 For that same remote-source condition Cloud writes
 `schedulerTransitionScope=REMOTE_SOURCE`. Test failover and cleanup are target
 artifact operations and must not pause, resume, or recreate a scheduler on the
-target coordinator. Production failover is not allowed to reuse this shortcut:
-the Plan Owner must first dispatch and confirm remote source quiescence, then
-stop the target export, and only then dispatch target promotion.
+target coordinator. Production failover is not allowed to reuse this shortcut.
+The Plan Owner keeps the target export running while remote source FTCTL writes
+the final delta. After source FTCTL reports durable `CUTOVER_READY`, Cloud
+quiesces the remote scheduler and source VM, drains the target export, and
+starts the target VM.
 
 ### 9.1 AS-IS / TO-BE
 
@@ -466,7 +468,7 @@ stop the target export, and only then dispatch target promotion.
 | Plan Owner evidence | Sends only a textual restore-point reference | Sends a versioned, DB-backed durable checkpoint envelope |
 | Target Agent lookup | Searches a source-worker-local journal | Validates the controller envelope and target artifact contract |
 | Test session failure | Run fails while session can remain `REQUESTED` | Runtime failure atomically projects the session to `FAILED` |
-| Actual failover | Has the same cross-host metadata gap | Reuses the same immutable envelope contract |
+| Actual failover | Target FTCTL attempts to read a remote source RBD after its target export was stopped | Remote source FTCTL writes the final delta through the live target export and owns the cutover engine session |
 | VMware regression | Shared fallback could alter a validated path | No fallback outside remote `KVM_TO_KVM` |
 | Scheduler authority | Target test action may resume a duplicate scheduler | Test action leaves the remote source scheduler authoritative |
 
@@ -477,25 +479,30 @@ production cutover transaction even when it is the target site. The source
 site remains a credentialed execution endpoint; it does not become a second
 Plan authority.
 
-When target FTCTL reports `CUTOVER_READY`, the Plan Owner executes the
-following ordered barrier for planned failover:
+The Plan Owner executes the following ordered barrier for planned failover:
 
-1. send a typed `PAUSE_SYNC` command through the source site's narrow Agent
+1. start or reconcile the target Plan-owned RBD export and inject its typed NBD
+   endpoints into the source profile;
+2. dispatch `FAILOVER` to the remote source Agent and poll that same Agent until
+   it reports a durable `CUTOVER_READY` checkpoint and manifest;
+3. send a typed `PAUSE_SYNC` command through the source site's narrow Agent
    broker and require a semantically successful answer;
-2. stop the source VM through the registered source Mold API and poll until it
+4. stop the source VM through the registered source Mold API and poll until it
    is `POWERED_OFF`;
-3. persist `sourceFenceState=VERIFIED` and
+5. persist `sourceFenceState=VERIFIED` and
    `sourcePowerState=POWERED_OFF` in the cutover session;
-4. start the existing target replica through local Cloud VM lifecycle APIs and
+6. stop the Plan-owned target export, then start the existing target replica
+   through local Cloud VM lifecycle APIs and
    validate its configured boot policy;
-5. submit `DR_CUTOVER_COMMIT_V2` to target FTCTL with the exact checkpoint,
+7. submit `DR_CUTOVER_COMMIT_V2` to the same remote source FTCTL session with the exact checkpoint,
    manifest, target identity, fence, power, and boot evidence;
-6. switch `dr_plan.active_side` to `TARGET` only after the engine acknowledges
+8. switch `dr_plan.active_side` to `TARGET` only after the engine acknowledges
    the same envelope.
 
-If source quiesce or source power-off fails, target power-on is forbidden. The
-Plan remains source-authoritative and the Plan Owner best-effort resumes the
-source scheduler. Disaster mode does not call an unreachable source; it uses
+If preparation fails before promotion, target power-on is forbidden. The Plan
+Owner sends `FAILOVER_ABORT` to remote source FTCTL, restores the target export
+from its persisted profile, and resumes the source scheduler. The Plan remains
+source-authoritative. Disaster mode does not call an unreachable source; it uses
 the existing explicit isolation acknowledgement and reason, while preserving
 the same target-power and engine-commit gates.
 
@@ -507,9 +514,9 @@ validated `VMWARE_TO_KVM` branch, which keeps its vCenter isolation logic.
 | Layer | Contract |
 | --- | --- |
 | UI/API | Planned/disaster intent is asynchronous; UI never talks to either host directly |
-| Backend | Plan Owner coordinates source quiesce, source VM power, target VM power, and commit in order |
-| Remote Agent | Accepts only the typed source `PAUSE_SYNC` command for the selected source worker |
-| FTCTL | Target publishes `CUTOVER_READY`; final authority requires the V2 commit envelope |
+| Backend | Plan Owner coordinates target export, remote final delta, source quiesce, VM power, and commit in order |
+| Remote Agent | Owns `FAILOVER`, status, pause/resume, abort, and cutover commit for the selected source worker |
+| FTCTL | Source publishes `CUTOVER_READY`; target export is drained before VM power-on; final authority requires the V2 commit envelope |
 | DB | Cutover session stores fence/power/manifest/target identity before authority changes |
 | UI projection | Shows preparing/commit-verifying until DB and FTCTL both agree on `FAILED_OVER/TARGET` |
 
@@ -519,6 +526,37 @@ validated `VMWARE_TO_KVM` branch, which keeps its vCenter isolation logic.
 | --- | --- | --- |
 | Remote source isolation | Only VMware planned failover is actively powered off | Remote KVM scheduler is paused and source VM is stopped through source Mold |
 | Target activation | KVM engine may claim promotion while Cloud VM is off | Cloud starts and validates the existing replica before commit |
-| Failure handling | Partial source quiesce can be left implicit | Target remains off; source scheduler resume is attempted and error is typed |
+| Failure handling | Failed local final sync can leave export and scheduler intent inconsistent | Remote abort, target export restore, and source scheduler resume converge before retry |
 | Authority evidence | Runtime state alone can move active side | Cutover session and typed FTCTL commit must match atomically |
 | Existing success path | Shared projection code risks VMware regression | New branch requires remote `KVM_TO_KVM`; VMware behavior is unchanged |
+
+## 11. 2026-08-25 Remote Final-Delta Defect And Regression Gate
+
+Live plan `8bce9b04-386c-497d-a40e-bbeb50f6762f` exposed an ordering defect:
+Cloud stopped the target export before final synchronization and dispatched
+`FAILOVER` to the target coordinator. The target host could neither read the
+remote source RBD nor reach the export it had just stopped, so FTCTL returned
+`DR_TARGET_EXPORT_UNAVAILABLE`. Source power stayed on and target power stayed
+off, preserving data safety.
+
+The release gate for remote `KVM_TO_KVM` requires all of the following:
+
+- `TARGET_EXPORT_START` precedes remote `FAILOVER` dispatch;
+- status polling, `FAILOVER_ABORT`, and `CUTOVER_COMMIT` use the same remote
+  source worker and engine run UUID;
+- target export stop occurs only after durable `CUTOVER_READY` and source VM
+  power-off, and before target VM power-on;
+- abort restores the target export from its persisted profile and resumes the
+  remote source scheduler;
+- local and VMware plans retain their existing dispatch and commit paths;
+- tests assert the full order and abort/retry convergence path.
+
+### 11.1 AS-IS / TO-BE
+
+| Area | AS-IS | TO-BE |
+| --- | --- | --- |
+| Final-delta owner | Target coordinator | Remote source FTCTL |
+| Target export | Stopped before final delta | Running through `CUTOVER_READY`, drained before target boot |
+| Status and commit | Local coordinator | Same remote source engine session |
+| Abort | Local abort only | Remote abort, target export restore, remote scheduler resume |
+| Safety | Failure happened before VM power change | Explicit ordering test preserves this invariant |
