@@ -250,9 +250,11 @@ the 32-cluster RBD pool. The 32.2 target Agent host exported it with
 the export metadata, wrote a 4 KiB `0x5a` pattern, and read the same pattern
 back successfully. The exporter and temporary RBD image were then removed.
 This proves the Plan Owner selected data path without touching a protected VM
-disk. The deployed configuration has duplicate port declarations; the last
-declaration is effective and package deployment must converge the file to one
-canonical declaration.
+disk. The current 32.2 host has duplicate historical port declarations and the
+last value, `11809`, is effective. This feature reads that effective value and
+does not rewrite the existing remote-NBD setting during deployment, because
+the validated VMware path shares the setting. Configuration hygiene is handled
+separately after both paths are idle and revalidated.
 
 Deployment preflight must also call `listApis` or issue a signed broker probe on
 every ABLESTACK site and verify `executeFtctlDrSiteAgentCommand` is present
@@ -263,6 +265,31 @@ Before deployment, run the FTCTL baseline contract suite for sync,
 pause/resume, release/tombstone, test failover/cleanup, failover, failback, and
 reprotect. Run the existing VMware-to-ABLESTACK tests unchanged. The release is
 blocked if either contract regresses.
+
+### 7.2 Test deployment baseline
+
+The paired test deployment on 2026-08-24 used Cloud commit `dc8757a8a9` and
+FTCTL commit `5597e72`. FTCTL GitHub Actions run `32711444688` produced
+`ablestack_vm_ftctl-0.9.5-1.noarch.rpm` with SHA-256
+`53248c7a34b154616ba10dfe1b785290f63ed71c0f0b8b8a5426ad93e39947eb`.
+The package was installed on all six compute hosts. Changed Cloud management
+and Agent classes were injected into the package-owned runtime JARs on both
+test clusters, and every affected service was restarted.
+
+Post-deployment verification requires all of the following before UI testing:
+
+- both `mold` services are active and `/client/` returns HTTP 200;
+- the active webapp retains `WEB-INF`;
+- both management runtimes contain `TARGET_EXPORT_START`, `site-agent-nbd`,
+  and `prepareSyncTarget` markers;
+- all six `mold-agent` services are active and contain the new Agent command;
+- all six installed FTCTL runtimes contain the target export command, transport
+  schema marker, and `rbd_extent_copy.py`;
+- both Cloud DBs report all three routing hosts as `Up / Enabled`;
+- recent management logs contain no class or method linkage errors.
+
+This deployment met every gate. UI lifecycle verification is therefore allowed
+to proceed without a direct DB state repair or backend-only action.
 
 ## 8. AS-IS / TO-BE
 
