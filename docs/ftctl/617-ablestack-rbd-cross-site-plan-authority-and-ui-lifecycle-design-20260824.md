@@ -760,6 +760,13 @@ same envelope, and relies on FTCTL to publish the canonical final checkpoint.
 After both source and target acknowledgements match, the existing transaction
 commits the Plan authority and clears transient cutover errors.
 
+During a rolling upgrade, a remote `KVM_TO_KVM` source runtime may already
+contain the durable final checkpoint while its failover-session selector still
+names the preceding checkpoint. Commit retry is allowed to self-heal only when
+FTCTL proves an exact same-Plan, same-Run `failover-final` record with durable
+writes and drained endpoints. Cloud sends the same envelope again and does not
+change DB checkpoint identity.
+
 | Layer | AS-IS | TO-BE |
 | --- | --- | --- |
 | FTCTL evidence | Final sequence can differ from selected restore-point sequence | One final reference is used by all post-sync stages |
