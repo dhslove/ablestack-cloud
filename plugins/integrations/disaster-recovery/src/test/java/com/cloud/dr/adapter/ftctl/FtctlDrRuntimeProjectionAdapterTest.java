@@ -1940,7 +1940,7 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     }
 
     @Test
-    public void refreshPlanProjectionCompletesSyncRunAfterContinuousCycleBecomesDurable() {
+    public void refreshPlanProjectionRepairsAcceptedRunWithStaleCompletedTimestamp() {
         DrPlanVO plan = new DrPlanVO("ftctl-dr-plan", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
         plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
         plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
@@ -1948,6 +1948,7 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         plan.setCoordinatorWorkerHostId(103L);
         DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_SYNC);
         run.setState(DrConstants.RUN_STATE_ACCEPTED);
+        run.setCompleted(new Date());
         DrReplicaVO replica = new DrReplicaVO(plan.getId(), plan.getTargetSiteId());
         replica.setTargetVmId(9L);
         DrRestorePointVO restorePoint = new DrRestorePointVO(plan.getId(), "FTCTL_DR_CHECKPOINT");
@@ -2196,6 +2197,42 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         Assert.assertEquals(Long.valueOf(1140L), run.getAcceptedCycleSequence());
         Assert.assertEquals(plan.getUuid() + ":1140", run.getAcceptedCycleToken());
         Mockito.verify(drRunDao).update(run.getId(), run);
+        Assert.assertTrue(adapter.isAcceptedFullReseedCycleSatisfied(run, status, runtime));
+    }
+
+    @Test
+    public void acceptedFullReseedCycleCompletesFromOwnedDurableCycleWithoutTerminalJournal() {
+        DrPlanVO plan = new DrPlanVO("plan-42", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        ReflectionTestUtils.setField(plan, "id", 42L);
+        DrRunVO run = new DrRunVO(42L, DrConstants.RUN_TYPE_SYNC);
+        ReflectionTestUtils.setField(run, "id", 189L);
+        run.setRequestJson("{\"mode\":\"FULL_RESEED\",\"forceFullReseed\":true}");
+
+        DrSyncCycleVO acceptedCycle = new DrSyncCycleVO(42L, "scheduler-full-seed", 1141L);
+        acceptedCycle.setRunId(run.getId());
+        acceptedCycle.setCycleToken(plan.getUuid() + ":1141");
+        acceptedCycle.setRequestedMode("FULL_RESEED");
+        acceptedCycle.setEffectiveMode("FULL_RESEED");
+        acceptedCycle.setState("READY");
+        acceptedCycle.setCommitState("LOCAL_DURABLE");
+        acceptedCycle.setCompleted(new Date());
+        Mockito.when(drSyncCycleDao.findByPlanSequence(42L, 1141L)).thenReturn(acceptedCycle);
+
+        FtctlDrStatusCommand command = new FtctlDrStatusCommand("plan-42", run.getUuid(),
+                FtctlDrStatusCommand.StatusScope.OPERATION);
+        FtctlDrStatusAnswer status = new FtctlDrStatusAnswer(command, true, "ok");
+        status.setControlRequestRunUuid(run.getUuid());
+        status.setTransferCycleSequence(1141L);
+        status.setTransferMode("FULL_RESEED");
+        JsonObject runtime = new JsonObject();
+        runtime.addProperty("control_request_run_uuid", run.getUuid());
+        runtime.addProperty("transfer_cycle_sequence", 1141L);
+        runtime.addProperty("transfer_mode", "FULL_RESEED");
+
+        adapter.bindAcceptedCycleFromControlRequest(plan, run, status, runtime);
+
+        Assert.assertEquals(Long.valueOf(1141L), run.getAcceptedCycleSequence());
+        Assert.assertEquals(plan.getUuid() + ":1141", run.getAcceptedCycleToken());
         Assert.assertTrue(adapter.isAcceptedFullReseedCycleSatisfied(run, status, runtime));
     }
 }

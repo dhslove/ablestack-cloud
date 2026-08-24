@@ -1966,6 +1966,37 @@ unchanged.
 | Source scheduler | Missing endpoint is a typed resource wait | Same Cycle resumes after target recovery |
 | Cloud resources | May appear to require rematerialization | Existing VM/RBD identity is retained; only the transport process is recovered |
 
+### 17.3 Full Seed Run terminal convergence
+
+An asynchronous Full Seed can finish after the scheduler has already resumed
+continuous protection.  The scheduler Run UUID then differs from the Cloud
+control Run UUID, while the canonical `dr_sync_cycle.run_id` still identifies
+the Cloud Run that requested the Full Seed.  The durable Cycle ownership is the
+terminal contract; an operation journal is additional evidence, not the only
+way to close the Cloud Run.
+
+Cloud must therefore complete a Full Seed Run when all of the following hold:
+
+1. `control_request_run_uuid` matches the Cloud Run UUID;
+2. `accepted_cycle_sequence` and `accepted_cycle_token` match the canonical
+   Cycle;
+3. the canonical Cycle `run_id` equals the Cloud Run id;
+4. the Cycle is terminal and `LOCAL_DURABLE` (or an equivalent durable commit
+   state).
+
+If the FTCTL terminal journal is still present, it remains valid evidence.  If
+it has already rotated, the owned canonical Cycle is sufficient.  A late Agent
+acceptance write must never permanently overwrite a terminal Run.  Periodic
+projection repairs the impossible mixed state `ACCEPTED + completed != NULL`
+by evaluating the owned durable Cycle and converging the Run to `SUCCEEDED`.
+
+| Area | AS-IS | TO-BE |
+| --- | --- | --- |
+| Full Seed completion | Requires a surviving FTCTL operation terminal journal | Accepts terminal journal or the Run-owned canonical durable Cycle |
+| Scheduler handoff | New scheduler producer UUID can hide control Run completion | Producer UUID tracks data production; `dr_sync_cycle.run_id` owns Cloud completion |
+| Concurrent writes | Late acceptance may leave `ACCEPTED + completed` | Periodic projection repairs projectable mixed states to one terminal state |
+| Existing VMware path | Uses the same durable Cycle contract | Behavior is preserved and covered by the shared regression tests |
+
 ## 18. 2026-07-10 Correction: Source Hardware Collection Was Not Complete
 
 The 2026-07-09 implementation result correctly added target hardware fields and

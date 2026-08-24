@@ -1100,7 +1100,10 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                 || StringUtils.equalsIgnoreCase(StringUtils.defaultIfBlank(status.getTerminalSource(),
                         stringValue(runtime, "terminal_source")), "ENGINE_TERMINAL");
         DrSyncCycleVO cycle = resolveAcceptedCycle(run);
-        if (!StringUtils.equals(run.getUuid(), controlRequestRunUuid) || !terminalAuthoritative
+        boolean runOwnedDurableCycle = cycle != null && cycle.getRunId() != null
+                && cycle.getRunId() == run.getId();
+        if (!StringUtils.equals(run.getUuid(), controlRequestRunUuid)
+                || (!terminalAuthoritative && !runOwnedDurableCycle)
                 || cycle == null || cycle.getCompleted() == null
                 || !StringUtils.equalsIgnoreCase(cycle.getRequestedMode(), "FULL_RESEED")
                 || !StringUtils.equalsAnyIgnoreCase(cycle.getState(), "READY", "COMPLETED", "TARGET_READY")
@@ -2247,13 +2250,19 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         if (run == null) {
             return;
         }
-        if (run.getCompleted() != null || !isProjectableRunState(run)) {
+        if (!isProjectableRunState(run)) {
             // A failed failback run remains immutable history. Its later rollback
             // acknowledgement still owns the current plan authority projection.
             if (isRolledBackFailback(plan, run, runtime)) {
                 preserveFailedOverTargetAuthority(plan);
             }
             return;
+        }
+        if (run.getCompleted() != null) {
+            // A concurrent terminal projection may be followed by a stale Agent
+            // acceptance write. Keep the Run projectable and repair the mixed
+            // ACCEPTED + completed state from canonical runtime evidence.
+            run.setCompleted(null);
         }
         bindAcceptedCycleFromControlRequest(plan, run, status, runtime);
         if (StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_TEST_FAILOVER)
