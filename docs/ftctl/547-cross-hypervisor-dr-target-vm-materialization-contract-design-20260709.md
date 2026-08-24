@@ -1941,6 +1941,31 @@ ownership generation remains a hard conflict.
 | Power observation | Power-state changes alter the ownership comparison | Power state is validated but excluded from ownership identity |
 | Resource replacement | Same generation may be ambiguous | VM/replica/disk fingerprint change requires generation advance |
 
+### 17.2 Plan-owned target export lifetime
+
+For an `ABLESTACK_TO_ABLESTACK` Plan using `site-agent-nbd`, Cloud owns the
+target VM/RBD records and the target Agent owns the data-plane export process.
+The Plan Owner must not interpret a successful Agent command as a durable
+endpoint until the Agent reports a live PID and reachable fixed port.
+
+The target FTCTL therefore runs each Plan/disk `qemu-nbd` exporter in a
+dedicated transient systemd service. Its persisted redacted intent survives
+Mold Agent restart, package replacement, and host reboot; periodic reconcile
+recreates the unit without changing Cloud VM, volume, ownership generation, or
+materialization digest. Source Cloud execution remains asynchronously in
+`WAITING_RESOURCE` and reuses the pending Cycle until that endpoint returns.
+
+This is an Agent/FTCTL lifecycle correction only. Cloud API schemas and DB
+tables do not change, and the VMware-to-ABLESTACK materialization contract is
+unchanged.
+
+| Layer | AS-IS | TO-BE |
+| --- | --- | --- |
+| Plan Owner | Agent acceptance can be projected before endpoint survival | Readiness follows persistent intent plus live endpoint evidence |
+| Target Agent | Exporter inherits periodic oneshot lifetime | Dedicated transient service survives reconcile completion |
+| Source scheduler | Missing endpoint is a typed resource wait | Same Cycle resumes after target recovery |
+| Cloud resources | May appear to require rematerialization | Existing VM/RBD identity is retained; only the transport process is recovered |
+
 ## 18. 2026-07-10 Correction: Source Hardware Collection Was Not Complete
 
 The 2026-07-09 implementation result correctly added target hardware fields and
