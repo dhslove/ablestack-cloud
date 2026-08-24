@@ -1839,6 +1839,66 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     }
 
     @Test
+    public void remoteKvmCommittedTargetAuthorityIgnoresIdleTargetSchedulerFailure() {
+        DrPlanVO plan = new DrPlanVO("remote-kvm-plan", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
+        plan.setState(DrConstants.HEALTH_DEGRADED);
+        plan.setActiveSide("TARGET");
+        plan.setCoordinatorWorkerHostId(103L);
+        plan.setLastErrorCode("DR_REPLICATION_CYCLE_FAILED");
+        plan.setLastErrorMessage("stale target scheduler failure");
+        DrPlanRuntimeVO runtime = new DrPlanRuntimeVO(plan.getId());
+        runtime.setProtectionState("ERROR");
+        runtime.setSchedulerState("ERROR");
+        runtime.setSchedulerDesiredState("RUNNING");
+        runtime.setSchedulerHealthState("DEAD");
+        runtime.setReplicationActivityState("FAILED");
+        runtime.setErrorCode("DR_REPLICATION_CYCLE_FAILED");
+        runtime.setErrorMessage("stale target scheduler failure");
+        DrReplicaVO replica = new DrReplicaVO(plan.getId(), plan.getTargetSiteId());
+        replica.setTargetVmId(283L);
+        replica.setState(DrConstants.REPLICA_STATE_READY);
+        replica.setPowerState("POWERED_ON");
+        replica.setActiveSide("TARGET");
+        DrCutoverSessionVO cutover = new DrCutoverSessionVO(plan.getId(), 322L,
+                DrConstants.RUN_TYPE_FAILOVER, DrConstants.PLAN_STATE_FAILED_OVER);
+        cutover.setCloudPromotionState("PROMOTED");
+        cutover.setTargetPowerState("POWERED_ON");
+        cutover.setEngineAckState("ACKNOWLEDGED");
+        cutover.setCompletedAt(new Date());
+
+        String staleStatus = "{\"state\":\"ERROR\",\"step\":\"replication-cycle-failed\","
+                + "\"scheduler_state\":\"ERROR\",\"error_code\":\"DR_REPLICATION_CYCLE_FAILED\"}";
+        Mockito.when(agentManager.easySend(Mockito.eq(103L), Mockito.any(FtctlDrStatusCommand.class)))
+                .thenAnswer(invocation -> {
+                    FtctlDrStatusCommand command = invocation.getArgument(1);
+                    return new FtctlDrStatusAnswer(command, true, "ok", plan.getUuid(), null,
+                            "ok", "ERROR", "replication-cycle-failed", 100,
+                            null, null, null, 12L, "DR_REPLICATION_CYCLE_FAILED", 0, "", staleStatus);
+                });
+        Mockito.when(drRunDao.findActiveByPlanId(plan.getId())).thenReturn(null);
+        Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        Mockito.when(drCutoverSessionDao.findCurrentAuthorityByPlanId(plan.getId())).thenReturn(cutover);
+        Mockito.when(drPlanRuntimeDao.findByPlanId(plan.getId())).thenReturn(runtime);
+        Mockito.when(drReplicaDao.listActiveByPlanId(plan.getId())).thenReturn(Collections.singletonList(replica));
+
+        DrAdapterResult result = adapter.refreshPlanProjection(plan);
+
+        Assert.assertTrue(result.isSuccess());
+        Assert.assertEquals(DrConstants.PLAN_STATE_FAILED_OVER, plan.getState());
+        Assert.assertEquals("TARGET", plan.getActiveSide());
+        Assert.assertNull(plan.getLastErrorCode());
+        Assert.assertEquals("FAILED_OVER_UNPROTECTED", runtime.getProtectionState());
+        Assert.assertEquals("STOPPED", runtime.getSchedulerState());
+        Assert.assertEquals("SUPPRESSED", runtime.getSchedulerHealthState());
+        Assert.assertEquals("STOPPED", runtime.getReplicationActivityState());
+        Assert.assertNull(runtime.getErrorCode());
+        Assert.assertFalse(runtime.isRpoOverdue());
+        Mockito.verify(drPlanDao).update(Mockito.eq(plan.getId()), Mockito.same(plan));
+    }
+
+    @Test
     public void committedTargetProjectionFreezesPlanRpoAtCutover() {
         DrPlanVO plan = new DrPlanVO("ftctl-dr-plan", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
         plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);

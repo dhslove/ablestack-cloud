@@ -237,6 +237,13 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                     "Ignored FTCTL_DR authority status for a different plan", GSON.toJson(authorityDetails));
             return DrAdapterResult.success("Ignored stale FTCTL_DR authority status", GSON.toJson(authorityDetails));
         }
+        if (projectionRun == null && isRemoteKvmToKvmPlan(plan)
+                && findCommittedTargetAuthority(plan) != null) {
+            preserveFailedOverTargetAuthority(plan);
+            authorityDetails.addProperty("committedTargetAuthorityPreserved", true);
+            return DrAdapterResult.success("Committed target authority retained while no transition is active",
+                    GSON.toJson(authorityDetails));
+        }
         if (!authorityStatus.getResult() && isStatusBoundaryFailure(authorityStatus)) {
             return handleStatusBoundaryFailure(plan, projectionRun, authorityStatus, authorityDetails,
                     "FTCTL_DR authority status failed validation; last-good projection was retained");
@@ -914,8 +921,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
     }
 
     private DrCutoverSessionVO findCommittedTargetAuthority(DrPlanVO plan) {
-        if (plan == null || !StringUtils.equalsIgnoreCase(plan.getActiveSide(), "TARGET")
-                || !StringUtils.equalsIgnoreCase(plan.getState(), DrConstants.PLAN_STATE_FAILED_OVER)) {
+        if (plan == null || !StringUtils.equalsIgnoreCase(plan.getActiveSide(), "TARGET")) {
             return null;
         }
         DrCutoverSessionVO session = drCutoverSessionDao.findCurrentAuthorityByPlanId(plan.getId());
@@ -3040,8 +3046,21 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             planRuntime = new DrPlanRuntimeVO(plan.getId());
         }
         planRuntime.setProtectionState("FAILED_OVER_UNPROTECTED");
+        planRuntime.setFreshnessState("WITHIN_RPO");
+        planRuntime.setSchedulerState("STOPPED");
+        planRuntime.setSchedulerDesiredState("STOPPED");
+        planRuntime.setSchedulerHealthState("SUPPRESSED");
+        planRuntime.setSchedulerRecoveryState(DrConstants.SCHEDULER_RECOVERY_SUPPRESSED);
+        planRuntime.setReplicationActivityState("STOPPED");
+        planRuntime.setSchedulerPidAlive(false);
+        planRuntime.setOwnerMatched(false);
+        planRuntime.setActiveWorkerRunUuid(null);
+        planRuntime.setActiveWorkerPid(null);
+        planRuntime.setActiveWorkerStartTicks(null);
+        planRuntime.setWorkerHeartbeatAt(null);
         planRuntime.setErrorCode(null);
         planRuntime.setErrorMessage(null);
+        planRuntime.setRpoOverdue(false);
         planRuntime.setLastStatusAt(new Date());
         planRuntime.markUpdated();
         if (planRuntime.getId() == 0) {

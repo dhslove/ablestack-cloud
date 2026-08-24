@@ -560,3 +560,36 @@ The release gate for remote `KVM_TO_KVM` requires all of the following:
 | Status and commit | Local coordinator | Same remote source engine session |
 | Abort | Local abort only | Remote abort, target export restore, remote scheduler resume |
 | Safety | Failure happened before VM power change | Explicit ordering test preserves this invariant |
+
+## 12. Committed Target Authority Projection
+
+After a production cutover session is committed as
+`FAILED_OVER / TARGET / ACKNOWLEDGED`, that session is the Plan authority until
+a finite Failback or Reprotect operation explicitly changes it. An idle target
+worker may still contain a pre-cutover scheduler status because its role was a
+Plan-owned RBD export endpoint. That local status is diagnostic evidence only;
+it must not replace the committed Cloud cutover authority.
+
+Projection therefore follows these rules:
+
+1. when no finite operation is active and a committed target-authority session
+   exists, project `FAILED_OVER`, `TARGET`, target power, and cleared errors
+   directly from the session;
+2. do not poll or apply an idle target-side replication scheduler as Plan
+   authority in that state;
+3. when Failback or Reprotect starts, poll the operation owner selected by the
+   existing action contract and allow only its correlated run to change
+   authority;
+4. retain the last durable Cycle for RPO/history display without converting a
+   stopped source scheduler into a replication failure;
+5. keep remote VMware and source-authoritative KVM projection behavior
+   unchanged.
+
+### 12.1 AS-IS / TO-BE
+
+| Area | AS-IS | TO-BE |
+| --- | --- | --- |
+| Idle post-cutover refresh | Polls the target export host and reads stale `ERROR` | Uses the committed cutover session as authority |
+| Plan state | Successful Run can become `DEGRADED` | Remains `FAILED_OVER / TARGET` with cleared errors |
+| Active operation | Authority source is implicit | Finite Failback/Reprotect run owns its correlated projection |
+| VMware regression | Shared refresh change could alter VMware | Fast path requires remote `KVM_TO_KVM` plus committed target authority |
