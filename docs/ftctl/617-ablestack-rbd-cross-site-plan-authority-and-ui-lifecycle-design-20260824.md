@@ -774,3 +774,23 @@ change DB checkpoint identity.
 | UI | Target VM can be running while operation remains `COMMIT_VERIFYING` | Operation terminalizes only after matching commit evidence |
 | DB recovery | Manual state repair may appear tempting | Retry is idempotent; no direct DB repair is permitted |
 | Existing routes | Commit workaround could alter disaster or VMware behavior | Cloud contract is unchanged; FTCTL fix is final-sync scoped |
+
+## 18. Final Checkpoint Runtime Path Resolution
+
+The Plan-owner Cloud keeps the immutable sequence and commit envelope described
+in section 17. FTCTL is responsible for resolving the matching Plan-scoped
+restore-point journal even when source quiesce temporarily projects a status
+file without `restore_points_path`.
+
+FTCTL resolves that journal from the explicit status field, the scheduler
+helper when loaded, and finally the canonical Plan runtime directory. The
+fallback does not weaken evidence validation: repair still requires an exact
+same-Plan, same-Run, same-sequence `failover-final` checkpoint that is
+`TARGET_READY`, `LOCAL_DURABLE`, write-verified, and NBD-drained.
+
+| Area | AS-IS | TO-BE |
+| --- | --- | --- |
+| Source quiesce status | May omit the restore-point journal path | Canonical Plan path remains discoverable |
+| Cloud retry | Same sequence 5 envelope repeatedly receives mismatch | Idempotent retry converges without DB repair |
+| UI terminal state | Healthy UEFI VM can coexist with `COMMIT_VERIFYING` | Plan reaches failed-over terminal state after dual ACK |
+| Existing routes | Broad fallback could hide invalid evidence | Fallback locates files only; strict identity checks remain |
