@@ -768,7 +768,7 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
 
         FtctlDrActionAnswer actionAnswer = (FtctlDrActionAnswer) answer;
         details.add("agentAnswer", GSON.toJsonTree(redactedAnswer(actionAnswer)));
-        if (!actionAnswer.getResult()) {
+        if (!actionAnswer.getResult() || hasSemanticFailure(actionAnswer)) {
             JsonObject lockPayload = retryableLockPayload(actionAnswer);
             if (lockPayload != null) {
                 details.add("retryableLock", lockPayload);
@@ -780,7 +780,9 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
                 }
                 return DrAdapterResult.retryable(DrConstants.ERROR_ENGINE_BUSY_RETRYABLE, message, GSON.toJson(details), retryAfterSeconds);
             }
-            String errorCode = StringUtils.defaultIfBlank(actionAnswer.getErrorCode(), DrConstants.ERROR_ENGINE_ACTION_FAILED);
+            String errorCode = StringUtils.defaultIfBlank(actionAnswer.getErrorCode(),
+                    StringUtils.defaultIfBlank(stringValue(parseObject(actionAnswer.getStatusJson()), "error_code"),
+                            DrConstants.ERROR_ENGINE_ACTION_FAILED));
             String message = StringUtils.defaultIfBlank(actionAnswer.getDetails(), "FTCTL_DR Agent command failed");
             return DrAdapterResult.failure(errorCode, message, GSON.toJson(details));
         }
@@ -808,11 +810,26 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         JsonObject runtime = parseObject(status.getStatusJson());
         String result = StringUtils.lowerCase(StringUtils.defaultIfBlank(status.getFtctlResult(), stringValue(runtime, "result")), Locale.ROOT);
         String state = StringUtils.upperCase(StringUtils.defaultIfBlank(status.getState(), stringValue(runtime, "state")), Locale.ROOT);
+        String errorCode = stringValue(runtime, "error_code");
         return status.getResult()
+                && !isExplicitlyFalse(runtime, "accepted")
+                && StringUtils.isBlank(errorCode)
+                && !StringUtils.equalsAny(state, "ERROR", "FAILED", "REJECTED", "CANCELED", "CANCELLED")
                 && (booleanValue(runtime, "accepted")
                 || StringUtils.equalsAny(result, "accepted", "ok", "success", "delegated", "warn")
                 || StringUtils.equalsAny(state, "SYNCING", "RUNNING", "READY", "TARGET_READY", "PAUSED", "TESTING",
                         "TEST_ARTIFACTS_READY", "ARTIFACTS_READY"));
+    }
+
+    private boolean hasSemanticFailure(FtctlDrActionAnswer answer) {
+        JsonObject runtime = parseObject(answer.getStatusJson());
+        String state = StringUtils.upperCase(StringUtils.defaultIfBlank(answer.getState(), stringValue(runtime, "state")), Locale.ROOT);
+        String errorCode = StringUtils.defaultIfBlank(answer.getErrorCode(), stringValue(runtime, "error_code"));
+        boolean explicitlyRejected = Boolean.FALSE.equals(answer.getAccepted())
+                || isExplicitlyFalse(runtime, "accepted");
+        return explicitlyRejected
+                || StringUtils.isNotBlank(errorCode)
+                || StringUtils.equalsAny(state, "ERROR", "FAILED", "REJECTED", "CANCELED", "CANCELLED");
     }
 
     private FtctlDrActionCommand.Action resolveAction(DrRunVO run) {
@@ -1307,6 +1324,11 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
     private boolean booleanValue(JsonObject object, String key) {
         JsonElement value = object != null ? object.get(key) : null;
         return value != null && !value.isJsonNull() && value.isJsonPrimitive() && value.getAsBoolean();
+    }
+
+    private boolean isExplicitlyFalse(JsonObject object, String key) {
+        return object != null && object.has(key) && !object.get(key).isJsonNull()
+                && !booleanValue(object, key);
     }
 
     private Integer integerValue(JsonObject object, String key) {

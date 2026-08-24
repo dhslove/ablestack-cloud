@@ -453,7 +453,7 @@ public class LibvirtFtctlDrActionCommandWrapper extends CommandWrapper<FtctlDrAc
         String output = LibvirtFtctlWrapperHelper.getOutput(result, parser);
         JsonObject payload = LibvirtFtctlWrapperHelper.parseJsonObject(output);
         int exitValue = script.getExitValue();
-        boolean success = exitValue == 0;
+        boolean success = exitValue == 0 && !isSemanticFailureStatus(payload);
         if (!success && command.getAction() == FtctlDrActionCommand.Action.CUTOVER_COMMIT
                 && shouldProbeStatus(result, output)) {
             FtctlDrActionAnswer verified = probeCutoverCommitStatus(command);
@@ -617,8 +617,8 @@ public class LibvirtFtctlDrActionCommandWrapper extends CommandWrapper<FtctlDrAc
                 0, output, payload != null ? payload.toString() : null);
     }
 
-    private boolean isAcceptedStatus(int exitValue, JsonObject payload) {
-        if (payload == null) {
+    static boolean isAcceptedStatus(int exitValue, JsonObject payload) {
+        if (payload == null || isSemanticFailureStatus(payload)) {
             return false;
         }
         Boolean accepted = LibvirtFtctlDrCommandHelper.getBoolean(payload, "accepted");
@@ -627,6 +627,18 @@ public class LibvirtFtctlDrActionCommandWrapper extends CommandWrapper<FtctlDrAc
         return exitValue == 0 && (Boolean.TRUE.equals(accepted)
                 || StringUtils.equalsAny(result, "accepted", "ok", "success", "delegated", "warn")
                 || StringUtils.equalsAny(state, "SYNCING", "RUNNING", "READY", "TARGET_READY", "PAUSED", "TESTING"));
+    }
+
+    static boolean isSemanticFailureStatus(JsonObject payload) {
+        if (payload == null) {
+            return false;
+        }
+        Boolean accepted = LibvirtFtctlDrCommandHelper.getBoolean(payload, "accepted");
+        String state = StringUtils.upperCase(LibvirtFtctlDrCommandHelper.getString(payload, "state"));
+        String errorCode = LibvirtFtctlDrCommandHelper.getString(payload, "error_code");
+        return Boolean.FALSE.equals(accepted)
+                || StringUtils.isNotBlank(errorCode)
+                || StringUtils.equalsAny(state, "ERROR", "FAILED", "REJECTED", "CANCELED", "CANCELLED");
     }
 
     private String resolveRestorePointSelector(FtctlDrActionCommand command) {

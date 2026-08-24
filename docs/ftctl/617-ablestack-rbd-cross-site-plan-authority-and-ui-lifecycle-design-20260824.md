@@ -319,6 +319,35 @@ baseline may perform one explicit full-seed fallback and must record the reseed
 reason. Tests cover lowercase scheduler input, committed-baseline incremental
 selection, and the pre-created-target/durable-finalization race.
 
+### 7.4 Cross-site scheduler recovery and semantic acceptance contract
+
+An owner-side `RECOVER_SYNC` request is a two-site ordered operation for
+`KVM_TO_KVM`:
+
+1. the Plan Owner starts or validates every target RBD export on the target
+   worker;
+2. only after the export contract is durable, it sends `RECOVER_SYNC` through
+   the source site's signed Agent broker;
+3. the source FTCTL drains any Plan-owned quarantined NBD clients, restores the
+   scheduler launch journal, and starts the Plan-scoped systemd unit;
+4. Cloud accepts the Run only when the source answer is semantically accepted.
+
+Transport success and operation success are separate. `dr-status` may return
+`result=ok` because the status query itself succeeded while the requested Run
+has `state=ERROR`, `accepted=false`, or a non-empty `error_code`. Such a payload
+is a failed operation and must never be converted to a successful Agent answer
+or terminal Cloud Run. The KVM Agent wrapper and the Plan Owner adapter both
+enforce this rule so a stale or mixed-version Agent cannot create a false
+success.
+
+NBD quarantine recovery resolves the installed FTCTL recovery executable by
+an explicit, validated path. It must not call an optional or undefined
+provider helper. A recovery failure records `recovery_stage`, the original
+return code, and a typed error code before returning to Cloud. The scheduler is
+started only after NBD cleanup succeeds. These changes are shared runtime
+safety fixes, so the VMware-to-ABLESTACK action contract suite remains a
+release gate and no VMware data-plane behavior is changed.
+
 ## 8. AS-IS / TO-BE
 
 | Area | AS-IS | TO-BE |
@@ -331,6 +360,8 @@ selection, and the pre-created-target/durable-finalization race.
 | Target placement | Plan Owner local DAOs used for every KVM target | selected target site's Mold inventory and lifecycle APIs |
 | KVM replication | lowercase scheduled `incremental` can fall through to repeated `qemu-img convert` full seed | normalized cycle mode selects remote-NBD RBD diff when the baseline is committed |
 | Target readiness | pre-created VM makes the missing-reference trigger false, leaving `SKELETON_READY` after durable data | durable reconciliation stores the materialization digest and converges the existing replica to `READY` without rewriting terminal Run history |
+| Recovery result | `result=ok` from a status query can hide `state=ERROR` and terminate `RECOVER_SYNC` as successful | Agent and Plan Owner require accepted state, no error code, and a non-error operation state |
+| NBD recovery | scheduler calls an undefined mover resolver and returns an untyped recovery failure | installed recovery tool is resolved explicitly; stage and original RC are preserved |
 | Target export failure | a partial multi-disk start can leave an exporter running | Plan-scoped manifest, reserved-range fallback, and all-or-nothing rollback |
 | VM lifecycle | local target materializer assumptions | Cloud owning each VM performs create/start/stop/delete |
 | UI | KVM_TO_KVM appears selectable before end-to-end readiness | capability-gated mode and complete asynchronous lifecycle |

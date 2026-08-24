@@ -114,6 +114,28 @@ public class FtctlDrUnifiedActionAdapterTest {
     }
 
     @Test
+    public void syncRejectsSemanticErrorEvenWhenAgentTransportSucceeded() throws Exception {
+        DrPlanVO plan = ftctlDrPlan();
+        DrRunVO run = run(DrConstants.RUN_TYPE_SYNC, "{\"mode\":\"INCREMENTAL\"}");
+        mockCapabilities();
+        Mockito.when(agentManager.send(Mockito.eq(103L), Mockito.any(FtctlDrActionCommand.class))).thenAnswer(invocation -> {
+            FtctlDrActionCommand command = invocation.getArgument(1);
+            return new FtctlDrActionAnswer(command, true, "status query completed",
+                    FtctlDrActionCommand.Action.SYNC, plan.getUuid(), run.getUuid(), "ok", false,
+                    "ERROR", "scheduler-recovery-failed", 100, null, 0L,
+                    "DR_RECOVERY_FAILED", 0, "{\"result\":\"ok\"}",
+                    "{\"result\":\"ok\",\"accepted\":false,\"state\":\"ERROR\","
+                            + "\"error_code\":\"DR_RECOVERY_FAILED\"}");
+        });
+
+        DrAdapterResult result = adapter.execute(new DrExecutionContext(plan, run));
+
+        Assert.assertFalse(result.isSuccess());
+        Assert.assertTrue(result.isTerminal());
+        Assert.assertEquals("DR_RECOVERY_FAILED", result.getErrorCode());
+    }
+
+    @Test
     public void crossSiteKvmSyncDispatchesToRemoteSourceAndPreparesTargetWorker() throws Exception {
         DrPlanVO plan = new DrPlanVO("cross-site-kvm-plan", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
         plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
