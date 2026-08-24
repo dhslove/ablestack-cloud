@@ -39,6 +39,9 @@ import com.cloud.host.HostVO;
 import com.cloud.host.Status;
 import com.cloud.host.dao.HostDao;
 import com.cloud.utils.component.ManagerBase;
+import com.cloud.vm.UserVmVO;
+import com.cloud.vm.dao.UserVmDao;
+import com.cloud.vm.dao.VMInstanceDetailsDao;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
@@ -53,15 +56,26 @@ public class DrSourceHardwareInventoryServiceImpl extends ManagerBase implements
     private HostDao hostDao;
     @Inject
     private DrMoldInventoryClient drMoldInventoryClient;
+    @Inject
+    private UserVmDao userVmDao;
+    @Inject
+    private VMInstanceDetailsDao vmInstanceDetailsDao;
 
     @Override
     public DrSourceVmHardware resolve(DrPlanVO plan) {
         if (plan == null) {
             return null;
         }
-        if (StringUtils.equalsIgnoreCase(plan.getDirection(), DrConstants.DIRECTION_KVM_TO_KVM)
-                && plan.getSourceVmId() == null && StringUtils.isNotBlank(plan.getSourceExternalRef())) {
-            return resolveRemoteMoldSource(plan);
+        if (StringUtils.equalsIgnoreCase(plan.getDirection(), DrConstants.DIRECTION_KVM_TO_KVM)) {
+            if (plan.getSourceVmId() != null) {
+                return resolveLocalKvmSource(plan);
+            }
+            if (StringUtils.isNotBlank(plan.getSourceExternalRef())) {
+                return resolveRemoteMoldSource(plan);
+            }
+            return DrSourceVmHardware.unavailable(null,
+                    DrPlanReadinessValidator.REASON_SOURCE_HARDWARE_INVENTORY_REQUIRED,
+                    "ABLESTACK source VM reference is required");
         }
         if (!StringUtils.startsWithIgnoreCase(plan.getDirection(), "VMWARE_")) {
             return null;
@@ -101,8 +115,14 @@ public class DrSourceHardwareInventoryServiceImpl extends ManagerBase implements
             hardware.setSourceHostUuid(values.get("sourceHostUuid"));
             hardware.setSourceHostName(values.get("sourceHostName"));
             hardware.setInstanceName(values.get("instanceName"));
-            hardware.setFirmware(firstNonBlank(values.get("uefi"), values.get("bootType"), values.get("bootMode"), "LEGACY"));
-            hardware.setSecureBootEnabled(parseBoolean(values.get("secureBoot"), false));
+            String bootType = normalizeBootType(values.get("bootType"), values.get("uefi"));
+            if (bootType == null) {
+                return DrSourceVmHardware.unavailable(plan.getSourceExternalRef(),
+                        DrPlanReadinessValidator.REASON_SOURCE_HARDWARE_INVENTORY_REQUIRED,
+                        "ABLESTACK source boot type could not be determined");
+            }
+            hardware.setFirmware(bootType);
+            hardware.setSecureBootEnabled(resolveSecureBoot(values.get("secureBoot"), values.get("bootMode"), values.get("uefi")));
             hardware.setGuestId(firstNonBlank(values.get("guestOsName"), values.get("guestOsId")));
             hardware.setCpuCount(parseInteger(values.get("cpuCount")));
             hardware.setMemoryMiB(parseLong(values.get("memoryMiB")));
@@ -120,6 +140,30 @@ public class DrSourceHardwareInventoryServiceImpl extends ManagerBase implements
         }
     }
 
+    private DrSourceVmHardware resolveLocalKvmSource(DrPlanVO plan) {
+        UserVmVO vm = userVmDao != null ? userVmDao.findById(plan.getSourceVmId()) : null;
+        if (vm == null || vm.getRemoved() != null) {
+            return DrSourceVmHardware.unavailable(plan.getSourceExternalRef(), DrConstants.ERROR_SITE_NOT_FOUND,
+                    "ABLESTACK source VM was not found");
+        }
+        Map<String, String> details = vmInstanceDetailsDao != null
+                ? vmInstanceDetailsDao.listDetailsKeyPairs(vm.getId()) : null;
+        String uefiBootMode = details != null ? firstNonBlank(details.get("UEFI"), details.get("uefi")) : null;
+        DrSourceVmHardware hardware = new DrSourceVmHardware();
+        hardware.setSourceVmRef(StringUtils.defaultIfBlank(plan.getSourceExternalRef(), vm.getUuid()));
+        hardware.setInstanceName(vm.getInstanceName());
+        HostVO host = vm.getHostId() != null && hostDao != null ? hostDao.findById(vm.getHostId()) : null;
+        if (host != null) {
+            hardware.setSourceHostUuid(host.getUuid());
+            hardware.setSourceHostName(host.getName());
+        }
+        hardware.setFirmware(StringUtils.isNotBlank(uefiBootMode) ? "UEFI" : "BIOS");
+        hardware.setSecureBootEnabled(StringUtils.equalsIgnoreCase(uefiBootMode, "SECURE"));
+        hardware.setInventorySource("LOCAL_MOLD_VM_DETAILS");
+        hardware.seal();
+        return hardware;
+    }
+
     private String firstNonBlank(String... values) {
         for (String value : values) {
             if (StringUtils.isNotBlank(value)) {
@@ -131,6 +175,26 @@ public class DrSourceHardwareInventoryServiceImpl extends ManagerBase implements
 
     private Boolean parseBoolean(String value, boolean fallback) {
         return StringUtils.isBlank(value) ? fallback : Boolean.valueOf(value);
+    }
+
+    private String normalizeBootType(String bootType, String uefiBootMode) {
+        if (StringUtils.isNotBlank(uefiBootMode)) {
+            return "UEFI";
+        }
+        if (StringUtils.equalsAnyIgnoreCase(bootType, "UEFI", "EFI")) {
+            return "UEFI";
+        }
+        if (StringUtils.equalsIgnoreCase(bootType, "BIOS")) {
+            return "BIOS";
+        }
+        return null;
+    }
+
+    private Boolean resolveSecureBoot(String secureBoot, String bootMode, String uefiBootMode) {
+        if (StringUtils.isNotBlank(secureBoot)) {
+            return parseBoolean(secureBoot, false);
+        }
+        return StringUtils.equalsAnyIgnoreCase(firstNonBlank(bootMode, uefiBootMode), "SECURE", "SECURE_BOOT");
     }
 
     private Integer parseInteger(String value) {

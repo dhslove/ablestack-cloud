@@ -156,7 +156,7 @@ public class DrRunExecutorImplTest {
         Mockito.when(drRunDao.findById(run.getId())).thenReturn(run);
         Mockito.when(drPlanDao.findById(plan.getId())).thenReturn(plan, refreshed);
         Mockito.when(drTargetMaterializationService.prepareSyncTarget(plan.getId(), run.getId())).thenReturn(true);
-        Mockito.when(drProtectionOrchestrator.prepareSyncRun(refreshed, run)).thenReturn(refreshed);
+        Mockito.when(drProtectionOrchestrator.prepareSyncRun(plan, run)).thenReturn(plan);
         Mockito.when(drAdapterRegistry.getReplicationEngine(DrConstants.ENGINE_TYPE_FTCTL_DR,
                 DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR)).thenReturn(replicationEngine);
         Mockito.when(replicationEngine.validatePlan(refreshed)).thenReturn(DrAdapterResult.success("valid", null));
@@ -165,8 +165,11 @@ public class DrRunExecutorImplTest {
 
         executor.queueRun(run);
 
-        Mockito.verify(drTargetMaterializationService).prepareSyncTarget(plan.getId(), run.getId());
-        Mockito.verify(drProtectionOrchestrator).prepareSyncRun(refreshed, run);
+        org.mockito.InOrder preparationOrder = Mockito.inOrder(drProtectionOrchestrator, drTargetMaterializationService);
+        preparationOrder.verify(drProtectionOrchestrator).prepareSyncRun(plan, run);
+        preparationOrder.verify(drTargetMaterializationService).prepareSyncTarget(plan.getId(), run.getId());
+        Mockito.verify(replicationEngine).validatePlan(refreshed);
+        Mockito.verify(replicationEngine).execute(Mockito.argThat(context -> context.getPlan() == refreshed));
         Assert.assertEquals(DrConstants.RUN_STATE_ACCEPTED, run.getState());
     }
 

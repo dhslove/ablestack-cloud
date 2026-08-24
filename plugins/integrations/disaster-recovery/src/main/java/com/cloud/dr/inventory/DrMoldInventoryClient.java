@@ -182,6 +182,10 @@ public class DrMoldInventoryClient {
 
     public Map<String, String> getVirtualMachineHardware(DrResolvedSiteCredential credential, String vmRef) {
         JsonObject vm = getVirtualMachine(credential, vmRef, "all");
+        return extractVirtualMachineHardware(vm);
+    }
+
+    Map<String, String> extractVirtualMachineHardware(JsonObject vm) {
         JsonObject details = getObjectIgnoreCase(vm, "details");
         Map<String, String> hardware = new LinkedHashMap<String, String>();
         putIfNotBlank(hardware, "cpuCount", firstString(vm, "cpunumber"));
@@ -191,11 +195,16 @@ public class DrMoldInventoryClient {
         putIfNotBlank(hardware, "guestOsName", firstString(vm, "osdisplayname"));
         putIfNotBlank(hardware, "serviceOfferingId", firstString(vm, "serviceofferingid"));
         putIfNotBlank(hardware, "serviceOfferingName", firstString(vm, "serviceofferingname"));
-        putIfNotBlank(hardware, "firmware", firstString(vm, "boottype", "bootmode"));
-        putIfNotBlank(hardware, "bootType", firstString(vm, "boottype"));
-        putIfNotBlank(hardware, "bootMode", firstString(vm, "bootmode"));
-        putIfNotBlank(hardware, "secureBoot", firstString(details, "secureboot", "secureBoot"));
-        putIfNotBlank(hardware, "uefi", firstString(details, "UEFI", "uefi"));
+        String uefiBootMode = firstString(details, "UEFI", "uefi");
+        String bootType = StringUtils.isNotBlank(uefiBootMode) ? "UEFI" : firstString(vm, "boottype");
+        String bootMode = StringUtils.isNotBlank(uefiBootMode) ? uefiBootMode : firstString(vm, "bootmode");
+        String secureBoot = firstString(details, "secureboot", "secureBoot");
+        putIfNotBlank(hardware, "firmware", bootType);
+        putIfNotBlank(hardware, "bootType", bootType);
+        putIfNotBlank(hardware, "bootMode", bootMode);
+        putIfNotBlank(hardware, "secureBoot", StringUtils.defaultIfBlank(secureBoot,
+                String.valueOf(StringUtils.equalsIgnoreCase(bootMode, "SECURE"))));
+        putIfNotBlank(hardware, "uefi", uefiBootMode);
         putIfNotBlank(hardware, "tpmVersion", firstString(details, "tpmversion", "tpmVersion"));
         putIfNotBlank(hardware, "sourceHostUuid", firstString(vm, "hostid"));
         putIfNotBlank(hardware, "sourceHostName", firstString(vm, "hostname"));
@@ -418,12 +427,12 @@ public class DrMoldInventoryClient {
             putDetailIfNotBlank(option, "guestOsName", firstString(object, "osdisplayname"));
             putDetailIfNotBlank(option, "serviceOfferingId", firstString(object, "serviceofferingid"));
             putDetailIfNotBlank(option, "serviceOfferingName", firstString(object, "serviceofferingname"));
-            putDetailIfNotBlank(option, "bootType", firstString(object, "boottype"));
-            putDetailIfNotBlank(option, "bootMode", firstString(object, "bootmode"));
-            JsonObject vmDetails = getObjectIgnoreCase(object, "details");
-            putDetailIfNotBlank(option, "uefi", firstString(vmDetails, "UEFI", "uefi"));
-            putDetailIfNotBlank(option, "secureBoot", firstString(vmDetails, "secureboot", "secureBoot"));
-            putDetailIfNotBlank(option, "tpmVersion", firstString(vmDetails, "tpmversion", "tpmVersion"));
+            Map<String, String> hardware = extractVirtualMachineHardware(object);
+            putDetailIfNotBlank(option, "bootType", hardware.get("bootType"));
+            putDetailIfNotBlank(option, "bootMode", hardware.get("bootMode"));
+            putDetailIfNotBlank(option, "uefi", hardware.get("uefi"));
+            putDetailIfNotBlank(option, "secureBoot", hardware.get("secureBoot"));
+            putDetailIfNotBlank(option, "tpmVersion", hardware.get("tpmVersion"));
             putDetailIfNotBlank(option, "account", firstString(object, "account"));
             putDetailIfNotBlank(option, "domain", firstString(object, "domain"));
             options.add(option);

@@ -16,6 +16,8 @@
 // under the License.
 package com.cloud.dr.inventory;
 
+import java.util.Map;
+
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -47,5 +49,30 @@ public class DrMoldInventoryClientTest {
 
         Assert.assertEquals("StatusAnswer", payload.get("answerclass").getAsString());
         Assert.assertEquals("{}", payload.get("answerjson").getAsString());
+    }
+
+    @Test
+    public void interpretsUefiDetailKeyAsBootTypeAndItsValueAsBootMode() {
+        JsonObject vm = JsonParser.parseString("{\"id\":\"vm-1\",\"details\":{\"UEFI\":\"LEGACY\"}}")
+                .getAsJsonObject();
+
+        Map<String, String> hardware = client.extractVirtualMachineHardware(vm);
+
+        Assert.assertEquals("UEFI", hardware.get("firmware"));
+        Assert.assertEquals("UEFI", hardware.get("bootType"));
+        Assert.assertEquals("LEGACY", hardware.get("bootMode"));
+        Assert.assertEquals("false", hardware.get("secureBoot"));
+    }
+
+    @Test
+    public void interpretsSecureUefiDetailWithoutChangingVmwareInventoryPath() {
+        JsonObject vm = JsonParser.parseString("{\"boottype\":\"BIOS\",\"details\":{\"UEFI\":\"SECURE\"}}")
+                .getAsJsonObject();
+
+        Map<String, String> hardware = client.extractVirtualMachineHardware(vm);
+
+        Assert.assertEquals("UEFI", hardware.get("bootType"));
+        Assert.assertEquals("SECURE", hardware.get("bootMode"));
+        Assert.assertEquals("true", hardware.get("secureBoot"));
     }
 }

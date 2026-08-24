@@ -679,3 +679,91 @@ power or Plan authority.
 | FTCTL | Local mover sees a malformed source and no destination export | Canonical RBD source plus typed site-agent exports |
 | DB | Run fails safely but only records a generic mover error | Run evidence identifies the RBD transport component and remains target-authoritative on failure |
 | VMware regression | Shared preparation could alter the validated route | New branch requires remote `KVM_TO_KVM`, `TARGET`, and `FAILBACK` |
+
+## 15. Source Firmware Authority And Target Boot Contract
+
+ABLESTACK stores KVM UEFI configuration as a VM detail whose key is `UEFI`
+and whose value is the boot mode (`LEGACY` or `SECURE`). The value `LEGACY`
+therefore means **UEFI without Secure Boot**; it never means BIOS. Remote Mold
+inventory and local Plan-owner inventory must preserve this two-dimensional
+contract as `bootType=UEFI` and `bootMode=LEGACY`.
+
+For `KVM_TO_KVM`, source hardware inventory follows these rules:
+
+1. a present `details.UEFI` key is authoritative for `bootType=UEFI`;
+2. its value is authoritative for `bootMode` and Secure Boot;
+3. explicit `boottype=BIOS` is accepted only when no `UEFI` detail exists;
+4. missing or unrecognized remote boot evidence blocks Plan readiness instead
+   of defaulting to BIOS;
+5. local and remote Plan owners use the same normalization rule;
+6. the resolved source hardware fingerprint and target boot fields are stored
+   before target materialization;
+7. the target VM is created stopped with the resolved UEFI/BIOS details, and
+   hardware verification must pass before its first production power-on.
+
+This rule is provider-scoped. VMware inventory continues to use the existing
+vCenter/govc firmware and Secure Boot evidence and is not routed through the
+ABLESTACK VM-detail normalizer.
+
+The 22-to-32 qualification VM demonstrated the regression signature: source
+Cloud detail `UEFI=LEGACY`, a persistent libvirt NVRAM file, and a GPT EFI
+System Partition were present, while the persisted DR mapping incorrectly
+contained `source.hardware.firmware=LEGACY` and the target was created with
+`bootType=BIOS`. The corrected interpretation is `UEFI / LEGACY`.
+
+### 15.1 AS-IS / TO-BE
+
+| Layer | AS-IS | TO-BE |
+| --- | --- | --- |
+| Inventory | `UEFI=LEGACY` is copied into the firmware field | UEFI key selects boot type; value selects boot mode |
+| Readiness | Unknown boot data silently defaults to BIOS | Unknown or conflicting evidence blocks materialization |
+| Target VM | EFI system disk may be attached to a BIOS VM | Target boot type and mode match the source contract |
+| Existing plan | Stale mapping can continue to create BIOS targets | Plan update/recreation refreshes the source fingerprint before rematerialization |
+| Regression | KVM fix can leak into VMware resolver behavior | KVM-only tests plus unchanged VMware contract suite |
+
+## 16. Remote KVM Initial Target Preparation Order
+
+For an `ABLESTACK -> ABLESTACK` Plan controlled by the target site, the source
+VM is represented by `source_external_ref` and the target Cloud owns creation
+of the replica VM and volumes. Initial synchronization uses this order:
+
+1. persist the Plan-owned `dr_replica` skeleton and one `dr_replica_disk`
+   ownership row per guided disk mapping;
+2. resolve target placement and materialize the Cloud-managed target volumes
+   and stopped VM from those ownership rows;
+3. persist generated target VM and volume references back to the Plan mapping
+   and replica rows;
+4. dispatch the FTCTL profile and synchronization command only after those
+   Cloud target references are durable.
+
+`DrTargetMaterializationService` must not run before
+`DrProtectionOrchestrator.prepareSyncRun()` for a remote KVM source. The
+materializer intentionally requires an existing replica ownership row;
+bypassing this boundary fails with `DR target materialization requires a
+prepared replica row` and must never be repaired by creating unowned resources.
+
+This ordering is scoped to target-controlled remote `KVM_TO_KVM` Plans.
+Existing VMware-to-KVM and local KVM paths remain unchanged. Regression tests
+verify the call order and that the refreshed post-materialization Plan reaches
+the FTCTL adapter.
+
+## 17. Final Checkpoint Commit Identity
+
+Cloud treats the FTCTL checkpoint returned after planned final synchronization
+as the immutable cutover identity. The checkpoint sequence and manifest placed
+in `dr_cutover_session` and `DR_CUTOVER_COMMIT_V2` must describe the same final
+durable record that FTCTL used for guest preparation and target activation.
+
+Cloud must not repair a mismatch by selecting an older restore point or by
+editing the session in DB. It keeps the Plan in `COMMIT_VERIFYING`, retries the
+same envelope, and relies on FTCTL to publish the canonical final checkpoint.
+After both source and target acknowledgements match, the existing transaction
+commits the Plan authority and clears transient cutover errors.
+
+| Layer | AS-IS | TO-BE |
+| --- | --- | --- |
+| FTCTL evidence | Final sequence can differ from selected restore-point sequence | One final reference is used by all post-sync stages |
+| Backend session | Correct final sequence is rejected by stale engine state | Session and engine validate the same immutable sequence |
+| UI | Target VM can be running while operation remains `COMMIT_VERIFYING` | Operation terminalizes only after matching commit evidence |
+| DB recovery | Manual state repair may appear tempting | Retry is idempotent; no direct DB repair is permitted |
+| Existing routes | Commit workaround could alter disaster or VMware behavior | Cloud contract is unchanged; FTCTL fix is final-sync scoped |

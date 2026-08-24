@@ -308,6 +308,10 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
         if (!isFtctlDrSyncRun(plan, run) || drProtectionOrchestrator == null) {
             return plan;
         }
+        DrPlanVO prepared = drProtectionOrchestrator.prepareSyncRun(plan, run);
+        if (prepared != null) {
+            plan = prepared;
+        }
         if (requiresPlanOwnedTargetPreparation(plan) && drTargetMaterializationService != null
                 && !drTargetMaterializationService.prepareSyncTarget(plan.getId(), run.getId())) {
             throw new IllegalStateException("Plan owner could not prepare the DR target VM and volumes before sync");
@@ -316,8 +320,7 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
         if (refreshed != null) {
             plan = refreshed;
         }
-        DrPlanVO prepared = drProtectionOrchestrator.prepareSyncRun(plan, run);
-        return prepared != null ? prepared : plan;
+        return plan;
     }
 
     private boolean requiresPlanOwnedTargetPreparation(DrPlanVO plan) {
