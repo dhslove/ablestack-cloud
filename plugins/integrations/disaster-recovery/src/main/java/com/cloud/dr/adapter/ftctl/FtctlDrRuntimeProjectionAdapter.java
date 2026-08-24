@@ -561,7 +561,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                 && (StringUtils.equalsAnyIgnoreCase(engineProtectionState, "ERROR", "FAILED")
                 || StringUtils.equalsAnyIgnoreCase(cycleState, "ERROR", "FAILED")
                 || StringUtils.equalsAnyIgnoreCase(schedulerHealth, "DEAD", "OWNER_MISMATCH", "DUPLICATE_WORKER"));
-        boolean reseeding = StringUtils.equalsAnyIgnoreCase(cycleMode, "FULL_RESEED", "full-reseed")
+        boolean reseeding = isFullSeedMode(cycleMode)
                 && !StringUtils.equalsAnyIgnoreCase(cycleState, "COMPLETED", "READY");
         long heartbeatAge = workerHeartbeatAt != null
                 ? Math.max(0L, (now.getTime() - workerHeartbeatAt.getTime()) / 1000L) : Long.MAX_VALUE;
@@ -1052,7 +1052,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
     void bindAcceptedCycleIfEligible(DrRunVO run, DrSyncCycleVO cycle) {
         if (run == null || cycle == null || run.getAcceptedCycleSequence() != null
                 || !isFullReseedRun(run)
-                || !StringUtils.equalsIgnoreCase(cycle.getRequestedMode(), "FULL_RESEED")) {
+                || !isFullSeedMode(cycle.getRequestedMode())) {
             return;
         }
         boolean runOwned = cycle.getRunId() != null && cycle.getRunId() == run.getId();
@@ -1083,6 +1083,9 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         DrSyncCycleVO cycle = run.getAcceptedCycleSequence() != null
                 ? drSyncCycleDao.findByPlanSequence(run.getPlanId(), run.getAcceptedCycleSequence())
                 : drSyncCycleDao.findLatestCompletedByRunIdAndRequestedMode(run.getId(), "FULL_RESEED");
+        if (cycle == null && run.getAcceptedCycleSequence() == null) {
+            cycle = drSyncCycleDao.findLatestCompletedByRunIdAndRequestedMode(run.getId(), "FULL_SEED");
+        }
         if (cycle != null && run.getAcceptedCycleSequence() == null) {
             bindAcceptedCycleIfEligible(run, cycle);
         }
@@ -1105,7 +1108,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         if (!StringUtils.equals(run.getUuid(), controlRequestRunUuid)
                 || (!terminalAuthoritative && !runOwnedDurableCycle)
                 || cycle == null || cycle.getCompleted() == null
-                || !StringUtils.equalsIgnoreCase(cycle.getRequestedMode(), "FULL_RESEED")
+                || !isFullSeedMode(cycle.getRequestedMode())
                 || !StringUtils.equalsAnyIgnoreCase(cycle.getState(), "READY", "COMPLETED", "TARGET_READY")
                 || !StringUtils.equalsAnyIgnoreCase(cycle.getCommitState(), "LOCAL_DURABLE", "COMMITTED", "DURABLE")) {
             return false;
@@ -2364,12 +2367,12 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         Long sequence = status.getTransferCycleSequence() != null ? status.getTransferCycleSequence()
                 : longValue(runtime, "transfer_cycle_sequence");
         String mode = StringUtils.defaultIfBlank(status.getTransferMode(), stringValue(runtime, "transfer_mode"));
-        if (sequence == null || !StringUtils.equalsIgnoreCase(mode, "FULL_RESEED")) {
+        if (sequence == null || !isFullSeedMode(mode)) {
             return;
         }
         DrSyncCycleVO cycle = drSyncCycleDao.findByPlanSequence(plan.getId(), sequence);
         String expectedToken = plan.getUuid() + ":" + sequence;
-        if (cycle == null || !StringUtils.equalsIgnoreCase(cycle.getRequestedMode(), "FULL_RESEED")
+        if (cycle == null || !isFullSeedMode(cycle.getRequestedMode())
                 || !StringUtils.equals(expectedToken, cycle.getCycleToken())) {
             return;
         }
@@ -2432,6 +2435,12 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
     private boolean isProjectableRunState(DrRunVO run) {
         return StringUtils.equalsAny(run.getState(),
                 DrConstants.RUN_STATE_ACCEPTED, DrConstants.RUN_STATE_RUNNING, DrConstants.RUN_STATE_RETRYING);
+    }
+
+    private boolean isFullSeedMode(String mode) {
+        String normalized = StringUtils.upperCase(StringUtils.trimToEmpty(mode), Locale.ROOT)
+                .replace('-', '_');
+        return StringUtils.equalsAny(normalized, "FULL_SEED", "FULL_RESEED");
     }
 
     private DrRunVO resolveProjectionRun(DrPlanVO plan) {

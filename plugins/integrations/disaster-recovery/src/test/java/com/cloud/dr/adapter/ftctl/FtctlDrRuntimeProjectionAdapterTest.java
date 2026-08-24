@@ -2168,8 +2168,8 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         DrSyncCycleVO acceptedCycle = new DrSyncCycleVO(41L, "scheduler-full-seed", 1140L);
         acceptedCycle.setRunId(147L);
         acceptedCycle.setCycleToken(plan.getUuid() + ":1140");
-        acceptedCycle.setRequestedMode("FULL_RESEED");
-        acceptedCycle.setEffectiveMode("FULL_RESEED");
+        acceptedCycle.setRequestedMode("FULL_SEED");
+        acceptedCycle.setEffectiveMode("FULL_SEED");
         acceptedCycle.setState("READY");
         acceptedCycle.setCommitState("LOCAL_DURABLE");
         acceptedCycle.setCompleted(new Date());
@@ -2211,8 +2211,8 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         DrSyncCycleVO acceptedCycle = new DrSyncCycleVO(42L, "scheduler-full-seed", 1141L);
         acceptedCycle.setRunId(run.getId());
         acceptedCycle.setCycleToken(plan.getUuid() + ":1141");
-        acceptedCycle.setRequestedMode("FULL_RESEED");
-        acceptedCycle.setEffectiveMode("FULL_RESEED");
+        acceptedCycle.setRequestedMode("FULL_SEED");
+        acceptedCycle.setEffectiveMode("FULL_SEED");
         acceptedCycle.setState("READY");
         acceptedCycle.setCommitState("LOCAL_DURABLE");
         acceptedCycle.setCompleted(new Date());

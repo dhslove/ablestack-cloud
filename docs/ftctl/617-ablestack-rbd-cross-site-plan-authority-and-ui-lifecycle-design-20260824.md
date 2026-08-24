@@ -375,6 +375,33 @@ This ordering applies only to the Plan Owner controlled
 `KVM_TO_KVM/site-agent-nbd` provider pair. The validated
 VMware-to-ABLESTACK path does not enter this branch.
 
+### 7.6 Full-seed mode normalization and terminal Run convergence
+
+The UI and Cloud action contract use `FULL_RESEED`, while the canonical FTCTL
+Cycle persists the engine mode as `FULL_SEED`. These are equivalent full-seed
+values. Cloud must normalize both spellings, including their hyphenated wire
+forms, before binding an accepted Cycle or deciding whether a durable Cycle
+satisfies a Full Resync Run.
+
+A Full Resync Run may reach the following valid recovery state after a service
+restart or a later scheduler Cycle:
+
+- the Run request is `FULL_RESEED` and remains `ACCEPTED`;
+- its immutable `accepted_cycle_sequence` and `accepted_cycle_token` identify
+  the initiating Cycle;
+- that Cycle is owned by the Run, is `READY`, is `LOCAL_DURABLE`, and is stored
+  with `requested_mode=FULL_SEED`;
+- the target VM, storage, network, and restore point are present;
+- the current scheduler has already advanced to a later incremental Cycle.
+
+This state must converge to `SUCCEEDED` without rewriting the Cycle, starting
+a new transfer, or repairing the database manually. A stale `completed` value
+on a non-terminal Run is cleared first, then the same projection pass evaluates
+the normalized canonical Cycle and target readiness. The regression test must
+use the production combination `Run=FULL_RESEED`, `Cycle=FULL_SEED`, and a
+non-authoritative operation status so the test cannot pass only because both
+fixtures use the same spelling.
+
 ## 8. AS-IS / TO-BE
 
 | Area | AS-IS | TO-BE |
@@ -386,6 +413,7 @@ VMware-to-ABLESTACK path does not enter this branch.
 | KVM inventory | VM summary only; disks and hardware absent | complete VM, RBD disk, NIC, and hardware inventory by UUID |
 | Target placement | Plan Owner local DAOs used for every KVM target | selected target site's Mold inventory and lifecycle APIs |
 | KVM replication | lowercase scheduled `incremental` can fall through to repeated `qemu-img convert` full seed | normalized cycle mode selects remote-NBD RBD diff when the baseline is committed |
+| Full-seed terminal projection | Run uses `FULL_RESEED` while its durable canonical Cycle uses `FULL_SEED`, leaving the Run `ACCEPTED` | normalize both values before Cycle binding and terminal satisfaction; durable target evidence converges the Run to `SUCCEEDED` |
 | Target readiness | pre-created VM makes the missing-reference trigger false, leaving `SKELETON_READY` after durable data | durable reconciliation stores the materialization digest and converges the existing replica to `READY` without rewriting terminal Run history |
 | Recovery result | `result=ok` from a status query can hide `state=ERROR` and terminate `RECOVER_SYNC` as successful | Agent and Plan Owner require accepted state, no error code, and a non-error operation state |
 | NBD recovery | scheduler calls an undefined mover resolver and returns an untyped recovery failure | installed recovery tool is resolved explicitly; stage and original RC are preserved |
