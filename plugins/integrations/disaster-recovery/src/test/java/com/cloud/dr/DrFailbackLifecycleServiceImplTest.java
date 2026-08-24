@@ -125,7 +125,7 @@ public class DrFailbackLifecycleServiceImplTest {
 
     @Test
     public void remoteKvmFailbackDrainsOriginalSiteExportBeforeSourceStart() {
-        plan.setDirection(DrConstants.DIRECTION_KVM_TO_KVM);
+        plan = new DrPlanVO("failback-plan", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
         plan.setSourceExternalRef("remote-source-vm");
         plan.setActiveSide("TARGET");
         Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
@@ -143,8 +143,9 @@ public class DrFailbackLifecycleServiceImplTest {
         service.stopReversePlanOwnedExport(plan, run);
 
         Mockito.verify(drRemoteAgentClient).execute(Mockito.eq(plan), Mockito.eq("ACTION"),
-                Mockito.argThat(command -> command.getAction() == FtctlDrActionCommand.Action.TARGET_EXPORT_STOP
-                        && "reverse-target".equals(command.getRole())),
+                Mockito.argThat(command -> command instanceof FtctlDrActionCommand
+                        && ((FtctlDrActionCommand) command).getAction() == FtctlDrActionCommand.Action.TARGET_EXPORT_STOP
+                        && "reverse-target".equals(((FtctlDrActionCommand) command).getRole())),
                 Mockito.eq("source-host-uuid"), Mockito.eq(FtctlDrActionAnswer.class));
     }
 
