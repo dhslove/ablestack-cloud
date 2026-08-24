@@ -469,3 +469,56 @@ stop the target export, and only then dispatch target promotion.
 | Actual failover | Has the same cross-host metadata gap | Reuses the same immutable envelope contract |
 | VMware regression | Shared fallback could alter a validated path | No fallback outside remote `KVM_TO_KVM` |
 | Scheduler authority | Target test action may resume a duplicate scheduler | Test action leaves the remote source scheduler authoritative |
+
+## 10. Plan-Owner Production Failover Transaction
+
+For a remote `KVM_TO_KVM` source, the Cloud that stores the Plan owns the
+production cutover transaction even when it is the target site. The source
+site remains a credentialed execution endpoint; it does not become a second
+Plan authority.
+
+When target FTCTL reports `CUTOVER_READY`, the Plan Owner executes the
+following ordered barrier for planned failover:
+
+1. send a typed `PAUSE_SYNC` command through the source site's narrow Agent
+   broker and require a semantically successful answer;
+2. stop the source VM through the registered source Mold API and poll until it
+   is `POWERED_OFF`;
+3. persist `sourceFenceState=VERIFIED` and
+   `sourcePowerState=POWERED_OFF` in the cutover session;
+4. start the existing target replica through local Cloud VM lifecycle APIs and
+   validate its configured boot policy;
+5. submit `DR_CUTOVER_COMMIT_V2` to target FTCTL with the exact checkpoint,
+   manifest, target identity, fence, power, and boot evidence;
+6. switch `dr_plan.active_side` to `TARGET` only after the engine acknowledges
+   the same envelope.
+
+If source quiesce or source power-off fails, target power-on is forbidden. The
+Plan remains source-authoritative and the Plan Owner best-effort resumes the
+source scheduler. Disaster mode does not call an unreachable source; it uses
+the existing explicit isolation acknowledgement and reason, while preserving
+the same target-power and engine-commit gates.
+
+This transaction is not used by test failover. It is also excluded from the
+validated `VMWARE_TO_KVM` branch, which keeps its vCenter isolation logic.
+
+### 10.1 API, Backend, Agent, FTCTL, DB, UI contract
+
+| Layer | Contract |
+| --- | --- |
+| UI/API | Planned/disaster intent is asynchronous; UI never talks to either host directly |
+| Backend | Plan Owner coordinates source quiesce, source VM power, target VM power, and commit in order |
+| Remote Agent | Accepts only the typed source `PAUSE_SYNC` command for the selected source worker |
+| FTCTL | Target publishes `CUTOVER_READY`; final authority requires the V2 commit envelope |
+| DB | Cutover session stores fence/power/manifest/target identity before authority changes |
+| UI projection | Shows preparing/commit-verifying until DB and FTCTL both agree on `FAILED_OVER/TARGET` |
+
+### 10.2 AS-IS / TO-BE
+
+| Area | AS-IS | TO-BE |
+| --- | --- | --- |
+| Remote source isolation | Only VMware planned failover is actively powered off | Remote KVM scheduler is paused and source VM is stopped through source Mold |
+| Target activation | KVM engine may claim promotion while Cloud VM is off | Cloud starts and validates the existing replica before commit |
+| Failure handling | Partial source quiesce can be left implicit | Target remains off; source scheduler resume is attempted and error is typed |
+| Authority evidence | Runtime state alone can move active side | Cutover session and typed FTCTL commit must match atomically |
+| Existing success path | Shared projection code risks VMware regression | New branch requires remote `KVM_TO_KVM`; VMware behavior is unchanged |

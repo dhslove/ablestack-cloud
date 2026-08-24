@@ -33,6 +33,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.cloud.agent.AgentManager;
 import com.cloud.agent.api.Answer;
+import com.cloud.agent.api.FtctlDrActionAnswer;
 import com.cloud.agent.api.FtctlDrActionCommand;
 import com.cloud.agent.api.FtctlDrCycleSnapshot;
 import com.cloud.agent.api.FtctlDrStatusAnswer;
@@ -129,6 +130,8 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     private UserVmDao userVmDao;
     @Mock
     private VolumeDao volumeDao;
+    @Mock
+    private DrRemoteAgentClient drRemoteAgentClient;
 
     @InjectMocks
     private FtctlDrRuntimeProjectionAdapter adapter;
@@ -1120,6 +1123,84 @@ public class FtctlDrRuntimeProjectionAdapterTest {
                 drTargetMaterializationService, agentManager);
         cutoverOrder.verify(drVmwareInventoryClient).ensureVirtualMachinePowerState(
                 sourceCredential, plan.getSourceExternalRef(), false);
+        cutoverOrder.verify(drTargetMaterializationService).ensureTargetPoweredOn(plan.getId());
+        cutoverOrder.verify(agentManager).easySend(Mockito.eq(103L), Mockito.any(FtctlDrActionCommand.class));
+    }
+
+    @Test
+    public void remoteKvmFailoverQuiescesAndPowersOffSourceBeforeTargetCommit() {
+        DrPlanVO plan = new DrPlanVO("remote-kvm-cutover", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
+        plan.setState(DrConstants.PLAN_STATE_READY);
+        plan.setActiveSide(DrConstants.AUTHORITY_SIDE_SOURCE);
+        plan.setCoordinatorWorkerHostId(103L);
+        plan.setSourceExternalRef("source-vm-uuid");
+        plan.setMappingJson("{\"source\":{\"hardware\":{\"sourceHostUuid\":\"source-worker-uuid\"}}}");
+        DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_FAILOVER);
+        run.setState(DrConstants.RUN_STATE_ACCEPTED);
+        DrCutoverSessionVO session = new DrCutoverSessionVO(plan.getId(), run.getId(),
+                run.getRunType(), "CUTOVER_READY");
+        String manifestSha256 = String.join("", Collections.nCopies(64, "c"));
+        String engineSessionId = plan.getUuid() + ":" + run.getUuid();
+        String statusJson = "{\"state\":\"CUTOVER_READY\",\"active_side\":\"SOURCE\","
+                + "\"failover_session_id\":\"" + engineSessionId + "\","
+                + "\"failover_restore_point_sequence\":12,\"manifest_sha256\":\""
+                + manifestSha256 + "\",\"target_vm_id\":283,"
+                + "\"target_external_ref\":\"target-vm-uuid\",\"failover_mode\":\"planned\"}";
+
+        Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        Mockito.when(drRemoteAgentClient.transitionSourceScheduler(Mockito.eq(plan),
+                Mockito.eq(FtctlDrActionCommand.Action.PAUSE_SYNC), Mockito.eq(run.getUuid())))
+                .thenAnswer(invocation -> {
+                    FtctlDrActionCommand command = new FtctlDrActionCommand(
+                            FtctlDrActionCommand.Action.PAUSE_SYNC, plan.getUuid(), run.getUuid());
+                    return new FtctlDrActionAnswer(command, true, "paused");
+                });
+        Mockito.when(drRemoteAgentClient.ensureSourceVmPowerState(plan, false)).thenReturn("POWERED_OFF");
+        Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("STATUS"),
+                Mockito.any(FtctlDrStatusCommand.class), Mockito.eq("source-worker-uuid"),
+                Mockito.eq(FtctlDrStatusAnswer.class)))
+                .thenAnswer(invocation -> {
+                    FtctlDrStatusCommand command = invocation.getArgument(2);
+                    return new FtctlDrStatusAnswer(command, true, "ok", plan.getUuid(), run.getUuid(),
+                            "ok", "CUTOVER_READY", "cutover-ready", 100,
+                            "2026-08-24T00:04:57Z", "2026-08-24T00:05:00Z", 3,
+                            12L, null, 0, "", statusJson);
+                });
+        Mockito.when(agentManager.easySend(Mockito.eq(103L), Mockito.any(FtctlDrStatusCommand.class)))
+                .thenAnswer(invocation -> {
+                    FtctlDrStatusCommand command = invocation.getArgument(1);
+                    return new FtctlDrStatusAnswer(command, true, "ok", plan.getUuid(), run.getUuid(),
+                            "ok", "CUTOVER_READY", "cutover-ready", 100,
+                            "2026-08-24T00:04:57Z", "2026-08-24T00:05:00Z", 3,
+                            12L, null, 0, "", statusJson);
+                });
+        Mockito.when(agentManager.easySend(Mockito.eq(103L), Mockito.any(FtctlDrActionCommand.class)))
+                .thenAnswer(invocation -> new Answer(invocation.getArgument(1), true, "acknowledged"));
+        Mockito.when(drRunDao.findActiveByPlanId(plan.getId())).thenReturn(run);
+        Mockito.when(drCutoverSessionDao.findActiveByRunId(run.getId())).thenReturn(session);
+        Mockito.when(drTargetMaterializationService.ensureTargetPoweredOn(plan.getId()))
+                .thenReturn(new DrTargetPowerOnResult(283L, "target-vm-uuid", "POWERED_ON",
+                        "POWER_STATE_VALIDATED", new Date(), new Date(), false));
+
+        DrAdapterResult result = adapter.refreshPlanProjection(plan);
+
+        Assert.assertTrue(result.getErrorCode() + ": " + result.getMessage(), result.isSuccess());
+        Assert.assertEquals(DrConstants.PLAN_STATE_FAILED_OVER, plan.getState());
+        Assert.assertEquals(DrConstants.AUTHORITY_SIDE_TARGET, plan.getActiveSide());
+        Assert.assertEquals(Long.valueOf(12L), session.getCheckpointSequence());
+        Assert.assertEquals("VERIFIED", session.getSourceFenceState());
+        Assert.assertEquals("POWERED_OFF", session.getSourcePowerState());
+        Assert.assertEquals("ACKNOWLEDGED", session.getEngineAckState());
+        Mockito.verify(drRemoteAgentClient).transitionSourceScheduler(plan,
+                FtctlDrActionCommand.Action.PAUSE_SYNC, run.getUuid());
+
+        org.mockito.InOrder cutoverOrder = Mockito.inOrder(drRemoteAgentClient,
+                drTargetMaterializationService, agentManager);
+        cutoverOrder.verify(drRemoteAgentClient).transitionSourceScheduler(plan,
+                FtctlDrActionCommand.Action.PAUSE_SYNC, run.getUuid());
+        cutoverOrder.verify(drRemoteAgentClient).ensureSourceVmPowerState(plan, false);
         cutoverOrder.verify(drTargetMaterializationService).ensureTargetPoweredOn(plan.getId());
         cutoverOrder.verify(agentManager).easySend(Mockito.eq(103L), Mockito.any(FtctlDrActionCommand.class));
     }

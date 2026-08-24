@@ -36,6 +36,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.cloud.agent.AgentManager;
 import com.cloud.agent.api.Answer;
+import com.cloud.agent.api.FtctlDrActionAnswer;
 import com.cloud.agent.api.FtctlDrActionCommand;
 import com.cloud.agent.api.FtctlDrCycleSnapshot;
 import com.cloud.agent.api.FtctlDrStatusAnswer;
@@ -1270,9 +1271,9 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         String planState = toPlanState(StringUtils.defaultIfBlank(runtimeProtectionState, status.getState()));
         if (isCutoverReadyRuntime(plan, status, runtime)) {
             try {
-                ensurePlannedVmwareSourceIsolation(plan, cutoverSession, runtime);
+                ensurePlannedSourceIsolation(plan, projectionRun, cutoverSession, runtime);
             } catch (RuntimeException e) {
-                LOGGER.warn("Unable to isolate VMware source before DR cutover for plan {}",
+                LOGGER.warn("Unable to isolate source before DR cutover for plan {}",
                         plan.getUuid(), e);
                 plan.setState(DrConstants.PLAN_STATE_COMMIT_VERIFYING);
                 plan.setActiveSide(DrConstants.AUTHORITY_SIDE_SOURCE);
@@ -1400,10 +1401,9 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         reconcileAcceptedRunFromStatus(plan, status, runtime);
     }
 
-    private void ensurePlannedVmwareSourceIsolation(DrPlanVO plan, DrCutoverSessionVO session,
-            JsonObject runtime) {
+    private void ensurePlannedSourceIsolation(DrPlanVO plan, DrRunVO run,
+            DrCutoverSessionVO session, JsonObject runtime) {
         if (plan == null || session == null
-                || !StringUtils.equalsIgnoreCase(plan.getDirection(), DrConstants.DIRECTION_VMWARE_TO_KVM)
                 || !StringUtils.equalsIgnoreCase(stringValue(runtime, "failover_mode"), "planned")) {
             return;
         }
@@ -1411,22 +1411,38 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                 && StringUtils.equalsIgnoreCase(session.getSourcePowerState(), "POWERED_OFF")) {
             return;
         }
-        DrSiteVO sourceSite = drSiteDao.findById(plan.getSourceSiteId());
-        if (sourceSite == null
-                || (!StringUtils.equalsIgnoreCase(sourceSite.getHypervisorType(), DrConstants.HYPERVISOR_TYPE_VMWARE)
-                        && !StringUtils.equalsIgnoreCase(sourceSite.getSiteType(), "VMWARE_DIRECT"))) {
-            throw new IllegalStateException("Planned VMware failover requires a registered VMware source site");
-        }
         if (StringUtils.isBlank(plan.getSourceExternalRef())) {
-            throw new IllegalStateException("Planned VMware failover source VM reference is missing");
+            throw new IllegalStateException("Planned failover source VM reference is missing");
         }
         String sourcePowerState;
-        try (DrResolvedSiteCredential credential = drSiteCredentialService.resolveCredential(sourceSite)) {
-            sourcePowerState = drVmwareInventoryClient.ensureVirtualMachinePowerState(
-                    credential, plan.getSourceExternalRef(), false);
+        if (isRemoteKvmToKvmPlan(plan)) {
+            FtctlDrActionAnswer pauseAnswer = drRemoteAgentClient.transitionSourceScheduler(plan,
+                    FtctlDrActionCommand.Action.PAUSE_SYNC, run.getUuid());
+            if (pauseAnswer == null || !pauseAnswer.getResult()) {
+                throw new IllegalStateException(StringUtils.defaultIfBlank(
+                        pauseAnswer != null ? pauseAnswer.getDetails() : null,
+                        "Remote KVM source scheduler did not quiesce"));
+            }
+            try {
+                sourcePowerState = drRemoteAgentClient.ensureSourceVmPowerState(plan, false);
+            } catch (RuntimeException e) {
+                resumeRemoteKvmSourceAfterIsolationFailure(plan, run);
+                throw e;
+            }
+        } else {
+            DrSiteVO sourceSite = drSiteDao.findById(plan.getSourceSiteId());
+            if (sourceSite == null
+                    || (!StringUtils.equalsIgnoreCase(sourceSite.getHypervisorType(), DrConstants.HYPERVISOR_TYPE_VMWARE)
+                            && !StringUtils.equalsIgnoreCase(sourceSite.getSiteType(), "VMWARE_DIRECT"))) {
+                throw new IllegalStateException("Planned VMware failover requires a registered VMware source site");
+            }
+            try (DrResolvedSiteCredential credential = drSiteCredentialService.resolveCredential(sourceSite)) {
+                sourcePowerState = drVmwareInventoryClient.ensureVirtualMachinePowerState(
+                        credential, plan.getSourceExternalRef(), false);
+            }
         }
         if (!StringUtils.equalsIgnoreCase(sourcePowerState, "POWERED_OFF")) {
-            throw new IllegalStateException("VMware source VM did not reach POWERED_OFF before target promotion");
+            throw new IllegalStateException("Source VM did not reach POWERED_OFF before target promotion");
         }
         session.setSourceFenceState("VERIFIED");
         session.setSourcePowerState("POWERED_OFF");
@@ -1434,6 +1450,16 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         drCutoverSessionDao.update(session.getId(), session);
         runtime.addProperty("source_fence_state", "VERIFIED");
         runtime.addProperty("source_power_state", "POWERED_OFF");
+    }
+
+    private void resumeRemoteKvmSourceAfterIsolationFailure(DrPlanVO plan, DrRunVO run) {
+        try {
+            drRemoteAgentClient.transitionSourceScheduler(plan,
+                    FtctlDrActionCommand.Action.RESUME_SYNC, run.getUuid());
+        } catch (RuntimeException resumeError) {
+            LOGGER.error("Unable to resume remote KVM source scheduler after failed isolation for plan {}",
+                    plan.getUuid(), resumeError);
+        }
     }
 
     private boolean isCutoverReadyRuntime(DrPlanVO plan, FtctlDrStatusAnswer status, JsonObject runtime) {
@@ -1454,7 +1480,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             durableCheckpoint = longValue(runtime, "checkpoint_sequence");
         }
         Integer targetDiskCount = firstInteger(status.getTargetDiskCount(), integerValue(runtime, "target_disk_count"));
-        return StringUtils.equalsIgnoreCase(plan.getDirection(), "VMWARE_TO_KVM")
+        boolean vmwareCutoverReady = StringUtils.equalsIgnoreCase(plan.getDirection(), "VMWARE_TO_KVM")
                 && StringUtils.equals(state, "CUTOVER_READY")
                 && StringUtils.equalsIgnoreCase(guestPreparationState, "READY")
                 && StringUtils.equals(manifestSchema, "FTCTL_GUESTPREP_MANIFEST_V2")
@@ -1463,6 +1489,22 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                 && manifestCheckpoint != null
                 && (durableCheckpoint == null || manifestCheckpoint.equals(durableCheckpoint))
                 && targetDiskCount != null && targetDiskCount > 0;
+        if (vmwareCutoverReady) {
+            return true;
+        }
+        Long checkpointSequence = longValue(runtime, "failover_restore_point_sequence");
+        return isRemoteKvmToKvmPlan(plan)
+                && StringUtils.equals(state, "CUTOVER_READY")
+                && checkpointSequence != null && checkpointSequence > 0L
+                && StringUtils.length(manifestSha256) == 64
+                && manifestSha256.matches("[0-9a-fA-F]{64}")
+                && StringUtils.isNotBlank(stringValue(runtime, "target_external_ref"));
+    }
+
+    private boolean isRemoteKvmToKvmPlan(DrPlanVO plan) {
+        return plan != null && drRemoteAgentClient != null
+                && drRemoteAgentClient.isRemoteKvmSource(plan)
+                && StringUtils.equalsIgnoreCase(plan.getDirection(), DrConstants.DIRECTION_KVM_TO_KVM);
     }
 
     private DrCutoverSessionVO upsertCutoverSession(DrPlanVO plan, DrRunVO run, FtctlDrStatusAnswer status, JsonObject runtime) {
@@ -1484,6 +1526,9 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         }
         if (checkpointSequence == null) {
             checkpointSequence = status.getLatestCompletedCheckpointSequence();
+        }
+        if (checkpointSequence == null) {
+            checkpointSequence = longValue(runtime, "failover_restore_point_sequence");
         }
         session.setCheckpointSequence(checkpointSequence);
         session.setGuestOsFamily(status.getGuestFamily());

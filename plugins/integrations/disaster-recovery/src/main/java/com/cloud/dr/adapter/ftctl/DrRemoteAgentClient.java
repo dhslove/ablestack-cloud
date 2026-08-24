@@ -22,6 +22,8 @@ import org.apache.commons.lang3.StringUtils;
 
 import com.cloud.agent.api.Answer;
 import com.cloud.agent.api.Command;
+import com.cloud.agent.api.FtctlDrActionAnswer;
+import com.cloud.agent.api.FtctlDrActionCommand;
 import com.cloud.dr.DrConstants;
 import com.cloud.dr.DrPlanVO;
 import com.cloud.dr.DrResolvedSiteCredential;
@@ -113,6 +115,82 @@ public class DrRemoteAgentClient {
                 targetCredential.close();
             }
         }
+    }
+
+    public FtctlDrActionAnswer transitionSourceScheduler(DrPlanVO plan,
+            FtctlDrActionCommand.Action action, String parentRunUuid) {
+        if (action != FtctlDrActionCommand.Action.PAUSE_SYNC
+                && action != FtctlDrActionCommand.Action.RESUME_SYNC) {
+            throw new CloudRuntimeException("Remote source scheduler transition must be PAUSE_SYNC or RESUME_SYNC");
+        }
+        String workerHostUuid = sourceWorkerUuid(plan);
+        String runType = action == FtctlDrActionCommand.Action.PAUSE_SYNC
+                ? DrConstants.RUN_TYPE_PAUSE_SYNC : DrConstants.RUN_TYPE_RESUME_SYNC;
+        FtctlDrActionCommand command = new FtctlDrActionCommand(action, plan.getUuid(),
+                parentRunUuid + (action == FtctlDrActionCommand.Action.PAUSE_SYNC
+                        ? "-source-quiesce" : "-source-resume"));
+        command.setActionName(action.name());
+        command.setCliCommand(action.getCliCommand());
+        command.setRunType(runType);
+        command.setActionIntent(runType);
+        command.setDirection(plan.getDirection());
+        command.setRole("source");
+        command.setSourceWorkerUuid(workerHostUuid);
+        command.setWaitForCompletion(true);
+        command.setWait(45);
+        return execute(plan, "ACTION", command, workerHostUuid, FtctlDrActionAnswer.class);
+    }
+
+    public String ensureSourceVmPowerState(DrPlanVO plan, boolean poweredOn) {
+        if (!isRemoteKvmSource(plan)) {
+            throw new CloudRuntimeException("Remote KVM source Plan is required for source VM lifecycle");
+        }
+        DrSiteVO sourceSite = drSiteDao.findById(plan.getSourceSiteId());
+        DrResolvedSiteCredential credential = drSiteCredentialService.resolveCredential(sourceSite);
+        if (credential == null || !credential.hasSecrets()) {
+            throw new CloudRuntimeException("Remote DR source site credentials are unavailable");
+        }
+        try {
+            return drMoldInventoryClient.ensureVirtualMachinePowerState(credential,
+                    plan.getSourceExternalRef(), poweredOn);
+        } finally {
+            credential.close();
+        }
+    }
+
+    public String sourceWorkerUuid(DrPlanVO plan) {
+        JsonObject mapping = parseObject(plan != null ? plan.getMappingJson() : null);
+        JsonObject source = objectAt(mapping, "source");
+        JsonObject hardware = objectAt(source, "hardware");
+        String workerUuid = firstNonBlank(firstNonBlank(firstString(hardware, "sourceHostUuid"),
+                        firstString(hardware, "hostUuid")),
+                firstNonBlank(firstNonBlank(firstString(source, "sourceHostUuid"), firstString(source, "hostUuid")),
+                        firstString(mapping, "sourceWorkerHostUuid")));
+        if (StringUtils.isBlank(workerUuid)) {
+            throw new CloudRuntimeException("Remote DR source worker host UUID is required");
+        }
+        return workerUuid;
+    }
+
+    private JsonObject parseObject(String json) {
+        if (StringUtils.isBlank(json)) {
+            return new JsonObject();
+        }
+        try {
+            JsonElement parsed = GSON.fromJson(json, JsonElement.class);
+            return parsed != null && parsed.isJsonObject() ? parsed.getAsJsonObject() : new JsonObject();
+        } catch (RuntimeException e) {
+            return new JsonObject();
+        }
+    }
+
+    private JsonObject objectAt(JsonObject object, String key) {
+        JsonElement value = object != null ? object.get(key) : null;
+        return value != null && value.isJsonObject() ? value.getAsJsonObject() : new JsonObject();
+    }
+
+    private String firstNonBlank(String first, String second) {
+        return StringUtils.isNotBlank(first) ? first : second;
     }
 
     private String firstString(JsonObject object, String key) {
