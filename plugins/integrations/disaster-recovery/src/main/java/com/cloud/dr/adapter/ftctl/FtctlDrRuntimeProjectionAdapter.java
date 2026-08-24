@@ -117,6 +117,8 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
     @Inject
     private AgentManager agentManager;
     @Inject
+    private DrRemoteAgentClient drRemoteAgentClient;
+    @Inject
     private DrPlanDao drPlanDao;
     @Inject
     private DrEventDao drEventDao;
@@ -211,7 +213,14 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         FtctlDrStatusCommand authorityCommand = new FtctlDrStatusCommand(plan.getUuid(), null,
                 FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY);
         authorityCommand.setWait(STATUS_REFRESH_WAIT_SECONDS);
-        Answer answer = agentManager.easySend(hostId, authorityCommand);
+        Answer answer;
+        try {
+            answer = sendStatusCommand(plan, null, authorityCommand, hostId);
+        } catch (RuntimeException e) {
+            return DrAdapterResult.retryable(DrConstants.ERROR_ENGINE_UNAVAILABLE,
+                    "Remote FTCTL_DR authority status is temporarily unavailable: " + e.getMessage(),
+                    GSON.toJson(buildDetails(plan, hostId, null)), STATUS_REFRESH_WAIT_SECONDS);
+        }
         if (!(answer instanceof FtctlDrStatusAnswer)) {
             String message = answer != null ? answer.getDetails() : "Agent returned no FTCTL_DR status answer";
             return DrAdapterResult.failure(DrConstants.ERROR_ENGINE_UNAVAILABLE, message, GSON.toJson(buildDetails(plan, hostId, null)));
@@ -255,7 +264,14 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             FtctlDrStatusCommand operationCommand = new FtctlDrStatusCommand(plan.getUuid(), projectionRun.getUuid(),
                     FtctlDrStatusCommand.StatusScope.OPERATION);
             operationCommand.setWait(STATUS_REFRESH_WAIT_SECONDS);
-            Answer operationAnswer = agentManager.easySend(hostId, operationCommand);
+            Answer operationAnswer;
+            try {
+                operationAnswer = sendStatusCommand(plan, projectionRun, operationCommand, hostId);
+            } catch (RuntimeException e) {
+                return DrAdapterResult.retryable(DrConstants.ERROR_ENGINE_UNAVAILABLE,
+                        "Remote FTCTL_DR operation status is temporarily unavailable: " + e.getMessage(),
+                        GSON.toJson(authorityDetails), STATUS_REFRESH_WAIT_SECONDS);
+            }
             if (!(operationAnswer instanceof FtctlDrStatusAnswer)) {
                 String message = operationAnswer != null ? operationAnswer.getDetails()
                         : "Agent returned no FTCTL_DR operation status answer";
@@ -321,6 +337,40 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             return plan.getSourceWorkerHostId();
         }
         return plan.getTargetWorkerHostId();
+    }
+
+    private Answer sendStatusCommand(DrPlanVO plan, DrRunVO run, FtctlDrStatusCommand command, Long localHostId) {
+        if (pollsRemoteSource(plan, run)) {
+            return drRemoteAgentClient.execute(plan, "STATUS", command,
+                    remoteSourceWorkerUuid(plan), FtctlDrStatusAnswer.class);
+        }
+        return agentManager.easySend(localHostId, command);
+    }
+
+    private boolean pollsRemoteSource(DrPlanVO plan, DrRunVO run) {
+        if (drRemoteAgentClient == null || !drRemoteAgentClient.isRemoteKvmSource(plan)
+                || !StringUtils.equalsIgnoreCase(plan.getActiveSide(), "SOURCE")) {
+            return false;
+        }
+        if (run == null) {
+            return true;
+        }
+        return StringUtils.equalsAnyIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_SYNC,
+                DrConstants.RUN_TYPE_RECOVER_SYNC, DrConstants.RUN_TYPE_PAUSE_SYNC,
+                DrConstants.RUN_TYPE_RESUME_SYNC, DrConstants.RUN_TYPE_RELEASE);
+    }
+
+    private String remoteSourceWorkerUuid(DrPlanVO plan) {
+        JsonObject mapping = parseObject(plan != null ? plan.getMappingJson() : null);
+        JsonObject source = objectValue(mapping, "source");
+        JsonObject hardware = objectValue(source, "hardware");
+        String hostUuid = firstNonBlank(stringValue(hardware, "sourceHostUuid"), stringValue(hardware, "hostUuid"));
+        hostUuid = firstNonBlank(hostUuid, stringValue(source, "sourceHostUuid"));
+        return firstNonBlank(hostUuid, stringValue(source, "hostUuid"));
+    }
+
+    private String firstNonBlank(String first, String second) {
+        return StringUtils.isNotBlank(first) ? first : second;
     }
 
     private void projectProtectionAuthority(DrPlanVO plan, DrRunVO protectionProducerRun, FtctlDrStatusAnswer status,

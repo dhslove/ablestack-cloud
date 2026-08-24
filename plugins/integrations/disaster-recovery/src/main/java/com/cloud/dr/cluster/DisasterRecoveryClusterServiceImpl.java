@@ -112,6 +112,7 @@ import org.apache.cloudstack.api.command.admin.dr.DiscoverDrPlanInventoryCmd;
 import org.apache.cloudstack.api.command.admin.dr.DiscoverDrSiteInventoryCmd;
 import org.apache.cloudstack.api.command.admin.dr.DisableDrPlanCmd;
 import org.apache.cloudstack.api.command.admin.dr.EnableDrPlanCmd;
+import org.apache.cloudstack.api.command.admin.dr.ExecuteDrSiteAgentCommandCmd;
 import org.apache.cloudstack.api.command.admin.dr.GetDrPlanCmd;
 import org.apache.cloudstack.api.command.admin.dr.GetDrFailbackPreflightCmd;
 import org.apache.cloudstack.api.command.admin.dr.GetDrProtectionViewCmd;
@@ -3287,6 +3288,7 @@ public class DisasterRecoveryClusterServiceImpl extends ManagerBase implements D
         cmdList.add(CheckDrSiteCmd.class);
         cmdList.add(DiscoverDrSiteInventoryCmd.class);
         cmdList.add(DiscoverDrPlanInventoryCmd.class);
+        cmdList.add(ExecuteDrSiteAgentCommandCmd.class);
         cmdList.add(PreviewDrPlanSpecCmd.class);
         cmdList.add(ListDrSiteHealthChecksCmd.class);
         cmdList.add(CreateDrPlanCmd.class);

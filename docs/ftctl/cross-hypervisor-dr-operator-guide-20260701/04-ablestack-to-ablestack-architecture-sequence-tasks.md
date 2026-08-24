@@ -6,7 +6,7 @@
 
 ## 1. 아키텍처
 
-ABLESTACK 운영 VM을 ABLESTACK DR site로 보호하는 방향이다. source와 target 모두 KVM/ABLESTACK이므로 ftctl ABLESTACK driver가 disk mapping을 canonicalize하고 target RBD/file/block device를 준비한 뒤 `qemu-img convert` 기반 seed/checkpoint를 수행한다.
+ABLESTACK 운영 VM을 ABLESTACK DR site로 보호하는 방향이다. Plan과 UI를 보유한 Cloud가 원본/대상 위치와 관계없이 제어 권한을 가지며, 각 사이트 Cloud는 서명된 Mold API를 통해 로컬 Agent/FTCTL 작업과 Cloud-owned VM/볼륨 수명주기를 수행한다. RBD 경로는 Cloud가 만든 대상 이미지를 remote-NBD/librbd로 열고 전체 시드, RBD 증분, 선택형 QEMU live mirror를 수행한다. Ceph `rbd-mirror`는 사용하지 않는다.
 
 ```mermaid
 flowchart LR
@@ -34,7 +34,7 @@ flowchart LR
 | 보호 설정 | ABLESTACK source VM과 target disk mapping을 Plan에 저장 |
 | Target 준비 | target RBD create, block size check, qcow2 create를 수행 |
 | Sync 시작 | `dr-sync-start` 후 scheduler가 checkpoint loop를 시작 |
-| 지속 복제 | 현재 구현은 매 cycle `qemu-img convert` full seed를 수행한다. |
+| 지속 복제 | 기본은 RBD snapshot/diff 증분이며, preflight가 통과하면 QEMU live mirror 기반 near-real-time 모드를 선택할 수 있다. |
 | Restore Point | full seed 완료 시 manifest/checkpoint와 RPO projection 생성 |
 | Test Failover | target-ready restore point로 test artifact/session 생성 |
 | Failover | final checkpoint 선택 후 active side를 TARGET으로 전환 |
@@ -90,9 +90,9 @@ sequenceDiagram
 
 | 항목 | 분석 |
 | --- | --- |
-| RPO | 현재 cycle이 full seed이므로 RPO는 scheduler interval보다 full copy 시간의 영향을 크게 받는다. 큰 disk에서는 목표 RPO를 만족하기 어렵다. |
+| RPO | 기본 모드는 마지막 durable RBD 증분 checkpoint를 기준으로 측정한다. near-real-time 모드는 write mirror와 주기적 durable checkpoint를 결합하며 zero-RPO로 표기하지 않는다. |
 | RTO | target disk가 준비되어 있고 restore point가 최신이면 failover 상태 전환은 빠르지만, 실제 VM lifecycle hook이 없으면 전원/등록 단계가 별도 작업으로 남는다. |
-| 개선 포인트 | KVM block dirty bitmap, qcow2 backing chain, RBD diff/export-diff 등 delta 기반 복제 엔진을 추가해야 낮은 RPO를 안정적으로 만족한다. |
+| 개선 포인트 | RBD baseline을 항상 하나 보존하고 새 checkpoint가 durable한 뒤 교체한다. live mirror는 capability와 네트워크 preflight 통과 시에만 제공한다. |
 
 ## 6. 소스 검토 결과와 운영 전 확인 사항
 

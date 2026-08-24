@@ -43,6 +43,7 @@ import com.cloud.dr.adapter.DrAdapterResult;
 import com.cloud.dr.adapter.DrExecutionContext;
 import com.cloud.dr.dao.DrRestorePointDao;
 import com.cloud.host.dao.HostDao;
+import com.cloud.host.HostVO;
 
 @RunWith(MockitoJUnitRunner.class)
 public class FtctlDrUnifiedActionAdapterTest {
@@ -66,6 +67,8 @@ public class FtctlDrUnifiedActionAdapterTest {
     private DrReprotectPreflightService drReprotectPreflightService;
     @Mock
     private DrFailbackPreflightService drFailbackPreflightService;
+    @Mock
+    private DrRemoteAgentClient drRemoteAgentClient;
 
     @InjectMocks
     private FtctlDrUnifiedActionAdapter adapter;
@@ -108,6 +111,59 @@ public class FtctlDrUnifiedActionAdapterTest {
         Assert.assertFalse(command.getRequestJson().contains("top-secret"));
         Assert.assertEquals("REDACTED", command.getContext().get("remoteMoldSecretKey"));
         Assert.assertFalse(result.getDetailsJson().contains("top-secret"));
+    }
+
+    @Test
+    public void crossSiteKvmSyncDispatchesToRemoteSourceAndPreparesTargetWorker() throws Exception {
+        DrPlanVO plan = new DrPlanVO("cross-site-kvm-plan", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
+        plan.setSourceExternalRef("source-vm-uuid");
+        plan.setActiveSide("SOURCE");
+        plan.setTargetWorkerHostId(102L);
+        plan.setCoordinatorWorkerHostId(103L);
+        plan.setMappingJson("{\"source\":{\"hardware\":{\"sourceHostUuid\":\"source-host-uuid\","
+                + "\"instanceName\":\"i-2-332-VM\"}},\"target\":{\"storagePoolType\":\"RBD\"},"
+                + "\"disks\":[{\"device\":\"sda\",\"sourcePath\":\"rbd:rbd/source-image\","
+                + "\"targetPath\":\"rbd:rbd/target-image\",\"targetStorageRef\":\"target-pool-uuid\","
+                + "\"target\":{\"storageRef\":\"target-pool-uuid\",\"path\":\"target-image\",\"format\":\"raw\"}}]}");
+        DrRunVO run = run(DrConstants.RUN_TYPE_SYNC, "{\"mode\":\"FULL_RESEED\",\"forceImmediateCycle\":true}");
+        HostVO targetHost = Mockito.mock(HostVO.class);
+        Mockito.when(targetHost.getUuid()).thenReturn("target-host-uuid");
+        Mockito.when(targetHost.getPrivateIpAddress()).thenReturn("10.10.32.2");
+        Mockito.when(hostDao.findById(102L)).thenReturn(targetHost);
+        Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("CAPABILITIES"),
+                Mockito.isA(FtctlDrCapabilitiesCommand.class), Mockito.eq("source-host-uuid"),
+                Mockito.eq(FtctlDrCapabilitiesAnswer.class))).thenAnswer(invocation -> {
+                    FtctlDrCapabilitiesAnswer answer = new FtctlDrCapabilitiesAnswer(invocation.getArgument(2), true, "ok");
+                    answer.setSupportedFeatures(java.util.Arrays.asList("control-protocol-v2"));
+                    return answer;
+                });
+        Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("ACTION"),
+                Mockito.isA(FtctlDrActionCommand.class), Mockito.eq("source-host-uuid"),
+                Mockito.eq(FtctlDrActionAnswer.class))).thenAnswer(invocation -> {
+                    FtctlDrActionCommand command = invocation.getArgument(2);
+                    return new FtctlDrActionAnswer(command, true, "accepted", FtctlDrActionCommand.Action.SYNC,
+                            plan.getUuid(), run.getUuid(), "accepted", true, "SYNCING", "dispatch",
+                            1, "remote-ftctl-job", 0L, null, 0, "{\"result\":\"accepted\"}",
+                            "{\"state\":\"SYNCING\"}");
+                });
+
+        DrAdapterResult result = adapter.execute(new DrExecutionContext(plan, run));
+
+        Assert.assertTrue(result.isSuccess());
+        Assert.assertFalse(result.isTerminal());
+        Mockito.verify(drRemoteAgentClient).prepareTransport(plan, targetHost, "/dev/rbd");
+        Mockito.verify(agentManager, Mockito.never()).send(Mockito.anyLong(), Mockito.isA(FtctlDrActionCommand.class));
+        ArgumentCaptor<FtctlDrActionCommand> actionCaptor = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
+        Mockito.verify(drRemoteAgentClient).execute(Mockito.eq(plan), Mockito.eq("ACTION"), actionCaptor.capture(),
+                Mockito.eq("source-host-uuid"), Mockito.eq(FtctlDrActionAnswer.class));
+        FtctlDrActionCommand command = actionCaptor.getValue();
+        Assert.assertEquals("source-host-uuid", command.getSourceWorkerUuid());
+        Assert.assertTrue(command.getProfileJson().contains("\"mode\":\"remote-nbd\""));
+        Assert.assertTrue(command.getProfileJson().contains("\"targetHostAddress\":\"10.10.32.2\""));
+        Assert.assertFalse(command.getProfileJson().contains("moldSecretKey"));
     }
 
     @Test

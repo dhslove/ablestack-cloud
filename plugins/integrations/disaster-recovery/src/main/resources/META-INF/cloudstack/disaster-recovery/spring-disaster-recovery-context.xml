@@ -60,6 +60,7 @@
     <bean id="drSiteHealthCheckHistoryServiceImpl" class="com.cloud.dr.DrSiteHealthCheckHistoryServiceImpl"/>
     <bean id="drSiteHealthCheckScheduler" class="com.cloud.dr.health.DrSiteHealthCheckScheduler"/>
     <bean id="drMoldInventoryClient" class="com.cloud.dr.inventory.DrMoldInventoryClient"/>
+    <bean id="drSiteAgentBrokerServiceImpl" class="com.cloud.dr.DrSiteAgentBrokerServiceImpl"/>
     <bean id="drVmwareInventoryClient" class="com.cloud.dr.inventory.DrVmwareInventoryClient"/>
     <bean id="drSourceHardwareInventoryServiceImpl" class="com.cloud.dr.inventory.DrSourceHardwareInventoryServiceImpl"/>
     <bean id="drSiteInventoryServiceImpl" class="com.cloud.dr.inventory.DrSiteInventoryServiceImpl"/>
@@ -90,6 +91,7 @@
     <bean id="ftctlDrActionAdapter" class="com.cloud.dr.adapter.ftctl.FtctlDrActionAdapter"/>
     <bean id="ftctlDrContractAdapter" class="com.cloud.dr.adapter.ftctl.FtctlDrContractAdapter"/>
     <bean id="ftctlDrUnifiedActionAdapter" class="com.cloud.dr.adapter.ftctl.FtctlDrUnifiedActionAdapter"/>
+    <bean id="drRemoteAgentClient" class="com.cloud.dr.adapter.ftctl.DrRemoteAgentClient"/>
     <bean id="ftctlDrProjectionAdapter" class="com.cloud.dr.adapter.ftctl.FtctlDrProjectionAdapter"/>
     <bean id="ftctlDrRuntimeProjectionAdapter" class="com.cloud.dr.adapter.ftctl.FtctlDrRuntimeProjectionAdapter"/>
     <bean id="vmwarePhase1TargetAdapter" class="com.cloud.dr.adapter.vmware.VmwarePhase1TargetAdapter"/>

@@ -121,6 +121,24 @@ public class DrPlanInventoryServiceImpl extends ManagerBase implements DrPlanInv
             }
             classifyLocalCloudReferences(workloads);
             result.setSourceWorkloads(workloads);
+            if (StringUtils.equalsIgnoreCase(DrConstants.CREDENTIAL_TYPE_MOLD_API, credentialType)
+                    && StringUtils.isNotBlank(request.getSourceExternalRef())) {
+                if (request.includeDisks()) {
+                    result.setSourceDisks(drMoldInventoryClient.listVirtualMachineDisks(resolvedCredential,
+                            request.getSourceExternalRef()));
+                    if (result.getSourceDisks().isEmpty()) {
+                        result.addBlockingReason("SOURCE_DISK_INVENTORY_REQUIRED");
+                    }
+                }
+                if (request.includeNetworks()) {
+                    result.setSourceNics(drMoldInventoryClient.listVirtualMachineNics(resolvedCredential,
+                            request.getSourceExternalRef()));
+                }
+                Map<String, String> sourceHardware = drMoldInventoryClient.getVirtualMachineHardware(
+                        resolvedCredential, request.getSourceExternalRef());
+                result.setSourceHardware(sourceHardware);
+                applySourceHardwareDetails(workloads, request.getSourceExternalRef(), sourceHardware);
+            }
             if (StringUtils.equalsIgnoreCase(DrConstants.CREDENTIAL_TYPE_VCENTER, credentialType)
                     && StringUtils.isNotBlank(request.getSourceExternalRef())) {
                 if (request.includeDisks()) {
@@ -173,12 +191,17 @@ public class DrPlanInventoryServiceImpl extends ManagerBase implements DrPlanInv
 
     private void applySourceHardwareDetails(List<DrInventoryOption> workloads, String sourceExternalRef,
             DrSourceVmHardware hardware) {
+        applySourceHardwareDetails(workloads, sourceExternalRef, hardware != null ? hardware.toDetails() : null);
+    }
+
+    private void applySourceHardwareDetails(List<DrInventoryOption> workloads, String sourceExternalRef,
+            Map<String, String> hardware) {
         if (workloads == null || hardware == null) {
             return;
         }
         for (DrInventoryOption workload : workloads) {
             if (workload != null && StringUtils.equals(sourceExternalRef, workload.getExternalRef())) {
-                for (Map.Entry<String, String> entry : hardware.toDetails().entrySet()) {
+                for (Map.Entry<String, String> entry : hardware.entrySet()) {
                     workload.putDetail(entry.getKey(), entry.getValue());
                 }
                 return;

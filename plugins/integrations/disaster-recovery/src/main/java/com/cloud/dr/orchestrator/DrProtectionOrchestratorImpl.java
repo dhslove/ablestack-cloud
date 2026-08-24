@@ -99,6 +99,7 @@ public class DrProtectionOrchestratorImpl extends ManagerBase implements DrProte
     }
 
     private void materializeWorkerBindings(DrPlanVO plan) {
+        boolean remoteKvmSource = isRemoteKvmSource(plan);
         if (plan.getCoordinatorWorkerHostId() == null && plan.getSourceWorkerHostId() == null
                 && plan.getTargetWorkerHostId() == null) {
             Long autoWorkerHostId = selectLeastLoadedKvmWorker(plan);
@@ -107,7 +108,7 @@ public class DrProtectionOrchestratorImpl extends ManagerBase implements DrProte
                 if (isTargetAbleStack(plan)) {
                     plan.setTargetWorkerHostId(autoWorkerHostId);
                 }
-                if (isSourceAbleStack(plan)) {
+                if (isSourceAbleStack(plan) && !remoteKvmSource) {
                     plan.setSourceWorkerHostId(autoWorkerHostId);
                 }
             }
@@ -118,7 +119,7 @@ public class DrProtectionOrchestratorImpl extends ManagerBase implements DrProte
                     + ": FTCTL_DR protection requires a coordinator, source, or target worker host");
         }
         requireHost(coordinatorHostId, "coordinator");
-        if (plan.getSourceWorkerHostId() != null) {
+        if (plan.getSourceWorkerHostId() != null && !remoteKvmSource) {
             requireHost(plan.getSourceWorkerHostId(), "source");
         }
         if (plan.getTargetWorkerHostId() != null) {
@@ -127,7 +128,7 @@ public class DrProtectionOrchestratorImpl extends ManagerBase implements DrProte
         if (plan.getCoordinatorWorkerHostId() == null) {
             plan.setCoordinatorWorkerHostId(coordinatorHostId);
         }
-        if (isSourceAbleStack(plan) && plan.getSourceWorkerHostId() == null) {
+        if (isSourceAbleStack(plan) && !remoteKvmSource && plan.getSourceWorkerHostId() == null) {
             plan.setSourceWorkerHostId(coordinatorHostId);
         }
         if (isTargetAbleStack(plan) && plan.getTargetWorkerHostId() == null) {
@@ -136,6 +137,13 @@ public class DrProtectionOrchestratorImpl extends ManagerBase implements DrProte
         if (StringUtils.isBlank(plan.getActiveSide())) {
             plan.setActiveSide("SOURCE");
         }
+    }
+
+    private boolean isRemoteKvmSource(DrPlanVO plan) {
+        return plan != null
+                && StringUtils.equalsIgnoreCase(plan.getDirection(), DrConstants.DIRECTION_KVM_TO_KVM)
+                && plan.getSourceVmId() == null
+                && StringUtils.isNotBlank(plan.getSourceExternalRef());
     }
 
     private Long selectLeastLoadedKvmWorker(DrPlanVO plan) {

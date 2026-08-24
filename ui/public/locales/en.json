@@ -7208,6 +7208,8 @@
   "message.dr.plan.target.folder.path.placeholder": "Example: /Datacenter/vm/DR",
   "message.dr.plan.coordinator.worker.host.help": "Host that dispatches DR actions to the Agent and collects runtime status.",
   "message.dr.plan.source.worker.host.help": "Worker host that captures source snapshots or changed data.",
+  "message.dr.plan.source.worker.host.remote.help": "The plan owner discovered this worker through the registered source site's signed Cloud API. Worker selection remains under the source Cloud's authority.",
+  "message.dr.plan.source.worker.host.remote.pending": "Select a source VM so the plan owner can discover its worker through the registered source site.",
   "message.dr.plan.target.worker.host.help": "Worker host that applies data and prepares the recovery VM at the target site.",
   "message.dr.plan.worker.host.placeholder": "Select a worker host.",
   "message.dr.plan.worker.host.empty": "No worker host is available for the selected site.",

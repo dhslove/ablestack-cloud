@@ -29,6 +29,9 @@ import com.google.gson.JsonObject;
 
 public class DrSourceVmHardware {
     private String sourceVmRef;
+    private String sourceHostUuid;
+    private String sourceHostName;
+    private String instanceName;
     private String firmware;
     private Boolean secureBootEnabled;
     private String guestId;
@@ -94,6 +97,9 @@ public class DrSourceVmHardware {
     private JsonObject canonicalJson() {
         JsonObject object = new JsonObject();
         add(object, "sourceVmRef", sourceVmRef);
+        add(object, "sourceHostUuid", sourceHostUuid);
+        add(object, "sourceHostName", sourceHostName);
+        add(object, "instanceName", instanceName);
         add(object, "firmware", firmware);
         if (secureBootEnabled != null) {
             object.addProperty("secureBoot", secureBootEnabled);
@@ -133,6 +139,9 @@ public class DrSourceVmHardware {
 
     public String getSourceVmRef() { return sourceVmRef; }
     public void setSourceVmRef(String sourceVmRef) { this.sourceVmRef = sourceVmRef; }
+    public void setSourceHostUuid(String sourceHostUuid) { this.sourceHostUuid = sourceHostUuid; }
+    public void setSourceHostName(String sourceHostName) { this.sourceHostName = sourceHostName; }
+    public void setInstanceName(String instanceName) { this.instanceName = instanceName; }
     public String getFirmware() { return firmware; }
     public void setFirmware(String firmware) { this.firmware = firmware; }
     public Boolean getSecureBootEnabled() { return secureBootEnabled; }

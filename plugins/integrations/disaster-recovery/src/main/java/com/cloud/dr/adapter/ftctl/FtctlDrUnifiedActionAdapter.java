@@ -67,6 +67,7 @@ import com.cloud.host.dao.HostDetailsDao;
 import com.cloud.vm.UserVmVO;
 import com.cloud.vm.dao.UserVmDao;
 import com.cloud.utils.component.ManagerBase;
+import com.cloud.utils.exception.CloudRuntimeException;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -100,6 +101,8 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
     private DrReprotectPreflightService drReprotectPreflightService;
     @Inject
     private DrFailbackPreflightService drFailbackPreflightService;
+    @Inject
+    private DrRemoteAgentClient drRemoteAgentClient;
 
     @Override
     public String getEngineType() {
@@ -248,6 +251,7 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         }
         FtctlDrActionCommand command;
         try {
+            prepareRemoteTransport(context, action);
             command = buildActionCommand(context, action);
             if (reprotectPreflight != null) {
                 command.setAuthorityContractVersion(DrReprotectAuthoritySpec.CONTRACT_VERSION);
@@ -256,6 +260,10 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         } catch (IllegalArgumentException e) {
             return DrAdapterResult.failure("DR_TEST_ARTIFACT_SPEC_INVALID", e.getMessage(),
                     GSON.toJson(buildExecutionDetails(context, action, coordinatorHostId)));
+        } catch (CloudRuntimeException e) {
+            return DrAdapterResult.retryable(DrConstants.ERROR_ENGINE_UNAVAILABLE,
+                    "Unable to prepare remote DR transport: " + e.getMessage(),
+                    GSON.toJson(buildExecutionDetails(context, action, coordinatorHostId)), 10);
         }
         if (action == FtctlDrActionCommand.Action.FAILBACK
                 && StringUtils.equalsIgnoreCase(context.getPlan().getDirection(), DrConstants.DIRECTION_VMWARE_TO_KVM)) {
@@ -265,7 +273,7 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
             }
         }
         try {
-            Answer answer = agentManager.send(coordinatorHostId, command);
+            Answer answer = sendActionCommand(context, action, coordinatorHostId, command);
             return toAdapterResult(context, action, coordinatorHostId, answer);
         } catch (OperationTimedoutException e) {
             LOGGER.warn("Unable to dispatch FTCTL_DR run {} to host {}: {}", context.getRun().getId(), coordinatorHostId, e.getMessage());
@@ -279,6 +287,11 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
             LOGGER.warn("FTCTL_DR coordinator Agent is unavailable for run {} on host {}: {}", context.getRun().getId(), coordinatorHostId, e.getMessage());
             return DrAdapterResult.failure(DrConstants.ERROR_AGENT_UNAVAILABLE,
                     "FTCTL_DR coordinator Agent is unavailable: " + e.getMessage(), GSON.toJson(buildExecutionDetails(context, action, coordinatorHostId)));
+        } catch (CloudRuntimeException e) {
+            LOGGER.warn("FTCTL_DR remote site dispatch failed for run {}: {}", context.getRun().getId(), e.getMessage());
+            return DrAdapterResult.retryable(DrConstants.ERROR_ENGINE_UNAVAILABLE,
+                    "FTCTL_DR remote site dispatch failed: " + e.getMessage(),
+                    GSON.toJson(buildExecutionDetails(context, action, coordinatorHostId)), 10);
         }
     }
 
@@ -324,6 +337,45 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         return agentManager.easySend(coordinatorHostId, command);
     }
 
+    private Answer sendActionCommand(DrExecutionContext context, FtctlDrActionCommand.Action action,
+            Long localHostId, FtctlDrActionCommand command) throws AgentUnavailableException, OperationTimedoutException {
+        if (dispatchesOnRemoteSource(context.getPlan(), action)) {
+            return drRemoteAgentClient.execute(context.getPlan(), "ACTION", command,
+                    remoteSourceWorkerUuid(context.getPlan()), FtctlDrActionAnswer.class);
+        }
+        return agentManager.send(localHostId, command);
+    }
+
+    private void prepareRemoteTransport(DrExecutionContext context, FtctlDrActionCommand.Action action) {
+        if (!dispatchesOnRemoteSource(context.getPlan(), action)
+                || (action != FtctlDrActionCommand.Action.SYNC && action != FtctlDrActionCommand.Action.RECOVER_SYNC)) {
+            return;
+        }
+        HostVO targetHost = hostDao.findById(context.getPlan().getTargetWorkerHostId());
+        drRemoteAgentClient.prepareTransport(context.getPlan(), targetHost, "/dev/rbd");
+    }
+
+    private boolean dispatchesOnRemoteSource(DrPlanVO plan, FtctlDrActionCommand.Action action) {
+        if (drRemoteAgentClient == null || !drRemoteAgentClient.isRemoteKvmSource(plan)
+                || !StringUtils.equalsIgnoreCase(plan.getActiveSide(), "SOURCE")) {
+            return false;
+        }
+        return action == FtctlDrActionCommand.Action.SYNC
+                || action == FtctlDrActionCommand.Action.RECOVER_SYNC
+                || action == FtctlDrActionCommand.Action.PAUSE_SYNC
+                || action == FtctlDrActionCommand.Action.RESUME_SYNC
+                || action == FtctlDrActionCommand.Action.RELEASE;
+    }
+
+    private String remoteSourceWorkerUuid(DrPlanVO plan) {
+        JsonObject mapping = parseObject(plan != null ? plan.getMappingJson() : null);
+        JsonObject source = objectAt(mapping, "source");
+        JsonObject hardware = objectAt(source, "hardware");
+        return firstNonBlank(firstString(hardware, "sourceHostUuid", "hostUuid"),
+                firstNonBlank(firstString(source, "sourceHostUuid", "hostUuid"),
+                        firstString(mapping, "sourceWorkerHostUuid")));
+    }
+
     private FtctlDrActionCommand buildActionCommand(DrExecutionContext context, FtctlDrActionCommand.Action action) {
         DrPlanVO plan = context.getPlan();
         DrRunVO run = context.getRun();
@@ -342,7 +394,8 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         command.setActionIntent(requestString(request, "actionIntent"));
         command.setDirection(plan.getDirection());
         command.setRole("coordinator");
-        command.setSourceWorkerUuid(resolveHostUuid(plan.getSourceWorkerHostId()));
+        command.setSourceWorkerUuid(drRemoteAgentClient != null && drRemoteAgentClient.isRemoteKvmSource(plan)
+                ? remoteSourceWorkerUuid(plan) : resolveHostUuid(plan.getSourceWorkerHostId()));
         command.setTargetWorkerUuid(resolveHostUuid(plan.getTargetWorkerHostId()));
         command.setCoordinatorWorkerUuid(resolveHostUuid(resolveCoordinatorHostId(plan)));
         command.setProfileJson(buildProfileJson(plan, run, redactedRequest));
@@ -519,7 +572,10 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         }
         command.setRequiredFeatures(requiredFeatures);
         try {
-            Answer answer = agentManager.send(hostId, command);
+            Answer answer = dispatchesOnRemoteSource(context.getPlan(), action)
+                    ? drRemoteAgentClient.execute(context.getPlan(), "CAPABILITIES", command,
+                            remoteSourceWorkerUuid(context.getPlan()), FtctlDrCapabilitiesAnswer.class)
+                    : agentManager.send(hostId, command);
             JsonObject details = buildExecutionDetails(context, action, hostId);
             details.add("capabilityCheck", GSON.toJsonTree(redactedCapabilities(answer)));
             if (!(answer instanceof FtctlDrCapabilitiesAnswer)) {
@@ -559,6 +615,11 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
                     context.getRun().getId(), hostId, e.getMessage());
             return DrAdapterResult.failure(DrConstants.ERROR_AGENT_UNAVAILABLE,
                     "FTCTL_DR coordinator Agent is unavailable: " + e.getMessage(), GSON.toJson(buildExecutionDetails(context, action, hostId)));
+        } catch (CloudRuntimeException e) {
+            LOGGER.warn("FTCTL_DR remote capability check failed for run {}: {}", context.getRun().getId(), e.getMessage());
+            return DrAdapterResult.retryable(DrConstants.ERROR_ENGINE_UNAVAILABLE,
+                    "FTCTL_DR remote capability check failed: " + e.getMessage(),
+                    GSON.toJson(buildExecutionDetails(context, action, hostId)), 10);
         }
     }
 
@@ -597,7 +658,10 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         try {
             FtctlDrStatusCommand statusCommand = new FtctlDrStatusCommand(context.getPlan().getUuid(), context.getRun().getUuid());
             statusCommand.setWait(10);
-            Answer answer = agentManager.easySend(hostId, statusCommand);
+            Answer answer = dispatchesOnRemoteSource(context.getPlan(), action)
+                    ? drRemoteAgentClient.execute(context.getPlan(), "STATUS", statusCommand,
+                            remoteSourceWorkerUuid(context.getPlan()), FtctlDrStatusAnswer.class)
+                    : agentManager.easySend(hostId, statusCommand);
             if (!(answer instanceof FtctlDrStatusAnswer)) {
                 return null;
             }
@@ -749,10 +813,11 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         DrSiteVO sourceSite = drSiteDao != null ? drSiteDao.findById(plan.getSourceSiteId()) : null;
         DrSiteVO targetSite = drSiteDao != null ? drSiteDao.findById(plan.getTargetSiteId()) : null;
         JsonObject mapping = parseObject(plan.getMappingJson());
-        profile.add("source", buildEndpoint(plan.getDirection(), true, sourceSite, plan.getSourceVmId(), plan.getSourceExternalRef()));
+        profile.add("source", buildSourceEndpoint(plan, sourceSite, mapping));
         profile.add("target", buildTargetEndpoint(plan, targetSite, mapping));
         profile.add("credentials", buildCredentials(plan, sourceSite, targetSite));
         profile.add("workers", buildWorkers(plan));
+        profile.add("transport", buildTransport(plan));
         profile.add("policy", parseObject(plan.getPolicyJson()));
         profile.add("mapping", mapping);
         JsonObject schedule = parseObject(plan.getScheduleJson());
@@ -792,6 +857,22 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
                 }
             }
         }
+        return endpoint;
+    }
+
+    private JsonObject buildSourceEndpoint(DrPlanVO plan, DrSiteVO sourceSite, JsonObject mapping) {
+        JsonObject endpoint = buildEndpoint(plan.getDirection(), true, sourceSite,
+                plan.getSourceVmId(), plan.getSourceExternalRef());
+        JsonObject sourceMapping = objectAt(mapping, "source");
+        for (Map.Entry<String, JsonElement> entry : sourceMapping.entrySet()) {
+            if (!endpoint.has(entry.getKey()) && entry.getValue() != null && !entry.getValue().isJsonNull()) {
+                endpoint.add(entry.getKey(), entry.getValue().deepCopy());
+            }
+        }
+        JsonObject hardware = objectAt(sourceMapping, "hardware");
+        addIfNotBlank(endpoint, "hostUuid", firstString(hardware, "sourceHostUuid", "hostUuid"));
+        addIfNotBlank(endpoint, "hostName", firstString(hardware, "sourceHostName", "hostName"));
+        addIfNotBlank(endpoint, "instanceName", firstString(hardware, "instanceName"));
         return endpoint;
     }
 
@@ -835,13 +916,23 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         if (drSiteCredentialService == null || site == null) {
             return;
         }
-        DrResolvedSiteCredential credential = drSiteCredentialService.resolveCredential(site);
-        if (credential != null && credential.hasSecrets()) {
-            JsonObject runtime = credential.toRuntimeJson();
-            if (source && isVmwareSourcePlan(plan)) {
-                enrichVmwareSourceCredential(runtime, plan);
+        if (StringUtils.equalsIgnoreCase(plan.getDirection(), DrConstants.DIRECTION_KVM_TO_KVM)) {
+            return;
+        }
+        DrResolvedSiteCredential credential = null;
+        try {
+            credential = drSiteCredentialService.resolveCredential(site);
+            if (credential != null && credential.hasSecrets()) {
+                JsonObject runtime = credential.toRuntimeJson();
+                if (source && isVmwareSourcePlan(plan)) {
+                    enrichVmwareSourceCredential(runtime, plan);
+                }
+                credentials.add(key, runtime);
             }
-            credentials.add(key, runtime);
+        } finally {
+            if (credential != null) {
+                credential.close();
+            }
         }
     }
 
@@ -934,9 +1025,43 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
     private JsonObject buildWorkers(DrPlanVO plan) {
         JsonObject workers = new JsonObject();
         workers.addProperty("coordinator", resolveHostUuid(resolveCoordinatorHostId(plan)));
-        workers.addProperty("source", resolveHostUuid(plan.getSourceWorkerHostId()));
+        workers.addProperty("source", drRemoteAgentClient != null && drRemoteAgentClient.isRemoteKvmSource(plan)
+                ? remoteSourceWorkerUuid(plan) : resolveHostUuid(plan.getSourceWorkerHostId()));
         workers.addProperty("target", resolveHostUuid(plan.getTargetWorkerHostId()));
         return workers;
+    }
+
+    private JsonObject buildTransport(DrPlanVO plan) {
+        JsonObject transport = new JsonObject();
+        if (drRemoteAgentClient == null || !drRemoteAgentClient.isRemoteKvmSource(plan)) {
+            transport.addProperty("mode", "local");
+            return transport;
+        }
+        HostVO targetHost = hostDao.findById(plan.getTargetWorkerHostId());
+        JsonObject mapping = parseObject(plan.getMappingJson());
+        JsonObject source = objectAt(mapping, "source");
+        JsonObject hardware = objectAt(source, "hardware");
+        String instanceName = firstNonBlank(firstString(hardware, "instanceName"),
+                firstString(source, "instanceName"));
+        transport.addProperty("mode", "remote-nbd");
+        if (targetHost != null) {
+            addIfNotBlank(transport, "targetHostUuid", targetHost.getUuid());
+            addIfNotBlank(transport, "targetHostAddress", targetHost.getPrivateIpAddress());
+            addIfNotBlank(transport, "secondaryUri", "qemu+ssh://root@" + targetHost.getPrivateIpAddress() + "/system");
+            addIfNotBlank(transport, "remoteNbdExportAddress", targetHost.getPrivateIpAddress());
+        }
+        addIfNotBlank(transport, "sshUser", "root");
+        addIfNotBlank(transport, "sshPort", "22");
+        addIfNotBlank(transport, "sshKeyFile", StringUtils.isNotBlank(instanceName)
+                ? "/root/.ssh/ftctl-dr/" + instanceName + "/id_ed25519" : null);
+        transport.addProperty("targetStorageScope", "secondary-local");
+        return transport;
+    }
+
+    private void addIfNotBlank(JsonObject object, String key, String value) {
+        if (StringUtils.isNotBlank(value)) {
+            object.addProperty(key, value);
+        }
     }
 
     private DrAdapterResult validateVmwareCredentials(DrPlanVO plan, String direction) {

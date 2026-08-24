@@ -16,7 +16,9 @@
 // under the License.
 package com.cloud.dr.inventory;
 
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -39,8 +41,13 @@ public class DrMoldInventoryClient {
     private static final String COMMAND_LIST_ZONES = "listZones";
     private static final String COMMAND_LIST_VMWARE_DCS = "listVmwareDcs";
     private static final String COMMAND_LIST_VMS = "listVirtualMachines";
+    private static final String COMMAND_LIST_VOLUMES = "listVolumes";
+    private static final String COMMAND_LIST_NICS = "listNics";
+    private static final String COMMAND_LIST_STORAGE_POOLS = "listStoragePools";
     private static final String COMMAND_START_VM = "startVirtualMachine";
     private static final String COMMAND_STOP_VM = "stopVirtualMachine";
+    private static final String COMMAND_EXECUTE_DR_SITE_AGENT = "executeDrSiteAgentCommand";
+    private static final String COMMAND_PREPARE_REMOTE_SSH = "prepareFtctlDrRemoteSshAccess";
 
     public List<DrInventoryOption> listZones(DrResolvedSiteCredential credential) {
         JsonObject response = execute(credential, COMMAND_LIST_ZONES, null);
@@ -67,7 +74,7 @@ public class DrMoldInventoryClient {
     public List<DrInventoryOption> listVirtualMachines(DrResolvedSiteCredential credential, String keyword, String zoneExternalId, Long zoneId) {
         Map<String, String> params = new LinkedHashMap<String, String>();
         params.put("listall", "true");
-        params.put("details", "min");
+        params.put("details", "all");
         if (StringUtils.isNotBlank(keyword)) {
             params.put("keyword", StringUtils.trim(keyword));
         }
@@ -81,18 +88,138 @@ public class DrMoldInventoryClient {
         return toVirtualMachineOptions(getArrayIgnoreCase(payload, "virtualmachine"));
     }
 
+    public List<DrInventoryOption> listVirtualMachineDisks(DrResolvedSiteCredential credential, String vmRef) {
+        Map<String, String> params = new LinkedHashMap<String, String>();
+        params.put("virtualmachineid", StringUtils.trim(vmRef));
+        params.put("listall", "true");
+        JsonObject response = execute(credential, COMMAND_LIST_VOLUMES, params);
+        JsonObject payload = getObjectIgnoreCase(response, "listvolumesresponse");
+        JsonArray volumes = getArrayIgnoreCase(payload, "volume");
+        Map<String, JsonObject> pools = new LinkedHashMap<String, JsonObject>();
+        List<DrInventoryOption> options = new ArrayList<DrInventoryOption>();
+        for (JsonElement item : volumes) {
+            if (item == null || !item.isJsonObject()) {
+                continue;
+            }
+            JsonObject volume = item.getAsJsonObject();
+            String storageId = firstString(volume, "storageid");
+            JsonObject pool = StringUtils.isNotBlank(storageId)
+                    ? pools.computeIfAbsent(storageId, id -> getStoragePool(credential, id)) : new JsonObject();
+            String poolType = firstString(pool, "type");
+            String poolPath = firstString(pool, "path");
+            String volumePath = firstString(volume, "path", "id");
+            String sourcePath = canonicalStoragePath(poolType, poolPath, volumePath);
+            String deviceId = firstString(volume, "deviceid");
+
+            DrInventoryOption option = new DrInventoryOption();
+            option.setType("SOURCE_DISK");
+            option.setId(firstString(volume, "id"));
+            option.setExternalId(firstString(volume, "id"));
+            option.setExternalRef(sourcePath);
+            option.setValue(StringUtils.defaultIfBlank(sourcePath, option.getExternalId()));
+            option.setReferenceType("MOLD_VOLUME_ID");
+            option.setName(firstString(volume, "name", "id"));
+            option.setDescription(sourcePath);
+            option.setState(firstString(volume, "state"));
+            option.setHypervisorType(firstString(volume, "hypervisor"));
+            option.setSelectable(StringUtils.isNotBlank(sourcePath));
+            putDetailIfNotBlank(option, "diskRef", firstString(volume, "id"));
+            putDetailIfNotBlank(option, "path", sourcePath);
+            putDetailIfNotBlank(option, "sourcePath", sourcePath);
+            putDetailIfNotBlank(option, "volumePath", volumePath);
+            putDetailIfNotBlank(option, "storageId", storageId);
+            putDetailIfNotBlank(option, "storagePoolPath", poolPath);
+            putDetailIfNotBlank(option, "storagePoolType", poolType);
+            putDetailIfNotBlank(option, "sizeBytes", firstString(volume, "size", "virtualsize"));
+            putDetailIfNotBlank(option, "capacityBytes", firstString(volume, "size", "virtualsize"));
+            putDetailIfNotBlank(option, "physicalSizeBytes", firstString(volume, "physicalsize"));
+            putDetailIfNotBlank(option, "deviceId", deviceId);
+            putDetailIfNotBlank(option, "deviceKey", deviceId);
+            putDetailIfNotBlank(option, "diskTarget", diskTarget(deviceId));
+            putDetailIfNotBlank(option, "volumeType", firstString(volume, "type"));
+            putDetailIfNotBlank(option, "diskOfferingId", firstString(volume, "diskofferingid"));
+            putDetailIfNotBlank(option, "diskOfferingName", firstString(volume, "diskofferingname"));
+            putDetailIfNotBlank(option, "cacheMode", firstString(volume, "cachemode"));
+            putDetailIfNotBlank(option, "format", "raw");
+            options.add(option);
+        }
+        return options;
+    }
+
+    public List<DrInventoryOption> listVirtualMachineNics(DrResolvedSiteCredential credential, String vmRef) {
+        Map<String, String> params = new LinkedHashMap<String, String>();
+        params.put("virtualmachineid", StringUtils.trim(vmRef));
+        JsonObject response = execute(credential, COMMAND_LIST_NICS, params);
+        JsonObject payload = getObjectIgnoreCase(response, "listnicsresponse");
+        JsonArray nics = getArrayIgnoreCase(payload, "nic");
+        List<DrInventoryOption> options = new ArrayList<DrInventoryOption>();
+        for (JsonElement item : nics) {
+            if (item == null || !item.isJsonObject()) {
+                continue;
+            }
+            JsonObject nic = item.getAsJsonObject();
+            DrInventoryOption option = new DrInventoryOption();
+            option.setType("SOURCE_NIC");
+            option.setId(firstString(nic, "id"));
+            option.setExternalId(firstString(nic, "id"));
+            option.setExternalRef(firstString(nic, "networkid"));
+            option.setValue(firstString(nic, "networkid", "id"));
+            option.setReferenceType("MOLD_NETWORK_ID");
+            option.setName(firstString(nic, "networkname", "id"));
+            option.setDescription(firstString(nic, "ipaddress", "macaddress"));
+            option.setSelectable(StringUtils.isNotBlank(option.getValue()));
+            putDetailIfNotBlank(option, "networkId", firstString(nic, "networkid"));
+            putDetailIfNotBlank(option, "networkName", firstString(nic, "networkname"));
+            putDetailIfNotBlank(option, "deviceId", firstString(nic, "deviceid"));
+            putDetailIfNotBlank(option, "macAddress", firstString(nic, "macaddress"));
+            putDetailIfNotBlank(option, "ipAddress", firstString(nic, "ipaddress"));
+            putDetailIfNotBlank(option, "trafficType", firstString(nic, "traffictype"));
+            putDetailIfNotBlank(option, "networkType", firstString(nic, "type"));
+            options.add(option);
+        }
+        return options;
+    }
+
+    public Map<String, String> getVirtualMachineHardware(DrResolvedSiteCredential credential, String vmRef) {
+        JsonObject vm = getVirtualMachine(credential, vmRef, "all");
+        JsonObject details = getObjectIgnoreCase(vm, "details");
+        Map<String, String> hardware = new LinkedHashMap<String, String>();
+        putIfNotBlank(hardware, "cpuCount", firstString(vm, "cpunumber"));
+        putIfNotBlank(hardware, "cpuSpeed", firstString(vm, "cpuspeed"));
+        putIfNotBlank(hardware, "memoryMiB", firstString(vm, "memory"));
+        putIfNotBlank(hardware, "guestOsId", firstString(vm, "guestosid", "ostypeid"));
+        putIfNotBlank(hardware, "guestOsName", firstString(vm, "osdisplayname"));
+        putIfNotBlank(hardware, "serviceOfferingId", firstString(vm, "serviceofferingid"));
+        putIfNotBlank(hardware, "serviceOfferingName", firstString(vm, "serviceofferingname"));
+        putIfNotBlank(hardware, "firmware", firstString(vm, "boottype", "bootmode"));
+        putIfNotBlank(hardware, "bootType", firstString(vm, "boottype"));
+        putIfNotBlank(hardware, "bootMode", firstString(vm, "bootmode"));
+        putIfNotBlank(hardware, "secureBoot", firstString(details, "secureboot", "secureBoot"));
+        putIfNotBlank(hardware, "uefi", firstString(details, "UEFI", "uefi"));
+        putIfNotBlank(hardware, "tpmVersion", firstString(details, "tpmversion", "tpmVersion"));
+        putIfNotBlank(hardware, "sourceHostUuid", firstString(vm, "hostid"));
+        putIfNotBlank(hardware, "sourceHostName", firstString(vm, "hostname"));
+        putIfNotBlank(hardware, "instanceName", firstString(vm, "instancename"));
+        putIfNotBlank(hardware, "hypervisorType", firstString(vm, "hypervisor"));
+        return hardware;
+    }
+
     public String getVirtualMachinePowerState(DrResolvedSiteCredential credential, String vmRef) {
+        return normalizePowerState(firstString(getVirtualMachine(credential, vmRef, "min"), "state"));
+    }
+
+    private JsonObject getVirtualMachine(DrResolvedSiteCredential credential, String vmRef, String details) {
         Map<String, String> params = new LinkedHashMap<String, String>();
         params.put("id", vmRef);
         params.put("listall", "true");
-        params.put("details", "min");
+        params.put("details", StringUtils.defaultIfBlank(details, "min"));
         JsonObject response = execute(credential, COMMAND_LIST_VMS, params);
         JsonObject payload = getObjectIgnoreCase(response, "listvirtualmachinesresponse");
         JsonArray items = getArrayIgnoreCase(payload, "virtualmachine");
         if (items.size() == 0 || !items.get(0).isJsonObject()) {
             throw new InventoryException(404, "Mold VM was not found: " + vmRef);
         }
-        return normalizePowerState(firstString(items.get(0).getAsJsonObject(), "state"));
+        return items.get(0).getAsJsonObject();
     }
 
     public String ensureVirtualMachinePowerState(DrResolvedSiteCredential credential, String vmRef, boolean poweredOn) {
@@ -115,7 +242,43 @@ public class DrMoldInventoryClient {
         throw new InventoryException(0, "Mold VM did not reach " + expected + ": " + vmRef);
     }
 
+    public JsonObject executeSiteAgentCommand(DrResolvedSiteCredential credential, String commandType,
+            String commandJson, String workerHostUuid) {
+        Map<String, String> params = new LinkedHashMap<String, String>();
+        params.put("commandtype", StringUtils.trim(commandType));
+        params.put("commandjson", commandJson);
+        params.put("workerhostuuid", StringUtils.trim(workerHostUuid));
+        JsonObject response = execute(credential, COMMAND_EXECUTE_DR_SITE_AGENT, params, true);
+        return getObjectIgnoreCase(response, "executedrsiteagentcommandresponse");
+    }
+
+    public JsonObject prepareRemoteSshAccess(DrResolvedSiteCredential sourceCredential,
+            DrResolvedSiteCredential targetCredential, String sourceVmUuid, String targetHostUuid,
+            String targetHostAddress, String targetDirectory, String remoteNbdAddress) {
+        JsonObject targetSecret = targetCredential != null ? targetCredential.getSecretPayload() : null;
+        DrSiteCredentialVO targetCredentialVo = targetCredential != null ? targetCredential.getCredential() : null;
+        Map<String, String> params = new LinkedHashMap<String, String>();
+        params.put("virtualmachineid", StringUtils.trim(sourceVmUuid));
+        params.put("remotepeerhostuuid", StringUtils.trim(targetHostUuid));
+        params.put("remotepeerhostaddress", StringUtils.trim(targetHostAddress));
+        params.put("remotepeersshuser", "root");
+        params.put("remotepeersshport", "22");
+        params.put("remotepeerlibvirturi", "qemu+ssh://root@" + StringUtils.trim(targetHostAddress) + "/system");
+        params.put("secondarytargetdir", StringUtils.defaultIfBlank(targetDirectory, "/dev/rbd"));
+        params.put("remotenbdexportaddr", StringUtils.defaultIfBlank(remoteNbdAddress, targetHostAddress));
+        params.put("remotemoldapiurl", targetCredentialVo != null ? targetCredentialVo.getEndpoint() : null);
+        params.put("remotemoldapikey", getSecret(targetSecret, "apiKey"));
+        params.put("remotemoldsecretkey", getSecret(targetSecret, "secretKey"));
+        JsonObject response = execute(sourceCredential, COMMAND_PREPARE_REMOTE_SSH, params, true);
+        return getObjectIgnoreCase(response, "prepareftctldrremotesshaccessresponse");
+    }
+
     private JsonObject execute(DrResolvedSiteCredential credential, String command, Map<String, String> additionalParams) {
+        return execute(credential, command, additionalParams, false);
+    }
+
+    private JsonObject execute(DrResolvedSiteCredential credential, String command,
+            Map<String, String> additionalParams, boolean post) {
         try {
             DrSiteCredentialVO credentialVo = credential.getCredential();
             String endpoint = StringUtils.trimToNull(credentialVo.getEndpoint());
@@ -136,9 +299,20 @@ public class DrMoldInventoryClient {
             }
             String query = DrSiteProbeSupport.buildQuery(params);
             String signature = DrSiteProbeSupport.signCloudStackRequest(params, secretKey);
-            String requestUrl = apiEndpoint + "?" + query + "&signature=" + signature;
-            HttpURLConnection connection = DrSiteProbeSupport.openConnection(requestUrl, "GET", credentialVo.getTlsVerify(), CONNECT_TIMEOUT_MS, READ_TIMEOUT_MS);
+            String signedQuery = query + "&signature=" + signature;
+            String requestUrl = post ? apiEndpoint : apiEndpoint + "?" + signedQuery;
+            HttpURLConnection connection = DrSiteProbeSupport.openConnection(requestUrl, post ? "POST" : "GET",
+                    credentialVo.getTlsVerify(), CONNECT_TIMEOUT_MS, post ? 45000 : READ_TIMEOUT_MS);
             connection.setRequestProperty("Accept", "application/json");
+            if (post) {
+                byte[] requestBody = signedQuery.getBytes(StandardCharsets.UTF_8);
+                connection.setDoOutput(true);
+                connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
+                connection.setFixedLengthStreamingMode(requestBody.length);
+                try (OutputStream output = connection.getOutputStream()) {
+                    output.write(requestBody);
+                }
+            }
             int responseCode = connection.getResponseCode();
             String body = DrSiteProbeSupport.readBody(connection);
             if (responseCode < 200 || responseCode >= 300) {
@@ -229,11 +403,66 @@ public class DrMoldInventoryClient {
             putDetailIfNotBlank(option, "displayName", firstString(object, "displayname"));
             putDetailIfNotBlank(option, "zoneName", firstString(object, "zonename"));
             putDetailIfNotBlank(option, "hostName", firstString(object, "hostname", "host"));
+            putDetailIfNotBlank(option, "hostUuid", firstString(object, "hostid"));
+            putDetailIfNotBlank(option, "zoneId", firstString(object, "zoneid"));
+            putDetailIfNotBlank(option, "cpuCount", firstString(object, "cpunumber"));
+            putDetailIfNotBlank(option, "cpuSpeed", firstString(object, "cpuspeed"));
+            putDetailIfNotBlank(option, "memoryMiB", firstString(object, "memory"));
+            putDetailIfNotBlank(option, "guestOsId", firstString(object, "guestosid", "ostypeid"));
+            putDetailIfNotBlank(option, "guestOsName", firstString(object, "osdisplayname"));
+            putDetailIfNotBlank(option, "serviceOfferingId", firstString(object, "serviceofferingid"));
+            putDetailIfNotBlank(option, "serviceOfferingName", firstString(object, "serviceofferingname"));
+            putDetailIfNotBlank(option, "bootType", firstString(object, "boottype"));
+            putDetailIfNotBlank(option, "bootMode", firstString(object, "bootmode"));
+            JsonObject vmDetails = getObjectIgnoreCase(object, "details");
+            putDetailIfNotBlank(option, "uefi", firstString(vmDetails, "UEFI", "uefi"));
+            putDetailIfNotBlank(option, "secureBoot", firstString(vmDetails, "secureboot", "secureBoot"));
+            putDetailIfNotBlank(option, "tpmVersion", firstString(vmDetails, "tpmversion", "tpmVersion"));
             putDetailIfNotBlank(option, "account", firstString(object, "account"));
             putDetailIfNotBlank(option, "domain", firstString(object, "domain"));
             options.add(option);
         }
         return options;
+    }
+
+    private JsonObject getStoragePool(DrResolvedSiteCredential credential, String storageId) {
+        Map<String, String> params = new LinkedHashMap<String, String>();
+        params.put("id", storageId);
+        JsonObject response = execute(credential, COMMAND_LIST_STORAGE_POOLS, params);
+        JsonObject payload = getObjectIgnoreCase(response, "liststoragepoolsresponse");
+        JsonArray pools = getArrayIgnoreCase(payload, "storagepool");
+        return pools.size() > 0 && pools.get(0).isJsonObject() ? pools.get(0).getAsJsonObject() : new JsonObject();
+    }
+
+    private String canonicalStoragePath(String poolType, String poolPath, String volumePath) {
+        if (StringUtils.isBlank(volumePath)) {
+            return null;
+        }
+        if (StringUtils.containsIgnoreCase(poolType, "RBD")) {
+            String pool = StringUtils.defaultIfBlank(StringUtils.trim(poolPath), "rbd");
+            return "rbd:" + StringUtils.removeEnd(pool, "/") + "/" + StringUtils.removeStart(volumePath, "/");
+        }
+        if (StringUtils.startsWith(volumePath, "/")) {
+            return volumePath;
+        }
+        return StringUtils.isNotBlank(poolPath)
+                ? StringUtils.removeEnd(poolPath, "/") + "/" + volumePath : volumePath;
+    }
+
+    private String diskTarget(String deviceId) {
+        if (StringUtils.isNumeric(deviceId)) {
+            int index = Integer.parseInt(deviceId);
+            if (index >= 0 && index < 26) {
+                return "sd" + (char) ('a' + index);
+            }
+        }
+        return null;
+    }
+
+    private void putIfNotBlank(Map<String, String> values, String key, String value) {
+        if (StringUtils.isNotBlank(value)) {
+            values.put(key, value);
+        }
     }
 
     private void putDetailIfNotBlank(DrInventoryOption option, String key, String value) {

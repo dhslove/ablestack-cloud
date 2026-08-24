@@ -7208,6 +7208,8 @@
   "message.dr.plan.target.folder.path.placeholder": "예: /Datacenter/vm/DR",
   "message.dr.plan.coordinator.worker.host.help": "DR 작업을 에이전트로 전달하고 상태를 수집할 코디네이터 호스트입니다.",
   "message.dr.plan.source.worker.host.help": "원본 사이트에서 스냅샷/변경분 수집을 담당할 워커 호스트입니다.",
+  "message.dr.plan.source.worker.host.remote.help": "계획 관리 클러스터가 등록된 원본 사이트의 서명된 Cloud API를 통해 확인한 호스트입니다. 호스트 선택과 실행 권한은 원본 Cloud가 관리합니다.",
+  "message.dr.plan.source.worker.host.remote.pending": "원본 가상머신을 선택하면 계획 관리 클러스터가 등록된 원본 사이트를 통해 실행 호스트를 확인합니다.",
   "message.dr.plan.target.worker.host.help": "대상 사이트에서 디스크 반영/복구 VM 준비를 담당할 워커 호스트입니다.",
   "message.dr.plan.worker.host.placeholder": "워커 호스트를 선택하세요.",
   "message.dr.plan.worker.host.empty": "선택한 사이트에서 사용할 수 있는 워커 호스트가 없습니다.",

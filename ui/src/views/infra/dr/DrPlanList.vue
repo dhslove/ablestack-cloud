@@ -499,8 +499,8 @@
               :placeholder="$t('message.dr.plan.rpo.placeholder')" />
           </a-form-item>
               </a-col>
-              <a-col v-if="directionUsesKvmSource || sourceWorkerHostOptions.length > 0" :xs="24" :md="12">
-          <a-form-item v-if="directionUsesKvmSource || sourceWorkerHostOptions.length > 0">
+              <a-col :xs="24" :md="12">
+          <a-form-item>
             <template #label>
               <tooltip-label :title="$t('label.dr.rto')" :tooltip="$t('message.dr.plan.rto.help')" />
             </template>
@@ -764,11 +764,18 @@
                 <span v-if="host.description" class="cross-dr-select-meta">{{ host.description }}</span>
               </a-select-option>
             </a-select>
+            <a-input
+              v-else-if="remoteSourceWorkerLabel"
+              :value="remoteSourceWorkerLabel"
+              disabled />
+            <div v-if="remoteSourceWorkerLabel" class="cross-dr-form-help">
+              {{ $t('message.dr.plan.source.worker.host.remote.help') }}
+            </div>
             <a-alert
-              v-else
+              v-else-if="!remoteSourceWorkerLabel"
               type="warning"
               showIcon
-              :message="$t('message.dr.plan.worker.host.empty')" />
+              :message="$t('message.dr.plan.source.worker.host.remote.pending')" />
           </a-form-item>
               </a-col>
               <a-col v-if="directionUsesKvmTarget || targetWorkerHostOptions.length > 0" :xs="24" :md="12">
@@ -1528,6 +1535,17 @@ export default {
     },
     directionUsesKvmTarget () {
       return String(this.createForm.direction || '').toUpperCase().endsWith('_KVM')
+    },
+    remoteSourceWorkerLabel () {
+      if (!this.directionUsesKvmSource || this.sourceWorkerHostOptions.length > 0) {
+        return ''
+      }
+      const name = this.sourceHardware.sourceHostName || this.sourceHardware.sourcehostname || ''
+      const uuid = this.sourceHardware.sourceHostUuid || this.sourceHardware.sourcehostuuid || ''
+      if (name && uuid) {
+        return `${name} (${uuid})`
+      }
+      return name || uuid
     },
     requiresDiskMapping () {
       return !this.createForm.expertjson && this.directionUsesKvmTarget && !!(this.createForm.sourcevmid || this.createForm.sourceexternalref)

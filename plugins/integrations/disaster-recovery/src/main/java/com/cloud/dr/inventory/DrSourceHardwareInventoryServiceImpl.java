@@ -16,6 +16,8 @@
 // under the License.
 package com.cloud.dr.inventory;
 
+import java.util.Map;
+
 import javax.inject.Inject;
 
 import org.apache.commons.lang3.StringUtils;
@@ -49,10 +51,19 @@ public class DrSourceHardwareInventoryServiceImpl extends ManagerBase implements
     private AgentManager agentManager;
     @Inject
     private HostDao hostDao;
+    @Inject
+    private DrMoldInventoryClient drMoldInventoryClient;
 
     @Override
     public DrSourceVmHardware resolve(DrPlanVO plan) {
-        if (plan == null || !StringUtils.startsWithIgnoreCase(plan.getDirection(), "VMWARE_")) {
+        if (plan == null) {
+            return null;
+        }
+        if (StringUtils.equalsIgnoreCase(plan.getDirection(), DrConstants.DIRECTION_KVM_TO_KVM)
+                && plan.getSourceVmId() == null && StringUtils.isNotBlank(plan.getSourceExternalRef())) {
+            return resolveRemoteMoldSource(plan);
+        }
+        if (!StringUtils.startsWithIgnoreCase(plan.getDirection(), "VMWARE_")) {
             return null;
         }
         if (StringUtils.isBlank(plan.getSourceExternalRef())) {
@@ -67,6 +78,67 @@ public class DrSourceHardwareInventoryServiceImpl extends ManagerBase implements
         }
         Long workerHostId = firstNonNull(plan.getTargetWorkerHostId(), plan.getCoordinatorWorkerHostId(), plan.getSourceWorkerHostId());
         return resolve(site, plan.getSourceExternalRef(), workerHostId);
+    }
+
+    private DrSourceVmHardware resolveRemoteMoldSource(DrPlanVO plan) {
+        DrSiteVO site = drSiteDao != null ? drSiteDao.findById(plan.getSourceSiteId()) : null;
+        if (site == null || site.getRemoved() != null) {
+            return DrSourceVmHardware.unavailable(plan.getSourceExternalRef(), DrConstants.ERROR_SITE_NOT_FOUND,
+                    "ABLESTACK source site was not found");
+        }
+        DrResolvedSiteCredential credential = null;
+        try {
+            credential = drSiteCredentialService.resolveCredential(site);
+            if (credential == null || !credential.hasSecrets()
+                    || !StringUtils.equalsIgnoreCase(credential.getCredential().getCredentialType(), DrConstants.CREDENTIAL_TYPE_MOLD_API)) {
+                return DrSourceVmHardware.unavailable(plan.getSourceExternalRef(),
+                        DrPlanReadinessValidator.REASON_SOURCE_HARDWARE_INVENTORY_REQUIRED,
+                        "ABLESTACK source site Mold API credential is required");
+            }
+            Map<String, String> values = drMoldInventoryClient.getVirtualMachineHardware(credential, plan.getSourceExternalRef());
+            DrSourceVmHardware hardware = new DrSourceVmHardware();
+            hardware.setSourceVmRef(plan.getSourceExternalRef());
+            hardware.setSourceHostUuid(values.get("sourceHostUuid"));
+            hardware.setSourceHostName(values.get("sourceHostName"));
+            hardware.setInstanceName(values.get("instanceName"));
+            hardware.setFirmware(firstNonBlank(values.get("uefi"), values.get("bootType"), values.get("bootMode"), "LEGACY"));
+            hardware.setSecureBootEnabled(parseBoolean(values.get("secureBoot"), false));
+            hardware.setGuestId(firstNonBlank(values.get("guestOsName"), values.get("guestOsId")));
+            hardware.setCpuCount(parseInteger(values.get("cpuCount")));
+            hardware.setMemoryMiB(parseLong(values.get("memoryMiB")));
+            hardware.setInventorySource("MOLD_API");
+            hardware.seal();
+            return hardware;
+        } catch (RuntimeException e) {
+            return DrSourceVmHardware.unavailable(plan.getSourceExternalRef(),
+                    DrPlanReadinessValidator.REASON_SOURCE_HARDWARE_INVENTORY_REQUIRED,
+                    StringUtils.defaultIfBlank(e.getMessage(), "ABLESTACK source hardware inventory failed"));
+        } finally {
+            if (credential != null) {
+                credential.close();
+            }
+        }
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (StringUtils.isNotBlank(value)) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private Boolean parseBoolean(String value, boolean fallback) {
+        return StringUtils.isBlank(value) ? fallback : Boolean.valueOf(value);
+    }
+
+    private Integer parseInteger(String value) {
+        try { return StringUtils.isBlank(value) ? null : Integer.valueOf(value); } catch (NumberFormatException e) { return null; }
+    }
+
+    private Long parseLong(String value) {
+        try { return StringUtils.isBlank(value) ? null : Long.valueOf(value); } catch (NumberFormatException e) { return null; }
     }
 
     @Override
