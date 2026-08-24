@@ -1923,6 +1923,24 @@ Summary of the follow-up requirements:
   references and FTCTL runtime target references converge;
 - unify DR Plan list/detail primary status on backend `effectivestate`.
 
+### 17.1 Repeated materialization identity clarification
+
+`runUuid` identifies the Cloud execution that carries a materialization
+notification. It is not part of target resource ownership. Likewise, the
+observed power state is runtime evidence rather than ownership identity. FTCTL
+validates the full manifest SHA for transport integrity, then derives a stable
+ownership fingerprint from the plan, replica, ownership generation, target VM
+identity, and canonical disk map. A later sync Run that points to the same
+resources is idempotent; changing those resources without increasing the
+ownership generation remains a hard conflict.
+
+| Area | AS-IS | TO-BE |
+| --- | --- | --- |
+| Manifest SHA | Used for both transport and ownership comparison | Used only to validate the exact delivered document |
+| Run retry | New `runUuid` changes the SHA and causes conflict | Stable target ownership accepts the new Run |
+| Power observation | Power-state changes alter the ownership comparison | Power state is validated but excluded from ownership identity |
+| Resource replacement | Same generation may be ambiguous | VM/replica/disk fingerprint change requires generation advance |
+
 ## 18. 2026-07-10 Correction: Source Hardware Collection Was Not Complete
 
 The 2026-07-09 implementation result correctly added target hardware fields and
