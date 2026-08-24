@@ -197,6 +197,7 @@ public class FtctlDrUnifiedActionAdapterTest {
         Assert.assertTrue(command.getProfileJson().contains("\"mode\":\"site-agent-nbd\""));
         Assert.assertTrue(command.getProfileJson().contains("\"targetHostAddress\":\"10.10.32.2\""));
         Assert.assertTrue(command.getProfileJson().contains("\"name\":\"dr-export-sda\""));
+        Assert.assertTrue(command.getRequestJson().contains("\"schedulerTransitionScope\":\"REMOTE_SOURCE\""));
         Assert.assertFalse(command.getProfileJson().contains("sshUser"));
         Assert.assertFalse(command.getProfileJson().contains("moldSecretKey"));
     }
@@ -228,6 +229,9 @@ public class FtctlDrUnifiedActionAdapterTest {
         Assert.assertEquals(checkpoint.getSourceSnapshotRef(), command.getCheckpointRef());
         Assert.assertTrue(command.getProfileJson().contains("\"restorePointRef\":\"" + checkpoint.getSourceSnapshotRef() + "\""));
         Assert.assertTrue(command.getRequestJson().contains("\"restorePointRef\":\"" + checkpoint.getSourceSnapshotRef() + "\""));
+        Assert.assertTrue(command.getRequestJson().contains("\"checkpointContractVersion\":1"));
+        Assert.assertTrue(command.getRequestJson().contains("\"checkpointSequence\":2"));
+        Assert.assertTrue(command.getArtifactSpecJson().contains("\"checkpointContractVersion\":1"));
         Assert.assertFalse(command.getRequestJson().contains("restorePointId"));
         Assert.assertEquals("3", command.getArtifactContractVersion());
         Assert.assertTrue(command.getArtifactSpecJson().contains("\"canonicalLocator\":\"rbd:rbd/Rocky10-1-dr-disk-0\""));
@@ -370,6 +374,11 @@ public class FtctlDrUnifiedActionAdapterTest {
         DrRestorePointVO checkpoint = new DrRestorePointVO(plan.getId(), "FTCTL_DR_CHECKPOINT");
         checkpoint.setSourceSnapshotRef(ref);
         checkpoint.setState("READY");
+        checkpoint.setCheckpointSequence(2L);
+        checkpoint.setCheckpointCycleType("CBT_INCREMENTAL");
+        checkpoint.setCycleToken(plan.getUuid() + ":2");
+        checkpoint.setEffectiveMode("CBT_INCREMENTAL");
+        checkpoint.setIncrementalVerified(Boolean.TRUE);
         return checkpoint;
     }
 

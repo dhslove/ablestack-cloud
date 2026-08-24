@@ -57,6 +57,7 @@ import com.cloud.dr.DrTargetPowerOnResult;
 import com.cloud.dr.DrSiteCredentialService;
 import com.cloud.dr.DrSiteVO;
 import com.cloud.dr.DrTestSessionVO;
+import com.cloud.dr.DrTestSessionState;
 import com.cloud.dr.adapter.DrAdapterResult;
 import com.cloud.dr.dao.DrCutoverDiskDao;
 import com.cloud.dr.dao.DrCutoverSessionDao;
@@ -594,6 +595,32 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         Assert.assertNotNull(run.getCompleted());
         Mockito.verify(drTargetMaterializationService, Mockito.never())
                 .enqueueTestMaterialization(Mockito.anyLong(), Mockito.anyLong(), Mockito.anyString());
+    }
+
+    @Test
+    public void failedWorkerProjectsRequestedTestSessionToFailedDespiteStaleSyncingState() {
+        DrPlanVO plan = new DrPlanVO("plan-test-failure", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_TEST_FAILOVER);
+        DrTestSessionVO session = new DrTestSessionVO(plan.getId(), run.getId(), "REQUESTED");
+        ReflectionTestUtils.setField(run, "id", 314L);
+        ReflectionTestUtils.setField(session, "id", 19L);
+        Mockito.when(drTestSessionDao.findActiveByRunId(run.getId())).thenReturn(session);
+
+        FtctlDrStatusCommand command = new FtctlDrStatusCommand(plan.getUuid(), run.getUuid());
+        FtctlDrStatusAnswer status = new FtctlDrStatusAnswer(command, true, "ok", plan.getUuid(), run.getUuid(),
+                "ok", "SYNCING", "test-session-restore-point-missing", 100,
+                null, null, null, null, "DR_RESTORE_POINT_NOT_FOUND", 44,
+                "restore point was not found",
+                "{\"state\":\"SYNCING\",\"worker_state\":\"FAILED\"," +
+                        "\"error_code\":\"DR_RESTORE_POINT_NOT_FOUND\"}");
+        JsonObject runtime = JsonParser.parseString(status.getStatusJson()).getAsJsonObject();
+
+        ReflectionTestUtils.invokeMethod(adapter, "reconcileCloudManagedTestTarget", plan, run, status, runtime);
+
+        Assert.assertEquals(DrTestSessionState.FAILED, session.getState());
+        Assert.assertEquals("DR_RESTORE_POINT_NOT_FOUND", session.getErrorCode());
+        Assert.assertTrue(session.isCleanupRequired());
+        Mockito.verify(drTestSessionDao).update(session.getId(), session);
     }
 
     @Test

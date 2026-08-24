@@ -422,3 +422,50 @@ fixtures use the same spelling.
 | Export outage projection | repeated failed Cycles may appear as terminal replication errors | one pending Cycle waits with a typed resource error and bounded backoff |
 | VM lifecycle | local target materializer assumptions | Cloud owning each VM performs create/start/stop/delete |
 | UI | KVM_TO_KVM appears selectable before end-to-end readiness | capability-gated mode and complete asynchronous lifecycle |
+
+## 9. Target-Side Transition Checkpoint Contract
+
+The Plan Owner remains authoritative when the source and target belong to
+different ABLESTACK sites. A `KVM_TO_KVM` scheduler is dispatched to the remote
+source worker, but `TEST_PREPARE` and `FAILOVER` are dispatched to the target
+worker because Cloud owns target VM lifecycle there. Consequently, a target
+Agent must not be expected to have the source worker's local
+`restore-points.jsonl`.
+
+Before either action is dispatched, Cloud selects the latest active
+`dr_restore_point` in `READY` state and writes an immutable controller
+checkpoint envelope into the redacted request/profile:
+
+- `checkpointContractVersion=1`;
+- `checkpointPlanUuid`, `checkpointRef`, and positive `checkpointSequence`;
+- `checkpointState=READY`, cycle type/token, and effective mode;
+- source-created and target-ready epoch timestamps plus target RPO evidence.
+
+For test failover, `buildTestArtifactSpec()` repeats the checkpoint reference
+and sequence. FTCTL may reconstruct target-side transition metadata only when
+the envelope and artifact contract match exactly. Cloud does not copy source
+credentials, source host files, or checkpoint payloads to the target. Failed
+test preparation must also project its `dr_test_session` from `REQUESTED` to
+`FAILED`, preventing a stale session from blocking a retry.
+
+The contract is used only when `direction=KVM_TO_KVM` and the source site is
+remote. The existing VMware-to-ABLESTACK execution and restore-point lookup
+remain unchanged regression gates.
+
+For that same remote-source condition Cloud writes
+`schedulerTransitionScope=REMOTE_SOURCE`. Test failover and cleanup are target
+artifact operations and must not pause, resume, or recreate a scheduler on the
+target coordinator. Production failover is not allowed to reuse this shortcut:
+the Plan Owner must first dispatch and confirm remote source quiescence, then
+stop the target export, and only then dispatch target promotion.
+
+### 9.1 AS-IS / TO-BE
+
+| Area | AS-IS | TO-BE |
+| --- | --- | --- |
+| Plan Owner evidence | Sends only a textual restore-point reference | Sends a versioned, DB-backed durable checkpoint envelope |
+| Target Agent lookup | Searches a source-worker-local journal | Validates the controller envelope and target artifact contract |
+| Test session failure | Run fails while session can remain `REQUESTED` | Runtime failure atomically projects the session to `FAILED` |
+| Actual failover | Has the same cross-host metadata gap | Reuses the same immutable envelope contract |
+| VMware regression | Shared fallback could alter a validated path | No fallback outside remote `KVM_TO_KVM` |
+| Scheduler authority | Target test action may resume a duplicate scheduler | Test action leaves the remote source scheduler authoritative |

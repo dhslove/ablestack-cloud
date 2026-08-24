@@ -1696,7 +1696,8 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         if (run == null || !StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_TEST_FAILOVER)) {
             return;
         }
-        String runtimeState = StringUtils.upperCase(StringUtils.defaultIfBlank(status.getState(), stringValue(runtime, "state")), Locale.ROOT);
+        String runtimeState = isRuntimeError(status, runtime) ? DrTestSessionState.FAILED
+                : StringUtils.upperCase(StringUtils.defaultIfBlank(status.getState(), stringValue(runtime, "state")), Locale.ROOT);
         DrTestSessionVO session = drTestSessionDao != null ? drTestSessionDao.findActiveByRunId(run.getId()) : null;
         boolean materializationPending = false;
         if (session != null) {

@@ -457,8 +457,11 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         DrRestorePointVO latestCheckpoint = requiresLatestCheckpoint(action)
                 ? drRestorePointDao.findLatestTargetReadyByPlanId(plan.getId()) : null;
         redactedRequest.remove("restorePointId");
+        if (isRemoteKvmToKvmPlan(plan)) {
+            redactedRequest.addProperty("schedulerTransitionScope", "REMOTE_SOURCE");
+        }
         if (latestCheckpoint != null) {
-            redactedRequest.addProperty("restorePointRef", latestCheckpoint.getSourceSnapshotRef());
+            addControllerCheckpointEvidence(redactedRequest, plan, latestCheckpoint);
         }
         FtctlDrActionCommand command = new FtctlDrActionCommand(action, plan.getUuid(), run.getUuid());
         command.setActionName(action.name());
@@ -531,11 +534,36 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         spec.addProperty("planUuid", plan.getUuid());
         spec.addProperty("runUuid", run.getUuid());
         if (checkpoint != null) {
-            spec.addProperty("checkpointRef", checkpoint.getSourceSnapshotRef());
-            spec.addProperty("checkpointSequence", checkpoint.getCheckpointSequence());
+            addControllerCheckpointEvidence(spec, plan, checkpoint);
         }
         spec.add("disks", artifactDisks);
         return GSON.toJson(spec);
+    }
+
+    private void addControllerCheckpointEvidence(JsonObject target, DrPlanVO plan, DrRestorePointVO checkpoint) {
+        target.addProperty("checkpointContractVersion", 1);
+        target.addProperty("checkpointPlanUuid", plan.getUuid());
+        target.addProperty("checkpointRef", checkpoint.getSourceSnapshotRef());
+        target.addProperty("restorePointRef", checkpoint.getSourceSnapshotRef());
+        if (checkpoint.getCheckpointSequence() != null) {
+            target.addProperty("checkpointSequence", checkpoint.getCheckpointSequence());
+        }
+        target.addProperty("checkpointState", checkpoint.getState());
+        target.addProperty("checkpointCycleType", checkpoint.getCheckpointCycleType());
+        target.addProperty("checkpointCycleToken", checkpoint.getCycleToken());
+        target.addProperty("checkpointEffectiveMode", checkpoint.getEffectiveMode());
+        if (checkpoint.getSourceCreated() != null) {
+            target.addProperty("checkpointSourceCreatedAt", checkpoint.getSourceCreated().toInstant().toString());
+        }
+        if (checkpoint.getTargetReadyAt() != null) {
+            target.addProperty("checkpointTargetReadyAt", checkpoint.getTargetReadyAt().toInstant().toString());
+        }
+        if (checkpoint.getTargetReadyRpoSeconds() != null) {
+            target.addProperty("checkpointTargetReadyRpoSeconds", checkpoint.getTargetReadyRpoSeconds());
+        }
+        if (checkpoint.getIncrementalVerified() != null) {
+            target.addProperty("checkpointIncrementalVerified", checkpoint.getIncrementalVerified());
+        }
     }
 
     private boolean isRbdStorage(String storageType, String storagePath, String volumeRef) {
