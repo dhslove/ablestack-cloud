@@ -16,9 +16,6 @@
 // under the License.
 package com.cloud.hypervisor.kvm.resource.wrapper;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-
 import com.cloud.agent.api.Answer;
 import com.cloud.agent.api.FtctlActionAnswer;
 import com.cloud.agent.api.FtctlActionCommand;
@@ -34,21 +31,6 @@ import org.apache.commons.lang3.StringUtils;
 public class LibvirtFtctlActionCommandWrapper extends CommandWrapper<FtctlActionCommand, Answer, LibvirtComputingResource> {
 
     private static final int DEFAULT_TIMEOUT_SECONDS = 60;
-
-    private static final class FtctlAllLinesParser extends OutputInterpreter.AllLinesParser {
-        @Override
-        public String processError(BufferedReader reader) throws IOException {
-            String lines = getLines();
-            if (StringUtils.isNotBlank(lines)) {
-                return lines;
-            }
-            try {
-                return super.processError(reader);
-            } catch (IOException e) {
-                return e.getMessage();
-            }
-        }
-    }
 
     @Override
     public Answer execute(FtctlActionCommand command, LibvirtComputingResource serverResource) {
@@ -80,7 +62,7 @@ public class LibvirtFtctlActionCommandWrapper extends CommandWrapper<FtctlAction
         }
         script.add("--json");
 
-        OutputInterpreter.AllLinesParser parser = new FtctlAllLinesParser();
+        OutputInterpreter.AllLinesParser parser = new LibvirtFtctlWrapperHelper.FtctlProcessOutputParser();
         String result = script.execute(parser);
         String output = LibvirtFtctlWrapperHelper.getOutput(result, parser);
         JsonObject payload = LibvirtFtctlWrapperHelper.parseJsonObject(output);

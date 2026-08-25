@@ -30,6 +30,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 import com.cloud.agent.AgentManager;
 import com.cloud.agent.api.Answer;
 import com.cloud.agent.api.Command;
+import com.cloud.agent.api.FtctlDrActionCommand;
 import com.cloud.agent.api.FtctlDrStatusCommand;
 import com.cloud.host.HostVO;
 import com.cloud.host.Status;
@@ -68,6 +69,37 @@ public class FtctlDrSiteAgentBrokerServiceImplTest {
         Assert.assertEquals("host-uuid", response.getWorkerHostUuid());
         Assert.assertTrue(response.getResult());
         Assert.assertEquals("accepted", response.getDetails());
+    }
+
+    @Test
+    public void rewritesTargetExportTransportToTheSiteLocalWorker() throws Exception {
+        HostVO host = Mockito.mock(HostVO.class);
+        Mockito.when(host.getId()).thenReturn(42L);
+        Mockito.when(host.getUuid()).thenReturn("source-host-uuid");
+        Mockito.when(host.getPrivateIpAddress()).thenReturn("10.10.22.1");
+        Mockito.when(host.getStatus()).thenReturn(Status.Up);
+        Mockito.when(host.getHypervisorType()).thenReturn(Hypervisor.HypervisorType.KVM);
+        Mockito.when(hostDao.findByUuid("source-host-uuid")).thenReturn(host);
+
+        FtctlDrActionCommand requested = new FtctlDrActionCommand(
+                FtctlDrActionCommand.Action.TARGET_EXPORT_START, "plan-uuid", "run-uuid");
+        requested.setRole("reverse-target");
+        requested.setProfileJson("{\"transport\":{\"targetHostUuid\":\"target-host-uuid\"," +
+                "\"targetHostAddress\":\"10.10.32.3\",\"remoteNbdExportAddress\":\"10.10.32.3\"," +
+                "\"exports\":[{\"host\":\"10.10.32.3\"}]}}");
+        Mockito.when(agentManager.send(Mockito.eq(42L), Mockito.any(Command.class)))
+                .thenAnswer(invocation -> new Answer(invocation.getArgument(1), true, "accepted"));
+
+        brokerService.execute("ACTION", new Gson().toJson(requested), "source-host-uuid");
+
+        ArgumentCaptor<Command> command = ArgumentCaptor.forClass(Command.class);
+        Mockito.verify(agentManager).send(Mockito.eq(42L), command.capture());
+        FtctlDrActionCommand dispatched = (FtctlDrActionCommand) command.getValue();
+        Assert.assertTrue(dispatched.getProfileJson().contains("\"targetHostUuid\":\"source-host-uuid\""));
+        Assert.assertTrue(dispatched.getProfileJson().contains("\"targetHostAddress\":\"10.10.22.1\""));
+        Assert.assertTrue(dispatched.getProfileJson().contains("\"remoteNbdExportAddress\":\"10.10.22.1\""));
+        Assert.assertFalse(dispatched.getProfileJson().contains("\"exports\""));
+        Assert.assertFalse(dispatched.getProfileJson().contains("10.10.32.3"));
     }
 
     @Test(expected = CloudRuntimeException.class)

@@ -47,6 +47,8 @@ public class DrRunServiceImpl extends ManagerBase implements DrRunService {
     private DrPlanDao drPlanDao;
     @Inject
     private AgentManager agentManager;
+    @Inject
+    private DrFailbackLifecycleService drFailbackLifecycleService;
 
     @Override
     public DrRunVO startRun(long planId, String runType, String idempotencyKey, Long requestedByUserId, Long asyncJobId) {
@@ -101,6 +103,12 @@ public class DrRunServiceImpl extends ManagerBase implements DrRunService {
                 DrConstants.EVENT_SOURCE_CLOUD, "DR run cancel requested", null);
         if (StringUtils.equals(DrConstants.RUN_STATE_CANCEL_REQUESTED, run.getState())) {
             if (!cancelFtctlRun(run)) {
+                return drRunDao.findById(runId);
+            }
+            DrPlanVO plan = drPlanDao.findById(run.getPlanId());
+            if (StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_FAILBACK)
+                    && drFailbackLifecycleService != null
+                    && !drFailbackLifecycleService.cancelAndRestoreTargetAuthority(plan, run)) {
                 return drRunDao.findById(runId);
             }
             // The original executor context may no longer exist after a management

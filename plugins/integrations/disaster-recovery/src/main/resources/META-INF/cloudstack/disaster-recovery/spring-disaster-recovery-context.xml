@@ -82,6 +82,7 @@
     <bean id="drSchedulerRecoveryScheduler" class="com.cloud.dr.DrSchedulerRecoveryScheduler"/>
     <bean id="drTargetMaterializationServiceImpl" class="com.cloud.dr.DrTargetMaterializationServiceImpl"/>
     <bean id="drTargetResourceOwnershipService" class="com.cloud.dr.DrTargetResourceOwnershipService"/>
+    <bean id="drPlanOwnedTransportServiceImpl" class="com.cloud.dr.DrPlanOwnedTransportServiceImpl"/>
     <bean id="drFailbackLifecycleServiceImpl" class="com.cloud.dr.DrFailbackLifecycleServiceImpl"/>
     <bean id="drOrchestratorImpl" class="com.cloud.dr.orchestrator.DrOrchestratorImpl"/>
     <bean id="drProtectionOrchestratorImpl" class="com.cloud.dr.orchestrator.DrProtectionOrchestratorImpl"/>

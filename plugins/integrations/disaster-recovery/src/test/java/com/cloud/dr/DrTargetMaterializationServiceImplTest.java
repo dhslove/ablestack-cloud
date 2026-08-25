@@ -211,4 +211,24 @@ public class DrTargetMaterializationServiceImplTest {
         Assert.assertEquals(1, placement.getNetworks().size());
         Assert.assertEquals("205", placement.getNetworks().get(0).getNetworkLocalId());
     }
+
+    @Test
+    public void failbackRunCannotOwnTargetMaterialization() {
+        DrPlanVO plan = new DrPlanVO("failback-owner-guard", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setState(DrConstants.PLAN_STATE_FAILED_OVER);
+        plan.setActiveSide(DrConstants.AUTHORITY_SIDE_TARGET);
+        DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_FAILBACK);
+
+        Assert.assertFalse(service.isMaterializationOwnerRun(plan, run));
+    }
+
+    @Test
+    public void completedProtectionProducerCanOwnSourceSideReconciliation() {
+        DrPlanVO plan = new DrPlanVO("sync-owner", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setState(DrConstants.PLAN_STATE_READY);
+        plan.setActiveSide(DrConstants.AUTHORITY_SIDE_SOURCE);
+        DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_RECOVER_SYNC);
+
+        Assert.assertTrue(service.isMaterializationOwnerRun(plan, run));
+    }
 }

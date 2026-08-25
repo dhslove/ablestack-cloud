@@ -28,6 +28,7 @@ public class DrRunServiceImplTest {
     @Mock private DrOrchestrator drOrchestrator;
     @Mock private DrPlanDao drPlanDao;
     @Mock private AgentManager agentManager;
+    @Mock private DrFailbackLifecycleService drFailbackLifecycleService;
     @InjectMocks private DrRunServiceImpl service;
 
     @Test
@@ -77,6 +78,32 @@ public class DrRunServiceImplTest {
         DrRunVO result = service.cancelRun(active.getId());
 
         Assert.assertEquals(DrConstants.RUN_STATE_CANCEL_REQUESTED, result.getState());
+        Mockito.verify(drOrchestrator).executeRun(active.getId());
+    }
+
+    @Test
+    public void activeFailbackIsTerminalizedOnlyAfterTargetAuthorityIsRestored() {
+        DrRunVO active = new DrRunVO(10L, DrConstants.RUN_TYPE_FAILBACK);
+        active.setState(DrConstants.RUN_STATE_RUNNING);
+        DrPlanVO plan = Mockito.mock(DrPlanVO.class);
+        Mockito.when(plan.getUuid()).thenReturn("plan-uuid");
+        Mockito.when(plan.getEngineType()).thenReturn(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        Mockito.when(plan.getCoordinatorWorkerHostId()).thenReturn(22L);
+        Mockito.when(drRunDao.findById(active.getId())).thenReturn(active);
+        Mockito.when(drPlanDao.findById(10L)).thenReturn(plan);
+        Mockito.when(drFailbackLifecycleService.cancelAndRestoreTargetAuthority(plan, active)).thenReturn(true);
+        Mockito.when(agentManager.easySend(Mockito.eq(22L), Mockito.any(FtctlDrCancelCommand.class)))
+                .thenAnswer(invocation -> {
+                    FtctlDrCancelCommand command = invocation.getArgument(1);
+                    return new FtctlDrCancelAnswer(command, true, "accepted", "plan-uuid", active.getUuid(),
+                            "canceled", true, null, 0,
+                            "{\"state\":\"CANCELED\",\"terminal_authoritative\":true,"
+                                    + "\"runtime_endpoints_drained\":true,\"transfer_activity_state\":\"CANCELED\"}");
+                });
+
+        service.cancelRun(active.getId());
+
+        Mockito.verify(drFailbackLifecycleService).cancelAndRestoreTargetAuthority(plan, active);
         Mockito.verify(drOrchestrator).executeRun(active.getId());
     }
 

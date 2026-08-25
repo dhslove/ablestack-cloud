@@ -213,6 +213,11 @@ public class DrOrchestratorImpl extends ManagerBase implements DrOrchestrator {
                 || drFailbackSessionDao.findActiveByRunId(run.getId()) != null) {
             return;
         }
+        DrFailbackSessionVO previous = drFailbackSessionDao.findLatestActiveByPlanId(plan.getId());
+        if (previous != null && previous.getRunId() != run.getId()
+                && !StringUtils.equalsAnyIgnoreCase(previous.getState(), "COMPLETED", "FAILED", "ABORTED")) {
+            throw new InvalidParameterValueException("DR_FAILBACK_CLEANUP_PENDING: previous Failback cleanup must finish before another Failback starts");
+        }
         String engineSessionId = plan.getUuid() + ":" + run.getUuid();
         DrFailbackSessionVO session = new DrFailbackSessionVO(plan.getId(), run.getId(),
                 engineSessionId, "REQUESTED");

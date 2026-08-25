@@ -44,6 +44,7 @@ import com.cloud.dr.DrEventVO;
 import com.cloud.dr.DrFailbackLifecycleService;
 import com.cloud.dr.DrFailbackSessionVO;
 import com.cloud.dr.DrPlanVO;
+import com.cloud.dr.DrPlanOwnedTransportService;
 import com.cloud.dr.DrPlanRuntimeVO;
 import com.cloud.dr.DrReplicaDiskVO;
 import com.cloud.dr.DrReplicaVO;
@@ -132,6 +133,8 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     private VolumeDao volumeDao;
     @Mock
     private DrRemoteAgentClient drRemoteAgentClient;
+    @Mock
+    private DrPlanOwnedTransportService drPlanOwnedTransportService;
 
     @InjectMocks
     private FtctlDrRuntimeProjectionAdapter adapter;
@@ -1170,7 +1173,7 @@ public class FtctlDrRuntimeProjectionAdapterTest {
                             12L, null, 0, "", statusJson);
                 });
         Mockito.when(agentManager.easySend(Mockito.eq(102L), Mockito.any(FtctlDrActionCommand.class)))
-                .thenAnswer(invocation -> new Answer(invocation.getArgument(1), true, "target export stopped"));
+                .thenAnswer(invocation -> new Answer(invocation.getArgument(1), true, "target commit acknowledged"));
         Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("ACTION"),
                 Mockito.any(FtctlDrActionCommand.class), Mockito.eq("source-worker-uuid"),
                 Mockito.eq(FtctlDrActionAnswer.class)))
@@ -1194,13 +1197,12 @@ public class FtctlDrRuntimeProjectionAdapterTest {
                 FtctlDrActionCommand.Action.PAUSE_SYNC, run.getUuid());
 
         org.mockito.InOrder cutoverOrder = Mockito.inOrder(drRemoteAgentClient,
-                drTargetMaterializationService, agentManager);
+                drPlanOwnedTransportService, drTargetMaterializationService, agentManager);
         cutoverOrder.verify(drRemoteAgentClient).transitionSourceScheduler(plan,
                 FtctlDrActionCommand.Action.PAUSE_SYNC, run.getUuid());
         cutoverOrder.verify(drRemoteAgentClient).ensureSourceVmPowerState(plan, false);
-        cutoverOrder.verify(agentManager).easySend(Mockito.eq(102L), Mockito.argThat(command ->
-                command instanceof FtctlDrActionCommand
-                        && ((FtctlDrActionCommand) command).getAction() == FtctlDrActionCommand.Action.TARGET_EXPORT_STOP));
+        cutoverOrder.verify(drPlanOwnedTransportService).stopForwardTargetExport(
+                plan, run, null, 12L);
         cutoverOrder.verify(drTargetMaterializationService).ensureTargetPoweredOn(plan.getId());
         cutoverOrder.verify(drRemoteAgentClient).execute(Mockito.eq(plan), Mockito.eq("ACTION"),
                 Mockito.argThat(command -> command instanceof FtctlDrActionCommand
@@ -1211,13 +1213,9 @@ public class FtctlDrRuntimeProjectionAdapterTest {
                         && ((FtctlDrActionCommand) command).getAction() == FtctlDrActionCommand.Action.CUTOVER_COMMIT
                         && "target".equals(((FtctlDrActionCommand) command).getRole())));
         ArgumentCaptor<FtctlDrActionCommand> targetCommandCaptor = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
-        Mockito.verify(agentManager, Mockito.times(2)).easySend(Mockito.eq(102L), targetCommandCaptor.capture());
-        Assert.assertTrue(targetCommandCaptor.getAllValues().stream()
-                .anyMatch(command -> command.getAction() == FtctlDrActionCommand.Action.TARGET_EXPORT_STOP
-                        && Long.valueOf(12L).equals(command.getCutoverCheckpointSequence())));
-        Assert.assertTrue(targetCommandCaptor.getAllValues().stream()
-                .anyMatch(command -> command.getAction() == FtctlDrActionCommand.Action.CUTOVER_COMMIT
-                        && "target".equals(command.getRole())));
+        Mockito.verify(agentManager).easySend(Mockito.eq(102L), targetCommandCaptor.capture());
+        Assert.assertEquals(FtctlDrActionCommand.Action.CUTOVER_COMMIT, targetCommandCaptor.getValue().getAction());
+        Assert.assertEquals("target", targetCommandCaptor.getValue().getRole());
         Mockito.verify(agentManager, Mockito.never()).easySend(Mockito.eq(103L), Mockito.isA(FtctlDrActionCommand.class));
     }
 
@@ -1780,6 +1778,34 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     }
 
     @Test
+    public void canceledFailbackPendingCompensationRemainsProjectableWithoutActiveRun() {
+        DrPlanVO plan = new DrPlanVO("ftctl-dr-plan", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        DrRunVO canceledFailback = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_FAILBACK);
+        canceledFailback.setState(DrConstants.RUN_STATE_CANCELED);
+        canceledFailback.setCompleted(new Date());
+        Mockito.when(drRunDao.findActiveByPlanId(plan.getId())).thenReturn(null);
+        Mockito.when(drRunDao.findLatestByPlanId(plan.getId())).thenReturn(canceledFailback);
+        Mockito.when(drFailbackLifecycleService.requiresCancellationCompensation(canceledFailback))
+                .thenReturn(true);
+
+        Assert.assertSame(canceledFailback, adapter.resolveRefreshProjectionRun(plan));
+    }
+
+    @Test
+    public void terminalCanceledFailbackDoesNotReplaceMissingActiveRun() {
+        DrPlanVO plan = new DrPlanVO("ftctl-dr-plan", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        DrRunVO canceledFailback = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_FAILBACK);
+        canceledFailback.setState(DrConstants.RUN_STATE_CANCELED);
+        canceledFailback.setCompleted(new Date());
+        Mockito.when(drRunDao.findActiveByPlanId(plan.getId())).thenReturn(null);
+        Mockito.when(drRunDao.findLatestByPlanId(plan.getId())).thenReturn(canceledFailback);
+        Mockito.when(drFailbackLifecycleService.requiresCancellationCompensation(canceledFailback))
+                .thenReturn(false);
+
+        Assert.assertNull(adapter.resolveRefreshProjectionRun(plan));
+    }
+
+    @Test
     public void periodicAuthorityProjectionDoesNotReapplyTerminalReprotectError() {
         DrPlanVO plan = new DrPlanVO("ftctl-dr-plan", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
         plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
@@ -2188,6 +2214,7 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     @Test
     public void durableKvmCycleReconcilesPrecreatedReplicaAfterInitiatingRunCompleted() {
         DrPlanVO plan = new DrPlanVO("kvm-owner-plan", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setActiveSide(DrConstants.AUTHORITY_SIDE_SOURCE);
         DrRunVO completedRun = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_RECOVER_SYNC);
         completedRun.setState(DrConstants.RUN_STATE_SUCCEEDED);
         completedRun.setCompleted(new Date());
@@ -2210,6 +2237,57 @@ public class FtctlDrRuntimeProjectionAdapterTest {
 
         Mockito.verify(drTargetMaterializationService).enqueueDurableReconciliation(
                 Mockito.eq(plan.getId()), Mockito.eq(completedRun.getId()), Mockito.anyString());
+    }
+
+    @Test
+    public void durableKvmCycleDoesNotLetFailbackRunOwnTargetReconciliation() {
+        DrPlanVO plan = new DrPlanVO("kvm-failback-plan", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setActiveSide(DrConstants.AUTHORITY_SIDE_TARGET);
+        plan.setState(DrConstants.PLAN_STATE_FAILED_OVER);
+        DrRunVO failbackRun = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_FAILBACK);
+        DrReplicaVO replica = new DrReplicaVO(plan.getId(), plan.getTargetSiteId());
+        replica.setTargetVmId(91L);
+        replica.setState(DrConstants.REPLICA_STATE_SKELETON_READY);
+        FtctlDrStatusCommand command = new FtctlDrStatusCommand(plan.getUuid(), failbackRun.getUuid(),
+                FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY);
+        FtctlDrStatusAnswer status = new FtctlDrStatusAnswer(command, true, "ok", plan.getUuid(), failbackRun.getUuid(),
+                "ok", "FAILED_OVER_UNPROTECTED", "target-active", 100,
+                "2026-08-24T09:51:42Z", "2026-08-24T09:51:44Z", 2,
+                91L, null, 0, "", "{}");
+        JsonObject runtime = JsonParser.parseString("{\"last_target_durable_at\":\"2026-08-24T09:51:44Z\"," +
+                "\"latest_completed_commit_state\":\"LOCAL_DURABLE\"}").getAsJsonObject();
+
+        adapter.reconcileDurableTargetMaterialization(plan, failbackRun, status, runtime);
+
+        Mockito.verifyNoInteractions(drTargetMaterializationService);
+    }
+
+    @Test
+    public void failbackProjectionRejectsRuntimeOwnedByOlderRun() {
+        DrRunVO run = new DrRunVO(51L, DrConstants.RUN_TYPE_FAILBACK);
+        JsonObject runtime = JsonParser.parseString("{\"run_uuid\":\"older-run\","
+                + "\"control_request_run_uuid\":\"older-run\","
+                + "\"failback_session_id\":\"plan:older-run\"}").getAsJsonObject();
+
+        Assert.assertFalse(adapter.runtimeBelongsToRun(runtime, run));
+
+        runtime.addProperty("control_request_run_uuid", run.getUuid());
+        Assert.assertFalse(adapter.runtimeBelongsToRun(runtime, run));
+
+        runtime.addProperty("run_uuid", run.getUuid());
+        runtime.addProperty("failback_session_id", "plan:" + run.getUuid());
+        Assert.assertTrue(adapter.runtimeBelongsToRun(runtime, run));
+    }
+
+    @Test
+    public void failbackProjectionRejectsRunNotFoundPayloadMixedWithOlderPlanOwner() {
+        DrRunVO run = new DrRunVO(51L, DrConstants.RUN_TYPE_FAILBACK);
+        JsonObject runtime = JsonParser.parseString("{\"result\":\"run_not_found\","
+                + "\"run_uuid\":\"" + run.getUuid() + "\","
+                + "\"control_request_run_uuid\":\"older-run\","
+                + "\"failback_session_id\":\"plan:older-run\"}").getAsJsonObject();
+
+        Assert.assertFalse(adapter.runtimeBelongsToRun(runtime, run));
     }
 
     @Test

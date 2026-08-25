@@ -797,3 +797,366 @@ valid value and must not be normalized to a missing evidence field.
 | Cloud retry | Same sequence 5 envelope repeatedly receives mismatch | Idempotent retry converges without DB repair |
 | UI terminal state | Healthy UEFI VM can coexist with `COMMIT_VERIFYING` | Plan reaches failed-over terminal state after dual ACK |
 | Existing routes | Broad fallback could hide invalid evidence | Fallback locates files only; strict identity checks remain |
+
+## 19. Target Materialization Run Ownership
+
+Durable target reconciliation is a protection-data maintenance task. It may
+update a pre-created target VM, volume ownership, and materialization digest,
+but it does not own lifecycle transition Runs. In particular, `FAILOVER`,
+`FAILBACK`, test, reprotect, pause/resume, release, and delete Runs remain owned
+by their dedicated lifecycle services until those services persist terminal
+evidence.
+
+The runtime projection adapter therefore correlates durable target
+reconciliation only with the latest protection producer Run. The producer must
+be a `SYNC` or `RECOVER_SYNC` Run, the Plan authority must still be `SOURCE`,
+and the Plan must not be in a failed-over transition. The materialization
+service repeats the same Run-type and authority checks before changing any
+Plan, Run, replica, or VM state. A rejected correlation is a no-op; it must not
+mark the caller Run successful or reset Plan authority.
+
+Completed protection producer Runs remain valid reconciliation owners. When
+their target metadata needs repair, materialization may update the target and
+emit reconciliation evidence, but it preserves the already terminal Run. A
+concurrent lifecycle Run is never substituted merely because it is the latest
+or the Plan's `last_run_id`.
+
+Regression coverage must include a completed protection producer followed by
+an active `FAILBACK` Run while a replica digest is missing. Projection must
+enqueue the completed producer, leave the `FAILBACK` Run and failback session
+untouched, and allow the failback lifecycle worker to perform engine dispatch
+and terminalization.
+
+| Layer | AS-IS | TO-BE |
+| --- | --- | --- |
+| Runtime projection | Uses the active/latest lifecycle Run as reconciliation correlation | Uses only the latest `SYNC`/`RECOVER_SYNC` producer Run |
+| Materializer | Any correlated Run can receive target-materialization steps and terminal success | Non-protection Run types and target authority are rejected without mutation |
+| Failback | Session remains `REQUESTED` while its Run is falsely `SUCCEEDED` | Session owns dispatch, commit, boot validation, and Run terminalization |
+| Plan state | Reconciliation can reset a failed-over Plan to `READY/SOURCE` | Authority remains unchanged during lifecycle transitions |
+| Regression safety | KVM firmware reconciliation can affect shared lifecycle Runs | KVM reconciliation is isolated; VMware and established action contracts remain unchanged |
+
+## 20. Agent FTCTL Process Output Contract
+
+Cloud Agent executes FTCTL with merged stdout and stderr and drains that stream
+asynchronously. A non-zero process exit must be interpreted from the already
+drained output. Opening a second reader before the drain task has completed can
+race with that task, return `Stream closed`, and hide the engine's structured
+JSON error. The hidden error is then incorrectly classified as an Agent accept
+timeout and causes blind lifecycle retries.
+
+All FTCTL Agent wrappers use one FTCTL-specific parser. It waits for the drain
+completion barrier, returns the captured merged output for both zero and
+non-zero exits, and never reads the process stream a second time. The parser
+retains strict JSON validation in the status wrapper and semantic error parsing
+in the action wrapper; it changes only process-output ownership.
+
+Regression tests cover a non-zero process with structured JSON output, a large
+status payload, and the absence of a second stream read. Remote failback
+transport preparation must expose the real FTCTL result and may retry only
+errors explicitly marked retryable by that result.
+
+| Layer | AS-IS | TO-BE |
+| --- | --- | --- |
+| Agent process output | Drain task and failure reader compete for one stream | One parser owns the stream and publishes output after a drain barrier |
+| Error contract | `Stream closed` masks FTCTL JSON and becomes accept timeout | Original exit code, error code, message, and retryability are preserved |
+| DR status | Successful CLI output can be lost during wrapper races | Strict JSON receives the complete captured payload |
+| Lifecycle retry | Failback retries an unknown transport error until timeout | Retry follows the engine's explicit error contract |
+| Existing routes | A global `Script` change could affect unrelated commands | The change is scoped to FTCTL Action and Status wrappers |
+## 21. Site-local reverse export transport ownership
+
+The KVM-to-KVM Failback path prepares an RBD NBD export on the original site.
+The Plan-authority Cloud selects the remote worker by UUID, but it must not
+reuse the forward transport address when the operation is dispatched through
+the original site's signed Agent broker. The site-local broker is the only
+component that resolves both the selected Host UUID and its current private IP
+without duplicating remote host inventory in the controlling Cloud.
+
+Before dispatching `TARGET_EXPORT_START`,
+`FtctlDrSiteAgentBrokerServiceImpl` therefore replaces
+`transport.targetHostUuid`, `transport.targetHostAddress`, and
+`transport.remoteNbdExportAddress` with the resolved site-local Host values and
+removes stale forward `transport.exports`. FTCTL then reverses only the disk
+mapping and binds qemu-nbd to the address owned by the host that received the
+command. This enrichment is restricted to the site Agent broker and the target
+export action, so the validated VMware-to-ABLESTACK and forward KVM-to-KVM
+paths retain their existing command and data contracts.
+
+| Layer | AS-IS | TO-BE |
+| --- | --- | --- |
+| Authority Cloud | Marks the request as `reverseTargetExport` but leaves the forward target IP in the profile | Continues to own the Plan and selects the remote worker UUID |
+| Remote site broker | Resolves the worker but forwards the stale `10.10.32.x` transport to a `10.10.22.x` host | Rebinds target-export transport to the resolved site's Host UUID and private IP |
+| FTCTL | Attempts qemu-nbd bind against a non-local address and exits before export publication | Receives a site-correct profile and publishes a reachable reverse export |
+| Regression scope | Reverse transport failure can block Failback | VMware and forward replication contracts remain unchanged; a focused broker test guards the rewrite |
+
+## 22. Reverse export action role contract
+
+Cloud dispatches the original-site export with action role `reverse-target` to
+make its temporary Failback purpose explicit. This value is not a durable
+worker authority. The original-site worker remains the Plan's structural
+`source`, while the action temporarily provides an NBD writer endpoint for the
+original RBD image.
+
+FTCTL target-export start and stop must therefore accept `reverse-target`
+without rewriting the Plan-scoped worker role. Normal forward target-export
+requests continue to persist `target`, and unknown roles remain rejected. The
+Cloud broker does not translate `reverse-target` into `target`, because doing
+so would suppress the original site's scheduler after Failback and could make
+authority recovery depend on a later corrective write.
+
+The contract is verified at both boundaries: Cloud keeps the action role and
+site-local transport identity, while FTCTL proves that the structural source
+role survives reverse export start/stop. VMware-to-ABLESTACK and normal
+KVM-to-KVM forward synchronization retain their existing role contracts.
+
+| Layer | AS-IS | TO-BE |
+| --- | --- | --- |
+| Cloud command | Sends the documented `reverse-target` action role | Unchanged; Plan authority remains explicit |
+| FTCTL validation | Treats every role as structural and rejects `reverse-target` | Export-specific validation accepts the auxiliary role |
+| Persistent authority | A workaround could record `target` on the original site | Original worker remains durable `source` |
+| Failure result | Agent returns exit code 2 and Failback retries as engine unavailable | Reverse export reaches qemu-nbd preparation or returns its real typed result |
+
+## 23. Complete RBD Failback durability tuple
+
+The Failback data gate intentionally requires a complete, same-Run durability
+tuple before it stops the active target VM or starts the original VM. For an
+ABLESTACK RBD Cycle this includes `baseline_generation`,
+`baseline_state=LOCAL_DURABLE`, `tracker_state=LOCAL_DURABLE`,
+`writer_state=DURABLE`, `target_written=true`, and `write_verified=true`.
+
+Cloud must not synthesize a missing baseline state from the other fields. The
+FTCTL ABLESTACK checkpoint producer publishes the missing field atomically,
+and operation-scoped status transports it without inference. The existing
+evidence publication grace handles a short projection delay; it does not turn
+an incomplete checkpoint into a valid one.
+
+| Layer | AS-IS | TO-BE |
+| --- | --- | --- |
+| FTCTL checkpoint | Omits `baselineState` after a successful full reverse seed | Publishes the complete durable tuple |
+| Cloud session | Remains incomplete until grace expiry and invokes safe rollback | Advances from `DATA_READY` to commit using explicit evidence |
+| UI | Shows a completed transfer followed by a lifecycle failure | Shows transfer, commit, source boot validation, and terminal success |
+| Regression safety | Weakening the gate could affect VMware Failback | Gate is unchanged; only the ABLESTACK evidence producer is corrected |
+
+## 24. Recoverable rollback cleanup is not terminal
+
+`ROLLBACK_FAILED` means that Cloud preserved TARGET authority but could not yet
+obtain the FTCTL abort acknowledgement needed to close the failed Failback
+attempt. It is a recoverable cleanup state, not an operation terminal. The
+periodic failback lifecycle reconciler must retry the same session and Run
+until the engine cleanup converges. Only then does Cloud atomically publish
+`session=FAILED`, `rollbackState=COMPLETED`, and `run=FAILED` while retaining
+the failed-over TARGET authority.
+
+The lifecycle terminal predicate therefore contains only `COMPLETED`,
+`FAILED`, and `ABORTED`. `ROLLBACK_FAILED` remains in the DAO reconciliation
+candidate set and follows the existing `ABORTING/ROLLBACK_FAILED` retry branch.
+This also allows a package deployment that fixes the underlying FTCTL abort
+contract to recover an existing session without direct DB modification.
+
+An FTCTL status that reports `failback_commit_outcome=ROLLED_BACK` is not
+allowed to update only the Session to `ABORTED`. Cloud invokes the same atomic
+failure convergence transaction immediately so the Session, Run, Plan,
+Replica, failed Step, and protection-view cache agree. For rolling-upgrade
+recovery, an existing `ABORTED` Session paired with a nonterminal Run is
+recognized on the next runtime projection and passed through that transaction.
+
+| Layer | AS-IS | TO-BE |
+| --- | --- | --- |
+| Cloud session | `ROLLBACK_FAILED` is both a retry candidate and terminal | It is exclusively a retryable cleanup state |
+| Reconciler | Selects the row, then exits before retrying cleanup | Reissues abort prepare/commit and converges the same session |
+| Run/UI | Failed attempt remains `RUNNING`, blocking a new Failback | Run becomes authoritative `FAILED`; Failback can be submitted again |
+| Rolled-back status | Marks only the Session `ABORTED` | Atomically terminalizes Session, Run, Plan, Replica, Step, and cache |
+| Authority | Manual DB repair risks changing the serving side | TARGET authority is preserved throughout automated cleanup |
+| Regression scope | A broad terminal change could alter successful routes | Data gate, successful commit, VMware, and forward sync contracts are unchanged |
+
+## 25. Route-specific Failback guest compatibility gate
+
+The Failback data gate validates the reverse destination, so its accepted
+guest compatibility state must be selected from the Plan's expected reverse
+provider pair. `ABLESTACK_TO_ABLESTACK` returns to the original native KVM
+environment and requires `NATIVE_COMPATIBILITY_PRESERVED`. It must not be
+blocked by the VMware-specific prepared-guest check.
+
+`ABLESTACK_TO_VMWARE` retains the previously validated contract and accepts
+only `ORIGINAL_VMWARE_COMPATIBILITY_PRESERVED` or the legacy `READY` value.
+The native KVM value is not accepted for a VMware destination. Unknown or
+`VALIDATION_REQUIRED` states remain blocking on every route. Route and durable
+write validation still run before compatibility validation.
+
+| Layer | AS-IS | TO-BE |
+| --- | --- | --- |
+| FTCTL evidence | Native KVM reverse path emits `VALIDATION_REQUIRED` | Emits `NATIVE_COMPATIBILITY_PRESERVED` |
+| Cloud data gate | Uses VMware accepted values and wording globally | Selects accepted values and error text by expected provider pair |
+| KVM-to-KVM Failback | Durable transfer rolls back before source boot | Proceeds to Cloud-owned power and authority lifecycle |
+| VMware regression | A global allow-list expansion could weaken validation | VMware allow-list remains unchanged |
+
+## 26. Failback Run ownership and rollback isolation
+
+A failed Failback cleanup and a later Failback attempt must never project into
+the same operation. Runtime evidence belongs to a Cloud Run only when its
+`run_uuid`, `control_request_run_uuid`, or typed Failback session identity
+matches that Run. Plan-authority status from an older rollback is valid for the
+serving-side view, but it is not valid operation evidence for a newer Run.
+
+The Cloud lifecycle therefore ignores mismatched runtime payloads before they
+can replace `engine_session_id`, copy terminal fields, or trigger an early
+failure. A terminal Failback Session paired with a nonterminal Run, and a
+terminal Run paired with an unfinished rollback Session, are converged through
+the existing atomic failure transaction. New Failback admission is blocked
+while an older Session is still in a reconciliation state.
+
+FTCTL must also preserve this boundary. An abort for an older Run cannot
+publish its state over a newer live Run's plan status. Abort prepare/commit is
+idempotent after `rollback_state=COMPLETED`; a delayed prepare cannot regress a
+completed rollback to `FENCED`.
+
+| Layer | AS-IS | TO-BE |
+| --- | --- | --- |
+| Cloud lifecycle | Older plan status overwrites the newer Session identity | Mismatched operation ownership is ignored |
+| Cloud terminal state | Session and Run can remain terminal/nonterminal opposites | Existing atomic transaction converges both sides |
+| Admission | A new Failback can start while old rollback cleanup retries | Blocking Session prevents overlapping destructive transitions |
+| FTCTL status | Old abort prepare overwrites the newer Run's plan status | Newer live Run retains status ownership |
+| FTCTL abort | Repeated prepare regresses completed cleanup to `FENCED` | Completed abort is an idempotent terminal acknowledgement |
+| Validated routes | Shared lifecycle fix risks changing data transfer | VMware and native KVM data-plane contracts remain unchanged |
+
+## 27. Failback startup ownership intersection
+
+ABLESTACK RBD 역방향 전송이 수락된 직후 Cloud의 OPERATION 조회가 FTCTL Run
+파일 생성보다 앞설 수 있다. `run_not_found` 응답이 요청 Run UUID와 과거 Plan
+소유자의 control/session 식별자를 동시에 포함하더라도 새 Failback 증거로 보지
+않는다.
+
+Cloud lifecycle과 runtime projection은 동일한 판정 함수를 사용한다. 비어 있지
+않은 `run_uuid`, `control_request_run_uuid`, Run UUID를 포함한 typed
+`failback_session_id`가 모두 현재 Cloud Run을 가리켜야 하며 하나라도 충돌하면
+재조회 대상으로 격리한다. 불투명 레거시 Session ID는 호환을 유지한다.
+`run_not_found` 생성 유예는 rollback/lifecycle 수렴보다 우선한다. 이 규칙은
+상태 소유권에만 적용되므로 이미 검증된 정방향 RBD 전송, VMware 경로, 대상 VM
+생성 및 전원 lifecycle을 변경하지 않는다.
+
+| Layer | AS-IS | TO-BE |
+| --- | --- | --- |
+| FTCTL response | 요청 Run과 과거 Plan 상태가 한 payload에 공존 가능 | 응답은 유지하되 Cloud가 혼합 소유권을 격리 |
+| Cloud projection | 일치하는 식별자 하나로 전체 payload를 수용 | 모든 명시적 식별자의 일치를 요구 |
+| Startup race | 과거 rollback이 새 Session을 즉시 실패 처리 | Run 생성 유예 후 새 OPERATION 상태로 수렴 |
+| Existing success | 공통 데이터 경로 수정 위험 | 상태 투영 경계만 변경하고 데이터 경로 불변 |
+
+## 29. Failback forward transport restoration barrier
+
+ABLESTACK RBD 간 Failback에서 역방향 증분 전송이 완료되면 원본 RBD가 최신
+데이터를 갖지만, 보호 관계는 아직 복구되지 않았다. Failover 시 대상 VM을
+기동하기 위해 중지한 32 사이트의 Plan-owned target export를 다시 준비하지
+않고 정방향 scheduler를 재개하면 첫 22 -> 32 증분 주기가
+`DR_TARGET_EXPORT_UNAVAILABLE`로 실패한다. 이 상태에서 SOURCE authority만
+커밋하면 VM 전환은 성공했어도 Failback Run과 Session은
+`PROTECTION_RESUMING`에서 종결할 수 없다.
+
+Cloud가 Plan-owned transport lifecycle의 단일 소유자가 된다. Action Adapter와
+Failback Lifecycle은 동일한 `DrPlanOwnedTransportService`를 사용하고, export
+start/stop의 site, worker, role, persisted profile 및 reachability 계약을 서로
+다르게 재구성하지 않는다. 이 서비스는 `KVM_TO_KVM`이며 원격 ABLESTACK
+source를 사용하는 Plan에서만 활성화된다. VMware 경로와 로컬 KVM 경로에는
+아무 동작도 추가하지 않는다.
+
+Failback commit 순서는 다음 barrier를 따른다.
+
+1. reverse durable evidence 확인
+2. serving target VM 정지
+3. original-site reverse export 정지
+4. replica-site forward target export 시작 및 Agent reachability 확인
+5. original source VM 시작 및 boot validation
+6. SOURCE authority commit
+7. scheduler resume
+8. required sequence 이상의 첫 forward durable checkpoint 확인
+9. Run, Session, Plan, Replica를 terminal success로 원자 종결
+
+4단계가 실패하면 6단계 전에 중단한다. rollback은 target VM을 다시 켜기 전에
+forward export를 반드시 중지하고, source VM을 끈 뒤 TARGET authority를
+복구한다. 이렇게 하면 qemu-nbd+librbd 전송 소유권과 Cloud/KVM의 KRBD VM
+실행 소유권이 동시에 같은 RBD image를 잡지 않는다.
+
+| Layer | AS-IS | TO-BE |
+| --- | --- | --- |
+| Cloud action | Initial sync/failover만 forward export를 준비 | Action과 lifecycle이 공통 transport service 사용 |
+| Failback lifecycle | Reverse export 중지 후 source VM부터 시작 | Forward export 준비를 authority commit 전 barrier로 실행 |
+| Failure rollback | Target VM 복구 시 export 상태를 명시하지 않음 | Forward export 중지 후 target VM을 복구 |
+| FTCTL scheduler | Export 없이 재개되어 exit 100 | Agent가 export ready를 확인한 뒤에만 재개 |
+| VM/storage ownership | 상태 전환 중 KRBD와 qemu-nbd 충돌 위험 | Export와 VM power를 상호 배타적으로 유지 |
+| VMware regression | 공유 Failback 변경 가능성 | Remote `KVM_TO_KVM` RBD Plan으로 범위 제한 |
+
+완료 판정은 source VM `POWERED_ON`, target VM `POWERED_OFF`, target export
+`RUNNING`, scheduler `HEALTHY`, required checkpoint durable을 모두 요구한다.
+VM 전원 전환만 성공한 상태는 Failback 성공으로 표시하지 않는다.
+
+## 28. Provider-pair별 Windows Failback commit 검증
+
+ABLESTACK RBD 역방향 전송이 완료된 뒤 Cloud가 원본 KVM VM을 기동해도,
+FTCTL의 공통 Windows 게이트가 vCenter guest heartbeat를 요구하면
+`ABLESTACK_TO_ABLESTACK` Run은 commit journal을 만들지 못하고
+`COMMIT_VERIFYING`에 머문다. 이 검증은 guest family만이 아니라 역방향 대상
+provider와 함께 판정해야 한다.
+
+Cloud는 대상 VM 정지와 원본 VM 기동을 수행하고, ABLESTACK 원본에서는 KVM
+Agent/QGA 계열 검증 결과를 commit envelope의 boot evidence로 전달한다. FTCTL은
+`ABLESTACK_TO_ABLESTACK`에서 `POWER_STATE_VALIDATED` 또는
+`GUEST_HEARTBEAT_VALIDATED`를 허용한다. 역방향 대상이 VMware인 검증된
+`ABLESTACK_TO_VMWARE` 경로는 기존과 동일하게
+`GUEST_HEARTBEAT_VALIDATED`를 필수로 유지한다. provider pair가 없거나 알 수
+없으면 보수적으로 VMware heartbeat 계약을 적용한다.
+
+| Layer | AS-IS | TO-BE |
+| --- | --- | --- |
+| Cloud lifecycle | 원본 KVM VM은 정상 기동하지만 commit은 대기 | provider pair에 맞는 boot evidence를 전달 |
+| FTCTL commit | 모든 Windows Failback에 vCenter heartbeat 요구 | ABLESTACK 대상과 VMware 대상을 분리 |
+| RBD-to-RBD | 데이터 전송 후 `COMMIT_VERIFYING` 정체 | commit ACK 후 SOURCE authority와 보호 재개 |
+| VMware regression | 공통 완화가 기존 안전 게이트를 약화 | `*_TO_VMWARE` heartbeat 필수 계약 유지 |
+## Canceled Failback ownership contract
+
+For the ABLESTACK RBD to ABLESTACK RBD route, the cluster owning the DR Plan
+also owns cancellation compensation. A user cancellation submitted from the UI
+must not stop at FTCTL process cancellation. Cloud restores the pre-Failback
+serving topology through the registered sites: source VM stopped, target VM
+running, target authority retained. The same rule applies regardless of which
+management cluster hosts the source VM.
+
+The UI continues to use `cancelDrRun`; no host credentials or manual recovery
+controls are exposed. Backend terminalization is withheld until the Failback
+session, plan authority, replica state, VM power states, and FTCTL abort outcome
+agree.
+
+The KVM Agent accepts `CANCELED` only as the retained operation state of a
+successful `FAILBACK_ABORT` prepare response when `result=ok`, no error code is
+present, and rollback state is `FENCED`. This does not relax generic canceled
+action handling and does not apply to the abort commit phase.
+## Failback cancellation terminal contract
+
+For ABLESTACK RBD to ABLESTACK RBD, canceling Failback restores the serving target before Cloud closes the canceled Run. FTCTL's commit response is authoritative even when `accepted=false`, because the request is no longer being admitted: the rollback has already completed. Cloud Agent recognizes that response only with the exact `FAILED_OVER / ABORTED / ROLLED_BACK / COMPLETED / TARGET` contract and matching source-off/target-on power evidence. This prevents a successful rollback from remaining `COMMIT_VERIFYING` while preserving rejection of partial or ambiguous terminal states.
+
+## Canceled Failback orphan projection recovery
+
+The Plan owner must continue reconciliation after a canceled Failback Run leaves
+the active-Run query but before its compensation Session becomes terminal. The
+lifecycle service owns this predicate; Runtime Projection may fall back to the
+latest Run only when it is a canceled Failback with a non-terminal compensation
+Session. This exception precedes the committed-target no-transition return and
+reuses the existing Cloud-owned rollback transaction.
+
+| Layer | AS-IS | TO-BE |
+| --- | --- | --- |
+| Cloud projection | Active Run absence hides pending compensation | Lifecycle-confirmed canceled Failback remains visible to projection |
+| Cloud lifecycle | Periodic reconciliation is the only recovery opportunity | Periodic and UI/status refresh paths converge the same Session |
+| UI | Correct target power may coexist with stale rollback failure | Plan returns to stable failed-over target authority after convergence |
+| FTCTL/data plane | No change required | Existing terminal abort ACK and RBD transfer contracts are reused |
+
+## Completed abort acknowledgement during compensation retry
+
+When ABLESTACK-to-ABLESTACK cancellation compensation retries after FTCTL has
+already committed the rollback, the repeated prepare call returns the completed
+target-authority tuple instead of the intermediate fence tuple. The KVM Agent
+accepts this response for prepare and commit only when rollback is `COMPLETED`,
+Cloud lifecycle is `ABORTED`, commit outcome is `ROLLED_BACK`, active side is
+`TARGET`, source is `POWERED_OFF`, target is `POWERED_ON`, and no error code is
+present. Incomplete or ambiguous responses remain failures.
+
+This allows the Plan-owning Cloud transaction to terminate the canceled
+Failback Session without changing the proven RBD replication path or the
+VMware-to-ABLESTACK provider contract.

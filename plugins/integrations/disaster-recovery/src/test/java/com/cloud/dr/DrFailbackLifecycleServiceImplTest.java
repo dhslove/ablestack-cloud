@@ -35,6 +35,7 @@ public class DrFailbackLifecycleServiceImplTest {
     @Mock private DrEventDao drEventDao;
     @Mock private DrCutoverSessionDao drCutoverSessionDao;
     @Mock private DrRemoteAgentClient drRemoteAgentClient;
+    @Mock private DrPlanOwnedTransportService drPlanOwnedTransportService;
 
     @Spy
     @InjectMocks
@@ -128,25 +129,45 @@ public class DrFailbackLifecycleServiceImplTest {
         plan = new DrPlanVO("failback-plan", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
         plan.setSourceExternalRef("remote-source-vm");
         plan.setActiveSide("TARGET");
-        Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
-        Mockito.when(drRemoteAgentClient.sourceWorkerUuid(plan)).thenReturn("source-host-uuid");
-        Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("ACTION"),
-                Mockito.isA(FtctlDrActionCommand.class), Mockito.eq("source-host-uuid"),
-                Mockito.eq(FtctlDrActionAnswer.class))).thenAnswer(invocation -> {
-                    FtctlDrActionCommand command = invocation.getArgument(2);
-                    return new FtctlDrActionAnswer(command, true, "stopped",
-                            FtctlDrActionCommand.Action.TARGET_EXPORT_STOP, plan.getUuid(), run.getUuid(),
-                            "completed", true, "STOPPED", "target-export-stopped", 100, run.getUuid(),
-                            0L, null, 0, "{\"result\":\"ok\"}", "{\"state\":\"STOPPED\"}");
-                });
 
         service.stopReversePlanOwnedExport(plan, run);
 
-        Mockito.verify(drRemoteAgentClient).execute(Mockito.eq(plan), Mockito.eq("ACTION"),
-                Mockito.argThat(command -> command instanceof FtctlDrActionCommand
-                        && ((FtctlDrActionCommand) command).getAction() == FtctlDrActionCommand.Action.TARGET_EXPORT_STOP
-                        && "reverse-target".equals(((FtctlDrActionCommand) command).getRole())),
-                Mockito.eq("source-host-uuid"), Mockito.eq(FtctlDrActionAnswer.class));
+        Mockito.verify(drPlanOwnedTransportService).stopReverseTargetExport(plan, run);
+    }
+
+    @Test
+    public void remoteKvmFailbackRestoresForwardExportBeforeAuthorityCommit() {
+        service.restoreForwardPlanOwnedExport(plan, run);
+
+        Mockito.verify(drPlanOwnedTransportService).startForwardTargetExport(plan, run, null);
+    }
+
+    @Test
+    public void protectionResumeReentryRestoresForwardExportForRemoteKvmPlan() {
+        plan = new DrPlanVO("failback-plan", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setSourceExternalRef("remote-source-vm");
+        Mockito.when(drPlanOwnedTransportService.supports(plan)).thenReturn(true);
+
+        service.ensureForwardPlanOwnedExportForProtectionResume(plan, run);
+
+        Mockito.verify(drPlanOwnedTransportService).startForwardTargetExport(plan, run, null);
+    }
+
+    @Test
+    public void protectionResumeReentryDoesNotTouchVmwareTransport() {
+        Mockito.when(drPlanOwnedTransportService.supports(plan)).thenReturn(false);
+
+        service.ensureForwardPlanOwnedExportForProtectionResume(plan, run);
+
+        Mockito.verify(drPlanOwnedTransportService, Mockito.never())
+                .startForwardTargetExport(Mockito.any(), Mockito.any(), Mockito.any());
+    }
+
+    @Test
+    public void rollbackStopsForwardExportBeforeTargetRecovery() {
+        service.stopForwardPlanOwnedExportForTargetRecovery(plan, run);
+
+        Mockito.verify(drPlanOwnedTransportService).stopForwardTargetExport(plan, run, null, null);
     }
 
     @Test
@@ -160,6 +181,53 @@ public class DrFailbackLifecycleServiceImplTest {
         session.setCommitDispatchState("DISPATCHED");
 
         Assert.assertTrue(service.hasDurableCommitDispatch(session));
+    }
+
+    @Test
+    public void rollbackFailedSessionRemainsEligibleForCleanupReconciliation() {
+        Assert.assertFalse(service.isTerminal("ROLLBACK_FAILED"));
+        Assert.assertTrue(service.isTerminal("COMPLETED"));
+        Assert.assertTrue(service.isTerminal("FAILED"));
+        Assert.assertTrue(service.isTerminal("ABORTED"));
+    }
+
+    @Test
+    public void canceledFailbackWithLiveSessionRequiresAuthorityCompensation() {
+        run.setState(DrConstants.RUN_STATE_CANCELED);
+        session.setState("COMMIT_VERIFYING");
+        Assert.assertTrue(service.isCanceledFailbackPendingCompensation(run, session));
+
+        session.setState("ABORTED");
+        Assert.assertFalse(service.isCanceledFailbackPendingCompensation(run, session));
+    }
+
+    @Test
+    public void abortedSessionWithNonterminalRunRequiresAtomicFailureConvergence() {
+        session.setState("ABORTED");
+        run.setState(DrConstants.RUN_STATE_RUNNING);
+        Assert.assertTrue(service.requiresRolledBackFailureConvergence(session, run));
+
+        run.setState(DrConstants.RUN_STATE_FAILED);
+        Assert.assertFalse(service.requiresRolledBackFailureConvergence(session, run));
+        session.setState("FAILED");
+        run.setState(DrConstants.RUN_STATE_RUNNING);
+        Assert.assertTrue(service.requiresRolledBackFailureConvergence(session, run));
+    }
+
+    @Test
+    public void failbackRuntimeOwnedByOlderRunIsIgnored() {
+        JsonObject runtime = runtime("ACKNOWLEDGED");
+        runtime.addProperty("run_uuid", "older-failback-run");
+        runtime.addProperty("control_request_run_uuid", "older-failback-run");
+        runtime.addProperty("failback_session_id", plan.getUuid() + ":older-failback-run");
+
+        DrFailbackSessionVO result = service.reconcile(plan, run, runtime);
+
+        Assert.assertSame(session, result);
+        Assert.assertEquals("COMMIT_VERIFYING", session.getState());
+        Mockito.verify(drFailbackSessionDao, Mockito.never()).update(
+                Mockito.eq(session.getId()), Mockito.any(DrFailbackSessionVO.class));
+        Mockito.verify(drEventDao, Mockito.never()).persist(Mockito.any());
     }
 
     @Test
@@ -334,6 +402,21 @@ public class DrFailbackLifecycleServiceImplTest {
         Mockito.when(drFailbackSessionDao.findById(session.getId())).thenReturn(stillStale);
 
         service.reconcile(plan, run, runtime("ACKNOWLEDGED"));
+    }
+
+    @Test
+    public void lifecycleRejectsRunNotFoundPayloadMixedWithOlderPlanOwner() {
+        JsonObject mixedRuntime = new JsonObject();
+        mixedRuntime.addProperty("result", "run_not_found");
+        mixedRuntime.addProperty("run_uuid", run.getUuid());
+        mixedRuntime.addProperty("control_request_run_uuid", "older-run");
+        mixedRuntime.addProperty("failback_session_id", "plan:older-run");
+
+        Assert.assertFalse(service.runtimeBelongsToRun(mixedRuntime, run));
+
+        mixedRuntime.addProperty("control_request_run_uuid", run.getUuid());
+        mixedRuntime.addProperty("failback_session_id", "plan:" + run.getUuid());
+        Assert.assertTrue(service.runtimeBelongsToRun(mixedRuntime, run));
     }
 
     private JsonObject runtime(String outcome) {

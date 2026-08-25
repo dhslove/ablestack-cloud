@@ -49,6 +49,7 @@ import com.cloud.dr.DrFailbackLifecycleService;
 import com.cloud.dr.DrFailbackSessionVO;
 import com.cloud.dr.DrEventVO;
 import com.cloud.dr.DrPlanVO;
+import com.cloud.dr.DrPlanOwnedTransportService;
 import com.cloud.dr.DrPlanRuntimeVO;
 import com.cloud.dr.DrReplicaDiskVO;
 import com.cloud.dr.DrReplicaVO;
@@ -119,6 +120,8 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
     private AgentManager agentManager;
     @Inject
     private DrRemoteAgentClient drRemoteAgentClient;
+    @Inject
+    private DrPlanOwnedTransportService drPlanOwnedTransportService;
     @Inject
     private DrPlanDao drPlanDao;
     @Inject
@@ -210,7 +213,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             return DrAdapterResult.failure(DrConstants.ERROR_TARGET_MAPPING_INVALID, message, GSON.toJson(buildDetails(plan, null, null)));
         }
 
-        DrRunVO projectionRun = drRunDao != null ? drRunDao.findActiveByPlanId(plan.getId()) : null;
+        DrRunVO projectionRun = resolveRefreshProjectionRun(plan);
         FtctlDrStatusCommand authorityCommand = new FtctlDrStatusCommand(plan.getUuid(), null,
                 FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY);
         authorityCommand.setWait(STATUS_REFRESH_WAIT_SECONDS);
@@ -266,8 +269,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         DrRunVO protectionProducerRun = resolveProtectionProducerRun(plan, authorityStatus, authorityRuntime);
         projectProtectionAuthority(plan, protectionProducerRun, authorityStatus, authorityRuntime);
         upsertRestorePointFromStatus(plan, protectionProducerRun, authorityStatus, authorityRuntime);
-        reconcileDurableTargetMaterialization(plan,
-                projectionRun != null ? projectionRun : protectionProducerRun,
+        reconcileDurableTargetMaterialization(plan, protectionProducerRun,
                 authorityStatus, authorityRuntime);
 
         FtctlDrStatusAnswer status = authorityStatus;
@@ -1520,42 +1522,15 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         if (!isRemoteKvmToKvmPlan(plan)) {
             return;
         }
-        Answer answer = sendTargetExportTransition(plan, run, FtctlDrActionCommand.Action.TARGET_EXPORT_STOP,
+        drPlanOwnedTransportService.stopForwardTargetExport(plan, run, null,
                 session != null ? session.getCheckpointSequence() : null);
-        if (answer == null || !answer.getResult()) {
-            throw new CloudRuntimeException(StringUtils.defaultIfBlank(
-                    answer != null ? answer.getDetails() : null,
-                    "Target Agent did not drain the Plan-owned RBD export before VM promotion"));
-        }
     }
 
     private void restorePlanOwnedTargetExportAfterAbort(DrPlanVO plan, DrRunVO run) {
         if (!isRemoteKvmToKvmPlan(plan)) {
             return;
         }
-        Answer answer = sendTargetExportTransition(plan, run, FtctlDrActionCommand.Action.TARGET_EXPORT_START, null);
-        if (answer == null || !answer.getResult()) {
-            throw new CloudRuntimeException(StringUtils.defaultIfBlank(
-                    answer != null ? answer.getDetails() : null,
-                    "Target Agent did not restore the Plan-owned RBD export after failover abort"));
-        }
-    }
-
-    private Answer sendTargetExportTransition(DrPlanVO plan, DrRunVO run,
-            FtctlDrActionCommand.Action action, Long checkpointSequence) {
-        if (plan == null || run == null || plan.getTargetWorkerHostId() == null) {
-            return null;
-        }
-        FtctlDrActionCommand command = new FtctlDrActionCommand(action, plan.getUuid(), run.getUuid());
-        command.setActionName(action.name());
-        command.setCliCommand(action.getCliCommand());
-        command.setRunType(run.getRunType());
-        command.setDirection(plan.getDirection());
-        command.setRole("target");
-        command.setCutoverCheckpointSequence(checkpointSequence);
-        command.setWaitForCompletion(true);
-        command.setWait(45);
-        return agentManager.easySend(plan.getTargetWorkerHostId(), command);
+        drPlanOwnedTransportService.startForwardTargetExport(plan, run, null);
     }
 
     private DrCutoverSessionVO upsertCutoverSession(DrPlanVO plan, DrRunVO run, FtctlDrStatusAnswer status, JsonObject runtime) {
@@ -2381,6 +2356,10 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             }
             return;
         }
+        if (StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_FAILBACK)
+                && !runtimeBelongsToRun(runtime, run)) {
+            return;
+        }
         if (run.getCompleted() != null) {
             // A concurrent terminal projection may be followed by a stale Agent
             // acceptance write. Keep the Run projectable and repair the mixed
@@ -2434,6 +2413,29 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         if (StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_SYNC)) {
             markSyncTargetPending(plan, run, status, runtime);
         }
+    }
+
+    boolean runtimeBelongsToRun(JsonObject runtime, DrRunVO run) {
+        if (runtime == null || run == null || StringUtils.isBlank(run.getUuid())) {
+            return true;
+        }
+        String runUuid = run.getUuid();
+        String runtimeRun = stringValue(runtime, "run_uuid");
+        String controlRun = stringValue(runtime, "control_request_run_uuid");
+        String sessionId = stringValue(runtime, "failback_session_id");
+        boolean hasTypedSessionIdentity = StringUtils.contains(sessionId, ":");
+        boolean hasIdentity = StringUtils.isNotBlank(runtimeRun) || StringUtils.isNotBlank(controlRun)
+                || hasTypedSessionIdentity;
+        if (!hasIdentity) {
+            return true;
+        }
+        if (StringUtils.isNotBlank(runtimeRun) && !StringUtils.equals(runtimeRun, runUuid)) {
+            return false;
+        }
+        if (StringUtils.isNotBlank(controlRun) && !StringUtils.equals(controlRun, runUuid)) {
+            return false;
+        }
+        return !hasTypedSessionIdentity || StringUtils.endsWith(sessionId, ":" + runUuid);
     }
 
     private boolean reconcileCanceledFailoverPreparation(DrPlanVO plan, DrRunVO run, JsonObject runtime) {
@@ -2572,6 +2574,20 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             return activeRun;
         }
         return drRunDao.findLatestByPlanId(plan.getId());
+    }
+
+    DrRunVO resolveRefreshProjectionRun(DrPlanVO plan) {
+        if (plan == null || drRunDao == null) {
+            return null;
+        }
+        DrRunVO activeRun = drRunDao.findActiveByPlanId(plan.getId());
+        if (activeRun != null) {
+            return activeRun;
+        }
+        DrRunVO latestRun = drRunDao.findLatestByPlanId(plan.getId());
+        return latestRun != null && drFailbackLifecycleService != null
+                && drFailbackLifecycleService.requiresCancellationCompensation(latestRun)
+                ? latestRun : null;
     }
 
     private DrRunVO resolveProtectionProducerRun(DrPlanVO plan, FtctlDrStatusAnswer status, JsonObject runtime) {
@@ -3400,6 +3416,11 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         if (plan == null || correlationRun == null || drTargetMaterializationService == null
                 || drReplicaDao == null
                 || !StringUtils.equalsIgnoreCase(plan.getDirection(), DrConstants.DIRECTION_KVM_TO_KVM)
+                || !StringUtils.equalsAnyIgnoreCase(correlationRun.getRunType(),
+                        DrConstants.RUN_TYPE_SYNC, DrConstants.RUN_TYPE_RECOVER_SYNC)
+                || !StringUtils.equalsIgnoreCase(StringUtils.defaultIfBlank(plan.getActiveSide(),
+                        DrConstants.AUTHORITY_SIDE_SOURCE), DrConstants.AUTHORITY_SIDE_SOURCE)
+                || StringUtils.equalsIgnoreCase(plan.getState(), DrConstants.PLAN_STATE_FAILED_OVER)
                 || !hasDurableCheckpoint(status, runtime)) {
             return;
         }

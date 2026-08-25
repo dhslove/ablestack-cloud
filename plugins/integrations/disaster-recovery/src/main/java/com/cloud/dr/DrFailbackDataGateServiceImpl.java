@@ -41,13 +41,32 @@ public class DrFailbackDataGateServiceImpl extends ManagerBase implements DrFail
                 || !Boolean.TRUE.equals(session.getTargetWritten())
                 || !Boolean.TRUE.equals(session.getWriteVerified())) {
             return DrFailbackDataGateResult.blocked("DR_FAILBACK_TARGET_WRITE_UNVERIFIED",
-                    "VMware target writes were not durably verified");
+                    "Failback target writes were not durably verified");
         }
-        if (!StringUtils.equalsAny(session.getGuestCompatibilityState(),
-                        "ORIGINAL_VMWARE_COMPATIBILITY_PRESERVED", "READY")) {
+        if (!isGuestCompatibilityReady(expectedRoute, session.getGuestCompatibilityState())) {
             return DrFailbackDataGateResult.blocked("DR_FAILBACK_GUEST_COMPATIBILITY_NOT_READY",
-                    "The guest is not prepared to boot on VMware");
+                    guestCompatibilityError(expectedRoute));
         }
         return DrFailbackDataGateResult.ready();
+    }
+
+    private boolean isGuestCompatibilityReady(DrFailbackRouteContract expectedRoute, String state) {
+        if (StringUtils.equals(expectedRoute.getProviderPair(), DrConstants.PROVIDER_PAIR_ABLESTACK_TO_ABLESTACK)) {
+            return StringUtils.equals(state, "NATIVE_COMPATIBILITY_PRESERVED");
+        }
+        if (StringUtils.equals(expectedRoute.getProviderPair(), DrConstants.PROVIDER_PAIR_ABLESTACK_TO_VMWARE)) {
+            return StringUtils.equalsAny(state, "ORIGINAL_VMWARE_COMPATIBILITY_PRESERVED", "READY");
+        }
+        return StringUtils.equals(state, "READY");
+    }
+
+    private String guestCompatibilityError(DrFailbackRouteContract expectedRoute) {
+        if (StringUtils.equals(expectedRoute.getProviderPair(), DrConstants.PROVIDER_PAIR_ABLESTACK_TO_ABLESTACK)) {
+            return "The guest native compatibility with ABLESTACK KVM was not preserved";
+        }
+        if (StringUtils.equals(expectedRoute.getProviderPair(), DrConstants.PROVIDER_PAIR_ABLESTACK_TO_VMWARE)) {
+            return "The guest is not prepared to boot on VMware";
+        }
+        return "The guest is not prepared for the Failback target provider";
     }
 }

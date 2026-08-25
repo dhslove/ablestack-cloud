@@ -988,3 +988,158 @@ Agent status 요청도 `OPERATION`과 `PLAN_AUTHORITY` scope를 구분해야 한
 세부 코드 계약, DB transaction, API schema와 구현 순서는
 [576-cross-hypervisor-dr-failback-late-ack-and-projection-convergence-design-20260727.md](576-cross-hypervisor-dr-failback-late-ack-and-projection-convergence-design-20260727.md)를
 우선한다.
+
+## 22. Rollback cleanup retry amendment - 2026-08-25
+
+`ROLLBACK_FAILED`는 serving TARGET authority를 보존한 채 FTCTL abort
+acknowledgement를 다시 받아야 하는 중간 상태다. DAO reconciliation
+candidate에는 포함하지만 lifecycle terminal predicate에는 포함하지 않는다.
+Reconciler는 같은 Session/Run으로 abort prepare와 commit을 재시도하고,
+정리 완료 transaction에서 Session과 Run을 각각 `FAILED`로 종결한다.
+엔진이 이미 `ROLLED_BACK`을 보고한 경우에도 Session만 `ABORTED`로 바꾸지
+않고 같은 transaction을 호출한다. 배포 전에 남은 `ABORTED + RUNNING`
+조합은 다음 runtime projection에서 동일하게 수렴한다.
+
+| AS-IS | TO-BE |
+| --- | --- |
+| `ROLLBACK_FAILED`를 terminal로 판정해 retry branch가 도달 불가 | recoverable cleanup으로 분류해 기존 retry branch 실행 |
+| Run은 `RUNNING`으로 남고 UI 재실행 차단 | 같은 Run을 authoritative `FAILED`로 종결 |
+| `ROLLED_BACK` status가 Session만 `ABORTED` 처리 | Session/Run/Plan/Replica/Step/cache 원자 종결 |
+| 운영자가 DB를 수동 정리해야 재테스트 가능 | 패치 배포 후 reconciler가 자동 수렴 |
+
+## 23. Cross-Run rollback isolation amendment - 2026-08-25
+
+Rollback fencing is owned by the failed Run. Its status may update Plan
+authority only while no newer live transition owns the Plan status. Runtime
+projection must reject operation evidence whose Run/session identity differs
+from the Cloud Run being reconciled. A delayed abort is therefore unable to
+replace a newer Failback Session identity or terminalize that newer Run.
+
+Session/Run mixed terminal pairs are completed by the same atomic failure
+convergence transaction. Until that convergence finishes, admission rejects a
+new Failback instead of relying on a force flag to overlap two destructive
+transitions. FTCTL treats an already completed abort as idempotent and does not
+publish an old Run over a newer active owner.
+
+## 24. Failback startup `run_not_found` identity quarantine - 2026-08-25
+
+새 Failback 명령이 Agent에서 수락된 직후에는 Run 파일 생성보다 Cloud의 첫
+OPERATION 조회가 먼저 도착할 수 있다. 이때 FTCTL은 요청한 `run_uuid`를
+응답에 반사하면서도 Plan 범위의 과거 `control_request_run_uuid`와
+`failback_session_id`를 함께 제공할 수 있다. 이 혼합 응답은 새 Run의 상태가
+아니며, 과거 rollback 결과로 새 Session을 종결해서는 안 된다.
+
+Cloud는 Failback OPERATION 상태의 모든 비어 있지 않은 식별자를 교집합으로
+검증한다. `run_uuid`, `control_request_run_uuid`, Run UUID를 포함한 typed
+`failback_session_id` 중 하나라도 현재 Run과 충돌하면 해당 payload를 격리한다.
+불투명 레거시 Session ID는 호환을 위해 소유권 식별자로 사용하지 않는다.
+`result=run_not_found`는 Run 생성
+유예 시간 동안 lifecycle reconcile보다 먼저 처리하고 재조회한다. 식별자가 전혀
+없는 레거시 상태만 기존 호환 경로를 사용한다.
+
+| Area | AS-IS | TO-BE |
+| --- | --- | --- |
+| Run ownership | 식별자 하나만 일치해도 새 Run 상태로 수용 | 명시된 모든 식별자가 현재 Run과 일치해야 수용 |
+| Startup status | `run_not_found`의 과거 rollback 필드를 먼저 reconcile | 생성 유예로 격리한 뒤 새 Run 상태를 재조회 |
+| Failback Session | 새 Session ID가 과거 Session ID로 교체될 수 있음 | Session/Run 소유권을 불변으로 유지 |
+| Regression scope | 공유 상태 변경이 성공 경로에 영향 가능 | 전송·RBD·VM lifecycle은 유지하고 상태 투영만 보강 |
+## Failback cancellation convergence
+
+An accepted `cancelDrRun` request for a Failback run is not terminal until both
+the engine runtime and the Cloud-owned authority transition have converged.
+After FTCTL returns authoritative `CANCELED` and drained runtime evidence, Cloud
+must fence the canceled Failback transition, power off the source VM that was
+started speculatively, restore the serving target VM, and commit the FTCTL
+Failback abort envelope. Only then may the Run become `CANCELED`.
+
+The cancellation transaction terminates the Failback session as `ABORTED`,
+records `ROLLED_BACK`, projects `FAILED_OVER / TARGET`, clears stale plan error
+metadata, restores the replica to `FAILED_OVER / POWERED_ON / TARGET`, and
+invalidates the plan view cache. If any compensation step fails, the Run stays
+`CANCEL_REQUESTED`; it must not expose a false terminal state or allow another
+DR action to start.
+
+| Concern | AS-IS | TO-BE |
+| --- | --- | --- |
+| FTCTL cancel ACK | Terminates only the Run | Opens Cloud authority compensation |
+| Failback session | Can remain `COMMIT_VERIFYING` | Terminates as `ABORTED / ROLLED_BACK` |
+| VM power | Source may stay on while target is off | Source off, serving target on |
+| Plan authority | DB authority may disagree with power state | `FAILED_OVER / TARGET` is projected atomically |
+| Retry safety | A stale active session blocks later menus | Run remains non-terminal until compensation succeeds |
+
+The Agent semantic parser treats a canceled Run as terminal failure for normal
+actions. The exception is the `FAILBACK_ABORT` prepare phase: FTCTL may retain
+`state=CANCELED` while publishing `result=ok` and
+`rollback_state=FENCED`. This tuple is an authoritative fence acknowledgement,
+not a failed abort. The exception is limited to prepare; abort commit still
+must publish the target-authority terminal state.
+## Canceled Failback terminal acknowledgement
+
+`dr-failback-abort --phase=commit` is a terminal state transition, not a new work admission. The engine therefore may return `accepted=false` after it has already converged to `FAILED_OVER`, `ABORTED`, and `ROLLED_BACK`. The Agent must accept this response only when all durable terminal evidence agrees: rollback is `COMPLETED`, the active side is `TARGET`, the source is `POWERED_OFF`, the target is `POWERED_ON`, and no error code is present. Any incomplete combination remains a failure and keeps Cloud in commit verification.
+
+## 29. Canceled Failback orphan projection recovery - 2026-08-25
+
+Cloud may finish the user-facing Run cancellation before the asynchronous
+Failback compensation Session reaches `ABORTED / ROLLED_BACK`. In that narrow
+window `findActiveByPlanId()` returns no Run, while the latest canceled Failback
+still owns a non-terminal compensation Session such as `ROLLBACK_FAILED` with
+`DR_FAILBACK_CANCEL_ROLLBACK_PENDING`. The normal committed-target early return
+must not bypass that Session.
+
+`DrFailbackLifecycleService` is the single owner of the compensation predicate.
+Runtime projection first selects the active Run. If none exists, it may select
+only the latest canceled Failback for which the lifecycle service confirms that
+compensation is still required. The subsequent authoritative operation status
+is then reconciled by the existing cancellation transaction. Arbitrary terminal
+Runs are not revived, and transfer, scheduler, materialization, and provider-pair
+contracts are unchanged.
+
+| Concern | AS-IS | TO-BE |
+| --- | --- | --- |
+| Projection selection | No active Run causes an immediate target-authority return | Pending canceled Failback compensation remains projectable |
+| Session terminalization | Actual VM power is restored but Session can remain `ROLLBACK_FAILED` | Existing lifecycle transaction converges Session to `ABORTED / ROLLED_BACK` |
+| Scope | A broad latest-Run fallback could replay old operations | Only a lifecycle-confirmed canceled Failback is selected |
+| Regression boundary | Shared data path could be disturbed | Status selection only; validated VMware and RBD transfer paths remain unchanged |
+
+## 30. Completed abort idempotent prepare acknowledgement - 2026-08-25
+
+Cancellation compensation can be retried after FTCTL has already completed the
+abort commit. In that case a repeated `FAILBACK_ABORT prepare` does not regress
+the engine to `CANCELED / FENCED`; FTCTL returns the durable terminal tuple
+`FAILED_OVER / ABORTED / ROLLED_BACK / COMPLETED / TARGET` with source off and
+target on. The Agent must accept that exact tuple for either rollback phase.
+
+This is not a general `accepted=false` exception. The response is successful
+only when `result` is successful, no error code exists, rollback and Cloud
+lifecycle are terminal, authority is TARGET, and both power states agree. A
+partial terminal tuple remains rejected. The change is limited to the Agent
+semantic acknowledgement and does not alter transfer, provider-pair, scheduler,
+or VMware contracts.
+
+| Concern | AS-IS | TO-BE |
+| --- | --- | --- |
+| Repeated prepare | Completed abort is rejected because the phase is not commit | Exact completed abort tuple is an idempotent acknowledgement |
+| Cloud compensation | Session retries forever in `ROLLBACK_FAILED` | Existing compensation transaction can converge the Session |
+| Failure safety | Broad `accepted=false` handling could hide failures | All terminal, authority, power, and error fields must match |
+| Validated paths | Shared runtime behavior could regress | Agent response classification only; data-plane behavior is unchanged |
+
+## 31. ABLESTACK RBD forward transport restoration amendment - 2026-08-25
+
+`ABLESTACK_TO_ABLESTACK` Failback commit은 reverse write의 완료만으로 끝나지
+않는다. Failover 중 중지한 replica-site Plan-owned RBD export를 다시 시작하고
+Agent가 qemu-nbd endpoint를 검증한 뒤에만 SOURCE authority와 original
+scheduler를 커밋한다. 이 단계는 `FORWARD_TRANSPORT_PREPARING`과
+`FORWARD_TRANSPORT_READY`로 Session에 투영한다.
+
+Forward export 준비가 실패하면 Cloud는 authority commit을 호출하지 않는다.
+rollback은 source VM을 끄고, forward export를 중지하고, target VM을 켠 뒤
+TARGET authority를 복구한다. 성공 commit 이후에는 required post-Failback
+checkpoint가 durable해질 때까지 Run을 `PROTECTION_RESUMING`으로 유지한다.
+
+| Concern | AS-IS | TO-BE |
+| --- | --- | --- |
+| Forward transport | Persisted intent가 `STOPPED`인 채 scheduler 재개 | Persisted profile로 export를 재기동하고 endpoint 검증 |
+| Commit barrier | Source boot가 첫 외부 barrier | Export ready가 source boot보다 앞선 barrier |
+| Rollback | Target VM 복구와 export ownership 관계 불명확 | Export stop을 확인한 뒤 target VM 복구 |
+| Terminal result | VM 전환 성공과 보호 재개 실패가 혼재 | 첫 forward durable checkpoint까지 하나의 Failback Run으로 종결 |
+| Scope | 공통 Failback 변경으로 VMware 회귀 가능 | Remote KVM-to-KVM RBD route에만 적용 |

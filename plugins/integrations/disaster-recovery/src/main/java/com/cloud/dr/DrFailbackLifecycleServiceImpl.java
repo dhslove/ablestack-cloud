@@ -94,6 +94,7 @@ public class DrFailbackLifecycleServiceImpl extends ManagerBase implements DrFai
     @Inject private DrSourceIsolationPreflightService drSourceIsolationPreflightService;
     @Inject private DrFailbackDataGateService drFailbackDataGateService;
     @Inject private DrRemoteAgentClient drRemoteAgentClient;
+    @Inject private DrPlanOwnedTransportService drPlanOwnedTransportService;
 
     private final Set<Long> inFlightRuns = ConcurrentHashMap.newKeySet();
     private ExecutorService executor;
@@ -159,6 +160,22 @@ public class DrFailbackLifecycleServiceImpl extends ManagerBase implements DrFai
         String engineSessionId = stringValue(runtime, "failback_session_id");
         String runtimeState = upper(stringValue(runtime, "state"));
         DrFailbackSessionVO session = drFailbackSessionDao.findActiveByRunId(run.getId());
+        if (isCanceledFailbackPendingCompensation(run, session)) {
+            cancelAndRestoreTargetAuthority(plan, run);
+            return drFailbackSessionDao.findActiveByRunId(run.getId());
+        }
+        if (requiresRolledBackFailureConvergence(session, run)) {
+            convergePreAuthorityFailure(plan, run, session,
+                    defaultValue(session.getFailurePhase(), "CLOUD_LIFECYCLE"),
+                    defaultValue(session.getFailedComponent(), "ftctl-failback-abort"),
+                    defaultValue(session.getErrorCode(), "DR_FAILBACK_LIFECYCLE_GATE_FAILED"),
+                    defaultValue(session.getErrorMessage(), "Failback was rolled back to TARGET authority"),
+                    runtime);
+            return drFailbackSessionDao.findActiveByRunId(run.getId());
+        }
+        if (!runtimeBelongsToRun(runtime, run)) {
+            return session;
+        }
         if (session != null && isTerminal(session.getState())) {
             return convergeSuccessfulTerminalFailureMetadata(session);
         }
@@ -240,18 +257,21 @@ public class DrFailbackLifecycleServiceImpl extends ManagerBase implements DrFai
                 submitLifecycle(run.getId());
             }
         } else if (StringUtils.equals(commitOutcome, ROLLED_BACK) && !isTerminal(session.getState())) {
-            session.setState("ABORTED");
-            session.setRollbackState("COMPLETED");
-            session.setRollbackVerifiedAt(new Date());
-            session.markUpdated();
-            drFailbackSessionDao.update(session.getId(), session);
-            preserveTargetAuthority(plan);
+            convergePreAuthorityFailure(plan, run, session,
+                    defaultValue(session.getFailurePhase(), "CLOUD_LIFECYCLE"),
+                    defaultValue(session.getFailedComponent(), "ftctl-failback-abort"),
+                    defaultValue(session.getErrorCode(), "DR_FAILBACK_LIFECYCLE_GATE_FAILED"),
+                    defaultValue(session.getErrorMessage(), "Failback was rolled back to TARGET authority"),
+                    runtime);
         } else if (StringUtils.equalsAny(session.getState(), DATA_READY, DATA_EVIDENCE_PENDING)
                 || StringUtils.equals(session.getState(), COMMIT_VERIFYING)) {
             submitLifecycle(run.getId());
-        } else if (StringUtils.equals(session.getState(), PROTECTION_RESUMING)
-                && protectionResumed(plan, session, runtime)) {
-            completeLifecycle(plan, run, session, runtime);
+        } else if (StringUtils.equals(session.getState(), PROTECTION_RESUMING)) {
+            if (protectionResumed(plan, session, runtime)) {
+                completeLifecycle(plan, run, session, runtime);
+            } else {
+                submitLifecycle(run.getId());
+            }
         }
         return drFailbackSessionDao.findActiveByRunId(run.getId());
     }
@@ -276,6 +296,25 @@ public class DrFailbackLifecycleServiceImpl extends ManagerBase implements DrFai
     private void executeLifecycle(long runId) {
         DrRunVO run = drRunDao.findById(runId);
         DrFailbackSessionVO session = drFailbackSessionDao.findActiveByRunId(runId);
+        if (isCanceledFailbackPendingCompensation(run, session)) {
+            DrPlanVO plan = drPlanDao.findById(run.getPlanId());
+            if (plan != null) {
+                cancelAndRestoreTargetAuthority(plan, run);
+            }
+            return;
+        }
+        if (run != null && requiresRolledBackFailureConvergence(session, run)) {
+            DrPlanVO plan = drPlanDao.findById(run.getPlanId());
+            if (plan != null) {
+                convergePreAuthorityFailure(plan, run, session,
+                        defaultValue(session.getFailurePhase(), "CLOUD_LIFECYCLE"),
+                        defaultValue(session.getFailedComponent(), "ftctl-failback-abort"),
+                        defaultValue(session.getErrorCode(), "DR_FAILBACK_LIFECYCLE_GATE_FAILED"),
+                        defaultValue(session.getErrorMessage(), "Failback was rolled back to TARGET authority"),
+                        parseObject(session.getDetailsJson()));
+            }
+            return;
+        }
         if (run == null || session == null || isTerminal(session.getState())) {
             return;
         }
@@ -292,6 +331,7 @@ public class DrFailbackLifecycleServiceImpl extends ManagerBase implements DrFai
             return;
         }
         if (StringUtils.equals(session.getState(), PROTECTION_RESUMING)) {
+            ensureForwardPlanOwnedExportForProtectionResume(plan, run);
             JsonObject authorityRuntime = fetchStatusRuntime(plan, run,
                     FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY);
             if (protectionResumed(plan, session, authorityRuntime)) {
@@ -380,6 +420,10 @@ public class DrFailbackLifecycleServiceImpl extends ManagerBase implements DrFai
             updateSession(session, "TARGET_STOPPED", null);
 
             stopReversePlanOwnedExport(plan, run);
+
+            updateSession(session, "FORWARD_TRANSPORT_PREPARING", null);
+            restoreForwardPlanOwnedExport(plan, run);
+            updateSession(session, "FORWARD_TRANSPORT_READY", null);
 
             updateSession(session, "SOURCE_STARTING", null);
             String sourceState = ensureSourcePowerState(plan, true);
@@ -681,29 +725,20 @@ public class DrFailbackLifecycleServiceImpl extends ManagerBase implements DrFai
     }
 
     void stopReversePlanOwnedExport(DrPlanVO plan, DrRunVO run) {
-        if (plan == null || run == null || drRemoteAgentClient == null
-                || !drRemoteAgentClient.isRemoteKvmSource(plan)
-                || !StringUtils.equalsIgnoreCase(plan.getDirection(), DrConstants.DIRECTION_KVM_TO_KVM)) {
-            return;
+        if (drPlanOwnedTransportService != null) {
+            drPlanOwnedTransportService.stopReverseTargetExport(plan, run);
         }
-        String workerUuid = drRemoteAgentClient.sourceWorkerUuid(plan);
-        FtctlDrActionCommand command = new FtctlDrActionCommand(
-                FtctlDrActionCommand.Action.TARGET_EXPORT_STOP, plan.getUuid(), run.getUuid());
-        command.setActionName(FtctlDrActionCommand.Action.TARGET_EXPORT_STOP.name());
-        command.setCliCommand(FtctlDrActionCommand.Action.TARGET_EXPORT_STOP.getCliCommand());
-        command.setRunType(DrConstants.RUN_TYPE_FAILBACK);
-        command.setActionIntent(DrConstants.RUN_TYPE_FAILBACK);
-        command.setDirection(plan.getDirection());
-        command.setRole("reverse-target");
-        command.setTargetWorkerUuid(workerUuid);
-        command.setWaitForCompletion(true);
-        command.setWait(45);
-        Answer answer = drRemoteAgentClient.execute(plan, "ACTION", command,
-                workerUuid, FtctlDrActionAnswer.class);
-        if (answer == null || !answer.getResult()) {
-            throw new CloudRuntimeException(StringUtils.defaultIfBlank(
-                    answer != null ? answer.getDetails() : null,
-                    "Original-site Agent did not drain the reverse RBD export"));
+    }
+
+    void restoreForwardPlanOwnedExport(DrPlanVO plan, DrRunVO run) {
+        if (drPlanOwnedTransportService != null) {
+            drPlanOwnedTransportService.startForwardTargetExport(plan, run, null);
+        }
+    }
+
+    void ensureForwardPlanOwnedExportForProtectionResume(DrPlanVO plan, DrRunVO run) {
+        if (drPlanOwnedTransportService != null && drPlanOwnedTransportService.supports(plan)) {
+            drPlanOwnedTransportService.startForwardTargetExport(plan, run, null);
         }
     }
 
@@ -748,6 +783,7 @@ public class DrFailbackLifecycleServiceImpl extends ManagerBase implements DrFai
             if (sourceStarted) {
                 session.setSourcePowerState(ensureSourcePowerState(plan, false));
             }
+            stopForwardPlanOwnedExportForTargetRecovery(plan, run);
             if (targetStopped) {
                 session.setTargetPowerState(ensureTargetPowerState(plan, true));
             }
@@ -775,6 +811,139 @@ public class DrFailbackLifecycleServiceImpl extends ManagerBase implements DrFai
             preserveUncertainAuthority(plan);
             return false;
         }
+    }
+
+    boolean isCanceledFailbackPendingCompensation(DrRunVO run, DrFailbackSessionVO session) {
+        return run != null && session != null
+                && StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_FAILBACK)
+                && StringUtils.equalsAnyIgnoreCase(run.getState(),
+                        DrConstants.RUN_STATE_CANCEL_REQUESTED, DrConstants.RUN_STATE_CANCELED)
+                && !isTerminal(session.getState());
+    }
+
+    @Override
+    public boolean requiresCancellationCompensation(DrRunVO run) {
+        return run != null && isCanceledFailbackPendingCompensation(run,
+                drFailbackSessionDao.findActiveByRunId(run.getId()));
+    }
+
+    @Override
+    public boolean cancelAndRestoreTargetAuthority(DrPlanVO plan, DrRunVO run) {
+        if (plan == null || run == null
+                || !StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_FAILBACK)) {
+            return true;
+        }
+        DrFailbackSessionVO session = drFailbackSessionDao.findActiveByRunId(run.getId());
+        if (session == null || isTerminal(session.getState())) {
+            return true;
+        }
+        if (StringUtils.equalsIgnoreCase(session.getCommitOutcome(), ACKNOWLEDGED)) {
+            return false;
+        }
+        try {
+            session.setRollbackState("FENCING");
+            if (session.getRollbackRequestedAt() == null) {
+                session.setRollbackRequestedAt(new Date());
+            }
+            updateSession(session, "ROLLBACK_FENCING", null);
+            Answer prepare = sendEngineCommand(plan, run, session,
+                    FtctlDrActionCommand.Action.FAILBACK_ABORT, "prepare");
+            if (prepare == null || !prepare.getResult()) {
+                throw new CloudRuntimeException(prepare != null ? prepare.getDetails()
+                        : "Agent returned no canceled Failback fence acknowledgement");
+            }
+            session.setRollbackState("FENCED");
+            updateSession(session, "ROLLBACK_POWER_RESTORING", null);
+            session.setSourcePowerState(ensureSourcePowerState(plan, false));
+            stopForwardPlanOwnedExportForTargetRecovery(plan, run);
+            session.setTargetPowerState(ensureTargetPowerState(plan, true));
+            Answer commit = sendEngineCommand(plan, run, session,
+                    FtctlDrActionCommand.Action.FAILBACK_ABORT, "commit");
+            if (commit == null || !commit.getResult()) {
+                throw new CloudRuntimeException(commit != null ? commit.getDetails()
+                        : "Agent returned no canceled Failback rollback acknowledgement");
+            }
+            convergeCanceledFailback(plan, run, session, answerPayload(commit));
+            recordEvent(plan, run, "FAILBACK_CANCELED_ROLLED_BACK",
+                    "Canceled Failback restored TARGET authority and serving VM power");
+            return true;
+        } catch (Exception e) {
+            session.setState("ROLLBACK_FAILED");
+            session.setRollbackState("FAILED");
+            session.setErrorCode("DR_FAILBACK_CANCEL_ROLLBACK_PENDING");
+            session.setErrorMessage("Canceled Failback compensation is pending: " + e.getMessage());
+            session.markUpdated();
+            drFailbackSessionDao.update(session.getId(), session);
+            plan.setState(DrConstants.PLAN_STATE_COMMIT_VERIFYING);
+            plan.setActiveSide(DrConstants.AUTHORITY_SIDE_TARGET);
+            plan.setLastErrorCode("DR_FAILBACK_CANCEL_ROLLBACK_PENDING");
+            plan.setLastErrorMessage(session.getErrorMessage());
+            plan.markUpdated();
+            drPlanDao.update(plan.getId(), plan);
+            logger.warn("Canceled Failback compensation remains pending for plan {} run {}",
+                    plan.getUuid(), run.getUuid(), e);
+            return false;
+        }
+    }
+
+    void stopForwardPlanOwnedExportForTargetRecovery(DrPlanVO plan, DrRunVO run) {
+        if (drPlanOwnedTransportService != null) {
+            drPlanOwnedTransportService.stopForwardTargetExport(plan, run, null, null);
+        }
+    }
+
+    private void convergeCanceledFailback(DrPlanVO plan, DrRunVO run,
+            DrFailbackSessionVO session, JsonObject abortRuntime) {
+        final long planId = plan.getId();
+        final long sessionId = session.getId();
+        final String runtimeJson = GSON.toJson(abortRuntime != null ? abortRuntime : new JsonObject());
+        Transaction.execute(new TransactionCallback<Void>() {
+            @Override
+            public Void doInTransaction(TransactionStatus status) {
+                Date now = new Date();
+                DrFailbackSessionVO currentSession = drFailbackSessionDao.findById(sessionId);
+                DrPlanVO currentPlan = drPlanDao.findById(planId);
+                if (currentSession == null || currentPlan == null) {
+                    throw new CloudRuntimeException("Canceled Failback convergence records are incomplete");
+                }
+                currentSession.setState("ABORTED");
+                currentSession.setCommitOutcome(ROLLED_BACK);
+                currentSession.setEngineAckState("ABORTED");
+                currentSession.setRollbackState("COMPLETED");
+                currentSession.setRollbackVerifiedAt(now);
+                currentSession.setCompletedAt(now);
+                currentSession.setSourcePowerState("POWERED_OFF");
+                currentSession.setTargetPowerState("POWERED_ON");
+                currentSession.setFailurePhase(null);
+                currentSession.setFailedComponent(null);
+                currentSession.setErrorCode(null);
+                currentSession.setErrorMessage(null);
+                currentSession.markUpdated();
+                drFailbackSessionDao.update(currentSession.getId(), currentSession);
+
+                currentPlan.setState(DrConstants.PLAN_STATE_FAILED_OVER);
+                currentPlan.setActiveSide(DrConstants.AUTHORITY_SIDE_TARGET);
+                currentPlan.setLastErrorCode(null);
+                currentPlan.setLastErrorMessage(null);
+                currentPlan.markUpdated();
+                drPlanDao.update(currentPlan.getId(), currentPlan);
+
+                DrReplicaVO replica = firstReplica(planId);
+                if (replica != null) {
+                    replica.setState(DrConstants.REPLICA_STATE_FAILED_OVER);
+                    replica.setPowerState("POWERED_ON");
+                    replica.setActiveSide(DrConstants.AUTHORITY_SIDE_TARGET);
+                    replica.setRuntimeStateJson(runtimeJson);
+                    replica.markUpdated();
+                    drReplicaDao.update(replica.getId(), replica);
+                }
+                DrPlanViewCacheVO cache = drPlanViewCacheDao.findByPlanId(planId);
+                if (cache != null) {
+                    drPlanViewCacheDao.remove(cache.getId());
+                }
+                return null;
+            }
+        });
     }
 
     private void verifyCommitOutcome(DrPlanVO plan, DrRunVO run, DrFailbackSessionVO session) {
@@ -1449,8 +1618,45 @@ public class DrFailbackLifecycleServiceImpl extends ManagerBase implements DrFai
         drEventDao.persist(event);
     }
 
-    private boolean isTerminal(String state) {
-        return StringUtils.equalsAnyIgnoreCase(state, COMPLETED, "FAILED", "ABORTED", "ROLLBACK_FAILED");
+    boolean isTerminal(String state) {
+        return StringUtils.equalsAnyIgnoreCase(state, COMPLETED, "FAILED", "ABORTED");
+    }
+
+    boolean requiresRolledBackFailureConvergence(DrFailbackSessionVO session, DrRunVO run) {
+        if (session == null || run == null) {
+            return false;
+        }
+        boolean runTerminal = StringUtils.equalsAnyIgnoreCase(run.getState(),
+                DrConstants.RUN_STATE_SUCCEEDED, DrConstants.RUN_STATE_FAILED, DrConstants.RUN_STATE_CANCELED);
+        boolean sessionTerminal = StringUtils.equalsAnyIgnoreCase(session.getState(), "COMPLETED", "FAILED", "ABORTED");
+        if (sessionTerminal && !runTerminal) {
+            return !StringUtils.equalsIgnoreCase(session.getState(), "COMPLETED");
+        }
+        return runTerminal && run.getCompleted() != null && run.isTerminalAuthoritative()
+                && StringUtils.equalsAnyIgnoreCase(session.getState(), "ABORTING", "ROLLBACK_FAILED", "ABORTED");
+    }
+
+    boolean runtimeBelongsToRun(JsonObject runtime, DrRunVO run) {
+        if (runtime == null || run == null || StringUtils.isBlank(run.getUuid())) {
+            return true;
+        }
+        String runUuid = run.getUuid();
+        String runtimeRun = stringValue(runtime, "run_uuid");
+        String controlRun = stringValue(runtime, "control_request_run_uuid");
+        String sessionId = stringValue(runtime, "failback_session_id");
+        boolean hasTypedSessionIdentity = StringUtils.contains(sessionId, ":");
+        boolean hasIdentity = StringUtils.isNotBlank(runtimeRun) || StringUtils.isNotBlank(controlRun)
+                || hasTypedSessionIdentity;
+        if (!hasIdentity) {
+            return true;
+        }
+        if (StringUtils.isNotBlank(runtimeRun) && !StringUtils.equals(runtimeRun, runUuid)) {
+            return false;
+        }
+        if (StringUtils.isNotBlank(controlRun) && !StringUtils.equals(controlRun, runUuid)) {
+            return false;
+        }
+        return !hasTypedSessionIdentity || StringUtils.endsWith(sessionId, ":" + runUuid);
     }
 
     private void refreshCommitPrerequisites(DrPlanVO plan, DrRunVO run, DrFailbackSessionVO session,

@@ -37,6 +37,7 @@ import com.cloud.agent.api.FtctlSyncClusterCommand;
 import com.cloud.agent.api.FtctlSyncProfileCommand;
 import com.cloud.hypervisor.kvm.resource.LibvirtComputingResource;
 import com.cloud.utils.script.Script;
+import com.google.gson.JsonObject;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -247,6 +248,84 @@ public class LibvirtFtctlCommandWrappersTest {
             Mockito.verify(script).add("--source-power-state");
             Mockito.verify(script).add("POWERED_ON");
         }
+    }
+
+    @Test
+    public void testCanceledRunCanAcknowledgeFailbackAbortPrepareFence() {
+        LibvirtFtctlDrActionCommandWrapper wrapper = new LibvirtFtctlDrActionCommandWrapper();
+        FtctlDrActionCommand command = new FtctlDrActionCommand(
+                FtctlDrActionCommand.Action.FAILBACK_ABORT, "plan-a", "run-a");
+        command.setContextParam("rollbackPhase", "prepare");
+
+        try (MockedConstruction<Script> scripts = Mockito.mockConstruction(Script.class, (mock, context) -> {
+            Mockito.when(mock.execute(Mockito.any())).thenReturn(
+                    "{\"result\":\"ok\",\"accepted\":true,\"state\":\"CANCELED\","
+                            + "\"rollback_state\":\"FENCED\"}");
+            Mockito.when(mock.getExitValue()).thenReturn(0);
+        })) {
+            FtctlDrActionAnswer answer = (FtctlDrActionAnswer) wrapper.execute(command, resource);
+
+            Assert.assertTrue(answer.getResult());
+            Assert.assertEquals("CANCELED", answer.getState());
+        }
+    }
+
+    @Test
+    public void testCanceledRunCanAcknowledgeCompletedFailbackAbortCommit() {
+        LibvirtFtctlDrActionCommandWrapper wrapper = new LibvirtFtctlDrActionCommandWrapper();
+        FtctlDrActionCommand command = new FtctlDrActionCommand(
+                FtctlDrActionCommand.Action.FAILBACK_ABORT, "plan-a", "run-a");
+        command.setContextParam("rollbackPhase", "commit");
+
+        try (MockedConstruction<Script> scripts = Mockito.mockConstruction(Script.class, (mock, context) -> {
+            Mockito.when(mock.execute(Mockito.any())).thenReturn(
+                    "{\"result\":\"ok\",\"accepted\":false,\"state\":\"FAILED_OVER\","
+                            + "\"rollback_state\":\"COMPLETED\",\"cloud_lifecycle_state\":\"ABORTED\","
+                            + "\"failback_commit_outcome\":\"ROLLED_BACK\",\"active_side\":\"TARGET\","
+                            + "\"source_power_state\":\"POWERED_OFF\",\"target_power_state\":\"POWERED_ON\"}");
+            Mockito.when(mock.getExitValue()).thenReturn(0);
+        })) {
+            FtctlDrActionAnswer answer = (FtctlDrActionAnswer) wrapper.execute(command, resource);
+
+            Assert.assertTrue(answer.getResult());
+            Assert.assertEquals("FAILED_OVER", answer.getState());
+        }
+    }
+
+    @Test
+    public void testCanceledRunCanAcknowledgeCompletedFailbackAbortDuringPrepareRetry() {
+        LibvirtFtctlDrActionCommandWrapper wrapper = new LibvirtFtctlDrActionCommandWrapper();
+        FtctlDrActionCommand command = new FtctlDrActionCommand(
+                FtctlDrActionCommand.Action.FAILBACK_ABORT, "plan-a", "run-a");
+        command.setContextParam("rollbackPhase", "prepare");
+
+        try (MockedConstruction<Script> scripts = Mockito.mockConstruction(Script.class, (mock, context) -> {
+            Mockito.when(mock.execute(Mockito.any())).thenReturn(
+                    "{\"result\":\"ok\",\"accepted\":false,\"state\":\"FAILED_OVER\","
+                            + "\"rollback_state\":\"COMPLETED\",\"cloud_lifecycle_state\":\"ABORTED\","
+                            + "\"failback_commit_outcome\":\"ROLLED_BACK\",\"active_side\":\"TARGET\","
+                            + "\"source_power_state\":\"POWERED_OFF\",\"target_power_state\":\"POWERED_ON\"}");
+            Mockito.when(mock.getExitValue()).thenReturn(0);
+        })) {
+            FtctlDrActionAnswer answer = (FtctlDrActionAnswer) wrapper.execute(command, resource);
+
+            Assert.assertTrue(answer.getResult());
+            Assert.assertEquals("FAILED_OVER", answer.getState());
+        }
+    }
+
+    @Test
+    public void testIncompleteFailbackAbortCommitRemainsRejected() {
+        FtctlDrActionCommand command = new FtctlDrActionCommand(
+                FtctlDrActionCommand.Action.FAILBACK_ABORT, "plan-a", "run-a");
+        command.setContextParam("rollbackPhase", "commit");
+        JsonObject payload = new JsonObject();
+        payload.addProperty("result", "ok");
+        payload.addProperty("accepted", false);
+        payload.addProperty("state", "FAILED_OVER");
+        payload.addProperty("rollback_state", "FENCED");
+
+        Assert.assertFalse(LibvirtFtctlDrActionCommandWrapper.isCompletedFailbackAbort(command, payload));
     }
 
     @Test

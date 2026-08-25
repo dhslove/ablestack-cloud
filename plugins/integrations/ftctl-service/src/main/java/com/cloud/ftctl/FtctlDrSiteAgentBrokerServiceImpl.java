@@ -39,6 +39,9 @@ import com.cloud.hypervisor.Hypervisor;
 import com.cloud.utils.component.ManagerBase;
 import com.cloud.utils.exception.CloudRuntimeException;
 import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 /**
  * Executes a narrow set of FTCTL DR commands on a host owned by this Cloud.
@@ -61,6 +64,7 @@ public class FtctlDrSiteAgentBrokerServiceImpl extends ManagerBase implements Ft
             throw new CloudRuntimeException("FTCTL DR site worker must be an Up KVM host: " + workerHostUuid);
         }
         Command command = deserialize(normalizedType, commandJson);
+        prepareSiteLocalCommand(command, host);
         Answer answer;
         try {
             answer = agentManager.send(host.getId(), command);
@@ -81,6 +85,48 @@ public class FtctlDrSiteAgentBrokerServiceImpl extends ManagerBase implements Ft
         response.setAnswerClass(answer.getClass().getName());
         response.setAnswerJson(GSON.toJson(answer));
         return response;
+    }
+
+    private void prepareSiteLocalCommand(Command command, HostVO host) {
+        if (!(command instanceof FtctlDrActionCommand) || host == null) {
+            return;
+        }
+        FtctlDrActionCommand actionCommand = (FtctlDrActionCommand) command;
+        if (actionCommand.getAction() != FtctlDrActionCommand.Action.TARGET_EXPORT_START) {
+            return;
+        }
+        if (StringUtils.isBlank(host.getPrivateIpAddress())) {
+            throw new CloudRuntimeException("FTCTL DR target export worker address is required: " + host.getUuid());
+        }
+        JsonObject profile = parseObject(actionCommand.getProfileJson());
+        JsonObject transport = objectAt(profile, "transport");
+        transport.addProperty("targetHostUuid", host.getUuid());
+        transport.addProperty("targetHostAddress", host.getPrivateIpAddress());
+        transport.addProperty("remoteNbdExportAddress", host.getPrivateIpAddress());
+        transport.remove("exports");
+        actionCommand.setProfileJson(GSON.toJson(profile));
+    }
+
+    private JsonObject parseObject(String json) {
+        if (StringUtils.isBlank(json)) {
+            return new JsonObject();
+        }
+        try {
+            JsonElement parsed = JsonParser.parseString(json);
+            return parsed != null && parsed.isJsonObject() ? parsed.getAsJsonObject() : new JsonObject();
+        } catch (RuntimeException e) {
+            throw new CloudRuntimeException("FTCTL DR action profile JSON is invalid", e);
+        }
+    }
+
+    private JsonObject objectAt(JsonObject object, String key) {
+        JsonElement value = object != null ? object.get(key) : null;
+        if (value != null && value.isJsonObject()) {
+            return value.getAsJsonObject();
+        }
+        JsonObject child = new JsonObject();
+        object.add(key, child);
+        return child;
     }
 
     private Command deserialize(String commandType, String commandJson) {

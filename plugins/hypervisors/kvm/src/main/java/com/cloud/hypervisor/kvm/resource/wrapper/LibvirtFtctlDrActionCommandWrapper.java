@@ -16,7 +16,6 @@
 // under the License.
 package com.cloud.hypervisor.kvm.resource.wrapper;
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.util.Locale;
@@ -43,21 +42,6 @@ public class LibvirtFtctlDrActionCommandWrapper extends CommandWrapper<FtctlDrAc
 
     private static final int DEFAULT_TIMEOUT_SECONDS = 45;
     private static final Pattern SHA1_FINGERPRINT_PATTERN = Pattern.compile("(?i)(?:SHA1\\s+)?Fingerprint\\s*=\\s*([0-9A-F:]+)");
-
-    private static final class FtctlDrAllLinesParser extends OutputInterpreter.AllLinesParser {
-        @Override
-        public String processError(BufferedReader reader) throws IOException {
-            String lines = getLines();
-            if (StringUtils.isNotBlank(lines)) {
-                return lines;
-            }
-            try {
-                return super.processError(reader);
-            } catch (IOException e) {
-                return e.getMessage();
-            }
-        }
-    }
 
     @Override
     public Answer execute(FtctlDrActionCommand command, LibvirtComputingResource serverResource) {
@@ -448,12 +432,14 @@ public class LibvirtFtctlDrActionCommandWrapper extends CommandWrapper<FtctlDrAc
         }
         script.add("--json");
 
-        OutputInterpreter.AllLinesParser parser = new FtctlDrAllLinesParser();
+        OutputInterpreter.AllLinesParser parser = new LibvirtFtctlWrapperHelper.FtctlProcessOutputParser();
         String result = script.execute(parser);
         String output = LibvirtFtctlWrapperHelper.getOutput(result, parser);
         JsonObject payload = LibvirtFtctlWrapperHelper.parseJsonObject(output);
         int exitValue = script.getExitValue();
-        boolean success = exitValue == 0 && !isSemanticFailureStatus(payload);
+        boolean success = exitValue == 0 && (!isSemanticFailureStatus(payload)
+                || isAcceptedCanceledFailbackAbortPrepare(command, payload)
+                || isCompletedFailbackAbort(command, payload));
         if (!success && command.getAction() == FtctlDrActionCommand.Action.CUTOVER_COMMIT
                 && shouldProbeStatus(result, output)) {
             FtctlDrActionAnswer verified = probeCutoverCommitStatus(command);
@@ -535,7 +521,7 @@ public class LibvirtFtctlDrActionCommandWrapper extends CommandWrapper<FtctlDrAc
         addStringArg(script, command.getFailbackCommitEnvelopeSha256(), "--commit-envelope-sha256");
         script.add("--json");
 
-        OutputInterpreter.AllLinesParser parser = new FtctlDrAllLinesParser();
+        OutputInterpreter.AllLinesParser parser = new LibvirtFtctlWrapperHelper.FtctlProcessOutputParser();
         String result = script.execute(parser);
         String output = LibvirtFtctlWrapperHelper.getOutput(result, parser);
         JsonObject payload = LibvirtFtctlWrapperHelper.parseSingleJsonObject(output);
@@ -568,7 +554,7 @@ public class LibvirtFtctlDrActionCommandWrapper extends CommandWrapper<FtctlDrAc
         addStringArg(script, command.getCutoverCommitEnvelopeSha256(), "--commit-envelope-sha256");
         script.add("--json");
 
-        OutputInterpreter.AllLinesParser parser = new FtctlDrAllLinesParser();
+        OutputInterpreter.AllLinesParser parser = new LibvirtFtctlWrapperHelper.FtctlProcessOutputParser();
         String result = script.execute(parser);
         String output = LibvirtFtctlWrapperHelper.getOutput(result, parser);
         JsonObject payload = LibvirtFtctlWrapperHelper.parseSingleJsonObject(output);
@@ -597,7 +583,7 @@ public class LibvirtFtctlDrActionCommandWrapper extends CommandWrapper<FtctlDrAc
         script.add("0");
         script.add("--json");
 
-        OutputInterpreter.AllLinesParser parser = new FtctlDrAllLinesParser();
+        OutputInterpreter.AllLinesParser parser = new LibvirtFtctlWrapperHelper.FtctlProcessOutputParser();
         String result = script.execute(parser);
         String output = LibvirtFtctlWrapperHelper.getOutput(result, parser);
         JsonObject payload = LibvirtFtctlWrapperHelper.parseSingleJsonObject(output);
@@ -639,6 +625,56 @@ public class LibvirtFtctlDrActionCommandWrapper extends CommandWrapper<FtctlDrAc
         return Boolean.FALSE.equals(accepted)
                 || StringUtils.isNotBlank(errorCode)
                 || StringUtils.equalsAny(state, "ERROR", "FAILED", "REJECTED", "CANCELED", "CANCELLED");
+    }
+
+    static boolean isAcceptedCanceledFailbackAbortPrepare(FtctlDrActionCommand command, JsonObject payload) {
+        if (command == null || payload == null
+                || command.getAction() != FtctlDrActionCommand.Action.FAILBACK_ABORT
+                || command.getContext() == null
+                || !StringUtils.equalsIgnoreCase(command.getContext().get("rollbackPhase"), "prepare")) {
+            return false;
+        }
+        Boolean accepted = LibvirtFtctlDrCommandHelper.getBoolean(payload, "accepted");
+        String result = StringUtils.lowerCase(LibvirtFtctlDrCommandHelper.getString(payload, "result"));
+        String state = StringUtils.upperCase(LibvirtFtctlDrCommandHelper.getString(payload, "state"));
+        String rollbackState = StringUtils.upperCase(
+                LibvirtFtctlDrCommandHelper.getString(payload, "rollback_state"));
+        String errorCode = LibvirtFtctlDrCommandHelper.getString(payload, "error_code");
+        return !Boolean.FALSE.equals(accepted)
+                && StringUtils.equalsAny(result, "ok", "success")
+                && StringUtils.equals(state, "CANCELED")
+                && StringUtils.equals(rollbackState, "FENCED")
+                && StringUtils.isBlank(errorCode);
+    }
+
+    static boolean isCompletedFailbackAbort(FtctlDrActionCommand command, JsonObject payload) {
+        if (command == null || payload == null
+                || command.getAction() != FtctlDrActionCommand.Action.FAILBACK_ABORT) {
+            return false;
+        }
+        String result = StringUtils.lowerCase(LibvirtFtctlDrCommandHelper.getString(payload, "result"));
+        String state = StringUtils.upperCase(LibvirtFtctlDrCommandHelper.getString(payload, "state"));
+        String rollbackState = StringUtils.upperCase(
+                LibvirtFtctlDrCommandHelper.getString(payload, "rollback_state"));
+        String cloudLifecycleState = StringUtils.upperCase(
+                LibvirtFtctlDrCommandHelper.getString(payload, "cloud_lifecycle_state"));
+        String commitOutcome = StringUtils.upperCase(
+                LibvirtFtctlDrCommandHelper.getString(payload, "failback_commit_outcome"));
+        String activeSide = StringUtils.upperCase(LibvirtFtctlDrCommandHelper.getString(payload, "active_side"));
+        String sourcePowerState = StringUtils.upperCase(
+                LibvirtFtctlDrCommandHelper.getString(payload, "source_power_state"));
+        String targetPowerState = StringUtils.upperCase(
+                LibvirtFtctlDrCommandHelper.getString(payload, "target_power_state"));
+        String errorCode = LibvirtFtctlDrCommandHelper.getString(payload, "error_code");
+        return StringUtils.equalsAny(result, "ok", "success")
+                && StringUtils.equals(state, "FAILED_OVER")
+                && StringUtils.equals(rollbackState, "COMPLETED")
+                && StringUtils.equals(cloudLifecycleState, "ABORTED")
+                && StringUtils.equals(commitOutcome, "ROLLED_BACK")
+                && StringUtils.equals(activeSide, "TARGET")
+                && StringUtils.equals(sourcePowerState, "POWERED_OFF")
+                && StringUtils.equals(targetPowerState, "POWERED_ON")
+                && StringUtils.isBlank(errorCode);
     }
 
     private String resolveRestorePointSelector(FtctlDrActionCommand command) {

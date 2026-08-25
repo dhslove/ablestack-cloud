@@ -87,7 +87,7 @@ public class LibvirtFtctlDrStatusCommandWrapper extends CommandWrapper<FtctlDrSt
         }
         script.add("--json");
 
-        OutputInterpreter.AllLinesParser parser = new OutputInterpreter.AllLinesParser();
+        OutputInterpreter.AllLinesParser parser = new LibvirtFtctlWrapperHelper.FtctlProcessOutputParser();
         String result = script.execute(parser);
         String output = LibvirtFtctlWrapperHelper.getOutput(result, parser);
         int exitValue = script.getExitValue();

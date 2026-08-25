@@ -16,6 +16,11 @@
 // under the License.
 package com.cloud.hypervisor.kvm.resource.wrapper;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
 import com.cloud.utils.script.OutputInterpreter;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -24,6 +29,49 @@ import com.google.gson.JsonSyntaxException;
 import org.apache.commons.lang3.StringUtils;
 
 public final class LibvirtFtctlWrapperHelper {
+
+    static final class FtctlProcessOutputParser extends OutputInterpreter.AllLinesParser {
+        private static final long DRAIN_WAIT_SECONDS = 5;
+
+        private final CountDownLatch drained = new CountDownLatch(1);
+        private volatile String lines;
+        private volatile String readFailure;
+
+        @Override
+        public String interpret(BufferedReader reader) {
+            StringBuilder builder = new StringBuilder();
+            try {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    builder.append(line).append("\n");
+                }
+                lines = builder.toString();
+            } catch (IOException e) {
+                readFailure = e.getMessage();
+            } finally {
+                drained.countDown();
+            }
+            return null;
+        }
+
+        @Override
+        public String processError(BufferedReader reader) {
+            try {
+                if (!drained.await(DRAIN_WAIT_SECONDS, TimeUnit.SECONDS)) {
+                    return "FTCTL process output drain timed out";
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return "FTCTL process output drain was interrupted";
+            }
+            return StringUtils.defaultIfBlank(lines, StringUtils.defaultString(readFailure));
+        }
+
+        @Override
+        public String getLines() {
+            return lines;
+        }
+    }
 
     private LibvirtFtctlWrapperHelper() {
     }

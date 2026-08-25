@@ -74,6 +74,40 @@ public class DrFailbackDataGateServiceImplTest {
     }
 
     @Test
+    public void acceptsNativeCompatibilityForAblestackToAblestackFailback() {
+        DrPlanVO nativePlan = new DrPlanVO("native-plan", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        DrRunVO nativeRun = new DrRunVO(nativePlan.getId(), DrConstants.RUN_TYPE_FAILBACK);
+        DrFailbackSessionVO nativeSession = durableSession(nativePlan.getId());
+        nativeSession.setReplicationDirection(DrConstants.DIRECTION_KVM_TO_KVM);
+        nativeSession.setProviderPair(DrConstants.PROVIDER_PAIR_ABLESTACK_TO_ABLESTACK);
+        nativeSession.setGuestCompatibilityState("NATIVE_COMPATIBILITY_PRESERVED");
+
+        Assert.assertTrue(service.validate(nativePlan, nativeRun, nativeSession).isReady());
+    }
+
+    @Test
+    public void rejectsValidationRequiredForAblestackToAblestackFailback() {
+        DrPlanVO nativePlan = new DrPlanVO("native-plan", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        DrRunVO nativeRun = new DrRunVO(nativePlan.getId(), DrConstants.RUN_TYPE_FAILBACK);
+        DrFailbackSessionVO nativeSession = durableSession(nativePlan.getId());
+        nativeSession.setReplicationDirection(DrConstants.DIRECTION_KVM_TO_KVM);
+        nativeSession.setProviderPair(DrConstants.PROVIDER_PAIR_ABLESTACK_TO_ABLESTACK);
+        nativeSession.setGuestCompatibilityState("VALIDATION_REQUIRED");
+
+        DrFailbackDataGateResult result = service.validate(nativePlan, nativeRun, nativeSession);
+        Assert.assertFalse(result.isReady());
+        Assert.assertEquals("DR_FAILBACK_GUEST_COMPATIBILITY_NOT_READY", result.getErrorCode());
+    }
+
+    @Test
+    public void rejectsNativeKvmCompatibilityForVmwareFailback() {
+        session.setGuestCompatibilityState("NATIVE_COMPATIBILITY_PRESERVED");
+        DrFailbackDataGateResult result = service.validate(plan, run, session);
+        Assert.assertFalse(result.isReady());
+        Assert.assertEquals("DR_FAILBACK_GUEST_COMPATIBILITY_NOT_READY", result.getErrorCode());
+    }
+
+    @Test
     public void distinguishesMissingBaselineFromNonDurableBaseline() {
         session.setBaselineGeneration(null);
         Assert.assertEquals("DR_FAILBACK_DATA_EVIDENCE_INCOMPLETE",
@@ -83,5 +117,16 @@ public class DrFailbackDataGateServiceImplTest {
         session.setBaselineState("INVALID");
         Assert.assertEquals("DR_FAILBACK_BASELINE_NOT_DURABLE",
                 service.validate(plan, run, session).getErrorCode());
+    }
+
+    private DrFailbackSessionVO durableSession(Long planId) {
+        DrFailbackSessionVO result = new DrFailbackSessionVO(planId, 1L, "engine-session-native", "DATA_READY");
+        result.setBaselineGeneration(2L);
+        result.setBaselineState("LOCAL_DURABLE");
+        result.setTrackerState("LOCAL_DURABLE");
+        result.setWriterState("DURABLE");
+        result.setTargetWritten(true);
+        result.setWriteVerified(true);
+        return result;
     }
 }

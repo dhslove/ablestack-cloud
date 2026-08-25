@@ -34,6 +34,7 @@ import com.cloud.dr.DrConstants;
 import com.cloud.dr.DrFailbackPreflightResult;
 import com.cloud.dr.DrFailbackPreflightService;
 import com.cloud.dr.DrPlanVO;
+import com.cloud.dr.DrPlanOwnedTransportService;
 import com.cloud.dr.DrReprotectAuthoritySpec;
 import com.cloud.dr.DrReprotectPreflightResult;
 import com.cloud.dr.DrReprotectPreflightService;
@@ -44,6 +45,8 @@ import com.cloud.dr.adapter.DrExecutionContext;
 import com.cloud.dr.dao.DrRestorePointDao;
 import com.cloud.host.dao.HostDao;
 import com.cloud.host.HostVO;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonParser;
 
 @RunWith(MockitoJUnitRunner.class)
 public class FtctlDrUnifiedActionAdapterTest {
@@ -69,6 +72,8 @@ public class FtctlDrUnifiedActionAdapterTest {
     private DrFailbackPreflightService drFailbackPreflightService;
     @Mock
     private DrRemoteAgentClient drRemoteAgentClient;
+    @Mock
+    private DrPlanOwnedTransportService drPlanOwnedTransportService;
 
     @InjectMocks
     private FtctlDrUnifiedActionAdapter adapter;
@@ -151,11 +156,14 @@ public class FtctlDrUnifiedActionAdapterTest {
                 + "\"target\":{\"storageRef\":\"target-pool-uuid\",\"path\":\"target-image\",\"format\":\"raw\"}}]}");
         DrRunVO run = run(DrConstants.RUN_TYPE_SYNC, "{\"mode\":\"FULL_RESEED\",\"forceImmediateCycle\":true}");
         HostVO targetHost = Mockito.mock(HostVO.class);
-        Mockito.when(targetHost.getId()).thenReturn(102L);
         Mockito.when(targetHost.getUuid()).thenReturn("target-host-uuid");
         Mockito.when(targetHost.getPrivateIpAddress()).thenReturn("10.10.32.2");
         Mockito.when(hostDao.findById(102L)).thenReturn(targetHost);
         Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        Mockito.when(drPlanOwnedTransportService.supports(plan)).thenReturn(true);
+        Mockito.when(drPlanOwnedTransportService.startForwardTargetExport(
+                Mockito.eq(plan), Mockito.eq(run), Mockito.anyString()))
+                .thenReturn(exports("10.10.32.2", 12032, "dr-export-sda"));
         Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("CAPABILITIES"),
                 Mockito.isA(FtctlDrCapabilitiesCommand.class), Mockito.eq("source-host-uuid"),
                 Mockito.eq(FtctlDrCapabilitiesAnswer.class))).thenAnswer(invocation -> {
@@ -164,15 +172,6 @@ public class FtctlDrUnifiedActionAdapterTest {
                             "control-protocol-v2", "dr-site-agent-rbd-transport-v1"));
                     return answer;
                 });
-        ArgumentCaptor<FtctlDrActionCommand> targetCommandCaptor = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
-        Mockito.when(agentManager.easySend(Mockito.eq(102L), targetCommandCaptor.capture())).thenAnswer(invocation -> {
-            FtctlDrActionCommand command = invocation.getArgument(1);
-            return new FtctlDrActionAnswer(command, true, "ready", FtctlDrActionCommand.Action.TARGET_EXPORT_START,
-                    plan.getUuid(), run.getUuid(), "completed", true, "READY", "target-export-ready",
-                    100, run.getUuid(), 0L, null, 0, "{\"result\":\"ok\"}",
-                    "{\"exports\":[{\"device\":\"sda\",\"host\":\"10.10.32.2\",\"port\":12032,"
-                            + "\"name\":\"dr-export-sda\",\"uri\":\"nbd://10.10.32.2:12032/dr-export-sda\"}]}");
-        });
         Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("ACTION"),
                 Mockito.isA(FtctlDrActionCommand.class), Mockito.eq("source-host-uuid"),
                 Mockito.eq(FtctlDrActionAnswer.class))).thenAnswer(invocation -> {
@@ -187,7 +186,8 @@ public class FtctlDrUnifiedActionAdapterTest {
 
         Assert.assertTrue(result.isSuccess());
         Assert.assertFalse(result.isTerminal());
-        Assert.assertEquals(FtctlDrActionCommand.Action.TARGET_EXPORT_START, targetCommandCaptor.getValue().getAction());
+        Mockito.verify(drPlanOwnedTransportService).startForwardTargetExport(
+                Mockito.eq(plan), Mockito.eq(run), Mockito.anyString());
         Mockito.verify(agentManager, Mockito.never()).send(Mockito.anyLong(), Mockito.isA(FtctlDrActionCommand.class));
         ArgumentCaptor<FtctlDrActionCommand> actionCaptor = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
         Mockito.verify(drRemoteAgentClient).execute(Mockito.eq(plan), Mockito.eq("ACTION"), actionCaptor.capture(),
@@ -220,11 +220,14 @@ public class FtctlDrUnifiedActionAdapterTest {
         DrRestorePointVO checkpoint = checkpoint(plan, "ftctl:" + plan.getUuid() + ":source-run:12");
         Mockito.when(drRestorePointDao.findLatestTargetReadyByPlanId(plan.getId())).thenReturn(checkpoint);
         HostVO targetHost = Mockito.mock(HostVO.class);
-        Mockito.when(targetHost.getId()).thenReturn(102L);
         Mockito.when(targetHost.getUuid()).thenReturn("target-host-uuid");
         Mockito.when(targetHost.getPrivateIpAddress()).thenReturn("10.10.32.2");
         Mockito.when(hostDao.findById(102L)).thenReturn(targetHost);
         Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        Mockito.when(drPlanOwnedTransportService.supports(plan)).thenReturn(true);
+        Mockito.when(drPlanOwnedTransportService.startForwardTargetExport(
+                Mockito.eq(plan), Mockito.eq(run), Mockito.anyString()))
+                .thenReturn(exports("10.10.32.2", 12032, "dr-export-sda"));
         Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("CAPABILITIES"),
                 Mockito.isA(FtctlDrCapabilitiesCommand.class), Mockito.eq("source-host-uuid"),
                 Mockito.eq(FtctlDrCapabilitiesAnswer.class))).thenAnswer(invocation -> {
@@ -233,15 +236,6 @@ public class FtctlDrUnifiedActionAdapterTest {
                             "control-protocol-v2", "dr-site-agent-rbd-transport-v1"));
                     return answer;
                 });
-        ArgumentCaptor<FtctlDrActionCommand> targetCommandCaptor = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
-        Mockito.when(agentManager.easySend(Mockito.eq(102L), targetCommandCaptor.capture())).thenAnswer(invocation -> {
-            FtctlDrActionCommand command = invocation.getArgument(1);
-            return new FtctlDrActionAnswer(command, true, "ready", FtctlDrActionCommand.Action.TARGET_EXPORT_START,
-                    plan.getUuid(), run.getUuid(), "completed", true, "READY", "target-export-ready",
-                    100, run.getUuid(), 0L, null, 0, "{\"result\":\"ok\"}",
-                    "{\"exports\":[{\"device\":\"sda\",\"host\":\"10.10.32.2\",\"port\":12032,"
-                            + "\"name\":\"dr-export-sda\",\"uri\":\"nbd://10.10.32.2:12032/dr-export-sda\"}]}");
-        });
         ArgumentCaptor<FtctlDrActionCommand> sourceCommandCaptor = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
         Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("ACTION"), sourceCommandCaptor.capture(),
                 Mockito.eq("source-host-uuid"), Mockito.eq(FtctlDrActionAnswer.class))).thenAnswer(invocation -> {
@@ -254,7 +248,8 @@ public class FtctlDrUnifiedActionAdapterTest {
         DrAdapterResult result = adapter.execute(new DrExecutionContext(plan, run));
 
         Assert.assertTrue(result.isSuccess());
-        Assert.assertEquals(FtctlDrActionCommand.Action.TARGET_EXPORT_START, targetCommandCaptor.getValue().getAction());
+        Mockito.verify(drPlanOwnedTransportService).startForwardTargetExport(
+                Mockito.eq(plan), Mockito.eq(run), Mockito.anyString());
         Assert.assertEquals(FtctlDrActionCommand.Action.FAILOVER, sourceCommandCaptor.getValue().getAction());
         Assert.assertTrue(sourceCommandCaptor.getValue().getProfileJson().contains("\"mode\":\"site-agent-nbd\""));
         Mockito.verify(agentManager, Mockito.never()).send(Mockito.anyLong(), Mockito.isA(FtctlDrActionCommand.class));
@@ -278,6 +273,10 @@ public class FtctlDrUnifiedActionAdapterTest {
                 + "\"storagePoolType\":\"RBD\",\"path\":\"target-image\",\"format\":\"raw\"}}]}");
         DrRunVO run = run(DrConstants.RUN_TYPE_FAILBACK, "{}");
         Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        Mockito.when(drPlanOwnedTransportService.supports(plan)).thenReturn(true);
+        Mockito.when(drPlanOwnedTransportService.startReverseTargetExport(
+                Mockito.eq(plan), Mockito.eq(run), Mockito.anyString()))
+                .thenReturn(exports("10.10.22.1", 12022, "dr-reverse-sda"));
         Mockito.when(drFailbackPreflightService.validate(plan, run))
                 .thenReturn(DrFailbackPreflightResult.success(null, null, null));
         Mockito.when(agentManager.send(Mockito.eq(103L), Mockito.isA(FtctlDrCapabilitiesCommand.class)))
@@ -286,17 +285,6 @@ public class FtctlDrUnifiedActionAdapterTest {
                     answer.setSupportedFeatures(java.util.Arrays.asList("control-protocol-v2",
                             "dr-transition-preflight-v2", "dr-reverse-site-agent-rbd-transport-v1"));
                     return answer;
-                });
-        ArgumentCaptor<FtctlDrActionCommand> remoteCommand = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
-        Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("ACTION"), remoteCommand.capture(),
-                Mockito.eq("source-host-uuid"), Mockito.eq(FtctlDrActionAnswer.class))).thenAnswer(invocation -> {
-                    FtctlDrActionCommand command = invocation.getArgument(2);
-                    return new FtctlDrActionAnswer(command, true, "ready",
-                            FtctlDrActionCommand.Action.TARGET_EXPORT_START, plan.getUuid(), run.getUuid(),
-                            "completed", true, "READY", "target-export-ready", 100, run.getUuid(), 0L,
-                            null, 0, "{\"result\":\"ok\"}",
-                            "{\"exports\":[{\"device\":\"sda\",\"host\":\"10.10.22.1\",\"port\":12022,"
-                                    + "\"name\":\"dr-reverse-sda\",\"uri\":\"nbd://10.10.22.1:12022/dr-reverse-sda\"}]}");
                 });
         ArgumentCaptor<FtctlDrActionCommand> failbackCommand = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
         Mockito.when(agentManager.send(Mockito.eq(103L), failbackCommand.capture())).thenAnswer(invocation -> {
@@ -310,13 +298,19 @@ public class FtctlDrUnifiedActionAdapterTest {
         DrAdapterResult result = adapter.execute(new DrExecutionContext(plan, run));
 
         Assert.assertTrue(result.isSuccess());
-        Assert.assertEquals(FtctlDrActionCommand.Action.TARGET_EXPORT_START, remoteCommand.getValue().getAction());
-        Assert.assertEquals("reverse-target", remoteCommand.getValue().getRole());
-        Assert.assertTrue(remoteCommand.getValue().getProfileJson().contains("\"reverseTargetExport\":true"));
+        Mockito.verify(drPlanOwnedTransportService).startReverseTargetExport(
+                Mockito.eq(plan), Mockito.eq(run), Mockito.anyString());
         Assert.assertEquals(FtctlDrActionCommand.Action.FAILBACK, failbackCommand.getValue().getAction());
         Assert.assertTrue(failbackCommand.getValue().getProfileJson().contains("\"mode\":\"site-agent-nbd\""));
         Assert.assertTrue(failbackCommand.getValue().getProfileJson().contains("dr-reverse-sda"));
         Mockito.verify(agentManager, Mockito.never()).easySend(Mockito.eq(102L), Mockito.any());
+    }
+
+    private JsonArray exports(String host, int port, String name) {
+        return JsonParser.parseString("[{\"device\":\"sda\",\"host\":\"" + host
+                + "\",\"port\":" + port + ",\"name\":\"" + name
+                + "\",\"uri\":\"nbd://" + host + ":" + port + "/" + name + "\"}]")
+                .getAsJsonArray();
     }
 
     @Test

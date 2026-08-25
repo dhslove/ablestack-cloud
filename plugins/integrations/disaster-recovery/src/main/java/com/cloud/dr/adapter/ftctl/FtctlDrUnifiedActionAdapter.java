@@ -41,6 +41,7 @@ import com.cloud.dr.DrConstants;
 import com.cloud.dr.DrFailbackPreflightResult;
 import com.cloud.dr.DrFailbackPreflightService;
 import com.cloud.dr.DrPlanVO;
+import com.cloud.dr.DrPlanOwnedTransportService;
 import com.cloud.dr.DrReprotectAuthoritySpec;
 import com.cloud.dr.DrReprotectPreflightResult;
 import com.cloud.dr.DrReprotectPreflightService;
@@ -103,6 +104,8 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
     private DrFailbackPreflightService drFailbackPreflightService;
     @Inject
     private DrRemoteAgentClient drRemoteAgentClient;
+    @Inject
+    private DrPlanOwnedTransportService drPlanOwnedTransportService;
 
     @Override
     public String getEngineType() {
@@ -350,7 +353,8 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
             FtctlDrActionCommand sourceCommand) {
         DrPlanVO plan = context.getPlan();
         if (action == FtctlDrActionCommand.Action.RELEASE) {
-            stopPlanOwnedTargetExport(context, sourceCommand);
+            drPlanOwnedTransportService.stopForwardTargetExport(plan, context.getRun(),
+                    sourceCommand.getProfileJson(), null);
             return;
         }
         if (isRemoteKvmToKvmPlan(plan)
@@ -365,68 +369,14 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
                         && action != FtctlDrActionCommand.Action.FAILOVER)) {
             return;
         }
-        HostVO targetHost = hostDao.findById(plan.getTargetWorkerHostId());
-        if (targetHost == null || StringUtils.isBlank(targetHost.getPrivateIpAddress())) {
-            throw new CloudRuntimeException("DR target worker host and data address are required");
-        }
-        FtctlDrActionCommand targetCommand = new FtctlDrActionCommand(
-                FtctlDrActionCommand.Action.TARGET_EXPORT_START, plan.getUuid(), context.getRun().getUuid());
-        targetCommand.setActionName(FtctlDrActionCommand.Action.TARGET_EXPORT_START.name());
-        targetCommand.setCliCommand(FtctlDrActionCommand.Action.TARGET_EXPORT_START.getCliCommand());
-        targetCommand.setRunType(context.getRun().getRunType());
-        targetCommand.setDirection(plan.getDirection());
-        targetCommand.setRole("target");
-        targetCommand.setTargetWorkerUuid(targetHost.getUuid());
-        targetCommand.setProfileJson(sourceCommand.getProfileJson());
-        targetCommand.setWaitForCompletion(true);
-        targetCommand.setWait(AGENT_ACCEPT_TIMEOUT_SECONDS);
-        Answer rawAnswer = agentManager.easySend(targetHost.getId(), targetCommand);
-        if (!(rawAnswer instanceof FtctlDrActionAnswer) || !rawAnswer.getResult()) {
-            throw new CloudRuntimeException(StringUtils.defaultIfBlank(
-                    rawAnswer != null ? rawAnswer.getDetails() : null,
-                    "Target Agent did not prepare the Plan-owned RBD export"));
-        }
-        FtctlDrActionAnswer answer = (FtctlDrActionAnswer) rawAnswer;
-        JsonObject payload = parseObject(answer.getStatusJson());
-        JsonArray exports = firstArray(payload, "exports");
-        if (exports.size() == 0) {
-            throw new CloudRuntimeException("Target Agent returned no RBD export endpoints");
-        }
-        injectPlanOwnedExports(sourceCommand, exports);
+        injectPlanOwnedExports(sourceCommand, drPlanOwnedTransportService.startForwardTargetExport(
+                plan, context.getRun(), sourceCommand.getProfileJson()));
     }
 
     private void prepareReversePlanOwnedTransport(DrExecutionContext context,
             FtctlDrActionCommand failbackCommand) {
-        DrPlanVO plan = context.getPlan();
-        String sourceWorkerUuid = remoteSourceWorkerUuid(plan);
-        if (StringUtils.isBlank(sourceWorkerUuid)) {
-            throw new CloudRuntimeException("DR original-site worker UUID is required for reverse RBD export");
-        }
-        JsonObject exportProfile = parseObject(failbackCommand.getProfileJson());
-        objectAt(exportProfile, "request").addProperty("reverseTargetExport", true);
-        FtctlDrActionCommand exportCommand = new FtctlDrActionCommand(
-                FtctlDrActionCommand.Action.TARGET_EXPORT_START, plan.getUuid(), context.getRun().getUuid());
-        exportCommand.setActionName(FtctlDrActionCommand.Action.TARGET_EXPORT_START.name());
-        exportCommand.setCliCommand(FtctlDrActionCommand.Action.TARGET_EXPORT_START.getCliCommand());
-        exportCommand.setRunType(context.getRun().getRunType());
-        exportCommand.setDirection(plan.getDirection());
-        exportCommand.setRole("reverse-target");
-        exportCommand.setTargetWorkerUuid(sourceWorkerUuid);
-        exportCommand.setProfileJson(GSON.toJson(exportProfile));
-        exportCommand.setWaitForCompletion(true);
-        exportCommand.setWait(AGENT_ACCEPT_TIMEOUT_SECONDS);
-        Answer rawAnswer = drRemoteAgentClient.execute(plan, "ACTION", exportCommand,
-                sourceWorkerUuid, FtctlDrActionAnswer.class);
-        if (!(rawAnswer instanceof FtctlDrActionAnswer) || !rawAnswer.getResult()) {
-            throw new CloudRuntimeException(StringUtils.defaultIfBlank(
-                    rawAnswer != null ? rawAnswer.getDetails() : null,
-                    "Original-site Agent did not prepare the reverse RBD export"));
-        }
-        JsonArray exports = firstArray(parseObject(((FtctlDrActionAnswer) rawAnswer).getStatusJson()), "exports");
-        if (exports.size() == 0) {
-            throw new CloudRuntimeException("Original-site Agent returned no reverse RBD export endpoints");
-        }
-        injectPlanOwnedExports(failbackCommand, exports);
+        injectPlanOwnedExports(failbackCommand, drPlanOwnedTransportService.startReverseTargetExport(
+                context.getPlan(), context.getRun(), failbackCommand.getProfileJson()));
     }
 
     private void injectPlanOwnedExports(FtctlDrActionCommand command, JsonArray exports) {
@@ -441,37 +391,8 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         command.setProfileJson(GSON.toJson(profile));
     }
 
-    private void stopPlanOwnedTargetExport(DrExecutionContext context, FtctlDrActionCommand sourceCommand) {
-        DrPlanVO plan = context.getPlan();
-        if (plan == null || !isRemoteKvmToKvmPlan(plan)) {
-            return;
-        }
-        HostVO targetHost = hostDao.findById(plan.getTargetWorkerHostId());
-        if (targetHost == null) {
-            throw new CloudRuntimeException("DR target worker host is required to stop the Plan-owned export");
-        }
-        FtctlDrActionCommand stopCommand = new FtctlDrActionCommand(
-                FtctlDrActionCommand.Action.TARGET_EXPORT_STOP, plan.getUuid(), context.getRun().getUuid());
-        stopCommand.setActionName(FtctlDrActionCommand.Action.TARGET_EXPORT_STOP.name());
-        stopCommand.setCliCommand(FtctlDrActionCommand.Action.TARGET_EXPORT_STOP.getCliCommand());
-        stopCommand.setRunType(context.getRun().getRunType());
-        stopCommand.setDirection(plan.getDirection());
-        stopCommand.setRole("target");
-        stopCommand.setTargetWorkerUuid(targetHost.getUuid());
-        stopCommand.setProfileJson(sourceCommand.getProfileJson());
-        stopCommand.setWaitForCompletion(true);
-        stopCommand.setWait(AGENT_ACCEPT_TIMEOUT_SECONDS);
-        Answer answer = agentManager.easySend(targetHost.getId(), stopCommand);
-        if (answer == null || !answer.getResult()) {
-            throw new CloudRuntimeException(StringUtils.defaultIfBlank(
-                    answer != null ? answer.getDetails() : null,
-                    "Target Agent did not stop the Plan-owned RBD export"));
-        }
-    }
-
     private boolean isRemoteKvmToKvmPlan(DrPlanVO plan) {
-        return drRemoteAgentClient != null && drRemoteAgentClient.isRemoteKvmSource(plan)
-                && StringUtils.equalsIgnoreCase(plan.getDirection(), DrConstants.DIRECTION_KVM_TO_KVM);
+        return drPlanOwnedTransportService != null && drPlanOwnedTransportService.supports(plan);
     }
 
     private boolean dispatchesOnRemoteSource(DrPlanVO plan, FtctlDrActionCommand.Action action) {

@@ -873,6 +873,11 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
                 || (!allowCompletedRun && run.getCompleted() != null)) {
             return;
         }
+        if (!isMaterializationOwnerRun(plan, run)) {
+            LOGGER.debug("Ignoring DR target materialization for plan {} run {} type {} active side {}",
+                    plan.getUuid(), run.getUuid(), run.getRunType(), plan.getActiveSide());
+            return;
+        }
         if (!StringUtils.endsWithIgnoreCase(plan.getDirection(), "_KVM")) {
             return;
         }
@@ -891,6 +896,15 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
             LOGGER.warn("Failed to materialize DR target for plan {}: {}", plan.getUuid(), e.getMessage(), e);
             failMaterialization(plan, run, runtimeStatusJson, e);
         }
+    }
+
+    boolean isMaterializationOwnerRun(DrPlanVO plan, DrRunVO run) {
+        return plan != null && run != null
+                && StringUtils.equalsAnyIgnoreCase(run.getRunType(),
+                        DrConstants.RUN_TYPE_SYNC, DrConstants.RUN_TYPE_RECOVER_SYNC)
+                && StringUtils.equalsIgnoreCase(StringUtils.defaultIfBlank(plan.getActiveSide(),
+                        DrConstants.AUTHORITY_SIDE_SOURCE), DrConstants.AUTHORITY_SIDE_SOURCE)
+                && !StringUtils.equalsIgnoreCase(plan.getState(), DrConstants.PLAN_STATE_FAILED_OVER);
     }
 
     private MaterializationResult materializeTarget(DrPlanVO plan, DrRunVO run, JsonObject runtime) {
