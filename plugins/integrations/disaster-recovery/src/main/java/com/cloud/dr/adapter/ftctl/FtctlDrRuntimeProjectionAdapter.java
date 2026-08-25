@@ -452,16 +452,16 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                 stringValue(runtime, "scheduler_health"));
         String replicationActivity = StringUtils.defaultIfBlank(status.getReplicationActivity(),
                 StringUtils.defaultIfBlank(stringValue(runtime, "replication_activity"), "IDLE"));
-        String activeWorkerRunUuid = StringUtils.defaultIfBlank(status.getActiveWorkerRunUuid(),
-                stringValue(runtime, "active_worker_run_uuid"));
+        String activeWorkerRunUuid = schemaSafeRuntimeRunUuid(StringUtils.defaultIfBlank(
+                status.getActiveWorkerRunUuid(), stringValue(runtime, "active_worker_run_uuid")));
         Long activeWorkerPid = status.getActiveWorkerPid() != null ? status.getActiveWorkerPid()
                 : longValue(runtime, "active_worker_pid");
         Long activeWorkerStartTicks = status.getActiveWorkerStartTicks() != null ? status.getActiveWorkerStartTicks()
                 : longValue(runtime, "active_worker_start_ticks");
         Date workerHeartbeatAt = firstDate(parseDate(status.getWorkerHeartbeatAt()),
                 parseDate(stringValue(runtime, "worker_heartbeat_at")));
-        String controlRequestRunUuid = StringUtils.defaultIfBlank(status.getControlRequestRunUuid(),
-                stringValue(runtime, "control_request_run_uuid"));
+        String controlRequestRunUuid = schemaSafeControlRequestRunUuid(StringUtils.defaultIfBlank(
+                status.getControlRequestRunUuid(), stringValue(runtime, "control_request_run_uuid")));
         Boolean ownerMatched = status.getOwnerMatched() != null ? status.getOwnerMatched()
                 : booleanValue(runtime, "owner_matched");
         String workerState = StringUtils.defaultIfBlank(status.getWorkerState(), stringValue(runtime, "worker_state"));
@@ -618,7 +618,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             protectionState = DrConstants.PLAN_STATE_SYNCING;
         }
 
-        String producerRunUuid = resolveProtectionProducerRunUuid(status, runtime);
+        String producerRunUuid = schemaSafeRuntimeRunUuid(resolveProtectionProducerRunUuid(status, runtime));
         authority.setEngineRunUuid(producerRunUuid);
         authority.setRuntimeGeneration(generation);
         authority.setSchedulerState(schedulerState);
@@ -775,6 +775,17 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
 
         projectSyncCyclesAtomically(plan, protectionProducerRun, status, producerRunUuid, sequence, requestedMode,
                 effectiveMode, cycleState, baselineState, reseedReason, sourceAt, errorCode, errorMessage);
+    }
+
+    static String schemaSafeControlRequestRunUuid(String value) {
+        return StringUtils.length(value) <= 40 ? value : null;
+    }
+
+    static String schemaSafeRuntimeRunUuid(String value) {
+        if (StringUtils.isBlank(value) || StringUtils.length(value) <= 40) {
+            return value;
+        }
+        return UUID.nameUUIDFromBytes(("ftctl-runtime-run:" + value).getBytes(StandardCharsets.UTF_8)).toString();
     }
 
     private void projectSyncCyclesAtomically(DrPlanVO plan, DrRunVO protectionProducerRun, FtctlDrStatusAnswer status,
@@ -950,7 +961,8 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
     void projectCurrentSyncCycle(DrPlanVO plan, DrRunVO projectionRun, FtctlDrStatusAnswer status,
             long sequence, String requestedMode, String effectiveMode, String cycleState, String baselineState,
             String reseedReason, Date sourceAt, String errorCode, String errorMessage) {
-        String engineRunUuid = resolveProtectionProducerRunUuid(status, parseObject(status.getStatusJson()));
+        String engineRunUuid = schemaSafeRuntimeRunUuid(
+                resolveProtectionProducerRunUuid(status, parseObject(status.getStatusJson())));
         DrSyncCycleVO cycle = drSyncCycleDao.findByPlanSequence(plan.getId(), sequence);
         if (cycle == null) {
             cycle = new DrSyncCycleVO(plan.getId(), engineRunUuid, sequence);
@@ -997,7 +1009,8 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             return null;
         }
         sequence = snapshot.getSequence();
-        String engineRunUuid = resolveProtectionProducerRunUuid(status, parseObject(status.getStatusJson()));
+        String engineRunUuid = schemaSafeRuntimeRunUuid(
+                resolveProtectionProducerRunUuid(status, parseObject(status.getStatusJson())));
         DrSyncCycleVO cycle = drSyncCycleDao.findByPlanSequence(plan.getId(), sequence);
         if (cycle == null) {
             cycle = new DrSyncCycleVO(plan.getId(), engineRunUuid, sequence);

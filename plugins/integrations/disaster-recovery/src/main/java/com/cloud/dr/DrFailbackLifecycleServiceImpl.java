@@ -332,6 +332,7 @@ public class DrFailbackLifecycleServiceImpl extends ManagerBase implements DrFai
         }
         if (StringUtils.equals(session.getState(), PROTECTION_RESUMING)) {
             ensureForwardPlanOwnedExportForProtectionResume(plan, run);
+            ensureRemoteSourceSchedulerResumedForProtectionResume(plan, run);
             JsonObject authorityRuntime = fetchStatusRuntime(plan, run,
                     FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY);
             if (protectionResumed(plan, session, authorityRuntime)) {
@@ -742,8 +743,28 @@ public class DrFailbackLifecycleServiceImpl extends ManagerBase implements DrFai
         }
     }
 
-    private JsonObject fetchStatusRuntime(DrPlanVO plan, DrRunVO run,
+    void ensureRemoteSourceSchedulerResumedForProtectionResume(DrPlanVO plan, DrRunVO run) {
+        if (drRemoteAgentClient == null || !drRemoteAgentClient.isRemoteKvmSource(plan)) {
+            return;
+        }
+        FtctlDrActionAnswer answer = drRemoteAgentClient.transitionSourceScheduler(
+                plan, FtctlDrActionCommand.Action.RESUME_SYNC, run.getUuid());
+        if (answer == null || !answer.getResult()) {
+            throw new CloudRuntimeException(StringUtils.defaultIfBlank(
+                    answer != null ? answer.getDetails() : null,
+                    "Original-site Agent did not resume forward protection"));
+        }
+    }
+
+    JsonObject fetchStatusRuntime(DrPlanVO plan, DrRunVO run,
             FtctlDrStatusCommand.StatusScope scope) {
+        if (scope == FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY
+                && drRemoteAgentClient != null && drRemoteAgentClient.isRemoteKvmSource(plan)) {
+            FtctlDrStatusAnswer remoteAnswer = drRemoteAgentClient.fetchSourceStatus(plan, null, scope);
+            JsonObject remotePayload = remoteAnswer != null
+                    ? parseObject(remoteAnswer.getStatusJson()) : null;
+            return remotePayload != null ? remotePayload : new JsonObject();
+        }
         Long hostId = firstNonNull(plan.getCoordinatorWorkerHostId(), plan.getTargetWorkerHostId(),
                 plan.getSourceWorkerHostId());
         if (hostId == null) {
@@ -1518,8 +1539,11 @@ public class DrFailbackLifecycleServiceImpl extends ManagerBase implements DrFai
         if (required == null && session.getCheckpointSequence() != null) {
             required = session.getCheckpointSequence() + 1L;
         }
+        String runtimeActiveSide = stringValue(runtime, "active_side");
+        boolean remoteSourceAuthority = StringUtils.isBlank(runtimeActiveSide)
+                && drRemoteAgentClient != null && drRemoteAgentClient.isRemoteKvmSource(plan);
         return StringUtils.equalsIgnoreCase(plan.getActiveSide(), "SOURCE")
-                && StringUtils.equalsIgnoreCase(stringValue(runtime, "active_side"), "SOURCE")
+                && (StringUtils.equalsIgnoreCase(runtimeActiveSide, "SOURCE") || remoteSourceAuthority)
                 && StringUtils.equalsAnyIgnoreCase(stringValue(runtime, "scheduler_state"), "RUNNING", "ACTIVE")
                 && StringUtils.equalsAnyIgnoreCase(
                         defaultValue(stringValue(runtime, "scheduler_health"), "HEALTHY"),

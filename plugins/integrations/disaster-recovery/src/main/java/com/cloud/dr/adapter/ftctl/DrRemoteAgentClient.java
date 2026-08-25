@@ -16,6 +16,9 @@
 // under the License.
 package com.cloud.dr.adapter.ftctl;
 
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
+
 import javax.inject.Inject;
 
 import org.apache.commons.lang3.StringUtils;
@@ -24,6 +27,8 @@ import com.cloud.agent.api.Answer;
 import com.cloud.agent.api.Command;
 import com.cloud.agent.api.FtctlDrActionAnswer;
 import com.cloud.agent.api.FtctlDrActionCommand;
+import com.cloud.agent.api.FtctlDrStatusAnswer;
+import com.cloud.agent.api.FtctlDrStatusCommand;
 import com.cloud.dr.DrConstants;
 import com.cloud.dr.DrPlanVO;
 import com.cloud.dr.DrResolvedSiteCredential;
@@ -127,8 +132,7 @@ public class DrRemoteAgentClient {
         String runType = action == FtctlDrActionCommand.Action.PAUSE_SYNC
                 ? DrConstants.RUN_TYPE_PAUSE_SYNC : DrConstants.RUN_TYPE_RESUME_SYNC;
         FtctlDrActionCommand command = new FtctlDrActionCommand(action, plan.getUuid(),
-                parentRunUuid + (action == FtctlDrActionCommand.Action.PAUSE_SYNC
-                        ? "-source-quiesce" : "-source-resume"));
+                sourceTransitionRunUuid(plan.getUuid(), parentRunUuid, action));
         command.setActionName(action.name());
         command.setCliCommand(action.getCliCommand());
         command.setRunType(runType);
@@ -139,6 +143,22 @@ public class DrRemoteAgentClient {
         command.setWaitForCompletion(true);
         command.setWait(45);
         return execute(plan, "ACTION", command, workerHostUuid, FtctlDrActionAnswer.class);
+    }
+
+    static String sourceTransitionRunUuid(String planUuid, String parentRunUuid,
+            FtctlDrActionCommand.Action action) {
+        String ownerRunUuid = StringUtils.defaultIfBlank(parentRunUuid, planUuid);
+        String transitionIdentity = StringUtils.defaultString(planUuid) + ":"
+                + StringUtils.defaultString(ownerRunUuid) + ":" + action.name();
+        return UUID.nameUUIDFromBytes(transitionIdentity.getBytes(StandardCharsets.UTF_8)).toString();
+    }
+
+    public FtctlDrStatusAnswer fetchSourceStatus(DrPlanVO plan, String runUuid,
+            FtctlDrStatusCommand.StatusScope scope) {
+        String workerHostUuid = sourceWorkerUuid(plan);
+        FtctlDrStatusCommand command = new FtctlDrStatusCommand(plan.getUuid(), runUuid, scope);
+        command.setWait(5);
+        return execute(plan, "STATUS", command, workerHostUuid, FtctlDrStatusAnswer.class);
     }
 
     public String ensureSourceVmPowerState(DrPlanVO plan, boolean poweredOn) {

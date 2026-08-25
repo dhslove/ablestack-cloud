@@ -87,6 +87,28 @@ import com.google.gson.JsonParser;
 @RunWith(MockitoJUnitRunner.class)
 public class FtctlDrRuntimeProjectionAdapterTest {
 
+    @Test
+    public void schemaSafeControlRequestRunUuidRejectsLegacySuffixedIdentity() {
+        String uuid = "d64fdb24-9fb3-49ad-82de-2556db63698b";
+
+        Assert.assertEquals(uuid, FtctlDrRuntimeProjectionAdapter.schemaSafeControlRequestRunUuid(uuid));
+        Assert.assertNull(FtctlDrRuntimeProjectionAdapter.schemaSafeControlRequestRunUuid(
+                uuid + "-source-resume"));
+    }
+
+    @Test
+    public void schemaSafeRuntimeRunUuidNormalizesLegacySuffixedIdentityDeterministically() {
+        String uuid = "d64fdb24-9fb3-49ad-82de-2556db63698b";
+        String legacy = uuid + "-source-resume";
+
+        Assert.assertEquals(uuid, FtctlDrRuntimeProjectionAdapter.schemaSafeRuntimeRunUuid(uuid));
+        String normalized = FtctlDrRuntimeProjectionAdapter.schemaSafeRuntimeRunUuid(legacy);
+        Assert.assertEquals(36, normalized.length());
+        Assert.assertEquals(normalized, FtctlDrRuntimeProjectionAdapter.schemaSafeRuntimeRunUuid(legacy));
+        Assert.assertNotEquals(normalized,
+                FtctlDrRuntimeProjectionAdapter.schemaSafeRuntimeRunUuid(uuid + "-source-pause"));
+    }
+
     @Mock
     private AgentManager agentManager;
     @Mock

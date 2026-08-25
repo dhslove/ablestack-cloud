@@ -16,6 +16,8 @@ import org.mockito.junit.MockitoJUnitRunner;
 
 import com.cloud.agent.api.FtctlDrActionAnswer;
 import com.cloud.agent.api.FtctlDrActionCommand;
+import com.cloud.agent.api.FtctlDrStatusAnswer;
+import com.cloud.agent.api.FtctlDrStatusCommand;
 import com.cloud.dr.adapter.ftctl.DrRemoteAgentClient;
 import com.cloud.dr.dao.DrCutoverSessionDao;
 import com.cloud.dr.dao.DrEventDao;
@@ -125,6 +127,46 @@ public class DrFailbackLifecycleServiceImplTest {
     }
 
     @Test
+    public void remoteKvmProtectionResumeAcceptsBlankRuntimeSideAfterDurableCheckpoint() {
+        plan = new DrPlanVO("failback-plan", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setSourceExternalRef("remote-source-vm");
+        plan.setActiveSide("SOURCE");
+        session.setState("PROTECTION_RESUMING");
+        session.setCommitOutcome("ACKNOWLEDGED");
+        session.setEngineAckState("ACKNOWLEDGED");
+        session.setTargetPowerState("POWERED_OFF");
+        session.setSourcePowerState("POWERED_ON");
+        session.setRequiredPostFailbackCheckpointSequence(8L);
+        JsonObject runtime = runtime("UNKNOWN");
+        runtime.remove("active_side");
+        runtime.addProperty("scheduler_state", "RUNNING");
+        runtime.addProperty("scheduler_health", "HEALTHY");
+        runtime.addProperty("latest_completed_checkpoint_sequence", 8L);
+        Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+
+        Assert.assertTrue(service.protectionResumed(plan, session, runtime));
+    }
+
+    @Test
+    public void remoteKvmProtectionResumeRejectsExplicitConflictingRuntimeSide() {
+        plan = new DrPlanVO("failback-plan", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setSourceExternalRef("remote-source-vm");
+        plan.setActiveSide("SOURCE");
+        session.setState("PROTECTION_RESUMING");
+        session.setCommitOutcome("ACKNOWLEDGED");
+        session.setEngineAckState("ACKNOWLEDGED");
+        session.setTargetPowerState("POWERED_OFF");
+        session.setSourcePowerState("POWERED_ON");
+        session.setRequiredPostFailbackCheckpointSequence(8L);
+        JsonObject runtime = runtime("UNKNOWN");
+        runtime.addProperty("active_side", "TARGET");
+        runtime.addProperty("scheduler_state", "RUNNING");
+        runtime.addProperty("scheduler_health", "HEALTHY");
+        runtime.addProperty("latest_completed_checkpoint_sequence", 8L);
+        Assert.assertFalse(service.protectionResumed(plan, session, runtime));
+    }
+
+    @Test
     public void remoteKvmFailbackDrainsOriginalSiteExportBeforeSourceStart() {
         plan = new DrPlanVO("failback-plan", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
         plan.setSourceExternalRef("remote-source-vm");
@@ -161,6 +203,57 @@ public class DrFailbackLifecycleServiceImplTest {
 
         Mockito.verify(drPlanOwnedTransportService, Mockito.never())
                 .startForwardTargetExport(Mockito.any(), Mockito.any(), Mockito.any());
+    }
+
+    @Test
+    public void protectionResumeReentryResumesRemoteSourceScheduler() {
+        plan = new DrPlanVO("failback-plan", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setSourceExternalRef("remote-source-vm");
+        Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        FtctlDrActionCommand command = new FtctlDrActionCommand(
+                FtctlDrActionCommand.Action.RESUME_SYNC, plan.getUuid(), run.getUuid());
+        Mockito.when(drRemoteAgentClient.transitionSourceScheduler(plan,
+                FtctlDrActionCommand.Action.RESUME_SYNC, run.getUuid()))
+                .thenReturn(new FtctlDrActionAnswer(command, true, "resumed"));
+
+        service.ensureRemoteSourceSchedulerResumedForProtectionResume(plan, run);
+
+        Mockito.verify(drRemoteAgentClient).transitionSourceScheduler(plan,
+                FtctlDrActionCommand.Action.RESUME_SYNC, run.getUuid());
+    }
+
+    @Test(expected = CloudRuntimeException.class)
+    public void protectionResumeReentryRejectsRemoteSourceResumeFailure() {
+        plan = new DrPlanVO("failback-plan", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setSourceExternalRef("remote-source-vm");
+        Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        FtctlDrActionCommand command = new FtctlDrActionCommand(
+                FtctlDrActionCommand.Action.RESUME_SYNC, plan.getUuid(), run.getUuid());
+        Mockito.when(drRemoteAgentClient.transitionSourceScheduler(plan,
+                FtctlDrActionCommand.Action.RESUME_SYNC, run.getUuid()))
+                .thenReturn(new FtctlDrActionAnswer(command, false, "resume failed"));
+
+        service.ensureRemoteSourceSchedulerResumedForProtectionResume(plan, run);
+    }
+
+    @Test
+    public void protectionResumeReadsAuthorityFromRemoteSourceWorker() {
+        plan = new DrPlanVO("failback-plan", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setSourceExternalRef("remote-source-vm");
+        Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        FtctlDrStatusCommand command = new FtctlDrStatusCommand(plan.getUuid(), null,
+                FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY);
+        FtctlDrStatusAnswer answer = new FtctlDrStatusAnswer(command, true, "ok", plan.getUuid(), null,
+                "ok", "READY", "durable", 100, null, null, 0, null, null, null, null, null,
+                null, null, 0, "ok", "{\"scheduler_state\":\"RUNNING\",\"latest_completed_checkpoint_sequence\":11}");
+        Mockito.when(drRemoteAgentClient.fetchSourceStatus(plan, null,
+                FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY)).thenReturn(answer);
+
+        JsonObject runtime = service.fetchStatusRuntime(plan, run,
+                FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY);
+
+        Assert.assertEquals("RUNNING", runtime.get("scheduler_state").getAsString());
+        Assert.assertEquals(11L, runtime.get("latest_completed_checkpoint_sequence").getAsLong());
     }
 
     @Test

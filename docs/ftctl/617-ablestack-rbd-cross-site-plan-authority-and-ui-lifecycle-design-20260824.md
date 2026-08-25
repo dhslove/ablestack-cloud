@@ -1160,3 +1160,95 @@ present. Incomplete or ambiguous responses remain failures.
 This allows the Plan-owning Cloud transaction to terminate the canceled
 Failback Session without changing the proven RBD replication path or the
 VMware-to-ABLESTACK provider contract.
+
+## Remote-source protection resume ownership
+
+An ABLESTACK RBD-to-RBD Plan controlled by the replica-site Cloud has two
+different execution owners during Failback. The replica-site target worker
+owns reverse transfer and the immutable authority commit journal. After that
+commit is acknowledged, the original-site source worker owns every forward
+replication cycle. Reusing the coordinator host for both phases leaves the
+target scheduler suppressed while the source scheduler remains paused.
+
+The `PROTECTION_RESUMING` lifecycle therefore applies this ordered contract:
+
+1. the Plan owner starts and probes the replica-site forward target export;
+2. the Plan owner sends an idempotent `RESUME_SYNC` through the registered
+   original-site Mold Agent broker to the persisted source worker UUID;
+3. authority status is queried through that same remote source worker, not the
+   local coordinator;
+4. the lifecycle waits for a source-produced durable Cycle whose sequence is
+   at least `required_post_failback_checkpoint_sequence`;
+5. only then are the Session and Run completed and the Plan returned to READY.
+
+Remote scheduler transition commands use a deterministic UUID derived from
+`(plan_uuid, parent_run_uuid, action)`. The value remains a standard 36-character
+UUID so it fits the existing `control_request_run_uuid varchar(40)` contract;
+string suffixes such as `-source-resume` are forbidden. The derived UUID keeps
+pause and resume distinct while preserving retry idempotency.
+For rolling-upgrade compatibility, an overlength legacy value may remain in
+the FTCTL status JSON until that scheduler restarts. Cloud preserves the raw
+evidence but projects `NULL` into the bounded relational column so one stale
+runtime cannot roll back the complete Plan projection transaction.
+
+The target-side scheduler remains suppressed by its persisted `target` worker
+role. A missing target export or unavailable original-site Agent is retryable
+and keeps the Session in `PROTECTION_RESUMING`; it must not roll authority back
+after the commit was acknowledged. VMware-to-ABLESTACK and local KVM Plans do
+not use this remote scheduler transition.
+
+| Area | AS-IS | TO-BE |
+| --- | --- | --- |
+| Scheduler resume | Commit executes on the target coordinator only | Original-site source worker receives idempotent `RESUME_SYNC` |
+| Authority status | Local coordinator status is treated as forward authority | Remote source `PLAN_AUTHORITY` status is authoritative |
+| Target worker | Can briefly run a duplicate scheduler, then becomes suppressed | Remains export-only and scheduler-suppressed |
+| Terminal gate | VM power transition can coexist with a stuck Failback Run | Source durable Cycle is required before terminal success |
+| Regression scope | Shared lifecycle behavior may affect VMware | Remote path is gated by `KVM_TO_KVM` plus remote Mold source |
+
+## Legacy remote scheduler identity and SOURCE authority convergence
+
+A remote source scheduler can survive a rolling Cloud deployment with a legacy
+worker identity such as `<cloud-run-uuid>-source-resume`. The FTCTL status JSON
+must retain that raw identity for operator evidence, but Cloud relational
+columns such as `dr_plan_runtime.engine_run_uuid`,
+`dr_plan_runtime.active_worker_run_uuid`, and
+`dr_sync_cycle.engine_run_uuid` are bounded to 40 characters. Writing the raw
+legacy value rolls back the whole authority projection and prevents an
+otherwise healthy post-Failback incremental cycle from closing the Failback
+Session.
+
+Cloud applies a storage-boundary compatibility rule. Values of 40 characters
+or fewer are preserved. Longer runtime producer/worker identities are mapped
+to a deterministic namespaced UUID before they are stored in bounded
+relational fields. The original value remains unchanged in `status_json`.
+The mapping is stable across projection retries and management-server
+restarts, so one FTCTL cycle cannot create multiple Cloud cycle aliases.
+`control_request_run_uuid` keeps its stricter request-ownership contract:
+new commands always use a standard UUID and an overlength legacy request value
+is not treated as a Cloud Run identifier.
+
+The remote source authority response has a second compatibility difference.
+The source worker can emit an empty `active_side` because it owns the forward
+scheduler rather than the cutover journal. In `PROTECTION_RESUMING`, Cloud may
+accept an empty runtime side only when all of the following are true:
+
+1. the Plan authority is already `SOURCE`;
+2. the Plan is `KVM_TO_KVM` with a registered remote KVM source;
+3. the status was fetched through that source site's Agent broker;
+4. scheduler state and health are good;
+5. Failback ACK, source/target power states, and the required post-Failback
+   durable sequence all match.
+
+An explicit non-SOURCE runtime side remains blocking. VMware and local KVM
+Plans still require the existing explicit SOURCE evidence. This is a terminal
+projection compatibility patch only; it does not change librbd transfer,
+qemu-nbd export, KRBD VM attachment, VM power sequencing, or the validated
+VMware-to-ABLESTACK path.
+
+| Area | AS-IS | TO-BE |
+| --- | --- | --- |
+| Runtime ID storage | Raw legacy suffix exceeds `varchar(40)` and rolls back projection | Deterministic 36-character storage identity; raw JSON preserved |
+| Cycle identity | Projection cannot persist the remote source Cycle | Stable normalized producer identity with unchanged cycle token/sequence |
+| Remote SOURCE gate | Empty source-worker `active_side` blocks terminal success | Registered remote-source routing substitutes only for an empty side |
+| Explicit conflict | Any missing side is treated the same as TARGET | Explicit TARGET/other side remains blocking |
+| Existing success paths | Shared relaxation could alter VMware behavior | VMware and local KVM gates remain unchanged |
