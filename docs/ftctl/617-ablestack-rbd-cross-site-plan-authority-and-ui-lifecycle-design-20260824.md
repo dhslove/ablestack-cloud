@@ -1355,3 +1355,35 @@ This is an idempotent continuity rule:
 | Completion gate | Cloud waits for an old absolute sequence without seeding it | Required sequence is both seeded and verified through one command contract |
 | Retry behavior | Re-entry can repeat low-numbered Cycles | Re-entry is monotonic and never rewinds a newer scheduler |
 | Scope | Sequence recovery can be reimplemented per action | Existing FTCTL resume/minimum sequence fields are reused for remote `KVM_TO_KVM` only |
+
+### Failback authority-tuple handoff
+
+`scheduler_lease_epoch` and `authority_sequence` are monotonic only inside one
+FTCTL authority owner. They are not globally comparable across a site handoff.
+After remote `KVM_TO_KVM` Failback, the original SOURCE scheduler can therefore
+legitimately report a lower lease epoch and authority sequence than the stopped
+TARGET runtime that Cloud last cached.
+
+Cloud accepts that lower tuple exactly once when all of these conditions hold:
+
+1. the Plan authority is already committed to `SOURCE`;
+2. the latest Failback Session is `COMPLETED` and engine-acknowledged;
+3. the Session's post-Failback checkpoint meets its required sequence;
+4. the cached runtime still represents a suppressed or
+   `FAILED_OVER_UNPROTECTED` TARGET authority;
+5. the remote SOURCE scheduler reports the Plan UUID, `RUNNING`, `HEALTHY`, a
+   live PID, matched ownership, and a durable sequence at or above the Session
+   requirement.
+
+The accepted SOURCE tuple replaces the cached TARGET tuple. Subsequent samples
+again use the normal lease/sequence monotonic guard, so an old or replayed
+SOURCE response cannot overwrite newer SOURCE authority. VMware and same-site
+KVM paths never enter this compatibility gate.
+
+| Area | AS-IS | TO-BE |
+| --- | --- | --- |
+| Tuple comparison | TARGET and SOURCE lease/sequence values share one monotonic domain | Monotonic comparison is scoped to the current authority owner |
+| Post-Failback projection | Healthy SOURCE status with a lower tuple is discarded forever | One verified authority handoff accepts and persists the SOURCE tuple |
+| Safety gate | A low tuple alone can appear stale or valid | Completed Session, checkpoint continuity, and healthy scheduler evidence are all required |
+| Replay handling | Stale cached TARGET state keeps UI actions disabled | After the handoff, ordinary SOURCE monotonic checks resume |
+| Regression boundary | A broad tuple reset could affect proven VMware behavior | Gate is limited to remote `KVM_TO_KVM` Failback recovery |

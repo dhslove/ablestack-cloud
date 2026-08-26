@@ -2371,6 +2371,65 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     }
 
     @Test
+    public void completedRemoteFailbackAcceptsLowerTupleFromRestoredSourceAuthorityOnce() {
+        DrPlanVO plan = new DrPlanVO("remote-kvm-plan", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        ReflectionTestUtils.setField(plan, "id", 51L);
+        plan.setActiveSide(DrConstants.AUTHORITY_SIDE_SOURCE);
+        plan.setRpoSeconds(300);
+
+        DrPlanRuntimeVO authority = new DrPlanRuntimeVO(plan.getId());
+        ReflectionTestUtils.setField(authority, "id", 26L);
+        authority.setSchedulerLeaseEpoch(2L);
+        authority.setAuthoritySequence(41L);
+        authority.setSchedulerState("STOPPED");
+        authority.setSchedulerHealthState("SUPPRESSED");
+        authority.setSchedulerRecoveryState(DrConstants.SCHEDULER_RECOVERY_SUPPRESSED);
+        authority.setProtectionState("FAILED_OVER_UNPROTECTED");
+
+        DrFailbackSessionVO session = new DrFailbackSessionVO(plan.getId(), 355L,
+                plan.getUuid() + ":failback-run", "COMPLETED");
+        session.setEngineAckState("ACKNOWLEDGED");
+        session.setRequiredPostFailbackCheckpointSequence(10L);
+        session.setPostFailbackCheckpointSequence(10L);
+
+        String now = java.time.Instant.now().toString();
+        JsonObject runtime = JsonParser.parseString("{\"state\":\"READY\","
+                + "\"scheduler_state\":\"RUNNING\",\"scheduler_health\":\"HEALTHY\","
+                + "\"scheduler_pid_alive\":true,\"owner_matched\":true,"
+                + "\"scheduler_session_uuid\":\"" + plan.getUuid() + "\","
+                + "\"scheduler_lease_epoch\":1,\"authority_sequence\":35,"
+                + "\"latest_completed_checkpoint_sequence\":17,"
+                + "\"latest_completed_target_durable_at\":\"" + now + "\","
+                + "\"worker_heartbeat_at\":\"" + now + "\","
+                + "\"target_materialized\":true,\"replication_activity\":\"IDLE\"}")
+                .getAsJsonObject();
+        FtctlDrStatusCommand command = new FtctlDrStatusCommand(plan.getUuid(), null,
+                FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY);
+        FtctlDrStatusAnswer status = new FtctlDrStatusAnswer(command, true, "ok");
+        status.setSchedulerLeaseEpoch(1L);
+        status.setAuthoritySequence(35L);
+        status.setSchedulerSessionUuid(plan.getUuid());
+        status.setSchedulerHealth("HEALTHY");
+        status.setSchedulerPidAlive(true);
+        status.setOwnerMatched(true);
+        status.setLatestCompletedCheckpointSequence(17L);
+        status.setLatestCompletedTargetDurableAt(now);
+
+        Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        Mockito.when(drFailbackSessionDao.findLatestActiveByPlanId(plan.getId())).thenReturn(session);
+        Mockito.when(drPlanRuntimeDao.findByPlanId(plan.getId())).thenReturn(authority);
+
+        ReflectionTestUtils.invokeMethod(adapter, "projectProtectionAuthority", plan, null, status, runtime);
+
+        Assert.assertEquals(1L, authority.getSchedulerLeaseEpoch());
+        Assert.assertEquals(35L, authority.getAuthoritySequence());
+        Assert.assertEquals("RUNNING", authority.getSchedulerState());
+        Assert.assertEquals("HEALTHY", authority.getSchedulerHealthState());
+        Assert.assertEquals(DrConstants.PLAN_STATE_READY, authority.getProtectionState());
+        Mockito.verify(drPlanRuntimeDao).update(authority.getId(), authority);
+    }
+
+    @Test
     public void refreshPlanProjectionPreservesVmwareMoverSourceGraphFailure() {
         DrPlanVO plan = new DrPlanVO("ftctl-dr-plan", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
         plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);

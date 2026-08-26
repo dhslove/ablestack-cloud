@@ -405,7 +405,8 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         DrCutoverSessionVO committedTargetSession = findCommittedTargetAuthority(plan);
         boolean committedTargetAuthority = committedTargetSession != null;
         DrPlanRuntimeVO authority = drPlanRuntimeDao.findByPlanId(plan.getId());
-        if (authority != null && !committedTargetAuthority) {
+        boolean sourceAuthorityHandoff = isCompletedFailbackSourceAuthorityHandoff(plan, authority, status, runtime);
+        if (authority != null && !committedTargetAuthority && !sourceAuthorityHandoff) {
             if (leaseEpoch < authority.getSchedulerLeaseEpoch()) {
                 return;
             }
@@ -943,6 +944,46 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                 && StringUtils.equalsIgnoreCase(session.getEngineAckState(), "ACKNOWLEDGED")
                 && StringUtils.equalsIgnoreCase(session.getState(), DrConstants.PLAN_STATE_FAILED_OVER)
                 ? session : null;
+    }
+
+    boolean isCompletedFailbackSourceAuthorityHandoff(DrPlanVO plan, DrPlanRuntimeVO authority,
+            FtctlDrStatusAnswer status, JsonObject runtime) {
+        if (plan == null || authority == null || status == null || drRemoteAgentClient == null
+                || !StringUtils.equalsIgnoreCase(plan.getActiveSide(), DrConstants.AUTHORITY_SIDE_SOURCE)
+                || !drRemoteAgentClient.isRemoteKvmSource(plan)
+                || !(StringUtils.equalsIgnoreCase(authority.getProtectionState(), "FAILED_OVER_UNPROTECTED")
+                        || StringUtils.equalsIgnoreCase(authority.getSchedulerHealthState(), "SUPPRESSED")
+                        || StringUtils.equalsIgnoreCase(authority.getSchedulerRecoveryState(),
+                                DrConstants.SCHEDULER_RECOVERY_SUPPRESSED))) {
+            return false;
+        }
+        DrFailbackSessionVO session = drFailbackSessionDao != null
+                ? drFailbackSessionDao.findLatestActiveByPlanId(plan.getId()) : null;
+        if (session == null || !StringUtils.equalsIgnoreCase(session.getState(), "COMPLETED")
+                || !StringUtils.equalsIgnoreCase(session.getEngineAckState(), "ACKNOWLEDGED")) {
+            return false;
+        }
+        Long requiredSequence = session.getRequiredPostFailbackCheckpointSequence();
+        Long completedSequence = status.getLatestCompletedCheckpointSequence() != null
+                ? status.getLatestCompletedCheckpointSequence()
+                : longValue(runtime, "latest_completed_checkpoint_sequence");
+        boolean checkpointContinuous = requiredSequence == null
+                || completedSequence != null && completedSequence >= requiredSequence;
+        String schedulerState = stringValue(runtime, "scheduler_state");
+        String schedulerHealth = StringUtils.defaultIfBlank(status.getSchedulerHealth(),
+                stringValue(runtime, "scheduler_health"));
+        Boolean schedulerPidAlive = status.getSchedulerPidAlive() != null ? status.getSchedulerPidAlive()
+                : booleanValue(runtime, "scheduler_pid_alive");
+        Boolean ownerMatched = status.getOwnerMatched() != null ? status.getOwnerMatched()
+                : booleanValue(runtime, "owner_matched");
+        String schedulerSessionUuid = StringUtils.defaultIfBlank(status.getSchedulerSessionUuid(),
+                stringValue(runtime, "scheduler_session_uuid"));
+        return checkpointContinuous
+                && StringUtils.equalsIgnoreCase(schedulerSessionUuid, plan.getUuid())
+                && StringUtils.equalsAnyIgnoreCase(schedulerState, "RUNNING", "STARTED")
+                && StringUtils.equalsIgnoreCase(schedulerHealth, "HEALTHY")
+                && Boolean.TRUE.equals(schedulerPidAlive)
+                && Boolean.TRUE.equals(ownerMatched);
     }
 
     private Integer committedTargetRpoSeconds(DrPlanVO plan, DrCutoverSessionVO session, Date sourceCheckpointAt) {
