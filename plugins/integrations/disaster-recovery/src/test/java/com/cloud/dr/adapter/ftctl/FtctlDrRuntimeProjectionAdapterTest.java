@@ -1923,6 +1923,14 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         runtime.setSchedulerDesiredState("RUNNING");
         runtime.setSchedulerHealthState("DEAD");
         runtime.setReplicationActivityState("FAILED");
+        runtime.setOwnedProcessCount(1);
+        runtime.setReconciliationState("LIVE");
+        runtime.setReconciliationRunUuid("stale-worker-run");
+        runtime.setReconciliationChecks(2);
+        runtime.setWorkerState("RUNNING");
+        runtime.setWorkerIdentityState("MATCHED");
+        runtime.setWorkerLivenessState("ALIVE");
+        runtime.setTransferActivityState("COPYING");
         runtime.setErrorCode("DR_REPLICATION_CYCLE_FAILED");
         runtime.setErrorMessage("stale target scheduler failure");
         DrReplicaVO replica = new DrReplicaVO(plan.getId(), plan.getTargetSiteId());
@@ -1948,7 +1956,11 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         DrRunVO cutoverRun = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_FAILOVER);
 
         String staleStatus = "{\"state\":\"ERROR\",\"step\":\"replication-cycle-failed\","
-                + "\"scheduler_state\":\"ERROR\",\"error_code\":\"DR_REPLICATION_CYCLE_FAILED\"}";
+                + "\"scheduler_state\":\"ERROR\",\"owned_process_count\":1,"
+                + "\"worker_state\":\"RUNNING\",\"worker_identity_state\":\"MATCHED\","
+                + "\"worker_liveness_state\":\"ALIVE\",\"reconciliation_required\":true,"
+                + "\"runtime_endpoints_drained\":false,"
+                + "\"error_code\":\"DR_REPLICATION_CYCLE_FAILED\"}";
         Mockito.when(agentManager.easySend(Mockito.eq(103L), Mockito.any(FtctlDrStatusCommand.class)))
                 .thenAnswer(invocation -> {
                     FtctlDrStatusCommand command = invocation.getArgument(1);
@@ -1978,6 +1990,10 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         Assert.assertEquals("STOPPED", runtime.getSchedulerState());
         Assert.assertEquals("SUPPRESSED", runtime.getSchedulerHealthState());
         Assert.assertEquals("STOPPED", runtime.getReplicationActivityState());
+        Assert.assertEquals(0, runtime.getOwnedProcessCount());
+        Assert.assertEquals("NONE", runtime.getReconciliationState());
+        Assert.assertEquals("IDLE", runtime.getWorkerState());
+        Assert.assertEquals("STOPPED", runtime.getWorkerLivenessState());
         Assert.assertNull(runtime.getErrorCode());
         Assert.assertFalse(runtime.isRpoOverdue());
         Mockito.verify(drPlanDao).update(Mockito.eq(plan.getId()), Mockito.same(plan));

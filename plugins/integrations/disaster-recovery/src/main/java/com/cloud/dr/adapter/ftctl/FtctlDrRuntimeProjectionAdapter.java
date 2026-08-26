@@ -552,6 +552,12 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             activeWorkerPid = null;
             activeWorkerStartTicks = null;
             workerHeartbeatAt = null;
+            ownedProcessCount = 0;
+            reconciliationRequired = false;
+            workerState = "IDLE";
+            workerIdentityState = "IDLE";
+            workerLivenessState = "STOPPED";
+            transferActivityState = "IDLE";
             errorCode = null;
             errorMessage = null;
         }
@@ -3157,6 +3163,14 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         planRuntime.setActiveWorkerPid(null);
         planRuntime.setActiveWorkerStartTicks(null);
         planRuntime.setWorkerHeartbeatAt(null);
+        planRuntime.setOwnedProcessCount(0);
+        planRuntime.setReconciliationState("NONE");
+        planRuntime.setReconciliationRunUuid(null);
+        planRuntime.setReconciliationChecks(0);
+        planRuntime.setWorkerState("IDLE");
+        planRuntime.setWorkerIdentityState("IDLE");
+        planRuntime.setWorkerLivenessState("STOPPED");
+        planRuntime.setTransferActivityState("IDLE");
         planRuntime.setErrorCode(null);
         planRuntime.setErrorMessage(null);
         planRuntime.setRpoOverdue(false);

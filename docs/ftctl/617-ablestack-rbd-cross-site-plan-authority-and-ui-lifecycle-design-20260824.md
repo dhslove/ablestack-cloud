@@ -1416,3 +1416,29 @@ the other still passes.
 | Operator state | UI shows misleading NBD recovery required | UI/API expose target export resource wait |
 | Validation | Dedicated Failback helper test only | Direct UI `RESUME_SYNC` adapter test plus FTCTL smoke |
 | Existing routes | Broad adapter changes could affect VMware | Predicate remains remote `KVM_TO_KVM` only |
+
+### Failover terminal runtime ownership convergence
+
+After Cloud and FTCTL commit `active_side=TARGET`, the original-site
+replication scheduler and transfer worker no longer own execution authority.
+The committed authority is therefore stronger evidence than a pre-terminal
+runtime sample that still reports one owned process.
+
+For committed TARGET authority, Cloud projection must converge the runtime to
+`owned_process_count=0`, `worker_liveness_state=STOPPED`, transfer activity
+`IDLE`, and reconciliation state `NONE`. A stale
+`owned_process_count=1/LIVE` sample must not keep Reprotect and Failback
+disabled after the Failover Run is terminal. NBD quarantine remains a separate
+safety gate and is not cleared by this rule. Target export endpoint state is
+preserved because it can be reused by Reprotect and Failback.
+
+The regression test intentionally combines a committed TARGET cutover with a
+stale live-worker sample and verifies that runtime ownership converges without
+changing the RBD transport, checkpoint, VMware, or existing Failover contract.
+
+| Area | AS-IS | TO-BE |
+| --- | --- | --- |
+| Terminal worker sample | Pre-terminal `1/LIVE` can remain in `dr_plan_runtime` | Committed TARGET authority converges to `0/NONE` |
+| Runtime endpoints | May remain available for reverse data flow | Preserved; not used as a completed-worker ownership signal |
+| Next UI action | Successful Failover can leave Reprotect disabled | Reprotect is available when no active Run or NBD quarantine exists |
+| Existing success paths | Shared runtime changes may affect VMware | Change is an authority-terminal projection invariant only |
