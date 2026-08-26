@@ -41,6 +41,7 @@ import com.cloud.dr.DrConstants;
 import com.cloud.dr.DrFailbackPreflightResult;
 import com.cloud.dr.DrFailbackPreflightService;
 import com.cloud.dr.DrPlanVO;
+import com.cloud.dr.DrPlanRuntimeVO;
 import com.cloud.dr.DrPlanOwnedTransportService;
 import com.cloud.dr.DrReprotectAuthoritySpec;
 import com.cloud.dr.DrReprotectPreflightResult;
@@ -49,6 +50,7 @@ import com.cloud.dr.DrRestorePointVO;
 import com.cloud.dr.DrReplicaVO;
 import com.cloud.dr.DrResolvedSiteCredential;
 import com.cloud.dr.DrRunVO;
+import com.cloud.dr.DrSyncCycleVO;
 import com.cloud.dr.DrSiteCredentialService;
 import com.cloud.dr.DrSiteVO;
 import com.cloud.dr.adapter.DrAdapterResult;
@@ -57,6 +59,8 @@ import com.cloud.dr.adapter.DrReplicationEngine;
 import com.cloud.dr.dao.DrSiteDao;
 import com.cloud.dr.dao.DrRestorePointDao;
 import com.cloud.dr.dao.DrReplicaDao;
+import com.cloud.dr.dao.DrPlanRuntimeDao;
+import com.cloud.dr.dao.DrSyncCycleDao;
 import com.cloud.dr.health.DrSiteProbeSupport;
 import com.cloud.exception.AgentUnavailableException;
 import com.cloud.exception.OperationTimedoutException;
@@ -96,6 +100,10 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
     private DrRestorePointDao drRestorePointDao;
     @Inject
     private DrReplicaDao drReplicaDao;
+    @Inject
+    private DrPlanRuntimeDao drPlanRuntimeDao;
+    @Inject
+    private DrSyncCycleDao drSyncCycleDao;
     @Inject
     private UserVmDao userVmDao;
     @Inject
@@ -482,6 +490,7 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         }
         command.setMode(requestString(request, "mode"));
         command.setForceImmediateCycle(requestBoolean(request, "forceImmediateCycle", false));
+        command.setAuthoritySequenceFloor(resolveAuthoritySequenceFloor(plan));
         command.setCheckpointRef(latestCheckpoint != null ? latestCheckpoint.getSourceSnapshotRef() : null);
         command.setForce(requestBoolean(request, "force", false));
         command.setDryRun(requestBoolean(request, "dryRun", false));
@@ -489,6 +498,19 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         command.setWait(AGENT_ACCEPT_TIMEOUT_SECONDS);
         command.setContext(toStringMap(redactedRequest));
         return command;
+    }
+
+    private Long resolveAuthoritySequenceFloor(DrPlanVO plan) {
+        long floor = 0L;
+        DrPlanRuntimeVO runtime = drPlanRuntimeDao.findByPlanId(plan.getId());
+        if (runtime != null) {
+            floor = Math.max(floor, runtime.getAuthoritySequence());
+        }
+        DrSyncCycleVO latestCompleted = drSyncCycleDao.findLatestCompletedByPlanId(plan.getId());
+        if (latestCompleted != null && latestCompleted.getAuthoritySequence() != null) {
+            floor = Math.max(floor, latestCompleted.getAuthoritySequence());
+        }
+        return floor > 0L ? floor : null;
     }
 
     private String buildTestArtifactSpec(DrPlanVO plan, DrRunVO run, DrRestorePointVO checkpoint) {

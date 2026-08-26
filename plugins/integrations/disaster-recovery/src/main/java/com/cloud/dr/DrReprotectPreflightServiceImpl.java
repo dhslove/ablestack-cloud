@@ -17,9 +17,11 @@ import com.cloud.agent.api.Answer;
 import com.cloud.agent.api.CheckVirtualMachineAnswer;
 import com.cloud.agent.api.CheckVirtualMachineCommand;
 import com.cloud.dr.dao.DrCutoverSessionDao;
+import com.cloud.dr.dao.DrPlanRuntimeDao;
 import com.cloud.dr.dao.DrReplicaDao;
 import com.cloud.dr.dao.DrRestorePointDao;
 import com.cloud.dr.dao.DrRunStepDao;
+import com.cloud.dr.dao.DrSyncCycleDao;
 import com.cloud.utils.component.ManagerBase;
 import com.cloud.vm.VirtualMachine.PowerState;
 import com.cloud.vm.UserVmVO;
@@ -31,9 +33,11 @@ public class DrReprotectPreflightServiceImpl extends ManagerBase implements DrRe
     private static final Gson GSON = new Gson();
 
     @Inject private DrCutoverSessionDao drCutoverSessionDao;
+    @Inject private DrPlanRuntimeDao drPlanRuntimeDao;
     @Inject private DrReplicaDao drReplicaDao;
     @Inject private DrRestorePointDao drRestorePointDao;
     @Inject private DrRunStepDao drRunStepDao;
+    @Inject private DrSyncCycleDao drSyncCycleDao;
     @Inject private UserVmDao userVmDao;
     @Inject private AgentManager agentManager;
     @Inject private DrSourceIsolationPreflightService drSourceIsolationPreflightService;
@@ -109,6 +113,8 @@ public class DrReprotectPreflightServiceImpl extends ManagerBase implements DrRe
         spec.setRunUuid(run.getUuid());
         spec.setExpectedActiveSide("TARGET");
         spec.setAuthorityGeneration(cutover.getCloudAuthorityGeneration());
+        spec.setAuthoritySequenceFloor(resolveAuthoritySequenceFloor(plan,
+                cutover.getCloudAuthorityGeneration()));
         spec.setCutoverSessionId(cutover.getUuid());
         spec.setCheckpointSequence(cutover.getCheckpointSequence());
         spec.setTargetVmId(targetVm.getId());
@@ -121,6 +127,19 @@ public class DrReprotectPreflightServiceImpl extends ManagerBase implements DrRe
         spec.setSourceFenceState(cutover.getSourceFenceState());
         spec.setSourcePowerState(cutover.getSourcePowerState());
         return DrReprotectPreflightResult.success(spec);
+    }
+
+    private long resolveAuthoritySequenceFloor(DrPlanVO plan, long authorityGeneration) {
+        long floor = authorityGeneration;
+        DrPlanRuntimeVO runtime = drPlanRuntimeDao.findByPlanId(plan.getId());
+        if (runtime != null) {
+            floor = Math.max(floor, runtime.getAuthoritySequence());
+        }
+        DrSyncCycleVO latestCompleted = drSyncCycleDao.findLatestCompletedByPlanId(plan.getId());
+        if (latestCompleted != null && latestCompleted.getAuthoritySequence() != null) {
+            floor = Math.max(floor, latestCompleted.getAuthoritySequence());
+        }
+        return floor;
     }
 
     private DrReplicaVO servingTargetReplica(long planId) {

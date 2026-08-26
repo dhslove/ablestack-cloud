@@ -1233,7 +1233,9 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         cutoverOrder.verify(agentManager).easySend(Mockito.eq(102L), Mockito.argThat(command ->
                 command instanceof FtctlDrActionCommand
                         && ((FtctlDrActionCommand) command).getAction() == FtctlDrActionCommand.Action.CUTOVER_COMMIT
-                        && "target".equals(((FtctlDrActionCommand) command).getRole())));
+                        && "target".equals(((FtctlDrActionCommand) command).getRole())
+                        && Long.valueOf(153L).equals(
+                                ((FtctlDrActionCommand) command).getAuthoritySequenceFloor())));
         ArgumentCaptor<FtctlDrActionCommand> targetCommandCaptor = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
         Mockito.verify(agentManager).easySend(Mockito.eq(102L), targetCommandCaptor.capture());
         Assert.assertEquals(FtctlDrActionCommand.Action.CUTOVER_COMMIT, targetCommandCaptor.getValue().getAction());
@@ -1933,6 +1935,7 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         runtime.setTransferActivityState("COPYING");
         runtime.setErrorCode("DR_REPLICATION_CYCLE_FAILED");
         runtime.setErrorMessage("stale target scheduler failure");
+        runtime.setAuthoritySequence(41L);
         DrReplicaVO replica = new DrReplicaVO(plan.getId(), plan.getTargetSiteId());
         replica.setTargetVmId(283L);
         replica.setState(DrConstants.REPLICA_STATE_READY);
@@ -1954,6 +1957,8 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         cutover.setSourcePowerState("POWERED_OFF");
         cutover.setCompletedAt(new Date());
         DrRunVO cutoverRun = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_FAILOVER);
+        DrSyncCycleVO latestCompleted = new DrSyncCycleVO(plan.getId(), "source-cycle", 61L);
+        latestCompleted.setAuthoritySequence(153L);
 
         String staleStatus = "{\"state\":\"ERROR\",\"step\":\"replication-cycle-failed\","
                 + "\"scheduler_state\":\"ERROR\",\"owned_process_count\":1,"
@@ -1973,6 +1978,7 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
         Mockito.when(drCutoverSessionDao.findCurrentAuthorityByPlanId(plan.getId())).thenReturn(cutover);
         Mockito.when(drPlanRuntimeDao.findByPlanId(plan.getId())).thenReturn(runtime);
+        Mockito.when(drSyncCycleDao.findLatestCompletedByPlanId(plan.getId())).thenReturn(latestCompleted);
         Mockito.when(drReplicaDao.listActiveByPlanId(plan.getId())).thenReturn(Collections.singletonList(replica));
         Mockito.when(drTargetMaterializationService.ensureTargetPoweredOn(plan.getId()))
                 .thenReturn(new DrTargetPowerOnResult(283L, "target-vm-uuid", "POWERED_ON",
@@ -1995,6 +2001,7 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         Assert.assertEquals("IDLE", runtime.getWorkerState());
         Assert.assertEquals("STOPPED", runtime.getWorkerLivenessState());
         Assert.assertNull(runtime.getErrorCode());
+        Assert.assertEquals(153L, runtime.getAuthoritySequence());
         Assert.assertFalse(runtime.isRpoOverdue());
         Mockito.verify(drPlanDao).update(Mockito.eq(plan.getId()), Mockito.same(plan));
         Mockito.verify(agentManager).easySend(Mockito.eq(103L), Mockito.argThat(command ->

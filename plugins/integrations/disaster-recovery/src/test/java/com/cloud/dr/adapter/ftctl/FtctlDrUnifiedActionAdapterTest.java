@@ -34,15 +34,19 @@ import com.cloud.dr.DrConstants;
 import com.cloud.dr.DrFailbackPreflightResult;
 import com.cloud.dr.DrFailbackPreflightService;
 import com.cloud.dr.DrPlanVO;
+import com.cloud.dr.DrPlanRuntimeVO;
 import com.cloud.dr.DrPlanOwnedTransportService;
 import com.cloud.dr.DrReprotectAuthoritySpec;
 import com.cloud.dr.DrReprotectPreflightResult;
 import com.cloud.dr.DrReprotectPreflightService;
 import com.cloud.dr.DrRestorePointVO;
 import com.cloud.dr.DrRunVO;
+import com.cloud.dr.DrSyncCycleVO;
 import com.cloud.dr.adapter.DrAdapterResult;
 import com.cloud.dr.adapter.DrExecutionContext;
 import com.cloud.dr.dao.DrRestorePointDao;
+import com.cloud.dr.dao.DrPlanRuntimeDao;
+import com.cloud.dr.dao.DrSyncCycleDao;
 import com.cloud.host.dao.HostDao;
 import com.cloud.host.HostVO;
 import com.google.gson.JsonArray;
@@ -67,6 +71,10 @@ public class FtctlDrUnifiedActionAdapterTest {
     private HostDao hostDao;
     @Mock
     private DrRestorePointDao drRestorePointDao;
+    @Mock
+    private DrPlanRuntimeDao drPlanRuntimeDao;
+    @Mock
+    private DrSyncCycleDao drSyncCycleDao;
     @Mock
     private DrReprotectPreflightService drReprotectPreflightService;
     @Mock
@@ -112,11 +120,36 @@ public class FtctlDrUnifiedActionAdapterTest {
         Assert.assertFalse(command.isWaitForCompletion());
         Assert.assertEquals("FULL_RESEED", command.getMode());
         Assert.assertTrue(command.isForceImmediateCycle());
+        Assert.assertNull(command.getAuthoritySequenceFloor());
         Assert.assertTrue(command.getProfileJson().contains("\"engine\":\"FTCTL_DR\""));
         Assert.assertFalse(command.getProfileJson().contains("top-secret"));
         Assert.assertFalse(command.getRequestJson().contains("top-secret"));
         Assert.assertEquals("REDACTED", command.getContext().get("remoteMoldSecretKey"));
         Assert.assertFalse(result.getDetailsJson().contains("top-secret"));
+    }
+
+    @Test
+    public void actionCarriesLatestDurableAuthoritySequenceFloor() throws Exception {
+        DrPlanVO plan = ftctlDrPlan();
+        DrRunVO run = run(DrConstants.RUN_TYPE_SYNC, "{\"mode\":\"INCREMENTAL\"}");
+        DrPlanRuntimeVO runtime = new DrPlanRuntimeVO(plan.getId());
+        runtime.setAuthoritySequence(41L);
+        DrSyncCycleVO completed = new DrSyncCycleVO(plan.getId(), "cycle-run", 61L);
+        completed.setAuthoritySequence(153L);
+        Mockito.when(drPlanRuntimeDao.findByPlanId(plan.getId())).thenReturn(runtime);
+        Mockito.when(drSyncCycleDao.findLatestCompletedByPlanId(plan.getId())).thenReturn(completed);
+        mockCapabilities();
+        ArgumentCaptor<FtctlDrActionCommand> commandCaptor = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
+        Mockito.when(agentManager.send(Mockito.eq(103L), commandCaptor.capture())).thenAnswer(invocation -> {
+            FtctlDrActionCommand command = invocation.getArgument(1);
+            return new FtctlDrActionAnswer(command, true, "accepted", FtctlDrActionCommand.Action.SYNC,
+                    plan.getUuid(), run.getUuid(), "accepted", true, "SYNCING", "dispatch",
+                    1, "ftctl-job-floor", 0L, null, 0, "{\"result\":\"accepted\"}",
+                    "{\"state\":\"SYNCING\"}");
+        });
+
+        Assert.assertTrue(adapter.execute(new DrExecutionContext(plan, run)).isSuccess());
+        Assert.assertEquals(Long.valueOf(153L), commandCaptor.getValue().getAuthoritySequenceFloor());
     }
 
     @Test

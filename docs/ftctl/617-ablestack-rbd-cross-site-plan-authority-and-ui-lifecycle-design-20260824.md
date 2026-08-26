@@ -1442,3 +1442,40 @@ changing the RBD transport, checkpoint, VMware, or existing Failover contract.
 | Runtime endpoints | May remain available for reverse data flow | Preserved; not used as a completed-worker ownership signal |
 | Next UI action | Successful Failover can leave Reprotect disabled | Reprotect is available when no active Run or NBD quarantine exists |
 | Existing success paths | Shared runtime changes may affect VMware | Change is an authority-terminal projection invariant only |
+
+### Global authority sequence floor across site handoff
+
+The cutover Session generation identifies a control-plane transition, while
+the scheduler authority sequence is the globally accepted ordering of runtime
+projections. They can have different values. For example, a target Reprotect
+may have cutover generation `61` after Cloud has already accepted source Cycle
+authority sequence `153`. Sending only `61` lets the target scheduler publish a
+valid local status that is globally stale.
+
+For every FTCTL action Cloud derives an immutable floor from the maximum of:
+
+1. the current `dr_plan_runtime.authority_sequence`;
+2. the latest completed `dr_sync_cycle.authority_sequence`;
+3. the committed cutover generation when the action is Reprotect.
+
+The value is sent as `authoritySequenceFloor` in the Agent command and in the
+Reprotect authority specification. The KVM wrapper maps it to
+`--authority-sequence-floor`. FTCTL owns the atomic scheduler update. Cloud
+does not lower its runtime projection for committed TARGET authority: it also
+compares the incoming status with the existing runtime and latest completed
+Cycle before persisting.
+
+The existing verified SOURCE handoff after Failback remains a distinct rule.
+It may accept a lower site-local tuple once only after the completed Failback
+Session and required durable checkpoint prove ownership transfer. This patch
+does not broaden that exception and does not change VMware-to-ABLESTACK data
+movement or lifecycle behavior.
+
+| Area | AS-IS | TO-BE |
+| --- | --- | --- |
+| Reprotect command | Sends only cutover generation | Sends generation plus global authority sequence floor |
+| Runtime projection | Committed TARGET status can overwrite `153` with `61` | Persists `max(status, runtime, latest completed Cycle)` |
+| Agent/FTCTL | No separate global floor contract | Wrapper and CLI transport `authoritySequenceFloor` explicitly |
+| Recovery | View cache remains `DEGRADED` until manual repair | `dr-status` repairs a stale local scheduler without DB edits |
+| Failback compatibility | Risk of conflating the SOURCE handoff exception | Existing verified one-time SOURCE handoff remains unchanged |
+| Regression safety | Shared status relaxation could affect VMware | Strict monotonic guards remain; only the producer floor is corrected |

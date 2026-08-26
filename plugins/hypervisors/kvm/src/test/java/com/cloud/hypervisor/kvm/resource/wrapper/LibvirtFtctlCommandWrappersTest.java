@@ -140,6 +140,7 @@ public class LibvirtFtctlCommandWrappersTest {
         command.setFailbackTargetPowerState("POWERED_OFF");
         command.setFailbackSourcePowerState("POWERED_ON");
         command.setFailbackBootValidationState("POWER_STATE_VALIDATED");
+        command.setAuthoritySequenceFloor(153L);
 
         AtomicInteger index = new AtomicInteger();
         try (MockedConstruction<Script> scripts = Mockito.mockConstruction(Script.class, (mock, context) -> {
@@ -161,6 +162,8 @@ public class LibvirtFtctlCommandWrappersTest {
             Assert.assertTrue(answer.getStatusJson().contains("\"failback_commit_outcome\":\"ACKNOWLEDGED\""));
             Assert.assertEquals(2, scripts.constructed().size());
             Mockito.verify(scripts.constructed().get(0)).add("dr-failback-commit");
+            Mockito.verify(scripts.constructed().get(0)).add("--authority-sequence-floor");
+            Mockito.verify(scripts.constructed().get(0)).add("153");
             Mockito.verify(scripts.constructed().get(1)).add("dr-failback-commit-status");
             Mockito.verify(scripts.constructed().get(1)).add("--session-id");
             Mockito.verify(scripts.constructed().get(1)).add("session-a");

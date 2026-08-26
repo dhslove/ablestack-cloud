@@ -420,6 +420,7 @@ public class LibvirtFtctlDrActionCommandWrapper extends CommandWrapper<FtctlDrAc
         addStringArg(script, command.getFailbackCommitEnvelopeSha256(), "--commit-envelope-sha256");
         addLongArg(script, command.getResumeBaselineCheckpointSequence(), "--resume-baseline-checkpoint-sequence");
         addLongArg(script, command.getMinimumCompletedCheckpointSequence(), "--minimum-completed-checkpoint-sequence");
+        addLongArg(script, command.getAuthoritySequenceFloor(), "--authority-sequence-floor");
         if (command.isForceImmediateCycle()) {
             script.add("--force-immediate-cycle");
         }

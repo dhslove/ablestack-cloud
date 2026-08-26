@@ -6,13 +6,14 @@
 package com.cloud.dr;
 
 public class DrReprotectAuthoritySpec {
-    public static final String CONTRACT_VERSION = "2026-07-23";
+    public static final String CONTRACT_VERSION = "2026-08-26";
 
     private String contractVersion = CONTRACT_VERSION;
     private String planUuid;
     private String runUuid;
     private String expectedActiveSide;
     private long authorityGeneration;
+    private long authoritySequenceFloor;
     private String cutoverSessionId;
     private long checkpointSequence;
     private long targetVmId;
@@ -35,6 +36,8 @@ public class DrReprotectAuthoritySpec {
     public void setExpectedActiveSide(String value) { expectedActiveSide = value; }
     public long getAuthorityGeneration() { return authorityGeneration; }
     public void setAuthorityGeneration(long value) { authorityGeneration = value; }
+    public long getAuthoritySequenceFloor() { return authoritySequenceFloor; }
+    public void setAuthoritySequenceFloor(long value) { authoritySequenceFloor = value; }
     public String getCutoverSessionId() { return cutoverSessionId; }
     public void setCutoverSessionId(String value) { cutoverSessionId = value; }
     public long getCheckpointSequence() { return checkpointSequence; }

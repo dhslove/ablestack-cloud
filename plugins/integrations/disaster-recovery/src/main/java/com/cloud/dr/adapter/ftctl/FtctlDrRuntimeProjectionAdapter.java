@@ -405,6 +405,16 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         DrCutoverSessionVO committedTargetSession = findCommittedTargetAuthority(plan);
         boolean committedTargetAuthority = committedTargetSession != null;
         DrPlanRuntimeVO authority = drPlanRuntimeDao.findByPlanId(plan.getId());
+        if (committedTargetAuthority) {
+            if (authority != null) {
+                authoritySequence = Math.max(authoritySequence, authority.getAuthoritySequence());
+            }
+            DrSyncCycleVO latestCompleted = drSyncCycleDao.findLatestCompletedByPlanId(plan.getId());
+            if (latestCompleted != null && latestCompleted.getAuthoritySequence() != null) {
+                authoritySequence = Math.max(authoritySequence, latestCompleted.getAuthoritySequence());
+            }
+            generation = authoritySequence;
+        }
         boolean sourceAuthorityHandoff = isCompletedFailbackSourceAuthorityHandoff(plan, authority, status, runtime);
         if (authority != null && !committedTargetAuthority && !sourceAuthorityHandoff) {
             if (leaseEpoch < authority.getSchedulerLeaseEpoch()) {
@@ -1781,7 +1791,9 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         authority.setWorkerHeartbeatAt(null);
         authority.setErrorCode(null);
         authority.setErrorMessage(null);
-        authority.setAuthoritySequence(Math.max(authority.getAuthoritySequence(), authorityGeneration));
+        long authoritySequenceFloor = resolveAuthoritySequenceFloor(plan, authorityGeneration, authority);
+        authority.setAuthoritySequence(authoritySequenceFloor);
+        authority.setRuntimeGeneration(authoritySequenceFloor);
         authority.setLastStatusAt(committedAt);
         if (plan.getTargetReadyRpoSeconds() != null) {
             authority.setRpoAgeSeconds(Math.max(0L, plan.getTargetReadyRpoSeconds().longValue()));
@@ -1836,6 +1848,8 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         command.setCutoverCheckpointSequence(session.getCheckpointSequence());
         command.setCutoverManifestSha256(session.getManifestSha256());
         command.setCutoverAuthorityGeneration(generation);
+        command.setAuthoritySequenceFloor(resolveAuthoritySequenceFloor(plan, generation,
+                drPlanRuntimeDao.findByPlanId(plan.getId())));
         command.setCutoverCommitAttemptId(session.getCommitAttemptId());
         command.setCutoverCommitEnvelopeSha256(session.getCommitEnvelopeSha256());
         command.setCutoverTargetVmId(powerOnResult.getTargetVmId());
@@ -3150,6 +3164,8 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         if (planRuntime == null) {
             planRuntime = new DrPlanRuntimeVO(plan.getId());
         }
+        long authoritySequenceFloor = resolveAuthoritySequenceFloor(plan,
+                planRuntime.getRuntimeGeneration(), planRuntime);
         planRuntime.setProtectionState("FAILED_OVER_UNPROTECTED");
         planRuntime.setFreshnessState("WITHIN_RPO");
         planRuntime.setSchedulerState("STOPPED");
@@ -3173,6 +3189,8 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         planRuntime.setTransferActivityState("IDLE");
         planRuntime.setErrorCode(null);
         planRuntime.setErrorMessage(null);
+        planRuntime.setAuthoritySequence(authoritySequenceFloor);
+        planRuntime.setRuntimeGeneration(authoritySequenceFloor);
         planRuntime.setRpoOverdue(false);
         planRuntime.setLastStatusAt(new Date());
         planRuntime.markUpdated();
@@ -3183,6 +3201,22 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         }
         preserveServingTargetReplica(plan);
         ensureCommittedTargetAuthorityProjection(plan);
+    }
+
+    private long resolveAuthoritySequenceFloor(DrPlanVO plan, Long requestedGeneration,
+            DrPlanRuntimeVO authority) {
+        long floor = requestedGeneration != null ? requestedGeneration : 0L;
+        if (authority != null) {
+            floor = Math.max(floor, authority.getAuthoritySequence());
+            floor = Math.max(floor, authority.getRuntimeGeneration());
+        }
+        if (plan != null && drSyncCycleDao != null) {
+            DrSyncCycleVO latestCompleted = drSyncCycleDao.findLatestCompletedByPlanId(plan.getId());
+            if (latestCompleted != null && latestCompleted.getAuthoritySequence() != null) {
+                floor = Math.max(floor, latestCompleted.getAuthoritySequence());
+            }
+        }
+        return floor;
     }
 
     private void ensureCommittedTargetAuthorityProjection(DrPlanVO plan) {

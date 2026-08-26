@@ -83,6 +83,7 @@ public class FtctlDrActionCommand extends Command {
     private String checkpointRef;
     private Long resumeBaselineCheckpointSequence;
     private Long minimumCompletedCheckpointSequence;
+    private Long authoritySequenceFloor;
     private boolean forceImmediateCycle;
     private String cutoverCommitContractVersion;
     private String cutoverEngineSessionId;
@@ -306,6 +307,14 @@ public class FtctlDrActionCommand extends Command {
 
     public void setMinimumCompletedCheckpointSequence(Long minimumCompletedCheckpointSequence) {
         this.minimumCompletedCheckpointSequence = minimumCompletedCheckpointSequence;
+    }
+
+    public Long getAuthoritySequenceFloor() {
+        return authoritySequenceFloor;
+    }
+
+    public void setAuthoritySequenceFloor(Long authoritySequenceFloor) {
+        this.authoritySequenceFloor = authoritySequenceFloor;
     }
 
     public boolean isForceImmediateCycle() {

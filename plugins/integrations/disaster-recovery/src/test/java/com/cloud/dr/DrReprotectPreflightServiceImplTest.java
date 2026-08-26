@@ -19,9 +19,11 @@ import com.cloud.agent.AgentManager;
 import com.cloud.agent.api.CheckVirtualMachineAnswer;
 import com.cloud.agent.api.CheckVirtualMachineCommand;
 import com.cloud.dr.dao.DrCutoverSessionDao;
+import com.cloud.dr.dao.DrPlanRuntimeDao;
 import com.cloud.dr.dao.DrReplicaDao;
 import com.cloud.dr.dao.DrRestorePointDao;
 import com.cloud.dr.dao.DrRunStepDao;
+import com.cloud.dr.dao.DrSyncCycleDao;
 import com.cloud.vm.VirtualMachine.PowerState;
 import com.cloud.vm.UserVmVO;
 import com.cloud.vm.dao.UserVmDao;
@@ -29,9 +31,11 @@ import com.cloud.vm.dao.UserVmDao;
 @RunWith(MockitoJUnitRunner.class)
 public class DrReprotectPreflightServiceImplTest {
     @Mock private DrCutoverSessionDao drCutoverSessionDao;
+    @Mock private DrPlanRuntimeDao drPlanRuntimeDao;
     @Mock private DrReplicaDao drReplicaDao;
     @Mock private DrRestorePointDao drRestorePointDao;
     @Mock private DrRunStepDao drRunStepDao;
+    @Mock private DrSyncCycleDao drSyncCycleDao;
     @Mock private UserVmDao userVmDao;
     @Mock private AgentManager agentManager;
     @Mock private DrSourceIsolationPreflightService drSourceIsolationPreflightService;
@@ -56,6 +60,7 @@ public class DrReprotectPreflightServiceImplTest {
         Assert.assertTrue(result.isReady());
         Assert.assertEquals("TARGET", result.getAuthoritySpec().getExpectedActiveSide());
         Assert.assertEquals(3L, result.getAuthoritySpec().getAuthorityGeneration());
+        Assert.assertEquals(153L, result.getAuthoritySpec().getAuthoritySequenceFloor());
         Assert.assertEquals(17L, result.getAuthoritySpec().getCheckpointSequence());
         Assert.assertEquals(256L, result.getAuthoritySpec().getTargetVmId());
         Mockito.verify(drRunStepDao).persist(Mockito.argThat(step ->
@@ -104,6 +109,12 @@ public class DrReprotectPreflightServiceImplTest {
         Mockito.when(drCutoverSessionDao.findLatestActiveByPlanId(plan.getId())).thenReturn(cutover);
         Mockito.when(drReplicaDao.listActiveByPlanId(plan.getId())).thenReturn(Collections.singletonList(replica));
         Mockito.when(drRestorePointDao.findLatestTargetReadyByPlanId(plan.getId())).thenReturn(checkpoint);
+        DrPlanRuntimeVO runtime = new DrPlanRuntimeVO(plan.getId());
+        runtime.setAuthoritySequence(41L);
+        DrSyncCycleVO latestCompleted = new DrSyncCycleVO(plan.getId(), "cycle-run", 61L);
+        latestCompleted.setAuthoritySequence(153L);
+        Mockito.when(drPlanRuntimeDao.findByPlanId(plan.getId())).thenReturn(runtime);
+        Mockito.when(drSyncCycleDao.findLatestCompletedByPlanId(plan.getId())).thenReturn(latestCompleted);
         Mockito.when(userVmDao.findById(256L)).thenReturn(targetVm);
         return new Fixture(plan, run);
     }
