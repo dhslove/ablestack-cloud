@@ -1607,3 +1607,45 @@ and cannot borrow an unrelated historical Full Seed.
 | Terminal history | Cancel can overwrite successful engine evidence | Terminal evidence is immutable and wins the race |
 | Regression boundary | Shared cancel edits can alter proven VMware behavior | Remote routing is gated to remote `KVM_TO_KVM`; existing routes remain unchanged |
 | Tests | Normal local cancel only | Remote routing, late-terminal race, and existing local cancel regression |
+
+## Operation-scoped cancel and automatic protection recovery (2026-08-26)
+
+The UI action **Cancel current operation** is scoped to the selected Run. It is
+not equivalent to **Pause synchronization** and must not leave an enabled Plan
+with a stopped scheduler. This distinction is especially important for a
+remote `KVM_TO_KVM` Full Seed because the controller can cancel the source-site
+mover while continuous protection is still administratively enabled.
+
+For remote `KVM_TO_KVM` with `site-agent-nbd`, the source FTCTL performs this
+ordered barrier:
+
+1. write `CANCEL_REQUESTED` for the Cloud-owned Run;
+2. stop the scheduler cgroup and prove all transfer endpoints are drained;
+3. publish immutable authoritative `CANCELED` terminal evidence for that Run;
+4. invalidate the partially written baseline and retain the interrupted
+   sequence as an unbound Full Reseed;
+5. create a distinct internal recovery Run and switch scheduler control back to
+   `run`;
+6. let local reconciliation restart the scheduler and durably complete the
+   reseed before normal incrementals continue.
+
+The internal recovery Run is not a Cloud operation child and cannot overwrite
+the canceled Run. Cloud closes the requested Run as `CANCELED`, releases its
+admission lease, and projects Plan health independently. The expected steady
+state is `READY / ENABLED / SOURCE`, scheduler `RUNNING`, followed by a durable
+Full Reseed and then incremental cycles. If automatic scheduler launch fails,
+the Plan becomes degraded and the existing **Recover synchronization** action
+remains available.
+
+This automatic recovery is gated to remote KVM `site-agent-nbd`. The validated
+VMware/VDDK path, local RBD path, Pause/Resume semantics, Failover, Failback,
+and Release contracts are unchanged.
+
+| Area | AS-IS | TO-BE |
+| --- | --- | --- |
+| Cancel scope | Stops both the Run and continuous protection | Terminates only the Run; protection recovery is queued |
+| Recovery owner | Reuses or depends on the canceled Run | Uses a distinct internal recovery UUID |
+| Partial Full Seed | Scheduler remains stopped with invalid baseline | Same sequence is replayed as unbound Full Reseed |
+| Cloud result | Run can close while Plan remains stopped | Run is `CANCELED`; Plan returns to enabled scheduling |
+| Operator action | Manual recovery is always required | Manual recovery is fallback only |
+| Regression boundary | Shared cancellation risks VMware behavior | Auto recovery is remote KVM `site-agent-nbd` only |
