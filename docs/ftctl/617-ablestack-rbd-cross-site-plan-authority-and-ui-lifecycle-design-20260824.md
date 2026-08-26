@@ -1657,3 +1657,17 @@ and Release contracts are unchanged.
 | Cloud result | Run can close while Plan remains stopped | Run is `CANCELED`; Plan returns to enabled scheduling |
 | Operator action | Manual recovery is always required | Manual recovery is fallback only |
 | Regression boundary | Shared cancellation risks VMware behavior | Auto recovery is remote KVM `site-agent-nbd` only |
+
+### Manual recovery after automatic queue failure
+
+If an older FTCTL package or a transient runtime-file failure leaves the Plan in
+`scheduler_recovery_state=FAILED`, the UI action `복제 서비스 복구` remains the
+operator fallback. FTCTL may accept the stopped scheduler only when
+`reseed_reason=OPERATOR_CANCELED_TRANSFER` is still present and the recovery
+state is `REQUIRED` or `FAILED`. Cloud submits and tracks a normal
+`RECOVER_SYNC` Run; it does not repair the Plan or Run directly in the database.
+
+An ordinary pause, explicit service stop, protection release, or released Plan
+does not carry this canceled-transfer evidence and remains ineligible. This
+keeps the fallback narrowly scoped to an interrupted transfer whose durable
+baseline must be rebuilt, without weakening existing lifecycle gates.
