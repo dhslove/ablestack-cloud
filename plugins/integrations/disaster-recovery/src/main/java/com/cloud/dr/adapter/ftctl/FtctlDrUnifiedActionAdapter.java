@@ -397,17 +397,29 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
     }
 
     public FtctlDrActionAnswer resumeRemoteSourceProtection(DrPlanVO plan, DrRunVO run) {
+        return resumeRemoteSourceProtection(plan, run, null, null);
+    }
+
+    public FtctlDrActionAnswer resumeRemoteSourceProtection(DrPlanVO plan, DrRunVO run,
+            Long resumeBaselineCheckpointSequence, Long minimumCompletedCheckpointSequence) {
         if (!isRemoteKvmToKvmPlan(plan)) {
             throw new CloudRuntimeException("Remote KVM_TO_KVM Plan is required for forward protection resume");
         }
         JsonObject request = redactJson(requestJson(run)).getAsJsonObject();
         request.addProperty("schedulerTransitionScope", "REMOTE_SOURCE");
         request.addProperty("forceImmediateCycle", true);
+        if (resumeBaselineCheckpointSequence != null) {
+            request.addProperty("resumeBaselineCheckpointSequence", resumeBaselineCheckpointSequence);
+        }
+        if (minimumCompletedCheckpointSequence != null) {
+            request.addProperty("minimumCompletedCheckpointSequence", minimumCompletedCheckpointSequence);
+        }
         String profileJson = buildProfileJson(plan, run, request);
         JsonArray exports = drPlanOwnedTransportService.startForwardTargetExport(plan, run, profileJson);
         return drRemoteAgentClient.transitionSourceScheduler(plan,
                 FtctlDrActionCommand.Action.RESUME_SYNC, run.getUuid(),
-                withPlanOwnedExports(profileJson, exports));
+                withPlanOwnedExports(profileJson, exports),
+                resumeBaselineCheckpointSequence, minimumCompletedCheckpointSequence);
     }
 
     private boolean isRemoteKvmToKvmPlan(DrPlanVO plan) {

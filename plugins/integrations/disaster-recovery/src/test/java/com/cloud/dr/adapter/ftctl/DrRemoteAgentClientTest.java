@@ -63,12 +63,14 @@ public class DrRemoteAgentClientTest {
                 Mockito.eq(FtctlDrActionAnswer.class));
 
         FtctlDrActionAnswer answer = client.transitionSourceScheduler(plan,
-                FtctlDrActionCommand.Action.RESUME_SYNC, "parent-run", profileJson);
+                FtctlDrActionCommand.Action.RESUME_SYNC, "parent-run", profileJson, 9L, 10L);
 
         Assert.assertTrue(answer.getResult());
         Assert.assertNotNull(captured[0]);
         Assert.assertEquals(profileJson, captured[0].getProfileJson());
         Assert.assertEquals("source-host-uuid", captured[0].getSourceWorkerUuid());
         Assert.assertEquals(DrConstants.RUN_TYPE_RESUME_SYNC, captured[0].getRunType());
+        Assert.assertEquals(Long.valueOf(9), captured[0].getResumeBaselineCheckpointSequence());
+        Assert.assertEquals(Long.valueOf(10), captured[0].getMinimumCompletedCheckpointSequence());
     }
 }

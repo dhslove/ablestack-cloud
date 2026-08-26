@@ -1322,3 +1322,36 @@ non-live scheduler keeps the lifecycle retryable in `PROTECTION_RESUMING`.
 | Ordering | Export start and scheduler transition are separate calls | Adapter-owned ordered rehydration barrier |
 | Terminal gate | SOURCE VM can run while Run remains pending forever | Required durable forward Cycle closes the Run |
 | Regression boundary | Shared lifecycle edits can touch proven paths | Gated to remote `KVM_TO_KVM`; VMware behavior unchanged |
+
+### Failback checkpoint-sequence continuity barrier
+
+Profile rehydration alone is not sufficient when the original-site scheduler
+has lost its local sequence state. The Failback Session already owns the
+durable reverse baseline and the first forward checkpoint required to prove
+protection recovery. Those values must cross the same remote Agent boundary as
+the rehydrated profile.
+
+During `PROTECTION_RESUMING`, Cloud therefore passes
+`resumeBaselineCheckpointSequence` and
+`minimumCompletedCheckpointSequence` through the existing
+`FtctlDrActionCommand` contract. FTCTL seeds the restored source scheduler at
+the recorded baseline before its immediate Cycle. Cloud accepts protection
+resume only after the scheduler has durably completed at least the required
+post-Failback sequence.
+
+This is an idempotent continuity rule:
+
+1. read both sequence values from the active Failback Session;
+2. include them in the immutable profile request and the Agent command;
+3. reconcile the forward target exports before dispatch;
+4. seed the source scheduler to the baseline only when its persisted sequence
+   is behind;
+5. complete Failback only after the minimum sequence is durable;
+6. preserve a newer source sequence on retries instead of rewinding it.
+
+| Area | AS-IS | TO-BE |
+| --- | --- | --- |
+| Rehydrated source sequence | New scheduler can restart at sequence `1` | Scheduler resumes from the Failback Session baseline |
+| Completion gate | Cloud waits for an old absolute sequence without seeding it | Required sequence is both seeded and verified through one command contract |
+| Retry behavior | Re-entry can repeat low-numbered Cycles | Re-entry is monotonic and never rewinds a newer scheduler |
+| Scope | Sequence recovery can be reimplemented per action | Existing FTCTL resume/minimum sequence fields are reused for remote `KVM_TO_KVM` only |

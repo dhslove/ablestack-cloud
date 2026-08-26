@@ -232,16 +232,20 @@ public class FtctlDrUnifiedActionAdapterTest {
                 FtctlDrActionCommand.Action.RESUME_SYNC, plan.getUuid(), run.getUuid());
         Mockito.when(drRemoteAgentClient.transitionSourceScheduler(Mockito.eq(plan),
                 Mockito.eq(FtctlDrActionCommand.Action.RESUME_SYNC), Mockito.eq(run.getUuid()),
-                profileCaptor.capture()))
+                profileCaptor.capture(), Mockito.eq(9L), Mockito.eq(10L)))
                 .thenReturn(new FtctlDrActionAnswer(answerCommand, true, "resumed"));
 
-        FtctlDrActionAnswer answer = adapter.resumeRemoteSourceProtection(plan, run);
+        FtctlDrActionAnswer answer = adapter.resumeRemoteSourceProtection(plan, run, 9L, 10L);
 
         Assert.assertTrue(answer.getResult());
         JsonObject profile = JsonParser.parseString(profileCaptor.getValue()).getAsJsonObject();
         Assert.assertEquals("REMOTE_SOURCE",
                 profile.getAsJsonObject("request").get("schedulerTransitionScope").getAsString());
         Assert.assertTrue(profile.getAsJsonObject("request").get("forceImmediateCycle").getAsBoolean());
+        Assert.assertEquals(9L,
+                profile.getAsJsonObject("request").get("resumeBaselineCheckpointSequence").getAsLong());
+        Assert.assertEquals(10L,
+                profile.getAsJsonObject("request").get("minimumCompletedCheckpointSequence").getAsLong());
         Assert.assertEquals("site-agent-nbd",
                 profile.getAsJsonObject("transport").get("mode").getAsString());
         Assert.assertEquals("nbd://10.10.32.3:12033/dr-forward-sda",
@@ -252,7 +256,7 @@ public class FtctlDrUnifiedActionAdapterTest {
                 .startForwardTargetExport(Mockito.eq(plan), Mockito.eq(run), Mockito.anyString());
         ordered.verify(drRemoteAgentClient)
                 .transitionSourceScheduler(Mockito.eq(plan), Mockito.eq(FtctlDrActionCommand.Action.RESUME_SYNC),
-                        Mockito.eq(run.getUuid()), Mockito.anyString());
+                        Mockito.eq(run.getUuid()), Mockito.anyString(), Mockito.eq(9L), Mockito.eq(10L));
     }
 
     @Test

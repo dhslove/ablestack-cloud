@@ -334,7 +334,7 @@ public class DrFailbackLifecycleServiceImpl extends ManagerBase implements DrFai
             return;
         }
         if (StringUtils.equals(session.getState(), PROTECTION_RESUMING)) {
-            ensureRemoteSourceSchedulerResumedForProtectionResume(plan, run);
+            ensureRemoteSourceSchedulerResumedForProtectionResume(plan, run, session);
             JsonObject authorityRuntime = fetchStatusRuntime(plan, run,
                     FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY);
             if (protectionResumed(plan, session, authorityRuntime)) {
@@ -745,7 +745,8 @@ public class DrFailbackLifecycleServiceImpl extends ManagerBase implements DrFai
         }
     }
 
-    void ensureRemoteSourceSchedulerResumedForProtectionResume(DrPlanVO plan, DrRunVO run) {
+    void ensureRemoteSourceSchedulerResumedForProtectionResume(DrPlanVO plan, DrRunVO run,
+            DrFailbackSessionVO session) {
         if (drRemoteAgentClient == null || !drRemoteAgentClient.isRemoteKvmSource(plan)) {
             return;
         }
@@ -754,7 +755,9 @@ public class DrFailbackLifecycleServiceImpl extends ManagerBase implements DrFai
         if (adapter == null) {
             throw new CloudRuntimeException("FTCTL adapter is unavailable for remote source protection resume");
         }
-        FtctlDrActionAnswer answer = adapter.resumeRemoteSourceProtection(plan, run);
+        FtctlDrActionAnswer answer = adapter.resumeRemoteSourceProtection(plan, run,
+                session.getResumeBaselineCheckpointSequence(),
+                session.getRequiredPostFailbackCheckpointSequence());
         if (answer == null || !answer.getResult()) {
             throw new CloudRuntimeException(StringUtils.defaultIfBlank(
                     answer != null ? answer.getDetails() : null,

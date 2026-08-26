@@ -218,12 +218,14 @@ public class DrFailbackLifecycleServiceImplTest {
         Mockito.when(ftctlDrUnifiedActionAdapterProvider.get()).thenReturn(ftctlDrUnifiedActionAdapter);
         FtctlDrActionCommand command = new FtctlDrActionCommand(
                 FtctlDrActionCommand.Action.RESUME_SYNC, plan.getUuid(), run.getUuid());
-        Mockito.when(ftctlDrUnifiedActionAdapter.resumeRemoteSourceProtection(plan, run))
+        session.setResumeBaselineCheckpointSequence(9L);
+        session.setRequiredPostFailbackCheckpointSequence(10L);
+        Mockito.when(ftctlDrUnifiedActionAdapter.resumeRemoteSourceProtection(plan, run, 9L, 10L))
                 .thenReturn(new FtctlDrActionAnswer(command, true, "resumed"));
 
-        service.ensureRemoteSourceSchedulerResumedForProtectionResume(plan, run);
+        service.ensureRemoteSourceSchedulerResumedForProtectionResume(plan, run, session);
 
-        Mockito.verify(ftctlDrUnifiedActionAdapter).resumeRemoteSourceProtection(plan, run);
+        Mockito.verify(ftctlDrUnifiedActionAdapter).resumeRemoteSourceProtection(plan, run, 9L, 10L);
     }
 
     @Test(expected = CloudRuntimeException.class)
@@ -234,10 +236,12 @@ public class DrFailbackLifecycleServiceImplTest {
         Mockito.when(ftctlDrUnifiedActionAdapterProvider.get()).thenReturn(ftctlDrUnifiedActionAdapter);
         FtctlDrActionCommand command = new FtctlDrActionCommand(
                 FtctlDrActionCommand.Action.RESUME_SYNC, plan.getUuid(), run.getUuid());
-        Mockito.when(ftctlDrUnifiedActionAdapter.resumeRemoteSourceProtection(plan, run))
+        session.setResumeBaselineCheckpointSequence(9L);
+        session.setRequiredPostFailbackCheckpointSequence(10L);
+        Mockito.when(ftctlDrUnifiedActionAdapter.resumeRemoteSourceProtection(plan, run, 9L, 10L))
                 .thenReturn(new FtctlDrActionAnswer(command, false, "resume failed"));
 
-        service.ensureRemoteSourceSchedulerResumedForProtectionResume(plan, run);
+        service.ensureRemoteSourceSchedulerResumedForProtectionResume(plan, run, session);
     }
 
     @Test
