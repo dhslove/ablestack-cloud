@@ -1252,3 +1252,36 @@ VMware-to-ABLESTACK path.
 | Remote SOURCE gate | Empty source-worker `active_side` blocks terminal success | Registered remote-source routing substitutes only for an empty side |
 | Explicit conflict | Any missing side is treated the same as TARGET | Explicit TARGET/other side remains blocking |
 | Existing success paths | Shared relaxation could alter VMware behavior | VMware and local KVM gates remain unchanged |
+
+## REPROTECT reverse export and terminal Run closure
+
+Remote `KVM_TO_KVM` Reprotect is a finite reverse data operation owned by one
+Cloud Run. It uses the same Plan-owned reverse target export contract as
+Failback. The active TARGET VM remains the source of the reverse copy, while
+the original SOURCE site exposes the destination RBD image through its Mold
+Agent. FTCTL must never infer or reconstruct those Cloud-owned endpoints.
+
+Before dispatching `dr-reprotect`, Cloud performs this order:
+
+1. verify committed TARGET authority and the serving target VM;
+2. call `startReverseTargetExport()` on the original site;
+3. inject the returned typed endpoints into `transport.exports`;
+4. dispatch the immutable profile to the TARGET worker;
+5. project the accepted Reprotect Run until one authoritative terminal state;
+6. on failure, terminate only the Run and preserve committed TARGET authority;
+7. on success, promote the durable reverse checkpoint and reverse schedule.
+
+`REPROTECT` is therefore a finite operation for Runtime Projection. A terminal
+`ERROR` cannot be consumed only by the Plan-authority preservation branch.
+Runtime Projection first commits the Run as `FAILED` or `SUCCEEDED`, then
+applies the existing authority rule. This prevents a failed reverse seed from
+leaving a Cloud Run permanently `RUNNING` while the target VM continues to
+serve correctly.
+
+| Area | AS-IS | TO-BE |
+| --- | --- | --- |
+| Reverse export | Prepared for Failback only | Failback and Reprotect reuse the same reverse export service |
+| Command profile | `site-agent-nbd` can have no `transport.exports` | Dispatch is blocked unless every disk has a typed export |
+| Run closure | Reprotect bypasses finite-operation reconciliation | Authoritative terminal evidence always closes the Reprotect Run |
+| Failure authority | TARGET is preserved but Run remains `RUNNING` | Run becomes `FAILED`; TARGET authority and serving VM remain intact |
+| Regression boundary | Shared transport edits can affect proven routes | VMware and forward RBD action contracts remain unchanged |

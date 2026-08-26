@@ -306,6 +306,68 @@ public class FtctlDrUnifiedActionAdapterTest {
         Mockito.verify(agentManager, Mockito.never()).easySend(Mockito.eq(102L), Mockito.any());
     }
 
+    @Test
+    public void crossSiteKvmReprotectPreparesReverseExportOnOriginalSite() throws Exception {
+        DrPlanVO plan = new DrPlanVO("cross-site-kvm-reprotect", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
+        plan.setSourceExternalRef("source-vm-uuid");
+        plan.setState(DrConstants.PLAN_STATE_FAILED_OVER);
+        plan.setActiveSide("TARGET");
+        plan.setTargetWorkerHostId(102L);
+        plan.setCoordinatorWorkerHostId(103L);
+        plan.setMappingJson("{\"source\":{\"hardware\":{\"sourceHostUuid\":\"source-host-uuid\","
+                + "\"instanceName\":\"i-2-332-VM\"}},\"target\":{\"storagePoolType\":\"RBD\",\"storagePath\":\"rbd\"},"
+                + "\"disks\":[{\"device\":\"sda\",\"sourcePath\":\"rbd:rbd/source-image\","
+                + "\"targetPath\":\"target-image\",\"targetStorageRef\":\"target-pool-uuid\","
+                + "\"targetStoragePath\":\"rbd\",\"targetStorageType\":\"RBD\"}]}");
+        DrRunVO run = run(DrConstants.RUN_TYPE_REPROTECT, "{}");
+        DrReprotectAuthoritySpec spec = new DrReprotectAuthoritySpec();
+        spec.setPlanUuid(plan.getUuid());
+        spec.setRunUuid(run.getUuid());
+        spec.setExpectedActiveSide("TARGET");
+        spec.setAuthorityGeneration(3L);
+        spec.setCutoverSessionId("cutover-1");
+        spec.setCheckpointSequence(17L);
+        spec.setTargetVmId(287L);
+        spec.setTargetExternalRef("target-vm-uuid");
+        spec.setTargetInstanceName("i-2-287-VM");
+        spec.setTargetPowerState("POWERED_ON");
+        spec.setTargetMaterialized(true);
+        spec.setTargetPromotionState("PROMOTED");
+        Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        Mockito.when(drPlanOwnedTransportService.supports(plan)).thenReturn(true);
+        Mockito.when(drPlanOwnedTransportService.startReverseTargetExport(
+                Mockito.eq(plan), Mockito.eq(run), Mockito.anyString()))
+                .thenReturn(exports("10.10.22.1", 12022, "dr-reprotect-sda"));
+        Mockito.when(drReprotectPreflightService.validate(plan, run))
+                .thenReturn(DrReprotectPreflightResult.success(spec));
+        Mockito.when(agentManager.send(Mockito.eq(103L), Mockito.isA(FtctlDrCapabilitiesCommand.class)))
+                .thenAnswer(invocation -> {
+                    FtctlDrCapabilitiesAnswer answer = new FtctlDrCapabilitiesAnswer(invocation.getArgument(1), true, "ok");
+                    answer.setSupportedFeatures(java.util.Arrays.asList("control-protocol-v2",
+                            "dr-transition-preflight-v2", "dr-reverse-site-agent-rbd-transport-v1"));
+                    return answer;
+                });
+        ArgumentCaptor<FtctlDrActionCommand> commandCaptor = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
+        Mockito.when(agentManager.send(Mockito.eq(103L), commandCaptor.capture())).thenAnswer(invocation -> {
+            FtctlDrActionCommand command = invocation.getArgument(1);
+            return new FtctlDrActionAnswer(command, true, "accepted", FtctlDrActionCommand.Action.REPROTECT,
+                    plan.getUuid(), run.getUuid(), "accepted", true, "REPROTECTING", "reverse-transfer",
+                    1, run.getUuid(), 0L, null, 0, "{\"result\":\"accepted\"}",
+                    "{\"state\":\"REPROTECTING\"}");
+        });
+
+        DrAdapterResult result = adapter.execute(new DrExecutionContext(plan, run));
+
+        Assert.assertTrue(result.isSuccess());
+        Mockito.verify(drPlanOwnedTransportService).startReverseTargetExport(
+                Mockito.eq(plan), Mockito.eq(run), Mockito.anyString());
+        Assert.assertEquals(FtctlDrActionCommand.Action.REPROTECT, commandCaptor.getValue().getAction());
+        Assert.assertTrue(commandCaptor.getValue().getProfileJson().contains("\"mode\":\"site-agent-nbd\""));
+        Assert.assertTrue(commandCaptor.getValue().getProfileJson().contains("dr-reprotect-sda"));
+    }
+
     private JsonArray exports(String host, int port, String name) {
         return JsonParser.parseString("[{\"device\":\"sda\",\"host\":\"" + host
                 + "\",\"port\":" + port + ",\"name\":\"" + name

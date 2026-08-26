@@ -358,7 +358,8 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
             return;
         }
         if (isRemoteKvmToKvmPlan(plan)
-                && action == FtctlDrActionCommand.Action.FAILBACK
+                && (action == FtctlDrActionCommand.Action.FAILBACK
+                        || action == FtctlDrActionCommand.Action.REPROTECT)
                 && StringUtils.equalsIgnoreCase(plan.getActiveSide(), "TARGET")) {
             prepareReversePlanOwnedTransport(context, sourceCommand);
             return;

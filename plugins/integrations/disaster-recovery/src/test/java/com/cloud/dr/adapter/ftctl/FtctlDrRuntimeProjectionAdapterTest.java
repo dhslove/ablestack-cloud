@@ -1670,6 +1670,13 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         replica.setState(DrConstants.REPLICA_STATE_READY);
         replica.setActiveSide("TARGET");
         DrPlanRuntimeVO runtime = new DrPlanRuntimeVO(plan.getId());
+        DrCutoverSessionVO cutover = new DrCutoverSessionVO(plan.getId(), 94L,
+                DrConstants.RUN_TYPE_FAILOVER, "PROMOTED");
+        cutover.setCloudPromotionState("PROMOTED");
+        cutover.setTargetPowerState("POWERED_ON");
+        cutover.setEngineAckState("ACKNOWLEDGED");
+        cutover.setCloudAuthorityGeneration(1L);
+        cutover.setState(DrConstants.PLAN_STATE_FAILED_OVER);
 
         String statusJson = "{\"state\":\"ERROR\",\"step\":\"reprotect-preflight\","
                 + "\"worker_state\":\"FAILED\",\"worker_exit_code\":20,"
@@ -1683,6 +1690,7 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         });
         Mockito.when(drRunDao.findActiveByPlanId(plan.getId())).thenReturn(run);
         Mockito.when(drPlanRuntimeDao.findByPlanId(plan.getId())).thenReturn(runtime);
+        Mockito.when(drCutoverSessionDao.findLatestActiveByPlanId(plan.getId())).thenReturn(cutover);
         Mockito.when(drReplicaDao.listActiveByPlanId(plan.getId())).thenReturn(Collections.singletonList(replica));
 
         DrAdapterResult result = adapter.refreshPlanProjection(plan);

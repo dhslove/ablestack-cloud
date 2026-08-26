@@ -1282,6 +1282,13 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             reconcileAcceptedRunFromStatus(plan, status, runtime);
             return;
         }
+        if (projectionRun != null
+                && StringUtils.equalsIgnoreCase(projectionRun.getRunType(), DrConstants.RUN_TYPE_REPROTECT)) {
+            // Reprotect failures must close their accepted Run before preserving the
+            // committed TARGET authority. Successful reprotects continue through the
+            // regular protection-state projection below.
+            reconcileAcceptedRunFromStatus(plan, status, runtime);
+        }
         if (preserveTerminalMaterializationFailure(plan, status, runtime)) {
             return;
         }
