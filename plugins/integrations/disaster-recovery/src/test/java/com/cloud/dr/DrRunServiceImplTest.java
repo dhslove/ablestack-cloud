@@ -16,6 +16,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 import com.cloud.agent.AgentManager;
 import com.cloud.agent.api.FtctlDrCancelAnswer;
 import com.cloud.agent.api.FtctlDrCancelCommand;
+import com.cloud.dr.adapter.ftctl.DrRemoteAgentClient;
 import com.cloud.dr.dao.DrPlanDao;
 import com.cloud.dr.dao.DrRunDao;
 import com.cloud.dr.dao.DrRunStepDao;
@@ -29,6 +30,8 @@ public class DrRunServiceImplTest {
     @Mock private DrPlanDao drPlanDao;
     @Mock private AgentManager agentManager;
     @Mock private DrFailbackLifecycleService drFailbackLifecycleService;
+    @Mock private DrProjectionService drProjectionService;
+    @Mock private DrRemoteAgentClient drRemoteAgentClient;
     @InjectMocks private DrRunServiceImpl service;
 
     @Test
@@ -150,6 +153,64 @@ public class DrRunServiceImplTest {
         DrRunVO result = service.cancelRun(active.getId());
 
         Assert.assertEquals(DrConstants.RUN_STATE_CANCEL_REQUESTED, result.getState());
+        Mockito.verify(drOrchestrator, Mockito.never()).executeRun(active.getId());
+    }
+
+    @Test
+    public void remoteKvmSourceOwnedRunCancellationUsesRemoteSourceAgent() {
+        DrRunVO active = new DrRunVO(10L, DrConstants.RUN_TYPE_SYNC);
+        active.setState(DrConstants.RUN_STATE_RUNNING);
+        DrPlanVO plan = Mockito.mock(DrPlanVO.class);
+        Mockito.when(plan.getUuid()).thenReturn("plan-uuid");
+        Mockito.when(plan.getEngineType()).thenReturn(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        Mockito.when(plan.getCoordinatorWorkerHostId()).thenReturn(22L);
+        Mockito.when(plan.getActiveSide()).thenReturn("SOURCE");
+        Mockito.when(drRunDao.findById(active.getId())).thenReturn(active);
+        Mockito.when(drPlanDao.findById(10L)).thenReturn(plan);
+        Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        Mockito.when(drRemoteAgentClient.cancelSourceRun(plan, active.getUuid()))
+                .thenReturn(new FtctlDrCancelAnswer(new FtctlDrCancelCommand("plan-uuid", active.getUuid()),
+                        true, "accepted", "plan-uuid", active.getUuid(), "canceled", true, null, 0,
+                        "{\"state\":\"CANCELED\",\"terminal_authoritative\":true,"
+                                + "\"runtime_endpoints_drained\":true,\"transfer_activity_state\":\"CANCELED\"}"));
+
+        service.cancelRun(active.getId());
+
+        Mockito.verify(drRemoteAgentClient).cancelSourceRun(plan, active.getUuid());
+        Mockito.verify(agentManager, Mockito.never()).easySend(Mockito.anyLong(), Mockito.any(FtctlDrCancelCommand.class));
+        Mockito.verify(drOrchestrator).executeRun(active.getId());
+    }
+
+    @Test
+    public void lateCancellationProjectsExistingAuthoritativeTerminal() {
+        DrRunVO active = new DrRunVO(10L, DrConstants.RUN_TYPE_SYNC);
+        active.setState(DrConstants.RUN_STATE_RUNNING);
+        DrPlanVO plan = Mockito.mock(DrPlanVO.class);
+        Mockito.when(plan.getUuid()).thenReturn("plan-uuid");
+        Mockito.when(plan.getEngineType()).thenReturn(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        Mockito.when(plan.getCoordinatorWorkerHostId()).thenReturn(22L);
+        Mockito.when(drRunDao.findById(active.getId())).thenReturn(active);
+        Mockito.when(drPlanDao.findById(10L)).thenReturn(plan);
+        Mockito.when(agentManager.easySend(Mockito.eq(22L), Mockito.any(FtctlDrCancelCommand.class)))
+                .thenAnswer(invocation -> {
+                    FtctlDrCancelCommand command = invocation.getArgument(1);
+                    return new FtctlDrCancelAnswer(command, true, "already terminal", "plan-uuid", active.getUuid(),
+                            "already_terminal", true, null, 0,
+                            "{\"result\":\"already_terminal\",\"state\":\"READY\","
+                                    + "\"terminal_authoritative\":true,\"runtime_endpoints_drained\":true,"
+                                    + "\"transfer_activity_state\":\"IDLE\"}");
+                });
+        Mockito.doAnswer(invocation -> {
+            active.setState(DrConstants.RUN_STATE_SUCCEEDED);
+            active.setCompleted(new java.util.Date());
+            return plan;
+        }).when(drProjectionService).refreshPlanProjection(10L, true);
+
+        DrRunVO result = service.cancelRun(active.getId());
+
+        Assert.assertEquals(DrConstants.RUN_STATE_SUCCEEDED, result.getState());
+        Assert.assertNotNull(result.getCompleted());
+        Mockito.verify(drProjectionService).refreshPlanProjection(10L, true);
         Mockito.verify(drOrchestrator, Mockito.never()).executeRun(active.getId());
     }
 }

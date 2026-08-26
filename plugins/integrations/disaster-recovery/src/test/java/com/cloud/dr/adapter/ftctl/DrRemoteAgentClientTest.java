@@ -24,6 +24,8 @@ import org.mockito.Mockito;
 
 import com.cloud.agent.api.FtctlDrActionAnswer;
 import com.cloud.agent.api.FtctlDrActionCommand;
+import com.cloud.agent.api.FtctlDrCancelAnswer;
+import com.cloud.agent.api.FtctlDrCancelCommand;
 import com.cloud.dr.DrConstants;
 import com.cloud.dr.DrPlanVO;
 
@@ -73,5 +75,26 @@ public class DrRemoteAgentClientTest {
         Assert.assertEquals(Long.valueOf(9), captured[0].getResumeBaselineCheckpointSequence());
         Assert.assertEquals(Long.valueOf(10), captured[0].getMinimumCompletedCheckpointSequence());
         Assert.assertEquals(Long.valueOf(676), captured[0].getAuthoritySequenceFloor());
+    }
+
+    @Test
+    public void sourceCancelUsesTypedRemoteAgentContract() {
+        DrRemoteAgentClient client = Mockito.spy(new DrRemoteAgentClient());
+        DrPlanVO plan = new DrPlanVO("remote-source", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setMappingJson("{\"source\":{\"hardware\":{\"sourceHostUuid\":\"source-host-uuid\"}}}");
+        FtctlDrCancelCommand[] captured = new FtctlDrCancelCommand[1];
+        Mockito.doAnswer(invocation -> {
+            captured[0] = invocation.getArgument(2);
+            return new FtctlDrCancelAnswer(captured[0], true, "canceled", plan.getUuid(), "run-uuid",
+                    "canceled", true, null, 0, "{\"state\":\"CANCELED\"}");
+        }).when(client).execute(Mockito.eq(plan), Mockito.eq("CANCEL"),
+                Mockito.isA(FtctlDrCancelCommand.class), Mockito.eq("source-host-uuid"),
+                Mockito.eq(FtctlDrCancelAnswer.class));
+
+        FtctlDrCancelAnswer answer = client.cancelSourceRun(plan, "run-uuid");
+
+        Assert.assertTrue(answer.getResult());
+        Assert.assertEquals(plan.getUuid(), captured[0].getPlanUuid());
+        Assert.assertEquals("run-uuid", captured[0].getRunUuid());
     }
 }

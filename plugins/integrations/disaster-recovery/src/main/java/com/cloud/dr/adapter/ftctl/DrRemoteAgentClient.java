@@ -27,6 +27,8 @@ import com.cloud.agent.api.Answer;
 import com.cloud.agent.api.Command;
 import com.cloud.agent.api.FtctlDrActionAnswer;
 import com.cloud.agent.api.FtctlDrActionCommand;
+import com.cloud.agent.api.FtctlDrCancelAnswer;
+import com.cloud.agent.api.FtctlDrCancelCommand;
 import com.cloud.agent.api.FtctlDrStatusAnswer;
 import com.cloud.agent.api.FtctlDrStatusCommand;
 import com.cloud.dr.DrConstants;
@@ -184,6 +186,13 @@ public class DrRemoteAgentClient {
         FtctlDrStatusCommand command = new FtctlDrStatusCommand(plan.getUuid(), runUuid, scope);
         command.setWait(5);
         return execute(plan, "STATUS", command, workerHostUuid, FtctlDrStatusAnswer.class);
+    }
+
+    public FtctlDrCancelAnswer cancelSourceRun(DrPlanVO plan, String runUuid) {
+        String workerHostUuid = sourceWorkerUuid(plan);
+        FtctlDrCancelCommand command = new FtctlDrCancelCommand(plan.getUuid(), runUuid);
+        command.setWait(30);
+        return execute(plan, "CANCEL", command, workerHostUuid, FtctlDrCancelAnswer.class);
     }
 
     public String ensureSourceVmPowerState(DrPlanVO plan, boolean poweredOn) {

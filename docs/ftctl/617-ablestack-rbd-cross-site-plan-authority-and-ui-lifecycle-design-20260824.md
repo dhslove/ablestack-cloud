@@ -1525,3 +1525,58 @@ from reintroducing the circular wait.
 | Remote Agent command | Omits the global sequence floor | Carries the same global floor used by the controller command |
 | Completion | Cannot reach the first forward durable Cycle | Requires source-side durable Cycle `>= minimum` |
 | Deployment safety | Old target FTCTL can accept the action | Capability gate blocks mixed versions |
+
+## Remote run cancellation ownership and late-terminal convergence (2026-08-26)
+
+### Failure observed through the UI
+
+A remote `KVM_TO_KVM` Full Seed completed on the original-site Agent while the
+operator submitted **Cancel current operation** from the controller UI. Cloud
+sent `FtctlDrCancelCommand` to the local coordinator instead of the Agent that
+owned the forward scheduler. The API job completed, but the Cloud Run remained
+`CANCEL_REQUESTED` even though the source FTCTL Run was already authoritative,
+durable, and `100%` complete.
+
+Two independent contracts were missing:
+
+1. cancellation must follow the same execution-owner routing as the action;
+2. a late cancellation must not replace an existing successful terminal result.
+
+### Ownership routing
+
+Cloud derives the cancellation owner from the Plan authority and Run type. For
+a remote `KVM_TO_KVM` Plan whose active side is `SOURCE`, forward `SYNC`,
+`RECOVER_SYNC`, `PAUSE_SYNC`, `RESUME_SYNC`, `FAILOVER`, and `RELEASE` Runs are
+sent through `DrRemoteAgentClient` to the source worker UUID. Target-owned
+operations, including reverse Failback execution, continue to use the local
+coordinator Agent. VMware and same-site KVM routing are unchanged.
+
+### Three-state cancellation result
+
+The Agent result is interpreted as one of these outcomes:
+
+- `CANCELED`: FTCTL drained the owned endpoints and produced authoritative
+  `CANCELED` terminal evidence. Cloud closes the Run as canceled.
+- `ALREADY_TERMINAL`: FTCTL found authoritative terminal evidence before the
+  cancellation request. Cloud restores the Run to projectable state and
+  refreshes runtime projection so the original `SUCCEEDED` or `FAILED` result
+  wins.
+- `PENDING`: ownership, endpoint drain, or typed Agent evidence is not yet
+  complete. Cloud keeps a retryable cancellation request and does not fabricate
+  a terminal result.
+
+Run terminalization, step closure, protection-group child accounting, and lease
+release remain idempotent. A stale or delayed cancel response can therefore not
+turn a completed Full Seed into an active blocker or erase durable Cycle
+evidence.
+
+### AS-IS / TO-BE
+
+| Area | AS-IS | TO-BE |
+| --- | --- | --- |
+| Remote Full Seed cancel | Always dispatched to local coordinator | Dispatched to the source Agent that owns the scheduler |
+| Late cancel | Run remains `CANCEL_REQUESTED` after data is durable | Original authoritative terminal result is projected |
+| Agent result | Boolean accepted/rejected | `CANCELED`, `ALREADY_TERMINAL`, or retryable `PENDING` |
+| Terminal history | Cancel can overwrite successful engine evidence | Terminal evidence is immutable and wins the race |
+| Regression boundary | Shared cancel edits can alter proven VMware behavior | Remote routing is gated to remote `KVM_TO_KVM`; existing routes remain unchanged |
+| Tests | Normal local cancel only | Remote routing, late-terminal race, and existing local cancel regression |

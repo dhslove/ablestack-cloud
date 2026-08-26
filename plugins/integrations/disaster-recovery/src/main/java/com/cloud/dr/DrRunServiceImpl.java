@@ -27,6 +27,7 @@ import com.cloud.agent.AgentManager;
 import com.cloud.agent.api.Answer;
 import com.cloud.agent.api.FtctlDrCancelAnswer;
 import com.cloud.agent.api.FtctlDrCancelCommand;
+import com.cloud.dr.adapter.ftctl.DrRemoteAgentClient;
 import com.cloud.dr.dao.DrRunDao;
 import com.cloud.dr.dao.DrRunStepDao;
 import com.cloud.dr.dao.DrPlanDao;
@@ -49,6 +50,16 @@ public class DrRunServiceImpl extends ManagerBase implements DrRunService {
     private AgentManager agentManager;
     @Inject
     private DrFailbackLifecycleService drFailbackLifecycleService;
+    @Inject
+    private DrProjectionService drProjectionService;
+    @Inject
+    private DrRemoteAgentClient drRemoteAgentClient;
+
+    private enum CancelDispatchOutcome {
+        CANCELED,
+        ALREADY_TERMINAL,
+        PENDING
+    }
 
     @Override
     public DrRunVO startRun(long planId, String runType, String idempotencyKey, Long requestedByUserId, Long asyncJobId) {
@@ -102,7 +113,15 @@ public class DrRunServiceImpl extends ManagerBase implements DrRunService {
         drOrchestrator.recordEvent(run.getPlanId(), run.getId(), DrConstants.EVENT_RUN_CANCELED, DrConstants.EVENT_SEVERITY_WARN,
                 DrConstants.EVENT_SOURCE_CLOUD, "DR run cancel requested", null);
         if (StringUtils.equals(DrConstants.RUN_STATE_CANCEL_REQUESTED, run.getState())) {
-            if (!cancelFtctlRun(run)) {
+            CancelDispatchOutcome cancelOutcome = cancelFtctlRun(run);
+            if (cancelOutcome == CancelDispatchOutcome.PENDING) {
+                return drRunDao.findById(runId);
+            }
+            if (cancelOutcome == CancelDispatchOutcome.ALREADY_TERMINAL) {
+                restoreRunForTerminalProjection(run);
+                if (drProjectionService != null) {
+                    drProjectionService.refreshPlanProjection(run.getPlanId(), true);
+                }
                 return drRunDao.findById(runId);
             }
             DrPlanVO plan = drPlanDao.findById(run.getPlanId());
@@ -119,35 +138,63 @@ public class DrRunServiceImpl extends ManagerBase implements DrRunService {
         return drRunDao.findById(runId);
     }
 
-    private boolean cancelFtctlRun(DrRunVO run) {
+    private CancelDispatchOutcome cancelFtctlRun(DrRunVO run) {
         DrPlanVO plan = drPlanDao != null ? drPlanDao.findById(run.getPlanId()) : null;
         if (plan == null || !StringUtils.equalsAnyIgnoreCase(DrConstants.ENGINE_TYPE_FTCTL_DR,
                 plan.getEngineType(), plan.getEngineBindingType())) {
-            return true;
+            return CancelDispatchOutcome.CANCELED;
         }
         Long coordinatorHostId = plan.getCoordinatorWorkerHostId() != null
                 ? plan.getCoordinatorWorkerHostId()
                 : plan.getSourceWorkerHostId() != null ? plan.getSourceWorkerHostId() : plan.getTargetWorkerHostId();
-        if (coordinatorHostId == null || agentManager == null) {
+        boolean remoteSourceDispatch = dispatchesCancelOnRemoteSource(plan, run);
+        if (remoteSourceDispatch && drRemoteAgentClient == null) {
+            recordCancelDispatchPending(run, "FTCTL_DR cancel requires the remote source Agent client");
+            return CancelDispatchOutcome.PENDING;
+        }
+        if (!remoteSourceDispatch && (coordinatorHostId == null || agentManager == null)) {
             recordCancelDispatchPending(run, "FTCTL_DR cancel requires an available coordinator Agent");
-            return false;
+            return CancelDispatchOutcome.PENDING;
         }
         FtctlDrCancelCommand command = new FtctlDrCancelCommand(plan.getUuid(), run.getUuid());
-        Answer rawAnswer = agentManager.easySend(coordinatorHostId, command);
+        Answer rawAnswer;
+        try {
+            rawAnswer = remoteSourceDispatch
+                    ? drRemoteAgentClient.cancelSourceRun(plan, run.getUuid())
+                    : agentManager.easySend(coordinatorHostId, command);
+        } catch (RuntimeException e) {
+            recordCancelDispatchPending(run, StringUtils.defaultIfBlank(e.getMessage(),
+                    "FTCTL_DR cancel dispatch failed"));
+            return CancelDispatchOutcome.PENDING;
+        }
         if (!(rawAnswer instanceof FtctlDrCancelAnswer)) {
             recordCancelDispatchPending(run, "FTCTL_DR cancel returned no typed Agent answer");
-            return false;
+            return CancelDispatchOutcome.PENDING;
         }
         FtctlDrCancelAnswer answer = (FtctlDrCancelAnswer) rawAnswer;
         boolean identityMatches = StringUtils.equals(plan.getUuid(), answer.getPlanUuid())
                 && StringUtils.equals(run.getUuid(), answer.getRunUuid());
+        if (answer.getResult() && Boolean.TRUE.equals(answer.getAccepted()) && identityMatches
+                && StringUtils.equalsIgnoreCase(answer.getFtctlResult(), "already_terminal")
+                && hasAuthoritativeExistingTerminal(answer.getOutput())) {
+            return CancelDispatchOutcome.ALREADY_TERMINAL;
+        }
         if (!answer.getResult() || !Boolean.TRUE.equals(answer.getAccepted()) || !identityMatches
                 || !hasAuthoritativeCancelTerminal(answer.getOutput())) {
             recordCancelDispatchPending(run, StringUtils.defaultIfBlank(answer.getDetails(),
                     "FTCTL_DR cancel did not return authoritative drained terminal evidence"));
-            return false;
+            return CancelDispatchOutcome.PENDING;
         }
-        return true;
+        return CancelDispatchOutcome.CANCELED;
+    }
+
+    private boolean dispatchesCancelOnRemoteSource(DrPlanVO plan, DrRunVO run) {
+        return drRemoteAgentClient != null && drRemoteAgentClient.isRemoteKvmSource(plan)
+                && StringUtils.equalsIgnoreCase(plan.getActiveSide(), "SOURCE")
+                && StringUtils.equalsAnyIgnoreCase(run.getRunType(),
+                        DrConstants.RUN_TYPE_SYNC, DrConstants.RUN_TYPE_RECOVER_SYNC,
+                        DrConstants.RUN_TYPE_PAUSE_SYNC, DrConstants.RUN_TYPE_RESUME_SYNC,
+                        DrConstants.RUN_TYPE_FAILOVER, DrConstants.RUN_TYPE_RELEASE);
     }
 
     private boolean hasAuthoritativeCancelTerminal(String output) {
@@ -164,6 +211,37 @@ public class DrRunServiceImpl extends ManagerBase implements DrRunService {
         } catch (RuntimeException e) {
             return false;
         }
+    }
+
+    private boolean hasAuthoritativeExistingTerminal(String output) {
+        if (StringUtils.isBlank(output)) {
+            return false;
+        }
+        try {
+            JsonObject payload = JsonParser.parseString(output).getAsJsonObject();
+            String state = payload.has("state") ? payload.get("state").getAsString() : null;
+            return payload.has("terminal_authoritative") && payload.get("terminal_authoritative").getAsBoolean()
+                    && StringUtils.equalsAnyIgnoreCase(state, "READY", "FAILED", "ERROR", "FAILED_OVER",
+                            "RELEASED", "UNPROTECTED", "CANCELED");
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    private void restoreRunForTerminalProjection(DrRunVO run) {
+        run.setState(DrConstants.RUN_STATE_RUNNING);
+        run.setCurrentStepName("runtime-terminal-reconciliation");
+        run.setProjectionState("reconciling");
+        run.setRetryable(true);
+        run.setRetryAfterSeconds(2);
+        run.setNextRetryAt(new Date(System.currentTimeMillis() + 2000L));
+        run.setErrorCode(null);
+        run.setErrorMessage(null);
+        run.markUpdated();
+        drRunDao.update(run.getId(), run);
+        drOrchestrator.recordEvent(run.getPlanId(), run.getId(), DrConstants.EVENT_PROJECTION_REFRESH,
+                DrConstants.EVENT_SEVERITY_INFO, DrConstants.EVENT_SOURCE_CLOUD,
+                "Cancellation arrived after authoritative engine terminal; reconciling original result", null);
     }
 
     private void recordCancelDispatchPending(DrRunVO run, String message) {

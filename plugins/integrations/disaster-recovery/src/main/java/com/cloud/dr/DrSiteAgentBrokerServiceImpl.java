@@ -28,6 +28,7 @@ import com.cloud.agent.api.Answer;
 import com.cloud.agent.api.Command;
 import com.cloud.agent.api.FtctlDrActionCommand;
 import com.cloud.agent.api.FtctlDrCapabilitiesCommand;
+import com.cloud.agent.api.FtctlDrCancelCommand;
 import com.cloud.agent.api.FtctlDrReversePreflightCommand;
 import com.cloud.agent.api.FtctlDrStatusCommand;
 import com.cloud.exception.AgentUnavailableException;
@@ -95,6 +96,8 @@ public class DrSiteAgentBrokerServiceImpl extends ManagerBase implements DrSiteA
                 return GSON.fromJson(commandJson, FtctlDrStatusCommand.class);
             case "CAPABILITIES":
                 return GSON.fromJson(commandJson, FtctlDrCapabilitiesCommand.class);
+            case "CANCEL":
+                return GSON.fromJson(commandJson, FtctlDrCancelCommand.class);
             case "REVERSE_PREFLIGHT":
                 return GSON.fromJson(commandJson, FtctlDrReversePreflightCommand.class);
             default:
