@@ -1629,6 +1629,13 @@ ordered barrier:
 6. let local reconciliation restart the scheduler and durably complete the
    reseed before normal incrementals continue.
 
+The distinct recovery UUID has no pre-existing state file. FTCTL must create
+that file with its canonical Run-state writer before adding scheduler metadata.
+The path-update helper remains update-only and must fail for a missing file;
+tests must preserve that contract so an in-memory mock cannot hide a deployment
+failure. Sequence and control state are updated only after the recovery Run
+file is durable.
+
 The internal recovery Run is not a Cloud operation child and cannot overwrite
 the canceled Run. Cloud closes the requested Run as `CANCELED`, releases its
 admission lease, and projects Plan health independently. The expected steady
@@ -1645,6 +1652,7 @@ and Release contracts are unchanged.
 | --- | --- | --- |
 | Cancel scope | Stops both the Run and continuous protection | Terminates only the Run; protection recovery is queued |
 | Recovery owner | Reuses or depends on the canceled Run | Uses a distinct internal recovery UUID |
+| Recovery state creation | Update-only helper is called for a missing file | Canonical writer creates the Run, then scheduler fields are applied |
 | Partial Full Seed | Scheduler remains stopped with invalid baseline | Same sequence is replayed as unbound Full Reseed |
 | Cloud result | Run can close while Plan remains stopped | Run is `CANCELED`; Plan returns to enabled scheduling |
 | Operator action | Manual recovery is always required | Manual recovery is fallback only |
