@@ -46,6 +46,7 @@ import com.cloud.dr.dao.DrRestorePointDao;
 import com.cloud.host.dao.HostDao;
 import com.cloud.host.HostVO;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 @RunWith(MockitoJUnitRunner.class)
@@ -200,6 +201,58 @@ public class FtctlDrUnifiedActionAdapterTest {
         Assert.assertTrue(command.getRequestJson().contains("\"schedulerTransitionScope\":\"REMOTE_SOURCE\""));
         Assert.assertFalse(command.getProfileJson().contains("sshUser"));
         Assert.assertFalse(command.getProfileJson().contains("moldSecretKey"));
+    }
+
+    @Test
+    public void remoteKvmFailbackResumeRehydratesForwardProfileBeforeSourceDispatch() {
+        DrPlanVO plan = new DrPlanVO("cross-site-kvm-resume", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
+        plan.setSourceExternalRef("source-vm-uuid");
+        plan.setActiveSide("SOURCE");
+        plan.setTargetWorkerHostId(102L);
+        plan.setCoordinatorWorkerHostId(103L);
+        plan.setMappingJson("{\"source\":{\"hardware\":{\"sourceHostUuid\":\"source-host-uuid\","
+                + "\"instanceName\":\"i-2-332-VM\"}},\"target\":{\"storagePoolType\":\"RBD\"},"
+                + "\"disks\":[{\"device\":\"sda\",\"sourcePath\":\"rbd:rbd/source-image\","
+                + "\"targetPath\":\"rbd:rbd/target-image\",\"targetStorageRef\":\"target-pool-uuid\","
+                + "\"target\":{\"storageRef\":\"target-pool-uuid\",\"path\":\"target-image\",\"format\":\"raw\"}}]}");
+        DrRunVO run = run(DrConstants.RUN_TYPE_FAILBACK, "{}");
+        HostVO targetHost = Mockito.mock(HostVO.class);
+        Mockito.when(targetHost.getUuid()).thenReturn("target-host-uuid");
+        Mockito.when(targetHost.getPrivateIpAddress()).thenReturn("10.10.32.3");
+        Mockito.when(hostDao.findById(102L)).thenReturn(targetHost);
+        Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        Mockito.when(drPlanOwnedTransportService.supports(plan)).thenReturn(true);
+        Mockito.when(drPlanOwnedTransportService.startForwardTargetExport(
+                Mockito.eq(plan), Mockito.eq(run), Mockito.anyString()))
+                .thenReturn(exports("10.10.32.3", 12033, "dr-forward-sda"));
+        ArgumentCaptor<String> profileCaptor = ArgumentCaptor.forClass(String.class);
+        FtctlDrActionCommand answerCommand = new FtctlDrActionCommand(
+                FtctlDrActionCommand.Action.RESUME_SYNC, plan.getUuid(), run.getUuid());
+        Mockito.when(drRemoteAgentClient.transitionSourceScheduler(Mockito.eq(plan),
+                Mockito.eq(FtctlDrActionCommand.Action.RESUME_SYNC), Mockito.eq(run.getUuid()),
+                profileCaptor.capture()))
+                .thenReturn(new FtctlDrActionAnswer(answerCommand, true, "resumed"));
+
+        FtctlDrActionAnswer answer = adapter.resumeRemoteSourceProtection(plan, run);
+
+        Assert.assertTrue(answer.getResult());
+        JsonObject profile = JsonParser.parseString(profileCaptor.getValue()).getAsJsonObject();
+        Assert.assertEquals("REMOTE_SOURCE",
+                profile.getAsJsonObject("request").get("schedulerTransitionScope").getAsString());
+        Assert.assertTrue(profile.getAsJsonObject("request").get("forceImmediateCycle").getAsBoolean());
+        Assert.assertEquals("site-agent-nbd",
+                profile.getAsJsonObject("transport").get("mode").getAsString());
+        Assert.assertEquals("nbd://10.10.32.3:12033/dr-forward-sda",
+                profile.getAsJsonObject("transport").getAsJsonArray("exports")
+                        .get(0).getAsJsonObject().get("uri").getAsString());
+        org.mockito.InOrder ordered = Mockito.inOrder(drPlanOwnedTransportService, drRemoteAgentClient);
+        ordered.verify(drPlanOwnedTransportService)
+                .startForwardTargetExport(Mockito.eq(plan), Mockito.eq(run), Mockito.anyString());
+        ordered.verify(drRemoteAgentClient)
+                .transitionSourceScheduler(Mockito.eq(plan), Mockito.eq(FtctlDrActionCommand.Action.RESUME_SYNC),
+                        Mockito.eq(run.getUuid()), Mockito.anyString());
     }
 
     @Test

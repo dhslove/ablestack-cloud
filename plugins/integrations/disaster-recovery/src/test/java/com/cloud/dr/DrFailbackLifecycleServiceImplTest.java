@@ -4,6 +4,8 @@
 // The ASF licenses this file to you under the Apache License, Version 2.0.
 package com.cloud.dr;
 
+import javax.inject.Provider;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -19,6 +21,7 @@ import com.cloud.agent.api.FtctlDrActionCommand;
 import com.cloud.agent.api.FtctlDrStatusAnswer;
 import com.cloud.agent.api.FtctlDrStatusCommand;
 import com.cloud.dr.adapter.ftctl.DrRemoteAgentClient;
+import com.cloud.dr.adapter.ftctl.FtctlDrUnifiedActionAdapter;
 import com.cloud.dr.dao.DrCutoverSessionDao;
 import com.cloud.dr.dao.DrEventDao;
 import com.cloud.dr.dao.DrFailbackSessionDao;
@@ -38,6 +41,8 @@ public class DrFailbackLifecycleServiceImplTest {
     @Mock private DrCutoverSessionDao drCutoverSessionDao;
     @Mock private DrRemoteAgentClient drRemoteAgentClient;
     @Mock private DrPlanOwnedTransportService drPlanOwnedTransportService;
+    @Mock private Provider<FtctlDrUnifiedActionAdapter> ftctlDrUnifiedActionAdapterProvider;
+    @Mock private FtctlDrUnifiedActionAdapter ftctlDrUnifiedActionAdapter;
 
     @Spy
     @InjectMocks
@@ -210,16 +215,15 @@ public class DrFailbackLifecycleServiceImplTest {
         plan = new DrPlanVO("failback-plan", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
         plan.setSourceExternalRef("remote-source-vm");
         Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        Mockito.when(ftctlDrUnifiedActionAdapterProvider.get()).thenReturn(ftctlDrUnifiedActionAdapter);
         FtctlDrActionCommand command = new FtctlDrActionCommand(
                 FtctlDrActionCommand.Action.RESUME_SYNC, plan.getUuid(), run.getUuid());
-        Mockito.when(drRemoteAgentClient.transitionSourceScheduler(plan,
-                FtctlDrActionCommand.Action.RESUME_SYNC, run.getUuid()))
+        Mockito.when(ftctlDrUnifiedActionAdapter.resumeRemoteSourceProtection(plan, run))
                 .thenReturn(new FtctlDrActionAnswer(command, true, "resumed"));
 
         service.ensureRemoteSourceSchedulerResumedForProtectionResume(plan, run);
 
-        Mockito.verify(drRemoteAgentClient).transitionSourceScheduler(plan,
-                FtctlDrActionCommand.Action.RESUME_SYNC, run.getUuid());
+        Mockito.verify(ftctlDrUnifiedActionAdapter).resumeRemoteSourceProtection(plan, run);
     }
 
     @Test(expected = CloudRuntimeException.class)
@@ -227,10 +231,10 @@ public class DrFailbackLifecycleServiceImplTest {
         plan = new DrPlanVO("failback-plan", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
         plan.setSourceExternalRef("remote-source-vm");
         Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        Mockito.when(ftctlDrUnifiedActionAdapterProvider.get()).thenReturn(ftctlDrUnifiedActionAdapter);
         FtctlDrActionCommand command = new FtctlDrActionCommand(
                 FtctlDrActionCommand.Action.RESUME_SYNC, plan.getUuid(), run.getUuid());
-        Mockito.when(drRemoteAgentClient.transitionSourceScheduler(plan,
-                FtctlDrActionCommand.Action.RESUME_SYNC, run.getUuid()))
+        Mockito.when(ftctlDrUnifiedActionAdapter.resumeRemoteSourceProtection(plan, run))
                 .thenReturn(new FtctlDrActionAnswer(command, false, "resume failed"));
 
         service.ensureRemoteSourceSchedulerResumedForProtectionResume(plan, run);

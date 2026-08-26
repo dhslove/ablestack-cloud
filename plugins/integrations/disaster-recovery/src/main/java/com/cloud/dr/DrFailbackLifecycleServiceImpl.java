@@ -17,6 +17,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import javax.inject.Inject;
+import javax.inject.Provider;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.cloudstack.managed.context.ManagedContextRunnable;
@@ -28,6 +29,7 @@ import com.cloud.agent.api.FtctlDrActionCommand;
 import com.cloud.agent.api.FtctlDrStatusAnswer;
 import com.cloud.agent.api.FtctlDrStatusCommand;
 import com.cloud.dr.adapter.ftctl.DrRemoteAgentClient;
+import com.cloud.dr.adapter.ftctl.FtctlDrUnifiedActionAdapter;
 import com.cloud.dr.dao.DrEventDao;
 import com.cloud.dr.dao.DrCutoverSessionDao;
 import com.cloud.dr.dao.DrFailbackSessionDao;
@@ -95,6 +97,7 @@ public class DrFailbackLifecycleServiceImpl extends ManagerBase implements DrFai
     @Inject private DrFailbackDataGateService drFailbackDataGateService;
     @Inject private DrRemoteAgentClient drRemoteAgentClient;
     @Inject private DrPlanOwnedTransportService drPlanOwnedTransportService;
+    @Inject private Provider<FtctlDrUnifiedActionAdapter> ftctlDrUnifiedActionAdapterProvider;
 
     private final Set<Long> inFlightRuns = ConcurrentHashMap.newKeySet();
     private ExecutorService executor;
@@ -331,7 +334,6 @@ public class DrFailbackLifecycleServiceImpl extends ManagerBase implements DrFai
             return;
         }
         if (StringUtils.equals(session.getState(), PROTECTION_RESUMING)) {
-            ensureForwardPlanOwnedExportForProtectionResume(plan, run);
             ensureRemoteSourceSchedulerResumedForProtectionResume(plan, run);
             JsonObject authorityRuntime = fetchStatusRuntime(plan, run,
                     FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY);
@@ -747,8 +749,12 @@ public class DrFailbackLifecycleServiceImpl extends ManagerBase implements DrFai
         if (drRemoteAgentClient == null || !drRemoteAgentClient.isRemoteKvmSource(plan)) {
             return;
         }
-        FtctlDrActionAnswer answer = drRemoteAgentClient.transitionSourceScheduler(
-                plan, FtctlDrActionCommand.Action.RESUME_SYNC, run.getUuid());
+        FtctlDrUnifiedActionAdapter adapter = ftctlDrUnifiedActionAdapterProvider != null
+                ? ftctlDrUnifiedActionAdapterProvider.get() : null;
+        if (adapter == null) {
+            throw new CloudRuntimeException("FTCTL adapter is unavailable for remote source protection resume");
+        }
+        FtctlDrActionAnswer answer = adapter.resumeRemoteSourceProtection(plan, run);
         if (answer == null || !answer.getResult()) {
             throw new CloudRuntimeException(StringUtils.defaultIfBlank(
                     answer != null ? answer.getDetails() : null,

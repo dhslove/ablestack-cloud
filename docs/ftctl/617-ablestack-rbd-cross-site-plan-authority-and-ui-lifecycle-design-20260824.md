@@ -1285,3 +1285,40 @@ serve correctly.
 | Run closure | Reprotect bypasses finite-operation reconciliation | Authoritative terminal evidence always closes the Reprotect Run |
 | Failure authority | TARGET is preserved but Run remains `RUNNING` | Run becomes `FAILED`; TARGET authority and serving VM remain intact |
 | Regression boundary | Shared transport edits can affect proven routes | VMware and forward RBD action contracts remain unchanged |
+
+## Failback forward-profile rehydration barrier
+
+`KVM_TO_KVM` Failback changes the serving authority back to the original site,
+but the original-site worker cannot resume forward replication from a bare
+`RESUME_SYNC` command. Failover and reverse operations can leave that worker
+without a persisted forward `profile.json`. In that state, starting the
+scheduler without the current target export contract terminates with
+`DR_SCHEDULER_NOT_RUNNING`, while VM power and authority have already moved to
+SOURCE.
+
+The Plan owner must reuse the proven initial-sync admission path as one ordered
+barrier during `PROTECTION_RESUMING`:
+
+1. build a fresh immutable FTCTL profile from the current Plan, mapping, workers,
+   policy, and schedule;
+2. start or reconcile the forward target RBD export on the replica site;
+3. inject the typed export endpoints returned by the target Agent into
+   `transport.exports` of that profile;
+4. submit the complete profile with the idempotent remote-source `RESUME_SYNC`;
+5. query authority from the remote source worker and wait for the required
+   post-Failback durable checkpoint;
+6. only then close Session, Run, Plan, and Replica as successful.
+
+The profile and export preparation belong to the FTCTL Cloud adapter so the
+lifecycle service does not reconstruct transport JSON. Re-entry uses the same
+Failback parent Run identity and can safely repeat export reconciliation and
+scheduler resume. A missing profile, empty export list, Agent rejection, or
+non-live scheduler keeps the lifecycle retryable in `PROTECTION_RESUMING`.
+
+| Area | AS-IS | TO-BE |
+| --- | --- | --- |
+| Source resume request | Bare `RESUME_SYNC`; no profile or exports | Full current profile with typed target exports |
+| Source runtime | Missing `profile.json` causes scheduler recovery failure | Profile is rehydrated before scheduler admission |
+| Ordering | Export start and scheduler transition are separate calls | Adapter-owned ordered rehydration barrier |
+| Terminal gate | SOURCE VM can run while Run remains pending forever | Required durable forward Cycle closes the Run |
+| Regression boundary | Shared lifecycle edits can touch proven paths | Gated to remote `KVM_TO_KVM`; VMware behavior unchanged |

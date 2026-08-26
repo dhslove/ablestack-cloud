@@ -381,7 +381,11 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
     }
 
     private void injectPlanOwnedExports(FtctlDrActionCommand command, JsonArray exports) {
-        JsonObject profile = parseObject(command.getProfileJson());
+        command.setProfileJson(withPlanOwnedExports(command.getProfileJson(), exports));
+    }
+
+    private String withPlanOwnedExports(String profileJson, JsonArray exports) {
+        JsonObject profile = parseObject(profileJson);
         JsonObject transport = objectAt(profile, "transport");
         transport.addProperty("mode", "site-agent-nbd");
         transport.remove("secondaryUri");
@@ -389,7 +393,21 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         transport.remove("sshPort");
         transport.remove("sshKeyFile");
         transport.add("exports", exports);
-        command.setProfileJson(GSON.toJson(profile));
+        return GSON.toJson(profile);
+    }
+
+    public FtctlDrActionAnswer resumeRemoteSourceProtection(DrPlanVO plan, DrRunVO run) {
+        if (!isRemoteKvmToKvmPlan(plan)) {
+            throw new CloudRuntimeException("Remote KVM_TO_KVM Plan is required for forward protection resume");
+        }
+        JsonObject request = redactJson(requestJson(run)).getAsJsonObject();
+        request.addProperty("schedulerTransitionScope", "REMOTE_SOURCE");
+        request.addProperty("forceImmediateCycle", true);
+        String profileJson = buildProfileJson(plan, run, request);
+        JsonArray exports = drPlanOwnedTransportService.startForwardTargetExport(plan, run, profileJson);
+        return drRemoteAgentClient.transitionSourceScheduler(plan,
+                FtctlDrActionCommand.Action.RESUME_SYNC, run.getUuid(),
+                withPlanOwnedExports(profileJson, exports));
     }
 
     private boolean isRemoteKvmToKvmPlan(DrPlanVO plan) {
