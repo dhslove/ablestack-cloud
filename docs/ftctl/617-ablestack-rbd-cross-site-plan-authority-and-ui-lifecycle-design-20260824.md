@@ -1479,3 +1479,49 @@ movement or lifecycle behavior.
 | Recovery | View cache remains `DEGRADED` until manual repair | `dr-status` repairs a stale local scheduler without DB edits |
 | Failback compatibility | Risk of conflating the SOURCE handoff exception | Existing verified one-time SOURCE handoff remains unchanged |
 | Regression safety | Shared status relaxation could affect VMware | Strict monotonic guards remain; only the producer floor is corrected |
+## Remote-source Failback commit handoff (2026-08-26)
+
+### Failure analysis
+
+The target controller correctly sent `authoritySequenceFloor` and completed
+the reverse RBD transfer. Failback then stalled because the target Agent tried
+to start the forward scheduler while the FTCTL remote-source ownership rule
+correctly suppressed target-side scheduling. Cloud deferred the source Agent
+resume until the target commit reported a post-Failback Cycle, creating a
+circular wait.
+
+### Cloud ownership sequence
+
+For a remote `KVM_TO_KVM` source:
+
+1. The target Agent acknowledges the durable source-authority commit without
+   producing a forward Cycle.
+2. Cloud records `PROTECTION_RESUMING` and preserves `SOURCE` authority.
+3. Cloud starts the target export and sends `RESUME_SYNC` to the remote source
+   Agent with:
+   - `resumeBaselineCheckpointSequence`
+   - `minimumCompletedCheckpointSequence`
+   - `authoritySequenceFloor`
+4. Cloud reads `PLAN_AUTHORITY` from the remote source Agent.
+5. The session and Run become `SUCCEEDED` only when the source scheduler is
+   healthy and its latest durable Cycle reaches the required minimum.
+
+This sequence is limited to the cross-site ABLESTACK path. The validated
+VMware-to-ABLESTACK path continues to use its existing coordinator scheduler
+contract.
+
+### Compatibility gate
+
+The target FTCTL capability response must include
+`dr-remote-source-failback-commit-v1`. Cloud rejects Failback before mutation
+when this capability is missing, preventing a mixed Cloud/Agent deployment
+from reintroducing the circular wait.
+
+### AS-IS / TO-BE
+
+| Layer | AS-IS | TO-BE |
+| --- | --- | --- |
+| Cloud lifecycle | Waits for a target-side post-Cycle commit ACK | Accepts durable authority ACK, then resumes the source scheduler |
+| Remote Agent command | Omits the global sequence floor | Carries the same global floor used by the controller command |
+| Completion | Cannot reach the first forward durable Cycle | Requires source-side durable Cycle `>= minimum` |
+| Deployment safety | Old target FTCTL can accept the action | Capability gate blocks mixed versions |

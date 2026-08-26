@@ -428,7 +428,8 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         return drRemoteAgentClient.transitionSourceScheduler(plan,
                 FtctlDrActionCommand.Action.RESUME_SYNC, run.getUuid(),
                 withPlanOwnedExports(profileJson, exports),
-                resumeBaselineCheckpointSequence, minimumCompletedCheckpointSequence);
+                resumeBaselineCheckpointSequence, minimumCompletedCheckpointSequence,
+                resolveAuthoritySequenceFloor(plan));
     }
 
     private boolean isRemoteKvmToKvmPlan(DrPlanVO plan) {
@@ -693,6 +694,7 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         if (isRemoteKvmToKvmPlan(context.getPlan())
                 && action == FtctlDrActionCommand.Action.FAILBACK) {
             requiredFeatures.add("dr-reverse-site-agent-rbd-transport-v1");
+            requiredFeatures.add("dr-remote-source-failback-commit-v1");
         }
         if (action == FtctlDrActionCommand.Action.RELEASE) {
             requiredFeatures.add("dr-release-tombstone-v1");

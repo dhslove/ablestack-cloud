@@ -312,12 +312,15 @@ public class FtctlDrUnifiedActionAdapterTest {
         Mockito.when(drPlanOwnedTransportService.startForwardTargetExport(
                 Mockito.eq(plan), Mockito.eq(run), Mockito.anyString()))
                 .thenReturn(exports("10.10.32.3", 12033, "dr-forward-sda"));
+        DrPlanRuntimeVO runtime = new DrPlanRuntimeVO(plan.getId());
+        runtime.setAuthoritySequence(676L);
+        Mockito.when(drPlanRuntimeDao.findByPlanId(plan.getId())).thenReturn(runtime);
         ArgumentCaptor<String> profileCaptor = ArgumentCaptor.forClass(String.class);
         FtctlDrActionCommand answerCommand = new FtctlDrActionCommand(
                 FtctlDrActionCommand.Action.RESUME_SYNC, plan.getUuid(), run.getUuid());
         Mockito.when(drRemoteAgentClient.transitionSourceScheduler(Mockito.eq(plan),
                 Mockito.eq(FtctlDrActionCommand.Action.RESUME_SYNC), Mockito.eq(run.getUuid()),
-                profileCaptor.capture(), Mockito.eq(9L), Mockito.eq(10L)))
+                profileCaptor.capture(), Mockito.eq(9L), Mockito.eq(10L), Mockito.eq(676L)))
                 .thenReturn(new FtctlDrActionAnswer(answerCommand, true, "resumed"));
 
         FtctlDrActionAnswer answer = adapter.resumeRemoteSourceProtection(plan, run, 9L, 10L);
@@ -341,7 +344,8 @@ public class FtctlDrUnifiedActionAdapterTest {
                 .startForwardTargetExport(Mockito.eq(plan), Mockito.eq(run), Mockito.anyString());
         ordered.verify(drRemoteAgentClient)
                 .transitionSourceScheduler(Mockito.eq(plan), Mockito.eq(FtctlDrActionCommand.Action.RESUME_SYNC),
-                        Mockito.eq(run.getUuid()), Mockito.anyString(), Mockito.eq(9L), Mockito.eq(10L));
+                        Mockito.eq(run.getUuid()), Mockito.anyString(), Mockito.eq(9L), Mockito.eq(10L),
+                        Mockito.eq(676L));
     }
 
     @Test
@@ -425,7 +429,8 @@ public class FtctlDrUnifiedActionAdapterTest {
                 .thenAnswer(invocation -> {
                     FtctlDrCapabilitiesAnswer answer = new FtctlDrCapabilitiesAnswer(invocation.getArgument(1), true, "ok");
                     answer.setSupportedFeatures(java.util.Arrays.asList("control-protocol-v2",
-                            "dr-transition-preflight-v2", "dr-reverse-site-agent-rbd-transport-v1"));
+                            "dr-transition-preflight-v2", "dr-reverse-site-agent-rbd-transport-v1",
+                            "dr-remote-source-failback-commit-v1"));
                     return answer;
                 });
         ArgumentCaptor<FtctlDrActionCommand> failbackCommand = ArgumentCaptor.forClass(FtctlDrActionCommand.class);

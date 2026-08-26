@@ -135,6 +135,14 @@ public class DrRemoteAgentClient {
     public FtctlDrActionAnswer transitionSourceScheduler(DrPlanVO plan,
             FtctlDrActionCommand.Action action, String parentRunUuid, String profileJson,
             Long resumeBaselineCheckpointSequence, Long minimumCompletedCheckpointSequence) {
+        return transitionSourceScheduler(plan, action, parentRunUuid, profileJson,
+                resumeBaselineCheckpointSequence, minimumCompletedCheckpointSequence, null);
+    }
+
+    public FtctlDrActionAnswer transitionSourceScheduler(DrPlanVO plan,
+            FtctlDrActionCommand.Action action, String parentRunUuid, String profileJson,
+            Long resumeBaselineCheckpointSequence, Long minimumCompletedCheckpointSequence,
+            Long authoritySequenceFloor) {
         if (action != FtctlDrActionCommand.Action.PAUSE_SYNC
                 && action != FtctlDrActionCommand.Action.RESUME_SYNC) {
             throw new CloudRuntimeException("Remote source scheduler transition must be PAUSE_SYNC or RESUME_SYNC");
@@ -156,6 +164,7 @@ public class DrRemoteAgentClient {
         }
         command.setResumeBaselineCheckpointSequence(resumeBaselineCheckpointSequence);
         command.setMinimumCompletedCheckpointSequence(minimumCompletedCheckpointSequence);
+        command.setAuthoritySequenceFloor(authoritySequenceFloor);
         command.setWaitForCompletion(true);
         command.setWait(45);
         return execute(plan, "ACTION", command, workerHostUuid, FtctlDrActionAnswer.class);
