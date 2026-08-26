@@ -31,6 +31,7 @@ import com.cloud.agent.AgentManager;
 import com.cloud.agent.api.Answer;
 import com.cloud.agent.api.Command;
 import com.cloud.agent.api.FtctlDrActionCommand;
+import com.cloud.agent.api.FtctlDrCancelCommand;
 import com.cloud.agent.api.FtctlDrStatusCommand;
 import com.cloud.host.HostVO;
 import com.cloud.host.Status;
@@ -69,6 +70,31 @@ public class FtctlDrSiteAgentBrokerServiceImplTest {
         Assert.assertEquals("host-uuid", response.getWorkerHostUuid());
         Assert.assertTrue(response.getResult());
         Assert.assertEquals("accepted", response.getDetails());
+    }
+
+    @Test
+    public void executesAllowListedCancelCommandOnResolvedKvmHost() throws Exception {
+        HostVO host = Mockito.mock(HostVO.class);
+        Mockito.when(host.getId()).thenReturn(42L);
+        Mockito.when(host.getUuid()).thenReturn("host-uuid");
+        Mockito.when(host.getStatus()).thenReturn(Status.Up);
+        Mockito.when(host.getHypervisorType()).thenReturn(Hypervisor.HypervisorType.KVM);
+        Mockito.when(hostDao.findByUuid("host-uuid")).thenReturn(host);
+
+        FtctlDrCancelCommand requested = new FtctlDrCancelCommand("plan-uuid", "run-uuid");
+        Mockito.when(agentManager.send(Mockito.eq(42L), Mockito.any(Command.class)))
+                .thenAnswer(invocation -> new Answer(invocation.getArgument(1), true, "accepted"));
+
+        FtctlDrSiteAgentCommandResponse response = brokerService.execute(
+                "cancel", new Gson().toJson(requested), "host-uuid");
+
+        ArgumentCaptor<Command> command = ArgumentCaptor.forClass(Command.class);
+        Mockito.verify(agentManager).send(Mockito.eq(42L), command.capture());
+        Assert.assertTrue(command.getValue() instanceof FtctlDrCancelCommand);
+        Assert.assertEquals("plan-uuid", ((FtctlDrCancelCommand) command.getValue()).getPlanUuid());
+        Assert.assertEquals("run-uuid", ((FtctlDrCancelCommand) command.getValue()).getRunUuid());
+        Assert.assertEquals("CANCEL", response.getCommandType());
+        Assert.assertTrue(response.getResult());
     }
 
     @Test

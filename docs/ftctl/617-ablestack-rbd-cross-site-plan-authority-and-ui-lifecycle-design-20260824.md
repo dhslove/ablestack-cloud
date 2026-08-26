@@ -1528,6 +1528,13 @@ from reintroducing the circular wait.
 
 ## Remote run cancellation ownership and late-terminal convergence (2026-08-26)
 
+The signed site command API is registered by the always-on FTCTL service, so
+`plugins/integrations/ftctl-service/.../FtctlDrSiteAgentBrokerServiceImpl`
+is the authoritative remote command allow-list. The similarly named DR plugin
+broker is not sufficient for cross-site delivery. Both sides of the contract
+must accept `CANCEL`, and the FTCTL service test must prove that the JSON is
+deserialized as `FtctlDrCancelCommand` and sent to the resolved KVM worker.
+
 ### Failure observed through the UI
 
 A remote `KVM_TO_KVM` Full Seed completed on the original-site Agent while the

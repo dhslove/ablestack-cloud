@@ -38,7 +38,7 @@ public class ExecuteFtctlDrSiteAgentCommandCmd extends BaseCmd {
     @Inject private FtctlDrSiteAgentBrokerService brokerService;
 
     @Parameter(name = "commandtype", type = CommandType.STRING, required = true,
-            description = "ACTION, STATUS, CAPABILITIES, or REVERSE_PREFLIGHT")
+            description = "ACTION, STATUS, CAPABILITIES, CANCEL, or REVERSE_PREFLIGHT")
     private String commandType;
     @Parameter(name = "commandjson", type = CommandType.STRING, required = true, length = 65535,
             description = "the serialized allow-listed FTCTL Agent command")
