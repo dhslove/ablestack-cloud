@@ -367,7 +367,8 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         if (!dispatchesOnRemoteSource(plan, action)
                 || (action != FtctlDrActionCommand.Action.SYNC
                         && action != FtctlDrActionCommand.Action.RECOVER_SYNC
-                        && action != FtctlDrActionCommand.Action.FAILOVER)) {
+                        && action != FtctlDrActionCommand.Action.FAILOVER
+                        && action != FtctlDrActionCommand.Action.RESUME_SYNC)) {
             return;
         }
         injectPlanOwnedExports(sourceCommand, drPlanOwnedTransportService.startForwardTargetExport(

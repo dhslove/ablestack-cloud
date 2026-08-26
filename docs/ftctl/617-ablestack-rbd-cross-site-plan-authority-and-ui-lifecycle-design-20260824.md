@@ -1387,3 +1387,32 @@ KVM paths never enter this compatibility gate.
 | Safety gate | A low tuple alone can appear stale or valid | Completed Session, checkpoint continuity, and healthy scheduler evidence are all required |
 | Replay handling | Stale cached TARGET state keeps UI actions disabled | After the handoff, ordinary SOURCE monotonic checks resume |
 | Regression boundary | A broad tuple reset could affect proven VMware behavior | Gate is limited to remote `KVM_TO_KVM` Failback recovery |
+
+### Ordinary pause and resume target-export admission
+
+The UI `resumeDrSync` action is an independent entry point from Failback
+recovery, but both resume the same remote SOURCE scheduler. They therefore
+share one mandatory admission sequence for remote `KVM_TO_KVM` RBD Plans:
+
+1. build the current immutable profile from Plan and mapping state;
+2. call the target Agent's idempotent `TARGET_EXPORT_START`;
+3. require one typed endpoint for every mapped disk;
+4. inject those endpoints into `transport.exports`;
+5. dispatch `RESUME_SYNC` to the original-site Agent;
+6. project the first incremental Cycle and its resource-wait state.
+
+Cloud does not mark export preparation as optional and does not reconstruct an
+NBD URI from stale runtime text. A missing target export blocks scheduler
+admission or becomes the explicit retryable
+`DR_TARGET_EXPORT_UNAVAILABLE` state. It is never presented as local NBD
+cleanup failure. The existing Failback rehydration helper and the ordinary UI
+adapter must remain covered by separate tests so one path cannot regress while
+the other still passes.
+
+| Area | AS-IS | TO-BE |
+| --- | --- | --- |
+| Resume entry points | Failback resume rehydrates exports; UI resume can skip it | Both entry points use the same export-first contract |
+| Agent dispatch | Empty `transport.exports` reaches source | Dispatch occurs only after typed exports are injected |
+| Operator state | UI shows misleading NBD recovery required | UI/API expose target export resource wait |
+| Validation | Dedicated Failback helper test only | Direct UI `RESUME_SYNC` adapter test plus FTCTL smoke |
+| Existing routes | Broad adapter changes could affect VMware | Predicate remains remote `KVM_TO_KVM` only |

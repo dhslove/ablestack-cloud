@@ -204,6 +204,58 @@ public class FtctlDrUnifiedActionAdapterTest {
     }
 
     @Test
+    public void crossSiteKvmResumeDispatchesWithReconciledTargetExports() throws Exception {
+        DrPlanVO plan = new DrPlanVO("cross-site-kvm-resume", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
+        plan.setSourceExternalRef("source-vm-uuid");
+        plan.setActiveSide("SOURCE");
+        plan.setTargetWorkerHostId(102L);
+        plan.setCoordinatorWorkerHostId(103L);
+        plan.setMappingJson("{\"source\":{\"hardware\":{\"sourceHostUuid\":\"source-host-uuid\","
+                + "\"instanceName\":\"i-2-332-VM\"}},\"target\":{\"storagePoolType\":\"RBD\"},"
+                + "\"disks\":[{\"device\":\"sda\",\"sourcePath\":\"rbd:rbd/source-image\","
+                + "\"targetPath\":\"rbd:rbd/target-image\",\"targetStorageRef\":\"target-pool-uuid\","
+                + "\"target\":{\"storageRef\":\"target-pool-uuid\",\"path\":\"target-image\",\"format\":\"raw\"}}]}");
+        DrRunVO run = run(DrConstants.RUN_TYPE_RESUME_SYNC, "{}");
+        HostVO targetHost = Mockito.mock(HostVO.class);
+        Mockito.when(targetHost.getUuid()).thenReturn("target-host-uuid");
+        Mockito.when(targetHost.getPrivateIpAddress()).thenReturn("10.10.32.2");
+        Mockito.when(hostDao.findById(102L)).thenReturn(targetHost);
+        Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        Mockito.when(drPlanOwnedTransportService.supports(plan)).thenReturn(true);
+        Mockito.when(drPlanOwnedTransportService.startForwardTargetExport(
+                Mockito.eq(plan), Mockito.eq(run), Mockito.anyString()))
+                .thenReturn(exports("10.10.32.2", 12032, "dr-resume-sda"));
+        Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("CAPABILITIES"),
+                Mockito.isA(FtctlDrCapabilitiesCommand.class), Mockito.eq("source-host-uuid"),
+                Mockito.eq(FtctlDrCapabilitiesAnswer.class))).thenAnswer(invocation -> {
+                    FtctlDrCapabilitiesAnswer answer = new FtctlDrCapabilitiesAnswer(invocation.getArgument(2), true, "ok");
+                    answer.setSupportedFeatures(java.util.Arrays.asList(
+                            "control-protocol-v2", "dr-site-agent-rbd-transport-v1"));
+                    return answer;
+                });
+        ArgumentCaptor<FtctlDrActionCommand> actionCaptor = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
+        Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("ACTION"), actionCaptor.capture(),
+                Mockito.eq("source-host-uuid"), Mockito.eq(FtctlDrActionAnswer.class))).thenAnswer(invocation -> {
+                    FtctlDrActionCommand command = invocation.getArgument(2);
+                    return new FtctlDrActionAnswer(command, true, "resumed", FtctlDrActionCommand.Action.RESUME_SYNC,
+                            plan.getUuid(), run.getUuid(), "accepted", true, "READY", "resume",
+                            1, run.getUuid(), 0L, null, 0, "{\"result\":\"accepted\"}",
+                            "{\"state\":\"READY\"}");
+                });
+
+        DrAdapterResult result = adapter.execute(new DrExecutionContext(plan, run));
+
+        Assert.assertTrue(result.isSuccess());
+        Mockito.verify(drPlanOwnedTransportService).startForwardTargetExport(
+                Mockito.eq(plan), Mockito.eq(run), Mockito.anyString());
+        Assert.assertEquals(FtctlDrActionCommand.Action.RESUME_SYNC, actionCaptor.getValue().getAction());
+        Assert.assertTrue(actionCaptor.getValue().getProfileJson().contains("\"mode\":\"site-agent-nbd\""));
+        Assert.assertTrue(actionCaptor.getValue().getProfileJson().contains("dr-resume-sda"));
+    }
+
+    @Test
     public void remoteKvmFailbackResumeRehydratesForwardProfileBeforeSourceDispatch() {
         DrPlanVO plan = new DrPlanVO("cross-site-kvm-resume", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
         plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
