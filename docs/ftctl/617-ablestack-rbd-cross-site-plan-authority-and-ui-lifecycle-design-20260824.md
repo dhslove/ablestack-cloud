@@ -1577,12 +1577,32 @@ release remain idempotent. A stale or delayed cancel response can therefore not
 turn a completed Full Seed into an active blocker or erase durable Cycle
 evidence.
 
+When `ALREADY_TERMINAL` is returned after the scheduler has already advanced to
+the next incremental producer, the operation status can no longer carry a live
+`transfer_cycle_sequence`. Cloud may bind the accepted Full Seed from the
+terminal `checkpoint_sequence` only when all of the following are true:
+
+1. `control_request_run_uuid` equals the Cloud Run UUID;
+2. terminal evidence is authoritative, or the owned worker published success
+   with exit code `0`;
+3. state and step are exactly `READY / full-resync-completed`;
+4. both manifest and checkpoint paths contain the Cloud Run UUID and terminal
+   checkpoint sequence;
+5. the canonical Cycle for that Plan and sequence is a completed, durable Full
+   Seed with the expected cycle token.
+
+The producer UUID remains transfer provenance only. It must not prevent the
+control Run that owns the accepted terminal artifacts from reaching
+`SUCCEEDED`. Missing or mismatched artifact identity keeps the Run projectable
+and cannot borrow an unrelated historical Full Seed.
+
 ### AS-IS / TO-BE
 
 | Area | AS-IS | TO-BE |
 | --- | --- | --- |
 | Remote Full Seed cancel | Always dispatched to local coordinator | Dispatched to the source Agent that owns the scheduler |
 | Late cancel | Run remains `CANCEL_REQUESTED` after data is durable | Original authoritative terminal result is projected |
+| Scheduler already advanced | Operation status has no live transfer sequence and Cloud cannot bind the accepted Cycle | Bind the terminal checkpoint only with matching control Run, artifacts, durable canonical Cycle, and cycle token |
 | Agent result | Boolean accepted/rejected | `CANCELED`, `ALREADY_TERMINAL`, or retryable `PENDING` |
 | Terminal history | Cancel can overwrite successful engine evidence | Terminal evidence is immutable and wins the race |
 | Regression boundary | Shared cancel edits can alter proven VMware behavior | Remote routing is gated to remote `KVM_TO_KVM`; existing routes remain unchanged |

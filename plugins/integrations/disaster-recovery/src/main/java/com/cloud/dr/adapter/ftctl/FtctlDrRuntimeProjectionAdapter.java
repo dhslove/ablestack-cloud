@@ -2448,6 +2448,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             run.setCompleted(null);
         }
         bindAcceptedCycleFromControlRequest(plan, run, status, runtime);
+        bindAcceptedCycleFromLateTerminalCheckpoint(plan, run, status, runtime);
         if (StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_TEST_FAILOVER)
                 && drTargetMaterializationService.isTestTargetActive(run.getId())) {
             completeRunFromProjection(plan, run, status);
@@ -2576,6 +2577,56 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         DrSyncCycleVO cycle = drSyncCycleDao.findByPlanSequence(plan.getId(), sequence);
         String expectedToken = plan.getUuid() + ":" + sequence;
         if (cycle == null || !isFullSeedMode(cycle.getRequestedMode())
+                || !StringUtils.equals(expectedToken, cycle.getCycleToken())) {
+            return;
+        }
+        run.setAcceptedCycleSequence(sequence);
+        run.setAcceptedCycleToken(expectedToken);
+        run.markUpdated();
+        drRunDao.update(run.getId(), run);
+    }
+
+    void bindAcceptedCycleFromLateTerminalCheckpoint(DrPlanVO plan, DrRunVO run,
+            FtctlDrStatusAnswer status, JsonObject runtime) {
+        if (plan == null || run == null || status == null || runtime == null
+                || run.getAcceptedCycleSequence() != null || !isFullReseedRun(run)) {
+            return;
+        }
+        String controlRequestRunUuid = StringUtils.defaultIfBlank(status.getControlRequestRunUuid(),
+                stringValue(runtime, "control_request_run_uuid"));
+        String terminalSource = StringUtils.defaultIfBlank(status.getTerminalSource(),
+                stringValue(runtime, "terminal_source"));
+        boolean terminalAuthoritative = Boolean.TRUE.equals(status.getTerminalAuthoritative())
+                || Boolean.TRUE.equals(booleanValue(runtime, "terminal_authoritative"))
+                || StringUtils.equalsIgnoreCase(terminalSource, "ENGINE_TERMINAL");
+        String workerState = StringUtils.defaultIfBlank(status.getWorkerState(), stringValue(runtime, "worker_state"));
+        Integer workerExitCode = status.getWorkerExitCode() != null ? status.getWorkerExitCode()
+                : integerValue(runtime, "worker_exit_code");
+        boolean terminalPublished = StringUtils.equalsAnyIgnoreCase(workerState, "TERMINAL_PUBLISHED", "SUCCEEDED")
+                && Integer.valueOf(0).equals(workerExitCode);
+        String runtimeState = StringUtils.defaultIfBlank(status.getState(), stringValue(runtime, "state"));
+        String runtimeStep = StringUtils.defaultIfBlank(status.getStep(), stringValue(runtime, "step"));
+        Long sequence = longValue(runtime, "checkpoint_sequence");
+        if (!StringUtils.equals(run.getUuid(), controlRequestRunUuid)
+                || (!terminalAuthoritative && !terminalPublished)
+                || !StringUtils.equalsIgnoreCase(runtimeState, DrConstants.PLAN_STATE_READY)
+                || !StringUtils.equalsIgnoreCase(runtimeStep, "full-resync-completed")
+                || sequence == null) {
+            return;
+        }
+        String artifactMarker = run.getUuid() + "-cycle-" + sequence + "-";
+        String manifestPath = stringValue(runtime, "manifest_path");
+        String checkpointPath = stringValue(runtime, "checkpoint_path");
+        if (!StringUtils.contains(manifestPath, artifactMarker)
+                || !StringUtils.contains(checkpointPath, artifactMarker)) {
+            return;
+        }
+        DrSyncCycleVO cycle = drSyncCycleDao.findByPlanSequence(plan.getId(), sequence);
+        String expectedToken = plan.getUuid() + ":" + sequence;
+        if (cycle == null || cycle.getCompleted() == null
+                || !isFullSeedMode(cycle.getRequestedMode())
+                || !StringUtils.equalsAnyIgnoreCase(cycle.getState(), "READY", "COMPLETED", "TARGET_READY")
+                || !StringUtils.equalsAnyIgnoreCase(cycle.getCommitState(), "LOCAL_DURABLE", "COMMITTED", "DURABLE")
                 || !StringUtils.equals(expectedToken, cycle.getCycleToken())) {
             return;
         }

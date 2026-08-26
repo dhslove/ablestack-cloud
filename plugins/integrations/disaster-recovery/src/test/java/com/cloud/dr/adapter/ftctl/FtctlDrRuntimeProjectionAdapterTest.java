@@ -1226,20 +1226,24 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         cutoverOrder.verify(drPlanOwnedTransportService).stopForwardTargetExport(
                 plan, run, null, 12L);
         cutoverOrder.verify(drTargetMaterializationService).ensureTargetPoweredOn(plan.getId());
+        ArgumentCaptor<FtctlDrActionCommand> sourceCommandCaptor = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
         cutoverOrder.verify(drRemoteAgentClient).execute(Mockito.eq(plan), Mockito.eq("ACTION"),
-                Mockito.argThat(command -> command instanceof FtctlDrActionCommand
-                        && ((FtctlDrActionCommand) command).getAction() == FtctlDrActionCommand.Action.CUTOVER_COMMIT),
+                sourceCommandCaptor.capture(),
                 Mockito.eq("source-worker-uuid"), Mockito.eq(FtctlDrActionAnswer.class));
+        ArgumentCaptor<FtctlDrActionCommand> targetCommandCaptor = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
         cutoverOrder.verify(agentManager).easySend(Mockito.eq(102L), Mockito.argThat(command ->
                 command instanceof FtctlDrActionCommand
                         && ((FtctlDrActionCommand) command).getAction() == FtctlDrActionCommand.Action.CUTOVER_COMMIT
-                        && "target".equals(((FtctlDrActionCommand) command).getRole())
-                        && Long.valueOf(153L).equals(
-                                ((FtctlDrActionCommand) command).getAuthoritySequenceFloor())));
-        ArgumentCaptor<FtctlDrActionCommand> targetCommandCaptor = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
+                        && "target".equals(((FtctlDrActionCommand) command).getRole())));
         Mockito.verify(agentManager).easySend(Mockito.eq(102L), targetCommandCaptor.capture());
+        Assert.assertEquals(FtctlDrActionCommand.Action.CUTOVER_COMMIT,
+                sourceCommandCaptor.getValue().getAction());
+        Assert.assertEquals("coordinator", sourceCommandCaptor.getValue().getRole());
         Assert.assertEquals(FtctlDrActionCommand.Action.CUTOVER_COMMIT, targetCommandCaptor.getValue().getAction());
         Assert.assertEquals("target", targetCommandCaptor.getValue().getRole());
+        Assert.assertEquals(sourceCommandCaptor.getValue().getAuthoritySequenceFloor(),
+                targetCommandCaptor.getValue().getAuthoritySequenceFloor());
+        Assert.assertTrue(targetCommandCaptor.getValue().getAuthoritySequenceFloor() >= 12L);
         Mockito.verify(agentManager, Mockito.never()).easySend(Mockito.eq(103L), Mockito.isA(FtctlDrActionCommand.class));
     }
 
@@ -2629,5 +2633,75 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         Assert.assertEquals(Long.valueOf(1141L), run.getAcceptedCycleSequence());
         Assert.assertEquals(plan.getUuid() + ":1141", run.getAcceptedCycleToken());
         Assert.assertTrue(adapter.isAcceptedFullReseedCycleSatisfied(run, status, runtime));
+    }
+
+    @Test
+    public void lateCancelBindsAuthoritativeFullSeedCheckpointAfterSchedulerProducerAdvances() {
+        DrPlanVO plan = new DrPlanVO("plan-43", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        ReflectionTestUtils.setField(plan, "id", 43L);
+        DrRunVO run = new DrRunVO(43L, DrConstants.RUN_TYPE_SYNC);
+        ReflectionTestUtils.setField(run, "id", 190L);
+        run.setRequestJson("{\"mode\":\"FULL_RESEED\",\"forceImmediateCycle\":true}");
+
+        DrSyncCycleVO acceptedCycle = new DrSyncCycleVO(43L, "scheduler-full-seed", 75L);
+        acceptedCycle.setRunId(189L);
+        acceptedCycle.setCycleToken(plan.getUuid() + ":75");
+        acceptedCycle.setRequestedMode("FULL_SEED");
+        acceptedCycle.setEffectiveMode("FULL_SEED");
+        acceptedCycle.setState("READY");
+        acceptedCycle.setCommitState("LOCAL_DURABLE");
+        acceptedCycle.setCompleted(new Date());
+        Mockito.when(drSyncCycleDao.findByPlanSequence(43L, 75L)).thenReturn(acceptedCycle);
+
+        FtctlDrStatusCommand command = new FtctlDrStatusCommand("plan-43", run.getUuid(),
+                FtctlDrStatusCommand.StatusScope.OPERATION);
+        FtctlDrStatusAnswer status = new FtctlDrStatusAnswer(command, true, "ok");
+        status.setControlRequestRunUuid(run.getUuid());
+        status.setTerminalAuthoritative(true);
+        status.setTerminalSource("ENGINE_TERMINAL");
+        status.setWorkerState("TERMINAL_PUBLISHED");
+        status.setWorkerExitCode(0);
+        JsonObject runtime = new JsonObject();
+        runtime.addProperty("control_request_run_uuid", run.getUuid());
+        runtime.addProperty("terminal_authoritative", true);
+        runtime.addProperty("state", "READY");
+        runtime.addProperty("step", "full-resync-completed");
+        runtime.addProperty("checkpoint_sequence", 75L);
+        runtime.addProperty("manifest_path", "/runtime/manifests/" + run.getUuid() + "-cycle-75-manifest.json");
+        runtime.addProperty("checkpoint_path", "/runtime/checkpoints/" + run.getUuid() + "-cycle-75-checkpoint.json");
+
+        adapter.bindAcceptedCycleFromLateTerminalCheckpoint(plan, run, status, runtime);
+
+        Assert.assertEquals(Long.valueOf(75L), run.getAcceptedCycleSequence());
+        Assert.assertEquals(plan.getUuid() + ":75", run.getAcceptedCycleToken());
+        Mockito.verify(drRunDao).update(run.getId(), run);
+        Assert.assertTrue(adapter.isAcceptedFullReseedCycleSatisfied(run, status, runtime));
+    }
+
+    @Test
+    public void lateCancelRejectsCheckpointArtifactsOwnedByAnotherControlRun() {
+        DrPlanVO plan = new DrPlanVO("plan-44", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        ReflectionTestUtils.setField(plan, "id", 44L);
+        DrRunVO run = new DrRunVO(44L, DrConstants.RUN_TYPE_SYNC);
+        ReflectionTestUtils.setField(run, "id", 191L);
+        run.setRequestJson("{\"mode\":\"FULL_RESEED\"}");
+        FtctlDrStatusCommand command = new FtctlDrStatusCommand("plan-44", run.getUuid(),
+                FtctlDrStatusCommand.StatusScope.OPERATION);
+        FtctlDrStatusAnswer status = new FtctlDrStatusAnswer(command, true, "ok");
+        status.setControlRequestRunUuid(run.getUuid());
+        status.setTerminalAuthoritative(true);
+        JsonObject runtime = new JsonObject();
+        runtime.addProperty("control_request_run_uuid", run.getUuid());
+        runtime.addProperty("terminal_authoritative", true);
+        runtime.addProperty("state", "READY");
+        runtime.addProperty("step", "full-resync-completed");
+        runtime.addProperty("checkpoint_sequence", 75L);
+        runtime.addProperty("manifest_path", "/runtime/manifests/another-run-cycle-75-manifest.json");
+        runtime.addProperty("checkpoint_path", "/runtime/checkpoints/another-run-cycle-75-checkpoint.json");
+
+        adapter.bindAcceptedCycleFromLateTerminalCheckpoint(plan, run, status, runtime);
+
+        Assert.assertNull(run.getAcceptedCycleSequence());
+        Mockito.verify(drRunDao, Mockito.never()).update(run.getId(), run);
     }
 }
