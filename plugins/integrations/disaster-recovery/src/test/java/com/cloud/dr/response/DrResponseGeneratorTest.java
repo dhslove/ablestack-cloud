@@ -168,6 +168,21 @@ public class DrResponseGeneratorTest {
     }
 
     @Test
+    public void remoteSourceWorkerAuthorityIsProjectedFromMapping() {
+        DrPlanVO plan = new DrPlanVO("plan", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setMappingJson("{\"source\":{\"hardware\":{"
+                + "\"sourceHostUuid\":\"source-host-uuid\","
+                + "\"sourceHostName\":\"ablecube13-1\"}}}");
+
+        DrPlanResponse response = generator.createPlanResponse(plan, Collections.emptyMap());
+        JsonObject json = JsonParser.parseString(GSON.toJson(response)).getAsJsonObject();
+
+        Assert.assertFalse(json.has("sourceworkerhostid"));
+        Assert.assertEquals("source-host-uuid", json.get("sourceworkerhostuuid").getAsString());
+        Assert.assertEquals("ablecube13-1", json.get("sourceworkerhostname").getAsString());
+    }
+
+    @Test
     public void typedActionAvailabilityIsSerializedWithLegacyEligibility() {
         DrPlanVO plan = new DrPlanVO("plan", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
         plan.setState(DrConstants.PLAN_STATE_READY);

@@ -392,6 +392,14 @@ public class DrPlanResponse extends BaseResponse {
     @Param(description = "the source worker host ID")
     private Long sourceWorkerHostId;
 
+    @SerializedName("sourceworkerhostuuid")
+    @Param(description = "the remote source worker host UUID")
+    private String sourceWorkerHostUuid;
+
+    @SerializedName("sourceworkerhostname")
+    @Param(description = "the remote source worker host name")
+    private String sourceWorkerHostName;
+
     @SerializedName("targetworkerhostid")
     @Param(description = "the target worker host ID")
     private Long targetWorkerHostId;
@@ -880,6 +888,14 @@ public class DrPlanResponse extends BaseResponse {
 
     public void setSourceWorkerHostId(Long sourceWorkerHostId) {
         this.sourceWorkerHostId = sourceWorkerHostId;
+    }
+
+    public void setSourceWorkerHostUuid(String sourceWorkerHostUuid) {
+        this.sourceWorkerHostUuid = sourceWorkerHostUuid;
+    }
+
+    public void setSourceWorkerHostName(String sourceWorkerHostName) {
+        this.sourceWorkerHostName = sourceWorkerHostName;
     }
 
     public void setTargetWorkerHostId(Long targetWorkerHostId) {

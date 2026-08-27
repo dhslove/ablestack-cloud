@@ -111,3 +111,25 @@ hard-coded light backgrounds or black text are prohibited.
 | FTCTL | RBD-only incremental | QMP bitmap push backup for qcow2 |
 | DB | Existing plan stores stale preview evidence | Same plan updated, no duplicate plan |
 | UI | Cannot complete the existing plan | Full menu lifecycle with terminal evidence |
+
+## 9. Remote KVM source authority
+
+The controller-local `dr_plan.source_worker_host_id` remains a foreign key for
+hosts owned by the controller Mold only. It must not contain a host ID from a
+remote source Mold. For a remote ABLESTACK source, the signed Mold inventory is
+authoritative and the guided mapping stores `sourceHostUuid` and
+`sourceHostName` under `source.hardware`.
+
+KVM virtual machines without an explicit UEFI detail use the existing Cloud
+contract: no UEFI detail means BIOS/legacy firmware and Secure Boot is false.
+The absence of the optional UEFI detail must not discard otherwise valid source
+host authority. `DrPlanResponse` therefore exposes the remote source worker
+UUID and name separately, and the UI displays the local host ID or the remote
+name/UUID as appropriate.
+
+| Layer | AS-IS | TO-BE |
+| --- | --- | --- |
+| Source inventory | Missing optional UEFI data replaces valid host data with an inventory error | Remote KVM defaults to BIOS and preserves host UUID/name |
+| Plan persistence | Remote host cannot be represented by the local host foreign key | Remote host authority remains in `mapping_json.source.hardware` |
+| API | Only controller-local `sourceworkerhostid` is exposed | Remote `sourceworkerhostuuid` and `sourceworkerhostname` are also exposed |
+| UI | Remote source worker is shown as `-` | Remote source worker name and UUID are shown consistently |

@@ -117,9 +117,7 @@ public class DrSourceHardwareInventoryServiceImpl extends ManagerBase implements
             hardware.setInstanceName(values.get("instanceName"));
             String bootType = normalizeBootType(values.get("bootType"), values.get("uefi"));
             if (bootType == null) {
-                return DrSourceVmHardware.unavailable(plan.getSourceExternalRef(),
-                        DrPlanReadinessValidator.REASON_SOURCE_HARDWARE_INVENTORY_REQUIRED,
-                        "ABLESTACK source boot type could not be determined");
+                bootType = "BIOS";
             }
             hardware.setFirmware(bootType);
             hardware.setSecureBootEnabled(resolveSecureBoot(values.get("secureBoot"), values.get("bootMode"), values.get("uefi")));

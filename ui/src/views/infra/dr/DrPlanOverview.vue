@@ -138,7 +138,7 @@ export default {
           value: sourceVm,
           route: this.plan.sourcevmid ? { path: '/vm/' + this.plan.sourcevmid } : null
         },
-        { key: 'sourceWorkerHost', label: this.$t('label.dr.source.worker.host'), value: this.plan.sourceworkerhostid },
+        { key: 'sourceWorkerHost', label: this.$t('label.dr.source.worker.host'), value: this.sourceWorkerHostLabel },
         { key: 'targetWorkerHost', label: this.$t('label.dr.target.worker.host'), value: this.plan.targetworkerhostid },
         { key: 'coordinatorWorkerHost', label: this.$t('label.dr.coordinator.worker.host'), value: this.plan.coordinatorworkerhostid },
         { key: 'targetMaterializationState', label: this.$t('label.dr.target.materialization.state'), value: this.plan.targetmaterializationstate },
@@ -184,6 +184,17 @@ export default {
       const values = [this.plan.currentcyclesequence, this.plan.currentcyclemode, this.plan.currentcyclestate]
         .filter(value => value !== undefined && value !== null && String(value).length > 0)
       return values.length ? values.join(' / ') : '-'
+    },
+    sourceWorkerHostLabel () {
+      if (this.plan.sourceworkerhostid) {
+        return this.plan.sourceworkerhostid
+      }
+      const name = this.plan.sourceworkerhostname
+      const uuid = this.plan.sourceworkerhostuuid
+      if (name && uuid) {
+        return `${name} (${uuid})`
+      }
+      return name || uuid || '-'
     },
     currentRunFailed () {
       return String(this.currentRun.state || '').toUpperCase() === 'FAILED'

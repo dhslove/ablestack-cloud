@@ -191,6 +191,9 @@ public class DrResponseGenerator extends ManagerBase {
         response.setMappingJson(plan.getMappingJson());
         response.setQuiescePolicyJson(plan.getQuiescePolicyJson());
         response.setSourceWorkerHostId(plan.getSourceWorkerHostId());
+        JsonObject sourceHardware = firstObject(firstObject(parseObject(plan.getMappingJson()), "source"), "hardware");
+        response.setSourceWorkerHostUuid(firstString(sourceHardware, "sourceHostUuid"));
+        response.setSourceWorkerHostName(firstString(sourceHardware, "sourceHostName"));
         response.setTargetWorkerHostId(plan.getTargetWorkerHostId());
         response.setCoordinatorWorkerHostId(plan.getCoordinatorWorkerHostId());
         response.setProtectionGroupUuid(plan.getProtectionGroupUuid());

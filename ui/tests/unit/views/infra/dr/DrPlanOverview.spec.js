@@ -104,4 +104,16 @@ describe('DrPlanOverview current warning projection', () => {
     expect(wrapper.vm.riskAlertType).toBe('info')
     expect(wrapper.vm.riskSummary).toBe('Run reprotect.')
   })
+
+  test('shows remote source worker authority when no local host ID exists', () => {
+    const wrapper = createWrapper({
+      state: 'NEW',
+      sourceworkerhostuuid: 'source-host-uuid',
+      sourceworkerhostname: 'ablecube13-1'
+    })
+
+    expect(wrapper.vm.sourceWorkerHostLabel).toBe('ablecube13-1 (source-host-uuid)')
+    expect(wrapper.vm.detailFields.find(field => field.key === 'sourceWorkerHost').value)
+      .toBe('ablecube13-1 (source-host-uuid)')
+  })
 })
