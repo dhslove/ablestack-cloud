@@ -1,11 +1,12 @@
-# QCOW2 DR 13 Single-Host Test Environment Deployment
+# QCOW2 DR 13 Test Environment Deployment
 
 ## Purpose And Scope
 
 This document records the test-release deployment prepared for local-qcow2 DR
-validation involving the 13 cluster. Per the approved scope, only the
-management server `10.10.13.10` and the single compute host `10.10.13.1` were
-modified. Hosts `10.10.13.2` and `10.10.13.3` were not deployment targets.
+validation involving the 13 cluster. The initial approved scope covered the
+management server `10.10.13.10` and compute host `10.10.13.1`. On 2026-08-27,
+the same release was additionally deployed to `10.10.13.2`. Host
+`10.10.13.3` was not a deployment target.
 
 The deployment establishes the Cloud, Agent, V2K/N2K, qemu-exec-tools, FTCTL,
 and HangCTL software baseline. It does not create a DR site or plan and does
@@ -48,6 +49,7 @@ before installation. All SHA256 values matched.
 |---|---|---:|---|
 | Management | `10.10.13.10` | 22 | `13-management-root`, `13-admin` |
 | Compute | `10.10.13.1` | 22 | `13-compute-root` |
+| Compute | `10.10.13.2` | 22 | `13-compute-root` |
 
 Credential values are not stored in this document or repository. The
 following GitHub `dr-test` Environment secret names were added to both
@@ -70,8 +72,10 @@ Cloud and Usage database dumps, installed package inventory, Cloud
 configuration, management libraries, active webapp, and checksums.
 
 The compute backup is stored at `/root/qcow2-dr-host-backup-20260826` on
-`10.10.13.1`. It contains the package inventory and the Cloud/ABLESTACK/qemu
-tool configuration and installation trees.
+`10.10.13.1`. The additional `10.10.13.2` deployment backup is stored at
+`/root/qcow2-dr-host-backup-20260827`. Each backup contains the package
+inventory and the Cloud/ABLESTACK/qemu tool configuration and installation
+trees.
 
 All packages were installed with `aspkg`. The active Cloud webapp was kept at
 `/usr/share/cloudstack-management/webapp`; `WEB-INF` was verified before and
@@ -85,9 +89,10 @@ started normally and package verification reported no missing package JARs.
 This is the same package-cleanup protection required by the dual-cluster test
 deployment procedure.
 
-On `10.10.13.1`, NBD was confirmed idle before the module was reloaded. The
-persistent configuration is `nbds_max=32` and `max_part=16`; devices
-`/dev/nbd16` through `/dev/nbd31` were verified.
+On `10.10.13.1` and `10.10.13.2`, NBD was confirmed idle before the module was
+loaded or reloaded. The persistent configuration is `nbds_max=32` and
+`max_part=16`; devices `/dev/nbd16` through `/dev/nbd31` were verified on both
+hosts.
 
 ## Verification Results
 
@@ -101,12 +106,12 @@ persistent configuration is `nbds_max=32` and `max_part=16`; devices
 | `cloud.dr.service.enabled` | `true` |
 | DR site/plan API under administrator session | HTTP 200 |
 | Active DR sites/plans/runs | 0 / 0 / 0 |
-| `mold-agent` on `10.10.13.1` | active; host `Up/Enabled` |
-| FTCTL and HangCTL timers | active |
-| Runtime `nbds_max` | 32 |
+| `mold-agent` on `10.10.13.1` and `.2` | active; both hosts `Up/Enabled` |
+| FTCTL and HangCTL timers on `.1` and `.2` | active |
+| Runtime `nbds_max` on `.1` and `.2` | 32 |
 | `dr_runtime.sh` SHA256 | `5c7d1537637df00a25a0a10a0691d95db0a2b3f67bed75ea81ebc6125375ecaa` |
 | `dr_scheduler.sh` SHA256 | `004790aa6f5f35722d395a6cd6e7e9c11e3ae5ad3651e5c72460ab023180c1bf` |
-| Connectivity from `10.10.13.1` to 12/31 management SSH and UI | PASS |
+| Connectivity from the 13-cluster deployment to 12/31 management SSH and UI | PASS |
 
 ## QCOW2 Test Precondition
 
@@ -119,6 +124,6 @@ confirmed in the UI and Cloud DB.
 
 ## Final State
 
-The approved deployment scope (`10.10.13.10` and `10.10.13.1` only) is PASS.
-No package or configuration change was made on `10.10.13.2` or
+The approved deployment scope (`10.10.13.10`, `10.10.13.1`, and
+`10.10.13.2`) is PASS. No package or configuration change was made on
 `10.10.13.3`.
