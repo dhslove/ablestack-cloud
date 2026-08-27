@@ -25,6 +25,7 @@ import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.TimeZone;
 import java.util.UUID;
 
@@ -1020,9 +1021,9 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             String reseedReason, Date sourceAt, String errorCode, String errorMessage) {
         String engineRunUuid = schemaSafeRuntimeRunUuid(
                 resolveProtectionProducerRunUuid(status, parseObject(status.getStatusJson())));
-        DrSyncCycleVO cycle = drSyncCycleDao.findByPlanSequence(plan.getId(), sequence);
-        if (cycle == null) {
-            cycle = new DrSyncCycleVO(plan.getId(), engineRunUuid, sequence);
+        String cycleToken = plan.getUuid() + ":" + sequence;
+        DrSyncCycleVO cycle = resolveCycleForProjection(plan, status, engineRunUuid, sequence, cycleToken);
+        if (cycle.getStarted() == null) {
             cycle.setStarted(new Date());
         }
         if (cycle.getCompleted() != null) {
@@ -1036,9 +1037,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         cycle.setSchedulerLeaseEpoch(status.getSchedulerLeaseEpoch());
         cycle.setAuthoritySequence(status.getAuthoritySequence());
         cycle.setRequestedMode(requestedMode);
-        if (StringUtils.isBlank(cycle.getCycleToken())) {
-            cycle.setCycleToken(plan.getUuid() + ":" + sequence);
-        }
+        cycle.setCycleToken(cycleToken);
         cycle.setEffectiveMode(effectiveMode);
         cycle.setState(StringUtils.defaultIfBlank(cycleState, status.getState()));
         cycle.setCommitState(status.getDataCommitState());
@@ -1068,14 +1067,12 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         sequence = snapshot.getSequence();
         String engineRunUuid = schemaSafeRuntimeRunUuid(
                 resolveProtectionProducerRunUuid(status, parseObject(status.getStatusJson())));
-        DrSyncCycleVO cycle = drSyncCycleDao.findByPlanSequence(plan.getId(), sequence);
-        if (cycle == null) {
-            cycle = new DrSyncCycleVO(plan.getId(), engineRunUuid, sequence);
+        String cycleToken = StringUtils.defaultIfBlank(snapshot.getCycleToken(), plan.getUuid() + ":" + sequence);
+        DrSyncCycleVO cycle = resolveCycleForProjection(plan, status, engineRunUuid, sequence, cycleToken);
+        if (cycle.getStarted() == null) {
             cycle.setStarted(parseDate(status.getLatestCompletedSourceCheckpointAt()));
         }
-        if (cycle.getCompleted() != null && cycle.getBaselineGeneration() != null
-                && cycle.getBaselineGeneration().equals(cycle.getSequence())
-                && StringUtils.equals(cycle.getCycleToken(), snapshot.getCycleToken())) {
+        if (cycle.getCompleted() != null && StringUtils.equals(cycle.getCycleToken(), cycleToken)) {
             bindAcceptedCycleIfEligible(projectionRun, cycle);
             return cycle;
         }
@@ -1087,7 +1084,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         cycle.setSchedulerSessionUuid(status.getSchedulerSessionUuid());
         cycle.setSchedulerLeaseEpoch(status.getSchedulerLeaseEpoch());
         cycle.setAuthoritySequence(status.getAuthoritySequence());
-        cycle.setCycleToken(snapshot.getCycleToken());
+        cycle.setCycleToken(cycleToken);
         cycle.setRequestedMode(StringUtils.defaultIfBlank(snapshot.getRequestedMode(),
                 status.getLatestCompletedCheckpointCycleType()));
         cycle.setEffectiveMode(snapshot.getEffectiveMode());
@@ -1127,6 +1124,52 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         persistSyncCycle(cycle);
         bindAcceptedCycleIfEligible(projectionRun, cycle);
         return cycle;
+    }
+
+    DrSyncCycleVO resolveCycleForProjection(DrPlanVO plan, FtctlDrStatusAnswer status, String engineRunUuid,
+            long engineSequence, String cycleToken) {
+        JsonObject runtime = parseObject(status.getStatusJson());
+        String schedulerSessionUuid = StringUtils.defaultIfBlank(status.getSchedulerSessionUuid(),
+                stringValue(runtime, "scheduler_session_uuid"));
+        Long schedulerLeaseEpoch = status.getSchedulerLeaseEpoch() != null ? status.getSchedulerLeaseEpoch()
+                : longValue(runtime, "scheduler_lease_epoch");
+        if (StringUtils.isNotBlank(schedulerSessionUuid) && schedulerLeaseEpoch != null
+                && StringUtils.isNotBlank(cycleToken)) {
+            DrSyncCycleVO exact = drSyncCycleDao.findByPlanSchedulerCycle(plan.getId(), schedulerSessionUuid,
+                    schedulerLeaseEpoch, cycleToken);
+            if (exact != null) {
+                return exact;
+            }
+        }
+        DrSyncCycleVO sequenceCycle = drSyncCycleDao.findByPlanSequence(plan.getId(), engineSequence);
+        boolean legacySequenceOnlyIdentity = sequenceCycle != null
+                && StringUtils.isBlank(sequenceCycle.getSchedulerSessionUuid())
+                && sequenceCycle.getSchedulerLeaseEpoch() == null
+                && StringUtils.isBlank(sequenceCycle.getCycleToken());
+        if (sequenceCycle == null || legacySequenceOnlyIdentity || sameSchedulerCycle(sequenceCycle,
+                schedulerSessionUuid, schedulerLeaseEpoch, cycleToken)) {
+            return sequenceCycle != null ? sequenceCycle
+                    : new DrSyncCycleVO(plan.getId(), engineRunUuid, engineSequence);
+        }
+        DrSyncCycleVO latest = drSyncCycleDao.findLatestByPlanId(plan.getId());
+        long canonicalSequence = engineSequence;
+        if (latest != null && latest.getSequence() >= canonicalSequence && latest.getSequence() < Long.MAX_VALUE) {
+            canonicalSequence = latest.getSequence() + 1L;
+        }
+        Long authoritySequence = status.getAuthoritySequence() != null ? status.getAuthoritySequence()
+                : longValue(runtime, "authority_sequence");
+        if (authoritySequence != null) {
+            canonicalSequence = Math.max(canonicalSequence, authoritySequence);
+        }
+        return new DrSyncCycleVO(plan.getId(), engineRunUuid, canonicalSequence);
+    }
+
+    boolean sameSchedulerCycle(DrSyncCycleVO cycle, String schedulerSessionUuid, Long schedulerLeaseEpoch,
+            String cycleToken) {
+        return cycle != null
+                && StringUtils.equals(cycle.getSchedulerSessionUuid(), schedulerSessionUuid)
+                && Objects.equals(cycle.getSchedulerLeaseEpoch(), schedulerLeaseEpoch)
+                && StringUtils.equals(cycle.getCycleToken(), cycleToken);
     }
 
     void bindAcceptedCycleIfEligible(DrRunVO run, DrSyncCycleVO cycle) {
@@ -2574,14 +2617,15 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         if (sequence == null || !isFullSeedMode(mode)) {
             return;
         }
-        DrSyncCycleVO cycle = drSyncCycleDao.findByPlanSequence(plan.getId(), sequence);
         String expectedToken = plan.getUuid() + ":" + sequence;
-        if (cycle == null || !isFullSeedMode(cycle.getRequestedMode())
-                || !StringUtils.equals(expectedToken, cycle.getCycleToken())) {
+        DrSyncCycleVO cycle = resolveCycleForProjection(plan, status,
+                schemaSafeRuntimeRunUuid(controlRequestRunUuid), sequence, expectedToken);
+        if (cycle.getCompleted() == null || !isFullSeedMode(cycle.getRequestedMode())
+                || StringUtils.isBlank(cycle.getCycleToken())) {
             return;
         }
-        run.setAcceptedCycleSequence(sequence);
-        run.setAcceptedCycleToken(expectedToken);
+        run.setAcceptedCycleSequence(cycle.getSequence());
+        run.setAcceptedCycleToken(cycle.getCycleToken());
         run.markUpdated();
         drRunDao.update(run.getId(), run);
     }
@@ -2621,17 +2665,56 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                 || !StringUtils.contains(checkpointPath, artifactMarker)) {
             return;
         }
-        DrSyncCycleVO cycle = drSyncCycleDao.findByPlanSequence(plan.getId(), sequence);
         String expectedToken = plan.getUuid() + ":" + sequence;
+        DrSyncCycleVO cycle = resolveCycleForProjection(plan, status,
+                schemaSafeRuntimeRunUuid(controlRequestRunUuid), sequence, expectedToken);
+        if (cycle.getCompleted() == null) {
+            Date sourceAt = firstDate(parseDate(status.getLatestCompletedSourceCheckpointAt()),
+                    parseDate(stringValue(runtime, "latest_completed_source_checkpoint_at")),
+                    plan.getLastSourceCheckpointAt(), run.getStarted());
+            Date durableAt = firstDate(parseDate(status.getLatestCompletedTargetDurableAt()),
+                    parseDate(stringValue(runtime, "latest_completed_target_durable_at")),
+                    plan.getLastTargetDurableAt());
+            if (durableAt == null || run.getStarted() != null && durableAt.before(run.getStarted())) {
+                return;
+            }
+            cycle.setRunId(run.getId());
+            cycle.setSchedulerSessionUuid(StringUtils.defaultIfBlank(status.getSchedulerSessionUuid(),
+                    stringValue(runtime, "scheduler_session_uuid")));
+            cycle.setSchedulerLeaseEpoch(status.getSchedulerLeaseEpoch() != null ? status.getSchedulerLeaseEpoch()
+                    : longValue(runtime, "scheduler_lease_epoch"));
+            cycle.setAuthoritySequence(status.getAuthoritySequence() != null ? status.getAuthoritySequence()
+                    : longValue(runtime, "authority_sequence"));
+            cycle.setCycleToken(expectedToken);
+            cycle.setRequestedMode("FULL_SEED");
+            cycle.setEffectiveMode("FULL_SEED");
+            cycle.setState("READY");
+            cycle.setCommitState("LOCAL_DURABLE");
+            cycle.setBaselineGeneration(sequence);
+            cycle.setBaselineState("LOCAL_DURABLE");
+            cycle.setReseedReason("LEGACY_SEQUENCE_COLLISION_RECOVERY");
+            cycle.setAutomaticReseed(false);
+            cycle.setModeDecisionCode("FULL_RESEED_CONTROL_TERMINAL");
+            cycle.setIncrementalVerified(false);
+            cycle.setNbdTeardownState(StringUtils.defaultIfBlank(status.getNbdTeardownState(),
+                    stringValue(runtime, "nbd_teardown_state")));
+            cycle.setSourceCheckpointAt(sourceAt);
+            cycle.setTargetDurableAt(durableAt);
+            cycle.setStarted(sourceAt != null ? sourceAt : run.getStarted());
+            cycle.setCompleted(durableAt);
+            cycle.setErrorCode(null);
+            cycle.setErrorMessage(null);
+            persistSyncCycle(cycle);
+        }
         if (cycle == null || cycle.getCompleted() == null
                 || !isFullSeedMode(cycle.getRequestedMode())
                 || !StringUtils.equalsAnyIgnoreCase(cycle.getState(), "READY", "COMPLETED", "TARGET_READY")
                 || !StringUtils.equalsAnyIgnoreCase(cycle.getCommitState(), "LOCAL_DURABLE", "COMMITTED", "DURABLE")
-                || !StringUtils.equals(expectedToken, cycle.getCycleToken())) {
+                || StringUtils.isBlank(cycle.getCycleToken())) {
             return;
         }
-        run.setAcceptedCycleSequence(sequence);
-        run.setAcceptedCycleToken(expectedToken);
+        run.setAcceptedCycleSequence(cycle.getSequence());
+        run.setAcceptedCycleToken(cycle.getCycleToken());
         run.markUpdated();
         drRunDao.update(run.getId(), run);
     }

@@ -1671,3 +1671,12 @@ An ordinary pause, explicit service stop, protection release, or released Plan
 does not carry this canceled-transfer evidence and remains ineligible. This
 keeps the fallback narrowly scoped to an interrupted transfer whose durable
 baseline must be rebuilt, without weakening existing lifecycle gates.
+
+## Shared Terminal Projection Regression Boundary (2026-08-27)
+
+The cross-site RBD path and the VMware source path share Cloud's terminal and
+Cycle projection code. Scheduler lease changes must therefore follow
+`620-dr-terminal-cycle-lease-collision-reprojection-design-20260827.md`.
+Lease-aware Cycle identity and strict terminal replay are compatibility guards;
+they must not alter the RBD copy transport, target ownership, release, failover,
+or failback contracts defined in this document.

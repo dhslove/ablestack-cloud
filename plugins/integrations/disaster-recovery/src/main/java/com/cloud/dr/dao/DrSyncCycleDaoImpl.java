@@ -20,6 +20,7 @@ import com.cloud.utils.db.UpdateBuilder;
 public class DrSyncCycleDaoImpl extends GenericDaoBase<DrSyncCycleVO, Long> implements DrSyncCycleDao {
     private final SearchBuilder<DrSyncCycleVO> byIdentitySearch;
     private final SearchBuilder<DrSyncCycleVO> byPlanSequenceSearch;
+    private final SearchBuilder<DrSyncCycleVO> byPlanSchedulerCycleSearch;
     private final SearchBuilder<DrSyncCycleVO> byPlanSearch;
     private final SearchBuilder<DrSyncCycleVO> activeByPlanSearch;
     private final SearchBuilder<DrSyncCycleVO> completedByPlanSearch;
@@ -43,6 +44,14 @@ public class DrSyncCycleDaoImpl extends GenericDaoBase<DrSyncCycleVO, Long> impl
         byPlanSequenceSearch.and("sequence", byPlanSequenceSearch.entity().getSequence(), SearchCriteria.Op.EQ);
         byPlanSequenceSearch.and("removed", byPlanSequenceSearch.entity().getRemoved(), SearchCriteria.Op.NULL);
         byPlanSequenceSearch.done();
+
+        byPlanSchedulerCycleSearch = createSearchBuilder();
+        byPlanSchedulerCycleSearch.and("planId", byPlanSchedulerCycleSearch.entity().getPlanId(), SearchCriteria.Op.EQ);
+        byPlanSchedulerCycleSearch.and("schedulerSessionUuid", byPlanSchedulerCycleSearch.entity().getSchedulerSessionUuid(), SearchCriteria.Op.EQ);
+        byPlanSchedulerCycleSearch.and("schedulerLeaseEpoch", byPlanSchedulerCycleSearch.entity().getSchedulerLeaseEpoch(), SearchCriteria.Op.EQ);
+        byPlanSchedulerCycleSearch.and("cycleToken", byPlanSchedulerCycleSearch.entity().getCycleToken(), SearchCriteria.Op.EQ);
+        byPlanSchedulerCycleSearch.and("removed", byPlanSchedulerCycleSearch.entity().getRemoved(), SearchCriteria.Op.NULL);
+        byPlanSchedulerCycleSearch.done();
 
         byPlanSearch = createSearchBuilder();
         byPlanSearch.and("planId", byPlanSearch.entity().getPlanId(), SearchCriteria.Op.EQ);
@@ -99,6 +108,17 @@ public class DrSyncCycleDaoImpl extends GenericDaoBase<DrSyncCycleVO, Long> impl
         sc.setParameters("sequence", sequence);
         List<DrSyncCycleVO> rows = listBy(sc, new Filter(DrSyncCycleVO.class, "completed", false, 0L, 1L));
         return rows != null && !rows.isEmpty() ? rows.get(0) : null;
+    }
+
+    @Override
+    public DrSyncCycleVO findByPlanSchedulerCycle(long planId, String schedulerSessionUuid,
+            long schedulerLeaseEpoch, String cycleToken) {
+        SearchCriteria<DrSyncCycleVO> sc = byPlanSchedulerCycleSearch.create();
+        sc.setParameters("planId", planId);
+        sc.setParameters("schedulerSessionUuid", schedulerSessionUuid);
+        sc.setParameters("schedulerLeaseEpoch", schedulerLeaseEpoch);
+        sc.setParameters("cycleToken", cycleToken);
+        return findOneBy(sc);
     }
 
     @Override

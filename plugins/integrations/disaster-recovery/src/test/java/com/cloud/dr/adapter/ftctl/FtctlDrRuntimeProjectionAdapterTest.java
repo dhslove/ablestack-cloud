@@ -2704,4 +2704,76 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         Assert.assertNull(run.getAcceptedCycleSequence());
         Mockito.verify(drRunDao, Mockito.never()).update(run.getId(), run);
     }
+
+    @Test
+    public void lateFullReseedTerminalRecoversCanonicalCycleWhenSchedulerSequenceWasReused() {
+        DrPlanVO plan = new DrPlanVO("plan-sequence-collision", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        ReflectionTestUtils.setField(plan, "id", 51L);
+        Date started = new Date(System.currentTimeMillis() - 120_000L);
+        Date durable = new Date(System.currentTimeMillis() - 30_000L);
+        plan.setLastSourceCheckpointAt(new Date(started.getTime() + 10_000L));
+        plan.setLastTargetDurableAt(durable);
+
+        DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_SYNC);
+        ReflectionTestUtils.setField(run, "id", 379L);
+        run.setRequestJson("{\"mode\":\"FULL_RESEED\",\"forceImmediateCycle\":true}");
+        run.setStarted(started);
+
+        DrSyncCycleVO oldLeaseCycle = new DrSyncCycleVO(plan.getId(), "old-scheduler", 311L);
+        oldLeaseCycle.setSchedulerSessionUuid(plan.getUuid());
+        oldLeaseCycle.setSchedulerLeaseEpoch(36L);
+        oldLeaseCycle.setCycleToken(plan.getUuid() + ":311");
+        oldLeaseCycle.setRequestedMode("CBT_INCREMENTAL");
+        oldLeaseCycle.setState("READY");
+        oldLeaseCycle.setCommitState("LOCAL_DURABLE");
+        oldLeaseCycle.setCompleted(new Date(started.getTime() - 60_000L));
+        DrSyncCycleVO latestHistoricalCycle = new DrSyncCycleVO(plan.getId(), "old-scheduler", 336L);
+        latestHistoricalCycle.setCompleted(new Date(started.getTime() - 30_000L));
+
+        Mockito.when(drSyncCycleDao.findByPlanSchedulerCycle(plan.getId(), plan.getUuid(), 37L,
+                plan.getUuid() + ":311")).thenReturn(null);
+        Mockito.when(drSyncCycleDao.findByPlanSequence(plan.getId(), 311L)).thenReturn(oldLeaseCycle);
+        Mockito.when(drSyncCycleDao.findLatestByPlanId(plan.getId())).thenReturn(latestHistoricalCycle);
+
+        FtctlDrStatusAnswer status = new FtctlDrStatusAnswer(
+                new FtctlDrStatusCommand(plan.getUuid(), run.getUuid(), FtctlDrStatusCommand.StatusScope.OPERATION),
+                true, "ok");
+        status.setControlRequestRunUuid(run.getUuid());
+        status.setTerminalAuthoritative(true);
+        status.setTerminalSource("ENGINE_TERMINAL");
+        status.setWorkerState("TERMINAL_PUBLISHED");
+        status.setWorkerExitCode(0);
+        status.setSchedulerSessionUuid(plan.getUuid());
+        status.setSchedulerLeaseEpoch(37L);
+        status.setAuthoritySequence(1189L);
+        JsonObject runtime = new JsonObject();
+        runtime.addProperty("control_request_run_uuid", run.getUuid());
+        runtime.addProperty("terminal_authoritative", true);
+        runtime.addProperty("state", "READY");
+        runtime.addProperty("step", "full-resync-completed");
+        runtime.addProperty("checkpoint_sequence", 311L);
+        runtime.addProperty("scheduler_session_uuid", plan.getUuid());
+        runtime.addProperty("scheduler_lease_epoch", 37L);
+        runtime.addProperty("authority_sequence", 1189L);
+        runtime.addProperty("manifest_path", "/runtime/manifests/" + run.getUuid()
+                + "-cycle-311-manifest.json");
+        runtime.addProperty("checkpoint_path", "/runtime/checkpoints/" + run.getUuid()
+                + "-cycle-311-checkpoint.json");
+
+        adapter.bindAcceptedCycleFromLateTerminalCheckpoint(plan, run, status, runtime);
+
+        ArgumentCaptor<DrSyncCycleVO> cycleCaptor = ArgumentCaptor.forClass(DrSyncCycleVO.class);
+        Mockito.verify(drSyncCycleDao).persist(cycleCaptor.capture());
+        DrSyncCycleVO recovered = cycleCaptor.getValue();
+        Assert.assertEquals(1189L, recovered.getSequence());
+        Assert.assertEquals(Long.valueOf(311L), recovered.getBaselineGeneration());
+        Assert.assertEquals(Long.valueOf(37L), recovered.getSchedulerLeaseEpoch());
+        Assert.assertEquals(Long.valueOf(run.getId()), recovered.getRunId());
+        Assert.assertEquals("FULL_SEED", recovered.getRequestedMode());
+        Assert.assertEquals("LOCAL_DURABLE", recovered.getCommitState());
+        Assert.assertEquals(Long.valueOf(1189L), run.getAcceptedCycleSequence());
+        Assert.assertEquals(plan.getUuid() + ":311", run.getAcceptedCycleToken());
+        Mockito.when(drSyncCycleDao.findByPlanSequence(plan.getId(), 1189L)).thenReturn(recovered);
+        Assert.assertTrue(adapter.isAcceptedFullReseedCycleSatisfied(run, status, runtime));
+    }
 }
