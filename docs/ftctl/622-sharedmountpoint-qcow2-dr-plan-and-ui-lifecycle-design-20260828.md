@@ -112,7 +112,37 @@ hard-coded light backgrounds or black text are prohibited.
 | DB | Existing plan stores stale preview evidence | Same plan updated, no duplicate plan |
 | UI | Cannot complete the existing plan | Full menu lifecycle with terminal evidence |
 
-## 9. Remote KVM source authority
+## 9. Source format contract and failed-seed recovery
+
+The first UI-driven full synchronization of the existing plan proved that the
+source volume path does not carry a filename extension. The file is qcow2, but
+the guided-spec sanitizer discarded the inventory `format` field. FTCTL then
+treated the empty format as raw, the full seed failed before transfer, and the
+next scheduler attempt incorrectly selected incremental mode solely because
+the sequence number had advanced.
+
+The corrected contract is intentionally narrow:
+
+- the UI preserves the source inventory `type` and `format` in both the flat
+  disk mapping and nested `source` object;
+- Cloud guided-spec sanitization preserves those fields;
+- FTCTL may inspect a missing format with `qemu-img info --force-share` only
+  for an ABLESTACK-to-ABLESTACK local file source;
+- VMware/VDDK and RBD sources are never inferred or rewritten;
+- an ABLESTACK-to-ABLESTACK plan without a durable completed checkpoint always
+  retries a full seed, regardless of the failed sequence number;
+- provider-specific failures identify the ABLESTACK mover instead of the
+  VMware mover.
+
+| Layer | AS-IS | TO-BE |
+| --- | --- | --- |
+| UI | Source type/format are dropped when disk rows are rebuilt | Inventory type/format survive create and edit serialization |
+| Cloud | Guided spec keeps target format only | Source and target type/format are preserved |
+| FTCTL | Extensionless qcow2 becomes an empty format and falls through as raw | ABLESTACK file source is inspected and canonicalized before dispatch |
+| Scheduler | Failed sequence 1 is followed by incremental sequence 2 | No durable baseline means full seed retry only |
+| Observability | Native replication failure is attributed to `vmware-mover` | Failure component follows the selected provider |
+
+## 10. Remote KVM source authority
 
 The controller-local `dr_plan.source_worker_host_id` remains a foreign key for
 hosts owned by the controller Mold only. It must not contain a host ID from a
@@ -133,3 +163,67 @@ name/UUID as appropriate.
 | Plan persistence | Remote host cannot be represented by the local host foreign key | Remote host authority remains in `mapping_json.source.hardware` |
 | API | Only controller-local `sourceworkerhostid` is exposed | Remote `sourceworkerhostuuid` and `sourceworkerhostname` are also exposed |
 | UI | Remote source worker is shown as `-` | Remote source worker name and UUID are shown consistently |
+| Existing-plan edit | An unchanged form omits the guided fields, so persisted source inventory errors survive a successful edit | A KVM source mapping with an inventory error or missing remote host UUID resubmits the full guided payload and refreshes source authority |
+| Direction vocabulary | Refresh gating recognizes only the internal `KVM_TO_KVM` value | Refresh gating accepts the API/UI `ABLESTACK_TO_ABLESTACK` value and the mapping's internal `KVM_TO_KVM` value while excluding VMware sources |
+| Detail authority display | The source worker row depends on API convenience fields and can show `-` even after mapping repair | The detail view falls back to `mappingjson.source.hardware.sourceHostName/sourceHostUuid` so the remote authority remains visible |
+
+## 11. Existing-plan-only validation and completed transfer telemetry
+
+Validation reuses the operator-created plan
+`41886f03-c19e-4382-927d-89bc4d6ce8e9`. The implementation and test flow must
+not create a replacement site or DR plan.
+
+Each SharedMountPoint full seed records per-disk transferred bytes in the
+durable checkpoint. The qcow2 bitmap push path uses the provider result
+`changedBytes`; other ABLESTACK full-seed paths use the resolved source virtual
+size as the conservative transfer value. The scheduler then publishes those
+checkpoint values as `latest_completed_*`, Cloud projects the canonical
+completed Cycle into `dr_sync_cycle`, and the protection UI reads that Cycle.
+
+`READY` with a completed non-empty full seed displayed as `0 B` is not a UI
+PASS when the FTCTL progress journal proves a non-zero transfer. UI PASS
+requires the completed Cycle sequence, mode, byte counts, and durability
+timestamps to agree across FTCTL, Cloud DB, and the protection tab.
+
+| Layer | AS-IS | TO-BE |
+| --- | --- | --- |
+| FTCTL full seed | Progress journal has bytes but the durable checkpoint omits them | Aggregate per-disk bytes and persist changed/read/written/payload metrics |
+| Cloud Cycle | Completed Cycle receives `NULL` metrics | Canonical Cycle receives checkpoint metrics during normal projection |
+| UI | Missing metrics are rendered as `0 B` | The existing plan shows the completed full-seed transfer amount |
+| Regression scope | A telemetry fix could alter another provider path | Change is limited to ABLESTACK full-seed checkpoint creation; VMware and RBD mechanics remain unchanged |
+
+## 12. Zero-change incremental cycle contract
+
+The existing plan's source scheduler completed automatic SharedMountPoint
+qcow2 cycles, but Cloud retained Cycle 5 while FTCTL advanced through later
+cycles. The periodic projection scheduler was running; its Agent status
+validation rejected each completed cycle as
+`DR_STATUS_CYCLE_EVIDENCE_CONFLICT` because the checkpoint reported zero
+changed and written bytes with `effectiveMode=CBT_INCREMENTAL`.
+
+The shared DR status contract already defines a zero-byte durable cycle as
+`NO_CHANGE`. The contract validator must remain strict because weakening it
+would also change the validated VMware-to-RBD and RBD-to-RBD paths. The
+ABLESTACK driver therefore normalizes only its completed-cycle evidence:
+
+- `requestedMode` remains `CBT_INCREMENTAL` because the scheduler requested an
+  incremental cycle;
+- `effectiveMode` is `NO_CHANGE` when the aggregate changed byte count is zero;
+- `effectiveMode` remains `CBT_INCREMENTAL` when at least one byte changed;
+- durability, bitmap advancement, Cycle token, and NBD teardown evidence are
+  still required and are not inferred by Cloud;
+- the rule applies uniformly to ABLESTACK remote RBD, SharedMountPoint qcow2
+  bitmap push, and site-agent NBD implementations.
+
+After deployment, the existing Plan must converge without DB repair: the next
+automatic cycle is projected, stale active Cycle aliases are superseded, the
+Plan runtime reaches `READY/IDLE`, and the cached protection view follows the
+latest completed sequence. No replacement Site or Plan may be created.
+
+| Layer | AS-IS | TO-BE |
+| --- | --- | --- |
+| FTCTL | Zero-byte incremental completion is labeled `CBT_INCREMENTAL` | Requested mode stays incremental; effective mode is `NO_CHANGE` |
+| Agent | Correctly rejects zero-byte `CBT_INCREMENTAL` evidence | Existing strict validation accepts the corrected `NO_CHANGE` evidence |
+| Cloud | Projection cache remains on a stale active Cycle | Periodic projection consumes the next valid completed Cycle |
+| DB | Plan runtime sequence trails the source scheduler | Runtime and canonical Cycle advance atomically without manual repair |
+| UI | Existing Plan appears indefinitely syncing | Existing Plan converges to `READY/IDLE` and shows the latest durable Cycle |
