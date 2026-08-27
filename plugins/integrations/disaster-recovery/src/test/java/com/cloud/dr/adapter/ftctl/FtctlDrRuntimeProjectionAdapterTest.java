@@ -2228,7 +2228,7 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     }
 
     @Test
-    public void refreshPlanProjectionRepairsAcceptedRunWithStaleCompletedTimestamp() {
+    public void refreshPlanProjectionUsesCloudAuthorityForKvmTargetVmAndNetwork() {
         DrPlanVO plan = new DrPlanVO("ftctl-dr-plan", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
         plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
         plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
@@ -2244,9 +2244,9 @@ public class FtctlDrRuntimeProjectionAdapterTest {
 
         String statusJson = "{\"state\":\"SYNCING\",\"step\":\"target-checkpoint-ready\",\"progress\":100,"
                 + "\"cycle_state\":\"IDLE\",\"current_checkpoint_state\":\"COMPLETED\","
-                + "\"scheduler_pid_alive\":true,\"target_materialized\":true,"
-                + "\"target_vm_present\":true,\"target_storage_present\":true,"
-                + "\"target_network_present\":true,\"restore_point_present\":true,"
+                + "\"scheduler_pid_alive\":true,\"target_materialized\":false,"
+                + "\"target_vm_present\":false,\"target_storage_present\":true,"
+                + "\"target_network_present\":false,\"restore_point_present\":true,"
                 + "\"last_target_durable_at\":\"2026-07-19T09:20:00Z\"}";
         Mockito.when(agentManager.easySend(Mockito.eq(103L), Mockito.any(FtctlDrStatusCommand.class))).thenAnswer(invocation -> {
             FtctlDrStatusCommand command = invocation.getArgument(1);
@@ -2632,6 +2632,36 @@ public class FtctlDrRuntimeProjectionAdapterTest {
 
         Assert.assertEquals(Long.valueOf(1141L), run.getAcceptedCycleSequence());
         Assert.assertEquals(plan.getUuid() + ":1141", run.getAcceptedCycleToken());
+        Assert.assertTrue(adapter.isAcceptedFullReseedCycleSatisfied(run, status, runtime));
+    }
+
+    @Test
+    public void acceptedFullReseedCycleCompletesAfterCurrentControlAdvancesToIncrementalScheduler() {
+        DrPlanVO plan = new DrPlanVO("plan-42-next", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        ReflectionTestUtils.setField(plan, "id", 142L);
+        DrRunVO run = new DrRunVO(142L, DrConstants.RUN_TYPE_SYNC);
+        ReflectionTestUtils.setField(run, "id", 289L);
+        run.setRequestJson("{\"mode\":\"FULL_RESEED\",\"forceFullReseed\":true}");
+        run.setAcceptedCycleSequence(1208L);
+        run.setAcceptedCycleToken(plan.getUuid() + ":311");
+
+        DrSyncCycleVO acceptedCycle = new DrSyncCycleVO(plan.getId(), run.getUuid(), 1208L);
+        acceptedCycle.setRunId(run.getId());
+        acceptedCycle.setCycleToken(plan.getUuid() + ":311");
+        acceptedCycle.setRequestedMode("FULL_SEED");
+        acceptedCycle.setEffectiveMode("FULL_SEED");
+        acceptedCycle.setState("READY");
+        acceptedCycle.setCommitState("LOCAL_DURABLE");
+        acceptedCycle.setCompleted(new Date());
+        Mockito.when(drSyncCycleDao.findByPlanSequence(plan.getId(), 1208L)).thenReturn(acceptedCycle);
+
+        FtctlDrStatusCommand command = new FtctlDrStatusCommand(plan.getUuid(), run.getUuid(),
+                FtctlDrStatusCommand.StatusScope.OPERATION);
+        FtctlDrStatusAnswer status = new FtctlDrStatusAnswer(command, true, "ok");
+        status.setControlRequestRunUuid("scheduler-next-incremental");
+        JsonObject runtime = new JsonObject();
+        runtime.addProperty("control_request_run_uuid", "scheduler-next-incremental");
+
         Assert.assertTrue(adapter.isAcceptedFullReseedCycleSatisfied(run, status, runtime));
     }
 

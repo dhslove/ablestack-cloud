@@ -615,3 +615,68 @@ The installed scripts contain the resource-wait and VMware device-key paths,
 and the obsolete cloud-managed `reverse_sync_timeout` behavior is absent. The
 two clusters are therefore aligned to the same origin-built test release and
 are ready for UI-driven DR regression testing.
+
+## 2026-08-27 Terminal Cycle Reprojection And 32-Cluster Alignment
+
+### Change and build identity
+
+The Cloud terminal projection was hardened for a scheduler advance that occurs
+after a Full Seed has already become durable. A Run-owned accepted Full Seed
+Cycle remains immutable completion evidence when the current scheduler Run UUID
+has advanced to the next incremental producer. The accepted sequence and token,
+Run ownership, terminal Cycle state, and durable commit state must all match.
+
+For Cloud-managed KVM replicas, Cloud's active `dr_replica` binding is now the
+authority for target VM and network presence. FTCTL remains authoritative for
+target storage durability, restore-point publication, and checkpoint evidence.
+This avoids treating non-owning FTCTL VM/network flags as a failed target while
+preserving strict storage and durability checks.
+
+The changed-module build was run from the WSL ext4 clone
+`/home/ablecloud/work/verify/cloud-cycle-20260827` and completed successfully.
+`FtctlDrRuntimeProjectionAdapterTest` ran 64 tests with no failures or errors.
+The final Cloud class overlay SHA256 was
+`742159a5ce6fe1c5fe2b7467a9a2a23a8b8b3a3947d293365aa6a6736de4858b`.
+
+The paired FTCTL source is commit
+`0b528b6594833c2549ffe667e27e79a90152a9ef` and GitHub Actions run
+[`33040777611`](https://github.com/dhslove/ablestack-qemu-exec-tools/actions/runs/33040777611).
+The deployed `ablestack_vm_ftctl-0.9.5-1.noarch.rpm` artifact SHA256 is
+`a3c3c8325657d4e9172a6812ad07f6e63bd56c67f33d1688b2c26e2fe00183d6`.
+
+### 32-cluster deployment result
+
+The management server `10.10.32.10` is aligned to Cloud build
+`4.23.0.0-Mold.Europa.202608261320.1` for common, management, UI, and usage.
+`mold` and `mold-usage` are active, `/client/` returns HTTP 200, and the active
+webapp still contains `WEB-INF`.
+
+Hosts `10.10.32.1`, `10.10.32.2`, and `10.10.32.3` are aligned to:
+
+- `cloudstack-agent-4.23.0.0-Mold.Europa.202608261320.1`
+- `ablestack_vm_ftctl-0.9.5-1`
+- qemu-exec-tools, v2k, N2K, and HangCTL `0.9.5-1`
+
+On all three hosts, `mold-agent`, `ablestack-vm-ftctl.timer`, and
+`ablestack-vm-hangctl.timer` are active.
+
+### Automatic reprojection evidence
+
+Plan `7ec74483-8554-415d-ac56-f62f8b17fbd0` was refreshed through Cloud's
+asynchronous `refreshDrProtectionView` path. The job succeeded and no direct DB
+repair was performed. The accepted Run and canonical Cycle converged as follows:
+
+- Run `379` / `b8fff36f-3e00-4064-b79c-907a1c154523`: `SYNC / SUCCEEDED`
+- accepted sequence/token: `1208` /
+  `7ec74483-8554-415d-ac56-f62f8b17fbd0:311`
+- terminal source/authority: authoritative terminal projection
+- canonical Full Seed Cycle `16612`: `READY / LOCAL_DURABLE`
+- plan `51`: `READY / ENABLED / SOURCE`, with no current error
+
+After terminal convergence, later incremental Cycles continued to complete as
+`CBT_INCREMENTAL / READY / LOCAL_DURABLE`. The latest observed Cycle was
+sequence `1216` with `5,087,232` transferred bytes. The Cloud API reported a
+consistent projection, healthy running scheduler, idle replication activity,
+target readiness, and usable update/sync/pause/release actions. This validates
+the required automatic path: `Run SUCCEEDED -> plan READY -> UI action state`
+without manual DB state changes.

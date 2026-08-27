@@ -75,6 +75,23 @@ The recovery path never marks a copy successful from progress percentage alone.
 | Plan/UI | `SYNCING` and action gating remain stale | Plan converges to `READY`; actions become usable |
 | Recovery | Manual DB repair | Automatic idempotent reprojection |
 
+### Post-terminal scheduler advance
+
+A completed canonical Full Seed Cycle owned by the accepted Cloud Run is an
+immutable terminal proof even after the live scheduler advances
+`control_request_run_uuid` to the next incremental producer. This fallback
+requires matching `run_id`, `accepted_cycle_sequence`, and
+`accepted_cycle_token`, plus a terminal `READY` and durable Cycle. It cannot
+consume another Run's Cycle or an incomplete transfer. A Run completed through
+this proof records `terminal_source=CYCLE_DURABLE` and
+`terminal_authoritative=true`.
+
+For a Cloud-managed KVM target, target VM and network presence are evaluated
+from the active `dr_replica` binding rather than FTCTL's non-owning runtime
+flags. FTCTL remains authoritative for target storage durability and checkpoint
+publication. VMware targets and directions without a Cloud target binding keep
+the strict engine presence checks.
+
 ## 7. Verification Gate
 
 1. Unit test a reused engine sequence under a new scheduler lease.
@@ -88,4 +105,3 @@ The recovery path never marks a copy successful from progress percentage alone.
    - latest durable Cycle belongs to the current scheduler lease;
    - UI actions are available;
    - no active worker, lock, or NBD endpoint remains.
-

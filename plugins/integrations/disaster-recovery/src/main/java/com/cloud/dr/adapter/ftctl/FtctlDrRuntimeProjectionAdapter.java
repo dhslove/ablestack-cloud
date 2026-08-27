@@ -1226,17 +1226,28 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                 || StringUtils.equalsIgnoreCase(StringUtils.defaultIfBlank(status.getTerminalSource(),
                         stringValue(runtime, "terminal_source")), "ENGINE_TERMINAL");
         DrSyncCycleVO cycle = resolveAcceptedCycle(run);
-        boolean runOwnedDurableCycle = cycle != null && cycle.getRunId() != null
-                && cycle.getRunId() == run.getId();
-        if (!StringUtils.equals(run.getUuid(), controlRequestRunUuid)
-                || (!terminalAuthoritative && !runOwnedDurableCycle)
-                || cycle == null || cycle.getCompleted() == null
-                || !isFullSeedMode(cycle.getRequestedMode())
-                || !StringUtils.equalsAnyIgnoreCase(cycle.getState(), "READY", "COMPLETED", "TARGET_READY")
-                || !StringUtils.equalsAnyIgnoreCase(cycle.getCommitState(), "LOCAL_DURABLE", "COMMITTED", "DURABLE")) {
+        boolean runOwnedDurableCycle = isAcceptedRunOwnedDurableFullSeedCycle(run, cycle);
+        boolean controlRequestMatches = StringUtils.equals(run.getUuid(), controlRequestRunUuid);
+        if ((!controlRequestMatches && !runOwnedDurableCycle)
+                || (!terminalAuthoritative && !runOwnedDurableCycle)) {
             return false;
         }
-        return run.getAcceptedCycleSequence() != null
+        return runOwnedDurableCycle || cycle != null && cycle.getCompleted() != null
+                && isFullSeedMode(cycle.getRequestedMode())
+                && StringUtils.equalsAnyIgnoreCase(cycle.getState(), "READY", "COMPLETED", "TARGET_READY")
+                && StringUtils.equalsAnyIgnoreCase(cycle.getCommitState(), "LOCAL_DURABLE", "COMMITTED", "DURABLE")
+                && run.getAcceptedCycleSequence() != null
+                && run.getAcceptedCycleSequence() == cycle.getSequence()
+                && StringUtils.equals(run.getAcceptedCycleToken(), cycle.getCycleToken());
+    }
+
+    private boolean isAcceptedRunOwnedDurableFullSeedCycle(DrRunVO run, DrSyncCycleVO cycle) {
+        return run != null && cycle != null && cycle.getRunId() != null && cycle.getRunId() == run.getId()
+                && cycle.getCompleted() != null
+                && isFullSeedMode(cycle.getRequestedMode())
+                && StringUtils.equalsAnyIgnoreCase(cycle.getState(), "READY", "COMPLETED", "TARGET_READY")
+                && StringUtils.equalsAnyIgnoreCase(cycle.getCommitState(), "LOCAL_DURABLE", "COMMITTED", "DURABLE")
+                && run.getAcceptedCycleSequence() != null
                 && run.getAcceptedCycleSequence() == cycle.getSequence()
                 && StringUtils.equals(run.getAcceptedCycleToken(), cycle.getCycleToken());
     }
@@ -3033,10 +3044,14 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         run.setLastStatusJson(compactStatusJson);
         run.setErrorCode(null);
         run.setErrorMessage(null);
-        run.setTerminalSource(StringUtils.defaultIfBlank(status.getTerminalSource(), "ENGINE_TERMINAL"));
+        DrSyncCycleVO acceptedCycle = resolveAcceptedCycle(run);
+        boolean canonicalCycleTerminal = isAcceptedRunOwnedDurableFullSeedCycle(run, acceptedCycle);
+        run.setTerminalSource(StringUtils.defaultIfBlank(status.getTerminalSource(),
+                canonicalCycleTerminal ? "CYCLE_DURABLE" : "ENGINE_TERMINAL"));
         run.setTerminalVersion(status.getTerminalVersion());
         run.setTerminalAuthoritative(Boolean.TRUE.equals(status.getTerminalAuthoritative())
-                || StringUtils.equalsIgnoreCase(status.getTerminalSource(), "ENGINE_TERMINAL"));
+                || StringUtils.equalsIgnoreCase(status.getTerminalSource(), "ENGINE_TERMINAL")
+                || canonicalCycleTerminal);
         run.markUpdated();
         drRunDao.update(run.getId(), run);
         persistRunProjectionEvent(plan, run, DrConstants.EVENT_RUN_SUCCEEDED, DrConstants.EVENT_SEVERITY_INFO,
@@ -4063,10 +4078,17 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         if (!hasDurableCheckpoint(status, runtime)) {
             return false;
         }
-        if (isExplicitFalse(status != null ? status.getTargetVmPresent() : null, booleanValue(runtime, "target_vm_present"))
-                || isExplicitFalse(status != null ? status.getTargetStoragePresent() : null, booleanValue(runtime, "target_storage_present"))
-                || isExplicitFalse(status != null ? status.getTargetNetworkPresent() : null, booleanValue(runtime, "target_network_present"))
-                || isExplicitFalse(status != null ? status.getRestorePointPresent() : null, booleanValue(runtime, "restore_point_present"))) {
+        boolean cloudManagedKvmTarget = StringUtils.endsWithIgnoreCase(plan.getDirection(), "_KVM")
+                && hasTargetReferenceForDirection(plan);
+        if ((!cloudManagedKvmTarget
+                && (isExplicitFalse(status != null ? status.getTargetVmPresent() : null,
+                        booleanValue(runtime, "target_vm_present"))
+                || isExplicitFalse(status != null ? status.getTargetNetworkPresent() : null,
+                        booleanValue(runtime, "target_network_present"))))
+                || isExplicitFalse(status != null ? status.getTargetStoragePresent() : null,
+                        booleanValue(runtime, "target_storage_present"))
+                || isExplicitFalse(status != null ? status.getRestorePointPresent() : null,
+                        booleanValue(runtime, "restore_point_present"))) {
             return false;
         }
         if (!hasTargetReferenceForDirection(plan)) {
