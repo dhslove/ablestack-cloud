@@ -140,7 +140,7 @@ public class DrMoldInventoryClient {
             putDetailIfNotBlank(option, "diskOfferingId", firstString(volume, "diskofferingid"));
             putDetailIfNotBlank(option, "diskOfferingName", firstString(volume, "diskofferingname"));
             putDetailIfNotBlank(option, "cacheMode", firstString(volume, "cachemode"));
-            putDetailIfNotBlank(option, "format", "raw");
+            putDetailIfNotBlank(option, "format", resolveVolumeFormat(volume, poolType, volumePath));
             options.add(option);
         }
         return options;
@@ -195,9 +195,14 @@ public class DrMoldInventoryClient {
         putIfNotBlank(hardware, "guestOsName", firstString(vm, "osdisplayname"));
         putIfNotBlank(hardware, "serviceOfferingId", firstString(vm, "serviceofferingid"));
         putIfNotBlank(hardware, "serviceOfferingName", firstString(vm, "serviceofferingname"));
+        String hypervisorType = firstString(vm, "hypervisor");
         String uefiBootMode = firstString(details, "UEFI", "uefi");
         String bootType = StringUtils.isNotBlank(uefiBootMode) ? "UEFI" : firstString(vm, "boottype");
         String bootMode = StringUtils.isNotBlank(uefiBootMode) ? uefiBootMode : firstString(vm, "bootmode");
+        if (StringUtils.equalsIgnoreCase(hypervisorType, "KVM") && StringUtils.isBlank(bootType)) {
+            bootType = "BIOS";
+            bootMode = "LEGACY";
+        }
         String secureBoot = firstString(details, "secureboot", "secureBoot");
         putIfNotBlank(hardware, "firmware", bootType);
         putIfNotBlank(hardware, "bootType", bootType);
@@ -209,8 +214,26 @@ public class DrMoldInventoryClient {
         putIfNotBlank(hardware, "sourceHostUuid", firstString(vm, "hostid"));
         putIfNotBlank(hardware, "sourceHostName", firstString(vm, "hostname"));
         putIfNotBlank(hardware, "instanceName", firstString(vm, "instancename"));
-        putIfNotBlank(hardware, "hypervisorType", firstString(vm, "hypervisor"));
+        putIfNotBlank(hardware, "hypervisorType", hypervisorType);
         return hardware;
+    }
+
+    String resolveVolumeFormat(JsonObject volume, String poolType, String volumePath) {
+        String explicitFormat = firstString(volume, "format", "diskformat");
+        if (StringUtils.isNotBlank(explicitFormat)) {
+            return StringUtils.lowerCase(explicitFormat, Locale.ROOT);
+        }
+        if (StringUtils.equalsIgnoreCase(poolType, "RBD")) {
+            return "raw";
+        }
+        if (StringUtils.equalsAnyIgnoreCase(poolType, "SharedMountPoint", "Filesystem", "NetworkFilesystem", "NFS")) {
+            return "qcow2";
+        }
+        String normalizedPath = StringUtils.lowerCase(StringUtils.defaultString(volumePath), Locale.ROOT);
+        if (StringUtils.endsWithAny(normalizedPath, ".qcow2", ".qcow")) {
+            return "qcow2";
+        }
+        return "raw";
     }
 
     public String getVirtualMachinePowerState(DrResolvedSiteCredential credential, String vmRef) {

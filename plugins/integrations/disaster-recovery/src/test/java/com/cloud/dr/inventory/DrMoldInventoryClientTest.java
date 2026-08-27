@@ -75,4 +75,32 @@ public class DrMoldInventoryClientTest {
         Assert.assertEquals("SECURE", hardware.get("bootMode"));
         Assert.assertEquals("true", hardware.get("secureBoot"));
     }
+
+    @Test
+    public void defaultsKvmWithoutUefiDetailToLegacyBios() {
+        JsonObject vm = JsonParser.parseString("{\"hypervisor\":\"KVM\",\"details\":{}}")
+                .getAsJsonObject();
+
+        Map<String, String> hardware = client.extractVirtualMachineHardware(vm);
+
+        Assert.assertEquals("BIOS", hardware.get("firmware"));
+        Assert.assertEquals("BIOS", hardware.get("bootType"));
+        Assert.assertEquals("LEGACY", hardware.get("bootMode"));
+        Assert.assertEquals("false", hardware.get("secureBoot"));
+    }
+
+    @Test
+    public void resolvesSharedMountPointVolumeAsQcow2() {
+        JsonObject volume = JsonParser.parseString("{\"path\":\"volume-uuid\"}").getAsJsonObject();
+
+        Assert.assertEquals("qcow2", client.resolveVolumeFormat(volume, "SharedMountPoint", "volume-uuid"));
+    }
+
+    @Test
+    public void preservesExplicitVolumeFormatAndRbdRawContract() {
+        JsonObject explicit = JsonParser.parseString("{\"format\":\"QCOW2\"}").getAsJsonObject();
+
+        Assert.assertEquals("qcow2", client.resolveVolumeFormat(explicit, "SharedMountPoint", "volume-uuid"));
+        Assert.assertEquals("raw", client.resolveVolumeFormat(new JsonObject(), "RBD", "pool/image"));
+    }
 }
