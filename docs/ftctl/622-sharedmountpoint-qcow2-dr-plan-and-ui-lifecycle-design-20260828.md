@@ -227,3 +227,32 @@ latest completed sequence. No replacement Site or Plan may be created.
 | Cloud | Projection cache remains on a stale active Cycle | Periodic projection consumes the next valid completed Cycle |
 | DB | Plan runtime sequence trails the source scheduler | Runtime and canonical Cycle advance atomically without manual repair |
 | UI | Existing Plan appears indefinitely syncing | Existing Plan converges to `READY/IDLE` and shows the latest durable Cycle |
+
+## 13. SharedMountPoint full-reseed byte authority
+
+The existing Plan's UI-triggered full reseed completed in QEMU, but the
+durable checkpoint used `changedBytes=0` from bitmap initialization even
+though the same provider result contained non-zero `bytesProcessed`,
+`sourceReadBytes`, and `targetWrittenBytes`. The strict Agent contract then
+correctly rejected a zero-byte `FULL_SEED` completion as conflicting evidence,
+leaving Cloud Cycle 15 in `TRANSFERRING` after the request Run had succeeded.
+
+The common Agent and Cloud validators remain unchanged. For an ABLESTACK
+SharedMountPoint full seed, FTCTL selects the first positive value from the
+provider's target-written, source-read, processed, payload, and changed-byte
+fields. A non-qcow2 provider still uses the resolved virtual-size fallback.
+Incremental byte accounting and the previously validated VMware and RBD paths
+are not changed.
+
+After deployment, validation reuses Plan
+`41886f03-c19e-4382-927d-89bc4d6ce8e9` only. A new UI full reseed must publish
+non-zero full-seed metrics, allow the Agent to accept the terminal Cycle, mark
+the previous incomplete alias `SUPERSEDED`, and converge the protection view
+to `READY / IDLE` without direct DB repair.
+
+| Layer | AS-IS | TO-BE |
+| --- | --- | --- |
+| FTCTL qcow2 full seed | Persists bitmap `changedBytes=0` despite a completed full copy | Persists the actual processed/read/written byte count |
+| Agent | Rejects zero-byte `FULL_SEED` as an evidence conflict | Accepts unchanged strict contract after provider evidence is corrected |
+| Cloud | Request Run succeeds while its Cycle remains `TRANSFERRING` | Canonical Cycle is completed and stale alias state is superseded |
+| UI | Shows `RESEEDING / DEGRADED` after the copy finishes | Shows non-zero transfer metrics and returns to `READY / IDLE` |
