@@ -444,3 +444,27 @@ validation has passed.
 | UI progress | Acceptance can appear equivalent to completion | Acceptance, artifact, VM, boot, and terminal states are distinct |
 | PASS gate | Request accepted | UI history `SUCCEEDED`, real test VM Running, boot validation `PASSED` |
 | Regression scope | Shared status logic may affect validated paths | Changes are limited to finite Test Failover convergence; RBD and VMware behavior is retained |
+
+## 19. Dual-site Cloud Agent command-contract parity
+
+Remote-source checkpoint fencing is a Cloud-to-Cloud operation, but the final
+`PAUSE_SYNC` and `RESUME_SYNC` commands are deserialized and executed by the
+source site's Mold Agent. Deploying the management plug-in without deploying
+the matching Cloud Agent command and KVM wrapper classes leaves the remote API
+reachable while every checkpoint barrier fails before FTCTL is invoked.
+
+Both source and target sites must therefore use one test-release contract. The
+deployment gate compares the installed Cloud core command classes, KVM wrapper
+classes, FTCTL capability response, and action-contract version on every
+participating host. Management and Agent services are restarted only after
+their matching artifacts are present. A remote pause preflight must prove that
+the scheduler acknowledges a new control generation and returns to running
+after resume before the UI exposes Test Failover as ready.
+
+| Layer | AS-IS | TO-BE |
+| --- | --- | --- |
+| Source management | FTCTL service module can be added independently | Service module and schema DAO beans are packaged in the release |
+| Source Agent | Older Agent cannot deserialize `FtctlDrActionCommand` | Core command and KVM wrapper classes match the management contract |
+| Deployment | Management HTTP 200 is treated as sufficient | Both sites pass command-class, capability, service, and remote pause/resume gates |
+| Runtime evidence | Pause timeout is reported as engine unavailability | Agent deserialization errors are terminal deployment incompatibility evidence |
+| UI retest | Test Failover can be submitted against an incompatible source | Readiness is granted only after the remote scheduler barrier preflight passes |

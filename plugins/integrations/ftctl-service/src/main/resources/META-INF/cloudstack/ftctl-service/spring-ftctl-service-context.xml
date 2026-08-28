@@ -27,6 +27,10 @@
                       http://www.springframework.org/schema/context/spring-context-3.0.xsd"
                       >
 
+    <!-- Keep the service module deployable on sites whose management package
+         contains the FTCTL schema tables but predates the core DAO bean wiring. -->
+    <bean id="ftctlProtectionDaoImpl" class="com.cloud.ftctl.dao.FtctlProtectionDaoImpl" />
+    <bean id="ftctlProtectionVolumeDaoImpl" class="com.cloud.ftctl.dao.FtctlProtectionVolumeDaoImpl" />
     <bean id="ftctlServiceImpl" class="com.cloud.ftctl.FtctlServiceImpl" />
     <bean id="ftctlDrSiteAgentBrokerServiceImpl" class="com.cloud.ftctl.FtctlDrSiteAgentBrokerServiceImpl" />
     <bean id="ftctlProtectionProvisioningServiceImpl" class="com.cloud.ftctl.FtctlProtectionProvisioningServiceImpl" />
