@@ -586,3 +586,34 @@ The validated release gate is therefore:
 4. the Cloud console reaches the guest login prompt;
 5. UI Test Cleanup removes only disposable VM/overlay/session resources;
 6. plan protection returns to `READY/RUNNING/WITHIN_RPO` with no active lease.
+
+## 23. Actual Failover reverse-baseline barrier
+
+UI actual Failover is not complete when the final delta alone is durable. For
+SharedMountPoint qcow2, Cloud must wait for FTCTL to establish a persistent
+reverse dirty-bitmap baseline on the promoted target disk before it creates or
+starts the target VM and commits TARGET authority.
+
+The 2026-08-29 UI Run `ed096e21-8bab-4760-b912-7c2c64da501c` exposed the former
+gap: final delta checkpoint 344 was durable and the source VM was powered off,
+but `TARGET_EXPORT_STOP` repeatedly returned exit 32 because the FTCTL target
+worker invoked the RBD-only snapshot baseline helper for a FILE disk. The UI
+correctly remained at `final-delta-apply` and the target VM remained powered
+off; this state is not a successful Failover.
+
+The corrected lifecycle is:
+
+1. Cloud keeps the Run non-terminal while the target writer drains.
+2. FTCTL resolves the retained target volume under its SharedMountPoint root,
+   verifies no writer, and creates or validates the Plan/disk persistent qcow2
+   bitmap.
+3. FTCTL returns `reverse_baseline_state=READY` idempotently.
+4. Cloud starts the target VM, validates the configured boot contract, commits
+   TARGET authority, and only then marks the Run `SUCCEEDED`.
+5. UI history and protection information show the accepted checkpoint,
+   promoted VM power state, boot state, and terminal Run. Request acceptance or
+   source power-off alone never renders success.
+
+RBD and VMware paths retain their existing reverse-baseline implementation.
+The FILE provider branch is a strict capability dispatch and cannot fall back
+to RBD helpers.
