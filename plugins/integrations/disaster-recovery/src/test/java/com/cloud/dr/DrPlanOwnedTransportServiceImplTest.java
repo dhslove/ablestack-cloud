@@ -85,8 +85,9 @@ public class DrPlanOwnedTransportServiceImplTest {
     @Test
     public void testFailoverDrainDoesNotRequestReverseCutoverBaseline() {
         run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_TEST_FAILOVER);
+        FtctlDrActionAnswer actionAnswer = answer("{\"result\":\"ok\"}");
         Mockito.when(agentManager.easySend(Mockito.eq(22L), Mockito.any(FtctlDrActionCommand.class)))
-                .thenReturn(answer("{\"result\":\"ok\"}"));
+                .thenReturn(actionAnswer);
 
         service.stopForwardTargetExport(plan, run, "{\"request\":{\"actionIntent\":\"TEST_FAILOVER\"}}", 253L);
 
@@ -98,8 +99,9 @@ public class DrPlanOwnedTransportServiceImplTest {
     @Test
     public void failoverDrainPreservesReverseCutoverBaselineSequence() {
         run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_FAILOVER);
+        FtctlDrActionAnswer actionAnswer = answer("{\"result\":\"ok\"}");
         Mockito.when(agentManager.easySend(Mockito.eq(22L), Mockito.any(FtctlDrActionCommand.class)))
-                .thenReturn(answer("{\"result\":\"ok\"}"));
+                .thenReturn(actionAnswer);
 
         service.stopForwardTargetExport(plan, run, null, 253L);
 
