@@ -256,3 +256,122 @@ to `READY / IDLE` without direct DB repair.
 | Agent | Rejects zero-byte `FULL_SEED` as an evidence conflict | Accepts unchanged strict contract after provider evidence is corrected |
 | Cloud | Request Run succeeds while its Cycle remains `TRANSFERRING` | Canonical Cycle is completed and stale alias state is superseded |
 | UI | Shows `RESEEDING / DEGRADED` after the copy finishes | Shows non-zero transfer metrics and returns to `READY / IDLE` |
+
+## 14. SharedMountPoint replica locator and test artifact authority
+
+The existing Plan `41886f03-c19e-4382-927d-89bc4d6ce8e9` exposed a path
+authority defect after its full seed and automatic incremental cycle completed.
+The target pool was `/mnt/glue-gfs` with type `SharedMountPoint`, while the
+Cloud volume path and disk mapping intentionally stored the pool-relative path
+`rocky9-vm-dr-disk-0`. The target Agent passed that relative path directly to
+`qemu-nbd`, whose working directory was `/`; the resulting replica was opened
+as `/rocky9-vm-dr-disk-0` instead of the Cloud-managed
+`/mnt/glue-gfs/rocky9-vm-dr-disk-0`. Test failover then correctly rejected the
+relative artifact locator before creating a test VM.
+
+The corrected contract keeps the successful provider paths isolated:
+
+- for `SharedMountPoint` file disks only, a pool-relative target path is
+  resolved beneath the absolute pool root before any file creation or export;
+- an already absolute file path is preserved;
+- an empty pool root, an absolute-path escape, `..` traversal, or a result
+  outside the configured pool is rejected before `qemu-nbd` starts;
+- RBD locator construction and the validated VMware-to-RBD and RBD-to-RBD
+  paths are unchanged;
+- the Cloud test artifact manifest applies the same normalization, so the
+  test clone reads the same durable file that the target export writes and the
+  Cloud target volume resolves;
+- the target export status returns the canonical absolute `targetPath` and the
+  UI reports test failover success only after the test VM is created and its
+  configured boot validation succeeds.
+
+Deployment validation must stop the stale target export that holds the root
+filesystem file, install the patched FTCTL and Cloud classes, and reuse the
+same Plan for a UI full reseed. PASS requires the new export process and
+checkpoint to reference `/mnt/glue-gfs/rocky9-vm-dr-disk-0`, followed by UI
+test failover, test cleanup, failover, and failback. No replacement Site or DR
+Plan may be created. The obsolete root-level file may be removed only after
+the corrected GFS replica is durable and no process has it open.
+
+| Layer | AS-IS | TO-BE |
+| --- | --- | --- |
+| FTCTL target export | Opens the relative target path from `/` | Opens a validated absolute path below `/mnt/glue-gfs` |
+| Cloud artifact spec | Rejects the relative mapping without resolving the pool root | Emits the same canonical SharedMountPoint file locator as FTCTL |
+| Target volume | Logical Cloud path and physical export diverge | Cloud pool root plus volume path equals the physical replica |
+| UI test failover | Request Run fails before a test VM exists | Progress reflects artifact preparation, VM creation, boot validation, and terminal completion |
+| Regression scope | A generic file-path relaxation could affect other providers | Normalization is limited to SharedMountPoint; RBD and VMware contracts remain unchanged |
+
+## 15. Artifact-free failed test session terminalization
+
+The existing Plan must remain the only validation object. A failed test
+failover Run can stop before FTCTL creates an artifact, Cloud volume, or test
+VM. In that case the `dr_test_session` row previously remained `REQUESTED`, so
+the UI incorrectly replaced **Test Failover** with **Test Cleanup** even though
+there was nothing to delete.
+
+Cloud now treats a test session as artifact-free terminal history only when all
+of the following facts agree: its owning Run is `FAILED` or `CANCELED`, the
+session is still before materialization, `artifact_manifest` is empty,
+`target_vm_id` is null, and `cleanup_required=false`. The Run executor closes
+the session with the Run failure in the same failure flow. Action evaluation
+ignores a legacy row that satisfies the same strict proof, and submitting a new
+UI test on the existing Plan soft-closes that legacy row transactionally before
+creating the replacement session.
+
+Any artifact manifest, target VM, cleanup obligation, or cleanup failure keeps
+the existing **Test Cleanup** requirement. No DB repair, new Site, or new Plan
+is part of the recovery path.
+
+| Layer | AS-IS | TO-BE |
+| --- | --- | --- |
+| Cloud Run | Adapter failure terminates only `dr_run` | Artifact-free `dr_test_session` is terminated with the failed Run |
+| Action availability | Stale `REQUESTED` session is treated as an active test | Terminal artifact-free history does not block **Test Failover** |
+| Orchestrator | New test request is rejected by the stale row | The stale row is safely soft-closed in the existing-Plan transaction |
+| Resource safety | Operator is offered cleanup with no resources | Cleanup remains mandatory whenever any artifact or target VM exists |
+| UI validation | Existing Plan shows **Test Cleanup** after a pre-artifact failure | Existing Plan shows **Test Failover** and verifies real VM creation before success |
+
+## 16. SharedMountPoint test failover disk isolation
+
+The target qcow2 can remain open by the paused replication writer. A test
+artifact must therefore not use that mutable file as a backing image. For a
+`FILE` artifact, FTCTL produces and validates an independent `qcow2-copy` from
+the latest durable checkpoint using force-share read access. Cloud materializes
+the test volume from the published copy path and preserves the existing RBD
+snapshot/clone contract for RBD plans.
+
+UI success remains terminal: request acceptance is not success. The test
+failover is complete only after the independent disk is prepared, the Cloud
+test VM exists, and the configured boot validation succeeds. Test Cleanup
+removes the test VM and the independent copy but never the durable replica.
+
+| Layer | AS-IS | TO-BE |
+| --- | --- | --- |
+| FTCTL FILE artifact | Mutable durable target is used as a backing file | A validated independent sparse qcow2 copy is published |
+| Replication safety | Later target writes can affect a running test | Scheduler pause plus independent copy freezes the tested checkpoint |
+| Cloud materialization | No VM is created when backing-file locking fails | Test volume and VM are created from the independent copy |
+| Cleanup | Overlay cleanup is assumed | Only the generated copy and test VM are removed |
+| Existing providers | Shared implementation can alter RBD behavior | RBD snapshot/clone and VMware paths remain unchanged |
+
+## 17. Test Failover guest preparation preflight projection
+
+The existing SharedMountPoint Plan failed before independent qcow2 copy
+creation with the generic `DR_GUEST_PREP_RUNTIME_UNAVAILABLE` code. Cloud and
+the UI must preserve the exact FTCTL prerequisite failure instead of replacing
+it with a combined runtime/ISO message.
+
+FTCTL publishes `guest_preflight_state`, `guest_preflight_error_code`, and
+`guest_preflight_error_message`. Cloud promotes the specific code and message
+to the owning Run, Run step, and test session. The UI translates known codes
+and falls back to the safe backend message for future codes.
+
+Linux plans do not require the Windows WinPE or virtio ISO. Target-host
+preflight therefore passes for Rocky Linux when the test session, manifest
+tool, and v2k runtime are present. A failed prerequisite remains terminal and
+offers Test Cleanup only when the session proves cleanup is required.
+
+| Layer | AS-IS | TO-BE |
+| --- | --- | --- |
+| FTCTL | exit 47 with one generic code | exact session/tool/v2k/profile/ISO code and message |
+| Cloud | generic runtime/ISO projection | preserves specific FTCTL evidence |
+| UI | opaque failed execution | localized actionable cause on Run and step |
+| Validation | target package drift is discovered after acceptance | host prerequisites and hashes are checked before UI retest |

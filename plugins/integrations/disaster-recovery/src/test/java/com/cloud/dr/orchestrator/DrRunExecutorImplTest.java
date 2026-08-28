@@ -34,6 +34,8 @@ import com.cloud.dr.DrProjectionService;
 import com.cloud.dr.DrRunStepVO;
 import com.cloud.dr.DrRunVO;
 import com.cloud.dr.DrTargetMaterializationService;
+import com.cloud.dr.DrTestSessionState;
+import com.cloud.dr.DrTestSessionVO;
 import com.cloud.dr.adapter.DrAdapterRegistry;
 import com.cloud.dr.adapter.DrAdapterResult;
 import com.cloud.dr.adapter.DrExecutionContext;
@@ -42,6 +44,7 @@ import com.cloud.dr.dao.DrEventDao;
 import com.cloud.dr.dao.DrPlanDao;
 import com.cloud.dr.dao.DrRunDao;
 import com.cloud.dr.dao.DrRunStepDao;
+import com.cloud.dr.dao.DrTestSessionDao;
 
 @RunWith(MockitoJUnitRunner.class)
 public class DrRunExecutorImplTest {
@@ -63,6 +66,8 @@ public class DrRunExecutorImplTest {
     private DrReplicationEngine replicationEngine;
     @Mock
     private DrTargetMaterializationService drTargetMaterializationService;
+    @Mock
+    private DrTestSessionDao drTestSessionDao;
 
     @InjectMocks
     private DrRunExecutorImpl executor;
@@ -208,6 +213,29 @@ public class DrRunExecutorImplTest {
         Assert.assertEquals(DrConstants.PLAN_STATE_READY, plan.getState());
         Assert.assertEquals("DR_SYNC_QUIESCE_TIMEOUT", plan.getLastErrorCode());
         Mockito.verify(drPlanDao).update(plan.getId(), plan);
+    }
+
+    @Test
+    public void failedTestFailoverClosesArtifactFreeRequestedSession() {
+        DrPlanVO plan = ftctlDrPlan();
+        plan.setState(DrConstants.PLAN_STATE_READY);
+        DrRunVO run = run(DrConstants.RUN_TYPE_TEST_FAILOVER);
+        DrTestSessionVO session = new DrTestSessionVO(plan.getId(), run.getId(), DrTestSessionState.REQUESTED);
+        Mockito.when(drRunDao.findById(run.getId())).thenReturn(run);
+        Mockito.when(drPlanDao.findById(plan.getId())).thenReturn(plan);
+        Mockito.when(drTestSessionDao.findActiveByRunId(run.getId())).thenReturn(session);
+        Mockito.when(drAdapterRegistry.getReplicationEngine(DrConstants.ENGINE_TYPE_FTCTL_DR,
+                DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR)).thenReturn(replicationEngine);
+        Mockito.when(replicationEngine.validatePlan(plan)).thenReturn(DrAdapterResult.success("valid", null));
+        Mockito.when(replicationEngine.execute(Mockito.any(DrExecutionContext.class)))
+                .thenReturn(DrAdapterResult.failure("DR_TEST_ARTIFACT_SPEC_INVALID", "absolute path required", null));
+
+        executor.queueRun(run);
+
+        Assert.assertEquals(DrTestSessionState.FAILED, session.getState());
+        Assert.assertEquals("DR_TEST_ARTIFACT_SPEC_INVALID", session.getErrorCode());
+        Assert.assertNotNull(session.getRemoved());
+        Mockito.verify(drTestSessionDao).update(session.getId(), session);
     }
 
     @Test

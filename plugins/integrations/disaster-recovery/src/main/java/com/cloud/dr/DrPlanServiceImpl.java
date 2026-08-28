@@ -275,8 +275,11 @@ public class DrPlanServiceImpl extends ManagerBase implements DrPlanService {
         boolean syncPausable = StringUtils.equalsAny(plan.getState(), DrConstants.PLAN_STATE_SYNCING, DrConstants.PLAN_STATE_READY);
         boolean syncPaused = StringUtils.equals(DrConstants.PLAN_STATE_PAUSED, plan.getState());
         DrTestSessionVO activeTestSession = drTestSessionDao != null ? drTestSessionDao.findActiveByPlanId(planId) : null;
-        boolean testRunning = StringUtils.equals(DrConstants.PLAN_STATE_TESTING, plan.getState())
-                || DrTestSessionState.blocksNewTest(activeTestSession);
+        DrRunVO activeTestRun = activeTestSession != null ? drRunDao.findById(activeTestSession.getRunId()) : null;
+        boolean staleTestSession = DrTestSessionState.isTerminalRunFailureWithoutArtifacts(activeTestSession, activeTestRun);
+        boolean testRunning = !staleTestSession
+                && (StringUtils.equals(DrConstants.PLAN_STATE_TESTING, plan.getState())
+                        || DrTestSessionState.blocksNewTest(activeTestSession));
         DrPlanReadiness executionReadiness = drPlanReadinessValidator != null ? drPlanReadinessValidator.validateForExecution(plan) : null;
         DrPlanReadiness releaseReadiness = drPlanReadinessValidator != null ? drPlanReadinessValidator.validateForRelease(plan) : null;
         boolean ftctlDrExecutionReady = !ftctlDrPlan || executionReadiness == null || executionReadiness.isExecutionReady();

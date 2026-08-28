@@ -66,6 +66,17 @@ public final class DrTestSessionState {
                 && terminalCleanupProof;
     }
 
+    public static boolean isTerminalRunFailureWithoutArtifacts(DrTestSessionVO session, DrRunVO run) {
+        return session != null
+                && session.getRemoved() == null
+                && run != null
+                && StringUtils.equalsAny(run.getState(), DrConstants.RUN_STATE_FAILED, DrConstants.RUN_STATE_CANCELED)
+                && StringUtils.equalsAny(session.getState(), REQUESTED, PREPARING, FAILED)
+                && !session.isCleanupRequired()
+                && session.getTargetVmId() == null
+                && StringUtils.isBlank(session.getArtifactManifest());
+    }
+
     private static boolean isBeforeCloudMaterialization(String state) {
         return StringUtils.equalsAny(state, null, REQUESTED, PREPARING, ARTIFACTS_READY);
     }

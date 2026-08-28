@@ -441,21 +441,22 @@ public class LibvirtFtctlDrActionCommandWrapper extends CommandWrapper<FtctlDrAc
         boolean success = exitValue == 0 && (!isSemanticFailureStatus(payload)
                 || isAcceptedCanceledFailbackAbortPrepare(command, payload)
                 || isCompletedFailbackAbort(command, payload));
+        boolean transportAmbiguous = shouldProbeStatus(result, output, payload, exitValue);
         if (!success && command.getAction() == FtctlDrActionCommand.Action.CUTOVER_COMMIT
-                && shouldProbeStatus(result, output)) {
+                && transportAmbiguous) {
             FtctlDrActionAnswer verified = probeCutoverCommitStatus(command);
             if (verified != null) {
                 return verified;
             }
         }
         if (!success && command.getAction() == FtctlDrActionCommand.Action.FAILBACK_COMMIT
-                && shouldProbeStatus(result, output)) {
+                && transportAmbiguous) {
             FtctlDrActionAnswer verified = probeFailbackCommitStatus(command);
             if (verified != null) {
                 return verified;
             }
         }
-        if (!success && !command.isWaitForCompletion() && shouldProbeStatus(result, output)) {
+        if (!success && !command.isWaitForCompletion() && transportAmbiguous) {
             FtctlDrActionAnswer accepted = probeAcceptedStatus(command);
             if (accepted != null) {
                 return accepted;
@@ -472,8 +473,8 @@ public class LibvirtFtctlDrActionCommandWrapper extends CommandWrapper<FtctlDrAc
                 LibvirtFtctlDrCommandHelper.getInteger(payload, "progress"),
                 LibvirtFtctlDrCommandHelper.getString(payload, "external_job_ref"),
                 LibvirtFtctlDrCommandHelper.getLong(payload, "events_offset"),
-                StringUtils.defaultIfBlank(LibvirtFtctlDrCommandHelper.getString(payload, "error_code"),
-                        shouldProbeStatus(result, output) ? "DR_AGENT_ACCEPT_TIMEOUT" : null),
+                success ? null : StringUtils.defaultIfBlank(LibvirtFtctlDrCommandHelper.getString(payload, "error_code"),
+                        transportAmbiguous ? "DR_AGENT_ACCEPT_TIMEOUT" : null),
                 exitValue, output, payload != null ? payload.toString() : null);
     }
 
@@ -502,14 +503,22 @@ public class LibvirtFtctlDrActionCommandWrapper extends CommandWrapper<FtctlDrAc
         }
     }
 
-    private boolean shouldProbeStatus(String result, String output) {
+    static boolean shouldProbeStatus(String result, String output, JsonObject payload, int exitValue) {
+        if (exitValue == 0 && payload != null) {
+            return false;
+        }
+        if (payload != null && isSemanticFailureStatus(payload)) {
+            return false;
+        }
         return StringUtils.isBlank(output)
-                || StringUtils.containsIgnoreCase(result, "timed out")
-                || StringUtils.containsIgnoreCase(output, "timed out")
-                || StringUtils.containsIgnoreCase(result, "timeout")
-                || StringUtils.containsIgnoreCase(output, "timeout")
-                || StringUtils.containsIgnoreCase(result, "stream closed")
-                || StringUtils.containsIgnoreCase(output, "stream closed");
+                || containsTransportFailure(result)
+                || (payload == null && containsTransportFailure(output));
+    }
+
+    private static boolean containsTransportFailure(String value) {
+        return StringUtils.containsIgnoreCase(value, "timed out")
+                || StringUtils.containsIgnoreCase(value, "timeout")
+                || StringUtils.containsIgnoreCase(value, "stream closed");
     }
 
     private FtctlDrActionAnswer probeFailbackCommitStatus(FtctlDrActionCommand command) {

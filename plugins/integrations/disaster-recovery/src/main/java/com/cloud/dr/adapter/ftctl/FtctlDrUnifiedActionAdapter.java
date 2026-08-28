@@ -16,6 +16,9 @@
 // under the License.
 package com.cloud.dr.adapter.ftctl;
 
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -533,7 +536,7 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
             String volumeRef = firstNonBlank(firstString(target, "path", "diskRef", "volumePath", "volumeUuid"),
                     firstString(disk, "targetRef", "targetDiskRef", "targetPath"));
             String provider = isRbdStorage(storageType, storagePath, volumeRef) ? "RBD" : "FILE";
-            String canonicalLocator = canonicalArtifactLocator(provider, storagePath, volumeRef);
+            String canonicalLocator = canonicalArtifactLocator(provider, storageType, storagePath, volumeRef);
             JsonObject artifactDisk = new JsonObject();
             artifactDisk.addProperty("diskIndex", index);
             artifactDisk.addProperty("device", firstNonBlank(firstString(disk, "device", "label"), "disk" + index));
@@ -596,7 +599,7 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
                 || StringUtils.startsWithIgnoreCase(volumeRef, "/dev/rbd/");
     }
 
-    private String canonicalArtifactLocator(String provider, String storagePath, String volumeRef) {
+    private String canonicalArtifactLocator(String provider, String storageType, String storagePath, String volumeRef) {
         String ref = StringUtils.trimToNull(volumeRef);
         if (StringUtils.equals(provider, "RBD")) {
             if (ref != null && StringUtils.startsWithIgnoreCase(ref, "rbd:")) {
@@ -617,10 +620,35 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
             }
             return StringUtils.contains(ref, "/") ? "rbd:" + ref : "rbd:" + StringUtils.removeEnd(pool, "/") + "/" + ref;
         }
+        if (StringUtils.equalsIgnoreCase(storageType, "SharedMountPoint")) {
+            return "file:" + canonicalSharedMountPath(storagePath, ref);
+        }
         if (StringUtils.isBlank(ref) || !StringUtils.startsWith(ref, "/")) {
             throw new IllegalArgumentException("DR_TEST_ARTIFACT_LOCATOR_INVALID: file-backed disk requires an absolute path");
         }
         return "file:" + ref;
+    }
+
+    private String canonicalSharedMountPath(String storagePath, String volumeRef) {
+        String rootValue = StringUtils.trimToNull(storagePath);
+        String refValue = StringUtils.trimToNull(volumeRef);
+        if (rootValue == null || refValue == null) {
+            throw new IllegalArgumentException("DR_TEST_ARTIFACT_LOCATOR_INVALID: SharedMountPoint root and volume path are required");
+        }
+        try {
+            Path root = Paths.get(rootValue).normalize();
+            if (!root.isAbsolute()) {
+                throw new IllegalArgumentException("DR_TEST_ARTIFACT_LOCATOR_INVALID: SharedMountPoint root must be absolute");
+            }
+            Path ref = Paths.get(refValue);
+            Path candidate = (ref.isAbsolute() ? ref : root.resolve(ref)).normalize();
+            if (!candidate.isAbsolute() || candidate.equals(root) || !candidate.startsWith(root)) {
+                throw new IllegalArgumentException("DR_TEST_ARTIFACT_LOCATOR_INVALID: SharedMountPoint volume path escapes the storage root");
+            }
+            return candidate.toString();
+        } catch (InvalidPathException e) {
+            throw new IllegalArgumentException("DR_TEST_ARTIFACT_LOCATOR_INVALID: SharedMountPoint volume path is invalid", e);
+        }
     }
 
     private void addLongIfPresent(JsonObject object, String key, Long value) {
@@ -882,12 +910,33 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
     private boolean hasSemanticFailure(FtctlDrActionAnswer answer) {
         JsonObject runtime = parseObject(answer.getStatusJson());
         String state = StringUtils.upperCase(StringUtils.defaultIfBlank(answer.getState(), stringValue(runtime, "state")), Locale.ROOT);
-        String errorCode = StringUtils.defaultIfBlank(answer.getErrorCode(), stringValue(runtime, "error_code"));
+        String payloadErrorCode = stringValue(runtime, "error_code");
+        String answerErrorCode = answer.getErrorCode();
+        if (isAcceptedAgentContract(answer, runtime, state, payloadErrorCode)
+                && StringUtils.equalsIgnoreCase(answerErrorCode, "DR_AGENT_ACCEPT_TIMEOUT")) {
+            answerErrorCode = null;
+        }
+        String errorCode = StringUtils.defaultIfBlank(answerErrorCode, payloadErrorCode);
         boolean explicitlyRejected = Boolean.FALSE.equals(answer.getAccepted())
                 || isExplicitlyFalse(runtime, "accepted");
         return explicitlyRejected
                 || StringUtils.isNotBlank(errorCode)
                 || StringUtils.equalsAny(state, "ERROR", "FAILED", "REJECTED", "CANCELED", "CANCELLED");
+    }
+
+    private boolean isAcceptedAgentContract(FtctlDrActionAnswer answer, JsonObject runtime, String state,
+            String payloadErrorCode) {
+        String result = StringUtils.lowerCase(StringUtils.defaultIfBlank(answer.getFtctlResult(),
+                stringValue(runtime, "result")), Locale.ROOT);
+        return answer.getResult()
+                && Integer.valueOf(0).equals(answer.getExitCode())
+                && !Boolean.FALSE.equals(answer.getAccepted())
+                && !isExplicitlyFalse(runtime, "accepted")
+                && StringUtils.isBlank(payloadErrorCode)
+                && !StringUtils.equalsAny(state, "ERROR", "FAILED", "REJECTED", "CANCELED", "CANCELLED")
+                && (Boolean.TRUE.equals(answer.getAccepted())
+                        || booleanValue(runtime, "accepted")
+                        || StringUtils.equalsAny(result, "accepted", "ok", "success", "delegated", "warn"));
     }
 
     private FtctlDrActionCommand.Action resolveAction(DrRunVO run) {

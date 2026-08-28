@@ -192,8 +192,13 @@ public class DrOrchestratorImpl extends ManagerBase implements DrOrchestrator {
         }
         DrTestSessionVO active = drTestSessionDao.findActiveByPlanId(plan.getId());
         if (DrTestSessionState.blocksNewTest(active)) {
-            throw new InvalidParameterValueException(DrConstants.ERROR_TEST_SESSION_BLOCKING
-                    + ": another Cloud-managed test session requires completion or cleanup");
+            DrRunVO activeRun = drRunDao.findById(active.getRunId());
+            if (DrTestSessionState.isTerminalRunFailureWithoutArtifacts(active, activeRun)) {
+                closeArtifactFreeFailedTestSession(active, activeRun);
+            } else {
+                throw new InvalidParameterValueException(DrConstants.ERROR_TEST_SESSION_BLOCKING
+                        + ": another Cloud-managed test session requires completion or cleanup");
+            }
         }
         JsonObject request = parseRequest(requestJson);
         session = new DrTestSessionVO(plan.getId(), run.getId(), "REQUESTED");
@@ -206,6 +211,16 @@ public class DrOrchestratorImpl extends ManagerBase implements DrOrchestrator {
         session.setCleanupRequired(false);
         session.setDetailsJson(requestJson);
         drTestSessionDao.persist(session);
+    }
+
+    private void closeArtifactFreeFailedTestSession(DrTestSessionVO session, DrRunVO run) {
+        session.setState(DrTestSessionState.FAILED);
+        session.setErrorCode(run.getErrorCode());
+        session.setErrorMessage(run.getErrorMessage());
+        session.setCleanupRequired(false);
+        session.setRemoved(new Date());
+        session.markUpdated();
+        drTestSessionDao.update(session.getId(), session);
     }
 
     private void createRequestedFailbackSession(DrPlanVO plan, DrRunVO run, String requestJson) {

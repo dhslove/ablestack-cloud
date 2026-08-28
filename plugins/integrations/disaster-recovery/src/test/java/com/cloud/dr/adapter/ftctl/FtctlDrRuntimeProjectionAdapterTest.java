@@ -88,6 +88,17 @@ import com.google.gson.JsonParser;
 public class FtctlDrRuntimeProjectionAdapterTest {
 
     @Test
+    public void testProjectionFailureMessagePreservesSpecificGuestPreparationBlocker() {
+        FtctlDrStatusAnswer status = Mockito.mock(FtctlDrStatusAnswer.class);
+        Mockito.when(status.getErrorMessage()).thenReturn(null);
+
+        String message = ReflectionTestUtils.invokeMethod(adapter, "projectionFailureMessage",
+                DrConstants.ERROR_GUEST_PREP_V2K_RUNTIME_MISSING, status, new com.google.gson.JsonObject());
+
+        Assert.assertEquals("The required v2k guest preparation runtime is not installed on the selected worker", message);
+    }
+
+    @Test
     public void schemaSafeControlRequestRunUuidRejectsLegacySuffixedIdentity() {
         String uuid = "d64fdb24-9fb3-49ad-82de-2556db63698b";
 
@@ -2230,6 +2241,7 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     @Test
     public void refreshPlanProjectionUsesCloudAuthorityForKvmTargetVmAndNetwork() {
         DrPlanVO plan = new DrPlanVO("ftctl-dr-plan", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
+        ReflectionTestUtils.setField(plan, "id", 51L);
         plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
         plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
         plan.setState(DrConstants.PLAN_STATE_SYNCING);
@@ -2242,17 +2254,21 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         DrRestorePointVO restorePoint = new DrRestorePointVO(plan.getId(), "FTCTL_DR_CHECKPOINT");
         restorePoint.setState("READY");
 
+        String now = java.time.Instant.now().toString();
         String statusJson = "{\"state\":\"SYNCING\",\"step\":\"target-checkpoint-ready\",\"progress\":100,"
                 + "\"cycle_state\":\"IDLE\",\"current_checkpoint_state\":\"COMPLETED\","
-                + "\"scheduler_pid_alive\":true,\"target_materialized\":false,"
+                + "\"scheduler_state\":\"RUNNING\",\"scheduler_health\":\"HEALTHY\","
+                + "\"scheduler_pid_alive\":true,\"owner_matched\":true,"
+                + "\"scheduler_session_uuid\":\"" + plan.getUuid() + "\","
+                + "\"worker_heartbeat_at\":\"" + now + "\",\"target_materialized\":false,"
                 + "\"target_vm_present\":false,\"target_storage_present\":true,"
                 + "\"target_network_present\":false,\"restore_point_present\":true,"
-                + "\"last_target_durable_at\":\"2026-07-19T09:20:00Z\"}";
+                + "\"last_target_durable_at\":\"" + now + "\"}";
         Mockito.when(agentManager.easySend(Mockito.eq(103L), Mockito.any(FtctlDrStatusCommand.class))).thenAnswer(invocation -> {
             FtctlDrStatusCommand command = invocation.getArgument(1);
             return new FtctlDrStatusAnswer(command, true, "ok", plan.getUuid(), run.getUuid(),
                     "ok", "SYNCING", "target-checkpoint-ready", 100,
-                    "2026-07-19T09:19:58Z", "2026-07-19T09:20:00Z", 2,
+                    now, now, 2,
                     9L, null, 0, "", statusJson);
         });
         Mockito.when(drRunDao.findActiveByPlanId(plan.getId())).thenReturn(run);
@@ -2265,7 +2281,7 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         Assert.assertEquals(DrConstants.RUN_STATE_SUCCEEDED, run.getState());
         Assert.assertEquals("succeeded", run.getProjectionState());
         Assert.assertNotNull(run.getCompleted());
-        Assert.assertEquals(DrConstants.PLAN_STATE_SYNCING, plan.getState());
+        Assert.assertEquals(DrConstants.PLAN_STATE_READY, plan.getState());
     }
 
     @Test

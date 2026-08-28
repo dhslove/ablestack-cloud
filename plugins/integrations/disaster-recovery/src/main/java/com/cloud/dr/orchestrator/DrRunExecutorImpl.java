@@ -41,6 +41,8 @@ import com.cloud.dr.DrProjectionService;
 import com.cloud.dr.DrRunStepVO;
 import com.cloud.dr.DrRunVO;
 import com.cloud.dr.DrTargetMaterializationService;
+import com.cloud.dr.DrTestSessionState;
+import com.cloud.dr.DrTestSessionVO;
 import com.cloud.dr.adapter.DrAdapterRegistry;
 import com.cloud.dr.adapter.DrAdapterResult;
 import com.cloud.dr.adapter.DrExecutionContext;
@@ -50,6 +52,7 @@ import com.cloud.dr.dao.DrEventDao;
 import com.cloud.dr.dao.DrPlanDao;
 import com.cloud.dr.dao.DrRunDao;
 import com.cloud.dr.dao.DrRunStepDao;
+import com.cloud.dr.dao.DrTestSessionDao;
 import com.cloud.utils.component.ManagerBase;
 import com.cloud.utils.concurrency.NamedThreadFactory;
 import com.google.gson.JsonObject;
@@ -87,6 +90,8 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
     private DrTargetMaterializationService drTargetMaterializationService;
     @Inject
     private DrAdmissionController drAdmissionController;
+    @Inject
+    private DrTestSessionDao drTestSessionDao;
 
     private ExecutorService dispatchExecutor;
     private ScheduledExecutorService retryExecutor;
@@ -548,6 +553,7 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
         run.setLastStatusJson(detailsJson);
         run.markUpdated();
         drRunDao.update(run.getId(), run);
+        closeArtifactFreeFailedTestSession(run, errorCode, message);
         if (isPlanTerminalFailure(run)) {
             markPlanFailed(run.getPlanId(), errorCode, message);
         } else {
@@ -571,8 +577,26 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
         run.setNextRetryAt(null);
         run.markUpdated();
         drRunDao.update(run.getId(), run);
+        closeArtifactFreeFailedTestSession(run, null, message);
         recordEvent(run.getPlanId(), run.getId(), DrConstants.EVENT_RUN_CANCELED, DrConstants.EVENT_SEVERITY_WARN,
                 StringUtils.defaultIfBlank(message, "DR run canceled"), null);
+    }
+
+    private void closeArtifactFreeFailedTestSession(DrRunVO run, String errorCode, String message) {
+        if (!StringUtils.equals(run.getRunType(), DrConstants.RUN_TYPE_TEST_FAILOVER) || drTestSessionDao == null) {
+            return;
+        }
+        DrTestSessionVO session = drTestSessionDao.findActiveByRunId(run.getId());
+        if (!DrTestSessionState.isTerminalRunFailureWithoutArtifacts(session, run)) {
+            return;
+        }
+        session.setState(DrTestSessionState.FAILED);
+        session.setErrorCode(errorCode);
+        session.setErrorMessage(message);
+        session.setCleanupRequired(false);
+        session.setRemoved(new Date());
+        session.markUpdated();
+        drTestSessionDao.update(session.getId(), session);
     }
 
     private void recordStep(long runId, String stepName, int stepOrder, String state, Integer progress, String detailsJson,

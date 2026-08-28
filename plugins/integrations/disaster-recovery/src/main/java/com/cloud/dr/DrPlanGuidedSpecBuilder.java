@@ -403,6 +403,13 @@ public class DrPlanGuidedSpecBuilder extends ManagerBase {
                 firstString(source, "diskRef", "ref", "uuid", "id")));
         addString(sanitized, "sourcePath", firstNonBlank(firstString(disk, "sourcePath", "sourceVmdkPath", "sourceDisk"),
                 firstString(source, "path", "vmdkPath")));
+        String sourceType = firstNonBlank(firstString(disk, "sourceType"), firstString(source, "type", "sourceType"));
+        String sourceFormat = firstNonBlank(firstString(disk, "sourceFormat"), firstString(source, "format", "sourceFormat"));
+        if (StringUtils.isBlank(sourceType) && StringUtils.equalsAnyIgnoreCase(sourceFormat, "qcow2", "vmdk")) {
+            sourceType = "file";
+        }
+        addString(sanitized, "sourceType", sourceType);
+        addString(sanitized, "sourceFormat", sourceFormat);
         addString(sanitized, "targetRef", firstNonBlank(firstString(disk, "targetRef", "targetDiskRef", "targetVolumeId", "targetvolumeid"),
                 firstString(target, "diskRef", "ref", "uuid", "id", "name")));
         addString(sanitized, "targetStorageRef", firstNonBlank(firstString(disk, "targetStorageRef", "storageRef"),
@@ -423,6 +430,10 @@ public class DrPlanGuidedSpecBuilder extends ManagerBase {
         addString(sanitizedSource, "unitNumber", unitNumber);
         addString(sanitizedSource, "path", firstString(sanitized, "sourcePath"));
         addString(sanitizedSource, "vmdkPath", firstString(sanitized, "sourcePath"));
+        addString(sanitizedSource, "type", sourceType);
+        addString(sanitizedSource, "sourceType", sourceType);
+        addString(sanitizedSource, "format", sourceFormat);
+        addString(sanitizedSource, "sourceFormat", sourceFormat);
         addString(sanitizedSource, "label", firstString(source, "label", "name"));
         addString(sanitizedSource, "capacityBytes", capacityBytes);
         addString(sanitizedSource, "sizeBytes", capacityBytes);

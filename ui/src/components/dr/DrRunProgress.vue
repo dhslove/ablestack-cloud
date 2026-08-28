@@ -82,8 +82,11 @@
       {{ cbtNotice }}
     </div>
 
-    <div v-if="testActiveNotice" class="cross-dr-run-progress__notice cross-dr-run-progress__notice--success">
-      {{ testActiveNotice }}
+    <div
+      v-if="testLifecycleNotice"
+      class="cross-dr-run-progress__notice"
+      :class="{ 'cross-dr-run-progress__notice--success': testFailoverActive }">
+      {{ testLifecycleNotice }}
     </div>
 
     <div v-if="normalizedSteps.length" class="cross-dr-run-progress__steps">
@@ -97,7 +100,7 @@
         </div>
         <div class="cross-dr-run-step__meta">
           <span v-if="step.progress !== undefined && step.progress !== null">{{ step.progress }}%</span>
-          <span v-if="step.errormessage"> | {{ step.errormessage }}</span>
+          <span v-if="formatStepError(step)"> | {{ formatStepError(step) }}</span>
         </div>
       </div>
     </div>
@@ -140,7 +143,8 @@ export default {
         { label: this.$t('label.dr.worker.state'), value: this.run.workerstate },
         { label: this.$t('label.dr.external.job'), value: this.run.externaljobref },
         { label: this.$t('label.dr.retry'), value: this.retryMeta },
-        { label: this.$t('label.error.code'), value: this.errorText }
+        { label: this.$t('label.error.code'), value: this.errorCode },
+        { label: this.$t('label.details'), value: this.failureText }
       ].filter(item => item.value)
     },
     retryMeta () {
@@ -196,23 +200,37 @@ export default {
       }
       return fields.length ? `${this.$t('label.dr.cbt.status')}: ${fields.join(' / ')}` : ''
     },
-    testActiveNotice () {
+    testFailoverActive () {
       const runType = String(this.run.runtype || this.run.runType || '').toUpperCase()
       const runState = String(this.run.state || '').toUpperCase()
       const sessionState = String(this.run.testsessionstate || '').toUpperCase()
-      if (runType === 'TEST_FAILOVER' && runState === 'SUCCEEDED' && sessionState === 'ACTIVE') {
-        return this.$t('message.dr.test.failover.active')
-      }
-      return ''
+      return runType === 'TEST_FAILOVER' && runState === 'SUCCEEDED' && sessionState === 'ACTIVE'
+    },
+    testLifecycleNotice () {
+      const runType = String(this.run.runtype || this.run.runType || '').toUpperCase()
+      if (runType !== 'TEST_FAILOVER') return ''
+      if (this.testFailoverActive) return this.$t('message.dr.test.failover.active')
+      if (String(this.run.state || '').toUpperCase() === 'FAILED') return ''
+      const sessionState = String(this.run.testsessionstate || '').toUpperCase()
+      if (sessionState === 'CLOUD_VM_STARTING') return this.$t('message.dr.test.failover.boot.validating')
+      if (sessionState === 'CLOUD_VM_CREATING') return this.$t('message.dr.test.failover.vm.creating')
+      if (sessionState === 'CLOUD_VOLUMES_IMPORTING') return this.$t('message.dr.test.failover.disks.importing')
+      if (sessionState === 'ARTIFACTS_READY') return this.$t('message.dr.test.failover.artifacts.ready')
+      return this.$t('message.dr.test.failover.accepted')
     },
     errorText () {
+      return this.failureText || this.errorCode
+    },
+    errorCode () {
       const runFailed = String(this.run.state || '').toUpperCase() === 'FAILED'
       const code = this.run.runtimeerrorcode || (runFailed ? this.run.errorcode : null)
-      if (!code) {
-        return ''
-      }
+      return code || ''
+    },
+    failureText () {
+      const code = this.errorCode
+      if (!code) return this.run.errormessage || ''
       const key = `message.dr.error.${String(code).toLowerCase().replace(/_/g, '.')}`
-      return this.$te && this.$te(key) ? this.$t(key) : code
+      return this.$te && this.$te(key) ? this.$t(key) : (this.run.errormessage || code)
     },
     progress () {
       const value = Number(this.run.progresspercent)
@@ -328,6 +346,12 @@ export default {
     }
   },
   methods: {
+    formatStepError (step) {
+      const code = step && (step.errorcode || step.errorCode)
+      if (!code) return step && step.errormessage ? step.errormessage : ''
+      const key = `message.dr.error.${String(code).toLowerCase().replace(/_/g, '.')}`
+      return this.$te && this.$te(key) ? this.$t(key) : (step.errormessage || code)
+    },
     isValidTransferValue (value) {
       return Number(value && value.transferprogressschemaversion || 0) >= 2 &&
         Number(value && value.transferbytestotal || 0) > 0

@@ -41,4 +41,29 @@ public class LibvirtFtctlDrActionCommandWrapperTest {
         Assert.assertFalse(LibvirtFtctlDrActionCommandWrapper.isSemanticFailureStatus(payload));
         Assert.assertTrue(LibvirtFtctlDrActionCommandWrapper.isAcceptedStatus(0, payload));
     }
+
+    @Test
+    public void acceptedJsonDoesNotTreatTimeoutPolicyFieldsAsTransportFailure() {
+        String output = "{\"result\":\"accepted\",\"accepted\":true,\"state\":\"TESTING\","
+                + "\"testBootTimeoutSeconds\":180,\"boot_timeout_seconds\":180,\"error_code\":\"\"}";
+        JsonObject payload = new JsonParser().parse(output).getAsJsonObject();
+
+        Assert.assertFalse(LibvirtFtctlDrActionCommandWrapper.shouldProbeStatus(null, output, payload, 0));
+    }
+
+    @Test
+    public void unstructuredTransportTimeoutStillRequiresStatusProbe() {
+        Assert.assertTrue(LibvirtFtctlDrActionCommandWrapper.shouldProbeStatus(
+                "Command timed out", "", null, 124));
+    }
+
+    @Test
+    public void structuredEngineFailureIsNotReclassifiedAsTransportTimeout() {
+        String output = "{\"result\":\"error\",\"accepted\":false,\"state\":\"FAILED\","
+                + "\"error_code\":\"DR_TEST_VM_BOOT_TIMEOUT\"}";
+        JsonObject payload = new JsonParser().parse(output).getAsJsonObject();
+
+        Assert.assertFalse(LibvirtFtctlDrActionCommandWrapper.shouldProbeStatus(
+                "Command failed", output, payload, 20));
+    }
 }

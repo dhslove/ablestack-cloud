@@ -189,8 +189,17 @@ export default {
       if (this.plan.sourceworkerhostid) {
         return this.plan.sourceworkerhostid
       }
-      const name = this.plan.sourceworkerhostname
-      const uuid = this.plan.sourceworkerhostuuid
+      let sourceHardware = {}
+      try {
+        const mapping = typeof this.plan.mappingjson === 'string'
+          ? JSON.parse(this.plan.mappingjson || '{}')
+          : (this.plan.mappingjson || {})
+        sourceHardware = mapping?.source?.hardware || {}
+      } catch (error) {
+        sourceHardware = {}
+      }
+      const name = this.plan.sourceworkerhostname || sourceHardware.sourceHostName || sourceHardware.sourcehostname
+      const uuid = this.plan.sourceworkerhostuuid || sourceHardware.sourceHostUuid || sourceHardware.sourcehostuuid
       if (name && uuid) {
         return `${name} (${uuid})`
       }

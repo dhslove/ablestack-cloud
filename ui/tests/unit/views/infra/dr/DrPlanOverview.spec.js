@@ -116,4 +116,20 @@ describe('DrPlanOverview current warning projection', () => {
     expect(wrapper.vm.detailFields.find(field => field.key === 'sourceWorkerHost').value)
       .toBe('ablecube13-1 (source-host-uuid)')
   })
+
+  test('falls back to mapping source authority when convenience fields are absent', () => {
+    const wrapper = createWrapper({
+      state: 'NEW',
+      mappingjson: JSON.stringify({
+        source: {
+          hardware: {
+            sourceHostUuid: 'source-host-uuid',
+            sourceHostName: 'ablecube13-1'
+          }
+        }
+      })
+    })
+
+    expect(wrapper.vm.sourceWorkerHostLabel).toBe('ablecube13-1 (source-host-uuid)')
+  })
 })

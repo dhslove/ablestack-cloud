@@ -44,6 +44,25 @@ describe('DrRunProgress transfer authority', () => {
     expect(wrapper.vm.transferBytesProcessed).toBe(1024)
   })
 
+  it('separates accepted test failover from VM creation and final boot success', async () => {
+    const wrapper = mountProgress({
+      run: { runtype: 'TEST_FAILOVER', state: 'ACCEPTED', testsessionstate: 'PREPARING' }
+    })
+    expect(wrapper.vm.testLifecycleNotice).toBe('message.dr.test.failover.accepted')
+    expect(wrapper.vm.testFailoverActive).toBe(false)
+
+    await wrapper.setProps({
+      run: { runtype: 'TEST_FAILOVER', state: 'RUNNING', testsessionstate: 'CLOUD_VM_CREATING' }
+    })
+    expect(wrapper.vm.testLifecycleNotice).toBe('message.dr.test.failover.vm.creating')
+
+    await wrapper.setProps({
+      run: { runtype: 'TEST_FAILOVER', state: 'SUCCEEDED', testsessionstate: 'ACTIVE' }
+    })
+    expect(wrapper.vm.testLifecycleNotice).toBe('message.dr.test.failover.active')
+    expect(wrapper.vm.testFailoverActive).toBe(true)
+  })
+
   it('selects the newer valid runtime sample and suppresses transient busy noise', () => {
     const wrapper = mountProgress({
       run: {
@@ -105,5 +124,30 @@ describe('DrRunProgress transfer authority', () => {
     })
 
     expect(wrapper.vm.progress).toBe(90)
+  })
+
+  it('shows a localized guest preparation blocker for the run and step', () => {
+    const wrapper = shallowMount(DrRunProgress, {
+      props: {
+        run: {
+          state: 'FAILED',
+          errorcode: 'DR_GUEST_PREP_V2K_RUNTIME_MISSING',
+          errormessage: 'generic backend message'
+        },
+        runtime: {}
+      },
+      global: {
+        mocks: {
+          $te: key => key === 'message.dr.error.dr.guest.prep.v2k.runtime.missing',
+          $t: key => `translated:${key}`
+        }
+      }
+    })
+
+    expect(wrapper.vm.failureText).toBe('translated:message.dr.error.dr.guest.prep.v2k.runtime.missing')
+    expect(wrapper.vm.formatStepError({
+      errorcode: 'DR_GUEST_PREP_V2K_RUNTIME_MISSING',
+      errormessage: 'generic step message'
+    })).toBe('translated:message.dr.error.dr.guest.prep.v2k.runtime.missing')
   })
 })

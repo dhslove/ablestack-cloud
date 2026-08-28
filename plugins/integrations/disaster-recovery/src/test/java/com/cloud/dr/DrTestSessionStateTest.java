@@ -45,4 +45,33 @@ public class DrTestSessionStateTest {
 
         Assert.assertTrue(DrTestSessionState.blocksNewTest(session));
     }
+
+    @Test
+    public void terminalFailedRunWithoutArtifactsCanBeSoftClosed() {
+        DrTestSessionVO session = new DrTestSessionVO(38L, 104L, DrTestSessionState.REQUESTED);
+        DrRunVO run = new DrRunVO(38L, DrConstants.RUN_TYPE_TEST_FAILOVER);
+        run.setState(DrConstants.RUN_STATE_FAILED);
+
+        Assert.assertTrue(DrTestSessionState.isTerminalRunFailureWithoutArtifacts(session, run));
+    }
+
+    @Test
+    public void terminalFailedRunWithArtifactManifestCannotBeSoftClosed() {
+        DrTestSessionVO session = new DrTestSessionVO(38L, 104L, DrTestSessionState.PREPARING);
+        session.setArtifactManifest("[{\"path\":\"/mnt/glue-gfs/test.qcow2\"}]");
+        DrRunVO run = new DrRunVO(38L, DrConstants.RUN_TYPE_TEST_FAILOVER);
+        run.setState(DrConstants.RUN_STATE_FAILED);
+
+        Assert.assertFalse(DrTestSessionState.isTerminalRunFailureWithoutArtifacts(session, run));
+    }
+
+    @Test
+    public void terminalFailedRunWithTargetVmCannotBeSoftClosed() {
+        DrTestSessionVO session = new DrTestSessionVO(38L, 104L, DrTestSessionState.PREPARING);
+        session.setTargetVmId(259L);
+        DrRunVO run = new DrRunVO(38L, DrConstants.RUN_TYPE_TEST_FAILOVER);
+        run.setState(DrConstants.RUN_STATE_FAILED);
+
+        Assert.assertFalse(DrTestSessionState.isTerminalRunFailureWithoutArtifacts(session, run));
+    }
 }

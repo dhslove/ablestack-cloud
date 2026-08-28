@@ -558,6 +558,78 @@ public class FtctlDrUnifiedActionAdapterTest {
     }
 
     @Test
+    public void testFailoverResolvesSharedMountPointRelativeVolumePath() throws Exception {
+        DrPlanVO plan = ftctlDrPlan();
+        plan.setMappingJson("{\"target\":{\"storagePoolType\":\"SharedMountPoint\",\"storagePath\":\"/mnt/glue-gfs\"},"
+                + "\"disks\":[{\"device\":\"sda\",\"target\":{\"volumeId\":221,"
+                + "\"path\":\"rocky9-vm-dr-disk-0\",\"storagePoolType\":\"SharedMountPoint\","
+                + "\"storagePath\":\"/mnt/glue-gfs\",\"format\":\"qcow2\"}}]}");
+        DrRunVO run = run(DrConstants.RUN_TYPE_TEST_FAILOVER,
+                "{\"restorePointRef\":\"ftctl:" + plan.getUuid() + ":2\"}");
+        DrRestorePointVO checkpoint = checkpoint(plan, "ftctl:" + plan.getUuid() + ":run-sync:2");
+        Mockito.when(drRestorePointDao.findLatestTargetReadyByPlanId(plan.getId())).thenReturn(checkpoint);
+        ArgumentCaptor<FtctlDrActionCommand> commandCaptor = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
+        mockCapabilities();
+        Mockito.when(agentManager.send(Mockito.eq(103L), commandCaptor.capture())).thenAnswer(invocation -> {
+            FtctlDrActionCommand command = invocation.getArgument(1);
+            return new FtctlDrActionAnswer(command, true, "accepted", FtctlDrActionCommand.Action.TEST_PREPARE,
+                    plan.getUuid(), run.getUuid(), "accepted", true, "TESTING", "test-session-ready",
+                    100, run.getUuid(), 0L, null, 0, "{\"result\":\"accepted\"}", "{\"state\":\"TESTING\"}");
+        });
+
+        DrAdapterResult result = adapter.execute(new DrExecutionContext(plan, run));
+
+        Assert.assertTrue(result.isSuccess());
+        Assert.assertTrue(commandCaptor.getValue().getArtifactSpecJson()
+                .contains("\"canonicalLocator\":\"file:/mnt/glue-gfs/rocky9-vm-dr-disk-0\""));
+    }
+
+    @Test
+    public void testFailoverRejectsSharedMountPointTraversal() throws Exception {
+        DrPlanVO plan = ftctlDrPlan();
+        plan.setMappingJson("{\"target\":{\"storagePoolType\":\"SharedMountPoint\",\"storagePath\":\"/mnt/glue-gfs\"},"
+                + "\"disks\":[{\"device\":\"sda\",\"target\":{\"path\":\"../outside\","
+                + "\"storagePoolType\":\"SharedMountPoint\",\"storagePath\":\"/mnt/glue-gfs\","
+                + "\"format\":\"qcow2\"}}]}");
+        DrRunVO run = run(DrConstants.RUN_TYPE_TEST_FAILOVER,
+                "{\"restorePointRef\":\"ftctl:" + plan.getUuid() + ":2\"}");
+        Mockito.when(drRestorePointDao.findLatestTargetReadyByPlanId(plan.getId()))
+                .thenReturn(checkpoint(plan, "ftctl:" + plan.getUuid() + ":run-sync:2"));
+        mockCapabilities();
+
+        DrAdapterResult result = adapter.execute(new DrExecutionContext(plan, run));
+
+        Assert.assertFalse(result.isSuccess());
+        Assert.assertEquals("DR_TEST_ARTIFACT_SPEC_INVALID", result.getErrorCode());
+        Mockito.verify(agentManager, Mockito.never()).send(Mockito.eq(103L), Mockito.isA(FtctlDrActionCommand.class));
+    }
+
+    @Test
+    public void testFailoverAcceptsSuccessfulAgentContractDespiteLegacySyntheticTimeoutCode() throws Exception {
+        DrPlanVO plan = ftctlDrPlan();
+        DrRunVO run = run(DrConstants.RUN_TYPE_TEST_FAILOVER,
+                "{\"restorePointRef\":\"ftctl:" + plan.getUuid() + ":2\"}");
+        DrRestorePointVO checkpoint = checkpoint(plan, "ftctl:" + plan.getUuid() + ":run-sync:2");
+        Mockito.when(drRestorePointDao.findLatestTargetReadyByPlanId(plan.getId())).thenReturn(checkpoint);
+        mockCapabilities();
+        Mockito.when(agentManager.send(Mockito.eq(103L), Mockito.any(FtctlDrActionCommand.class))).thenAnswer(invocation -> {
+            FtctlDrActionCommand command = invocation.getArgument(1);
+            return new FtctlDrActionAnswer(command, true, "accepted", FtctlDrActionCommand.Action.TEST_PREPARE,
+                    plan.getUuid(), run.getUuid(), "accepted", true, "TESTING", "test-artifact-prepare-accepted",
+                    70, run.getUuid(), 0L, "DR_AGENT_ACCEPT_TIMEOUT", 0,
+                    "{\"result\":\"accepted\",\"testBootTimeoutSeconds\":180}",
+                    "{\"result\":\"accepted\",\"accepted\":true,\"state\":\"TESTING\","
+                            + "\"boot_timeout_seconds\":180,\"error_code\":\"\"}");
+        });
+
+        DrAdapterResult result = adapter.execute(new DrExecutionContext(plan, run));
+
+        Assert.assertTrue(result.isSuccess());
+        Assert.assertFalse(result.isTerminal());
+        Assert.assertEquals(run.getUuid(), result.getExternalJobRef());
+    }
+
+    @Test
     public void failoverDispatchesModeRestorePointAndFinalSyncToFtctlProfile() throws Exception {
         DrPlanVO plan = ftctlDrPlan();
         DrRunVO run = run(DrConstants.RUN_TYPE_FAILOVER,

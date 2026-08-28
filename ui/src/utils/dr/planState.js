@@ -84,6 +84,11 @@ export function resolveDrPlanState (plan = {}, currentRun = null) {
   return state || readiness || 'UNKNOWN'
 }
 
+export function resolveDrReadinessState (plan = {}) {
+  const readiness = String(plan.readinessstate || plan.readinessState || '').toUpperCase()
+  return readiness || resolveDrPlanState(plan)
+}
+
 export function resolveDrPlanSeverity (plan = {}, currentRun = null) {
   const typed = String(plan.currentseverity || plan.currentSeverity || '').toUpperCase()
   if (['ERROR', 'WARNING', 'INFO', 'NONE'].includes(typed)) {

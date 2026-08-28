@@ -9,6 +9,7 @@ import {
   isActiveDrSyncCycle,
   resolveDrPlanSeverity,
   resolveDrPlanState,
+  resolveDrReadinessState,
   resolveDrReplicationResumeState,
   resolveDrRpoPresentation
 } from '@/utils/dr/planState'
@@ -19,6 +20,16 @@ describe('DR protection state helpers', () => {
 
     expect(isActiveDrRun(cleanup)).toBe(false)
     expect(resolveDrPlanState({ protectionstate: 'READY' }, null)).toBe('READY')
+  })
+
+  it('keeps execution readiness independent from transient protection state', () => {
+    const plan = {
+      protectionstate: 'SYNCING',
+      readinessstate: 'TARGET_READY'
+    }
+
+    expect(resolveDrPlanState(plan)).toBe('SYNCING')
+    expect(resolveDrReadinessState(plan)).toBe('TARGET_READY')
   })
 
   it('recognizes active finite runs only', () => {

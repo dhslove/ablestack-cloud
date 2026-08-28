@@ -599,8 +599,11 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                 && sessionMatched && heartbeatAge <= SCHEDULER_HEARTBEAT_STALE_SECONDS
                 && StringUtils.equalsAnyIgnoreCase(schedulerHealth, "HEALTHY")
                 && StringUtils.equalsAnyIgnoreCase(schedulerState, "RUNNING", "STARTED", "COMPLETED");
+        String projectionRuntimeState = StringUtils.upperCase(StringUtils.defaultIfBlank(status.getState(),
+                stringValue(runtime, "state")), Locale.ROOT);
         boolean targetMaterialized = Boolean.TRUE.equals(status.getTargetMaterialized())
-                || Boolean.TRUE.equals(booleanValue(runtime, "target_materialized"));
+                || Boolean.TRUE.equals(booleanValue(runtime, "target_materialized"))
+                || isSyncTargetReady(plan, status, runtime, projectionRuntimeState);
 
         String protectionState;
         String freshnessState = evaluatedFreshnessState;
@@ -1409,6 +1412,12 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         String runtimeProtectionState = StringUtils.defaultIfBlank(status.getProtectionState(),
                 stringValue(runtime, "protection_state"));
         String planState = toPlanState(StringUtils.defaultIfBlank(runtimeProtectionState, status.getState()));
+        String projectionRuntimeState = StringUtils.upperCase(StringUtils.defaultIfBlank(status.getState(),
+                stringValue(runtime, "state")), Locale.ROOT);
+        if (StringUtils.equals(planState, DrConstants.PLAN_STATE_SYNCING)
+                && isSyncTargetReady(plan, status, runtime, projectionRuntimeState)) {
+            planState = DrConstants.PLAN_STATE_READY;
+        }
         if (isCutoverReadyRuntime(plan, status, runtime)) {
             try {
                 ensurePlannedSourceIsolation(plan, projectionRun, cutoverSession, runtime);
@@ -3508,6 +3517,24 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         }
         if (StringUtils.equalsIgnoreCase(errorCode, DrConstants.ERROR_GUEST_PREP_RUNTIME_UNAVAILABLE)) {
             return "The guest preparation runtime or required ISO is unavailable";
+        }
+        if (StringUtils.equalsIgnoreCase(errorCode, DrConstants.ERROR_GUEST_PREP_SESSION_MISSING)) {
+            return "The selected test session is missing or unreadable";
+        }
+        if (StringUtils.equalsIgnoreCase(errorCode, DrConstants.ERROR_GUEST_PREP_MANIFEST_TOOL_MISSING)) {
+            return "The guest preparation manifest tool is not installed on the selected worker";
+        }
+        if (StringUtils.equalsIgnoreCase(errorCode, DrConstants.ERROR_GUEST_PREP_V2K_RUNTIME_MISSING)) {
+            return "The required v2k guest preparation runtime is not installed on the selected worker";
+        }
+        if (StringUtils.equalsIgnoreCase(errorCode, DrConstants.ERROR_GUEST_PREP_PROFILE_INVALID)) {
+            return "The test session does not contain a valid guest preparation profile";
+        }
+        if (StringUtils.equalsIgnoreCase(errorCode, DrConstants.ERROR_GUEST_PREP_WINPE_ISO_MISSING)) {
+            return "The Windows guest preparation WinPE ISO is missing or unreadable";
+        }
+        if (StringUtils.equalsIgnoreCase(errorCode, DrConstants.ERROR_GUEST_PREP_VIRTIO_ISO_MISSING)) {
+            return "The Windows virtio driver ISO is missing or unreadable";
         }
         if (StringUtils.equalsIgnoreCase(errorCode, DrConstants.ERROR_GUEST_PREPARATION_FAILED)) {
             return "Guest preparation failed after cutover manifest validation";
