@@ -81,6 +81,10 @@ an engine failure before the test VM materializer could run.
 7. If a newer live Run is active, it supersedes a stale terminal snapshot. If
    the live Run query fails, the UI keeps the snapshot for display and reports
    a refresh warning instead of silently changing action availability.
+8. Cached plan fields may supply expensive protection presentation data, but
+   they must not overwrite live `actionAvailability`, `actionEligibility`, or
+   `lastRun` returned by `getDrPlan`. Menu visibility and enablement always use
+   those live fields together with the reconciled Run list.
 
 ## 4. Firmware Normalization
 
@@ -115,6 +119,8 @@ combinations.
 - A cached accepted Run reconciles to a live failed Run and no longer blocks
   Test Cleanup.
 - A newer live active Run supersedes a stale terminal cached Run.
+- A stale cached cancel action cannot replace live Test Cleanup or Test
+  Failover availability.
 - A remote KVM source Test Failover projects both status scopes locally and
   never calls the remote Mold status transport.
 - Baseline sync, pause/resume, release, test cleanup, failover, and failback

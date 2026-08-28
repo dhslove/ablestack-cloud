@@ -7,6 +7,7 @@
 import {
   isActiveDrRun,
   isActiveDrSyncCycle,
+  reconcileDrPlanProjection,
   reconcileDrRunProjection,
   resolveDrPlanSeverity,
   resolveDrPlanState,
@@ -70,6 +71,24 @@ describe('DR protection state helpers', () => {
 
     expect(projection.activeRun.id).toBe('new-run')
     expect(projection.latestOperationRun.id).toBe('new-run')
+  })
+
+  it('keeps live action availability when applying a cached plan projection', () => {
+    const projection = reconcileDrPlanProjection({
+      state: 'READY',
+      actionavailability: {
+        cancelrun: { applicable: true, enabled: true }
+      }
+    }, {
+      actionavailability: {
+        testfailover: { applicable: true, enabled: true },
+        cancelrun: { applicable: false, enabled: false }
+      }
+    })
+
+    expect(projection.state).toBe('READY')
+    expect(projection.actionavailability.testfailover.enabled).toBe(true)
+    expect(projection.actionavailability.cancelrun.applicable).toBe(false)
   })
 
   it('does not classify an acknowledged target authority as an error', () => {

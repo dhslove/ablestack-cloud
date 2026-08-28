@@ -29,6 +29,25 @@ export function reconcileDrRunProjection (snapshot = {}, liveRuns = []) {
   })
 }
 
+export function reconcileDrPlanProjection (cachedPlan = {}, livePlan = {}) {
+  const projection = Object.assign({}, cachedPlan)
+  const liveFields = [
+    ['actionavailability', 'actionAvailability'],
+    ['actioneligibility', 'actionEligibility'],
+    ['lastrun', 'lastRun']
+  ]
+
+  liveFields.forEach(([normalizedKey, alternateKey]) => {
+    const value = livePlan[normalizedKey] !== undefined
+      ? livePlan[normalizedKey]
+      : livePlan[alternateKey]
+    if (value !== undefined) {
+      projection[normalizedKey] = value
+    }
+  })
+  return projection
+}
+
 export function resolveDrPlanState (plan = {}, currentRun = null) {
   const state = String(plan.state || '').toUpperCase()
   const adminState = String(plan.adminstate || plan.adminState || '').toUpperCase()
