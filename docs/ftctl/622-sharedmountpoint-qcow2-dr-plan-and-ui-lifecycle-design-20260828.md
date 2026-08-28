@@ -478,3 +478,67 @@ after resume before the UI exposes Test Failover as ready.
 | Deployment | Management HTTP 200 is treated as sufficient | Both sites pass command-class, capability, service, and remote pause/resume gates |
 | Runtime evidence | Pause timeout is reported as engine unavailability | Agent deserialization errors are terminal deployment incompatibility evidence |
 | UI retest | Test Failover can be submitted against an incompatible source | Readiness is granted only after the remote scheduler barrier preflight passes |
+
+## 20. FILE checkpoint publication and UI success gate
+
+The 2026-08-29 UI retest demonstrated that Cloud `Running` and FTCTL
+`POWER_STATE_VALIDATED` cannot compensate for a filesystem-inconsistent FILE
+checkpoint. A test VM reached Rocky Linux emergency mode even though the Run
+and test session had been marked successful. Inspection found `/boot` XFS
+`Structure needs cleaning` and a byte mismatch between the immutable
+checkpoint and the drained canonical replica.
+
+Cloud keeps the existing asynchronous workflow, but FILE test materialization
+is now governed by a stronger FTCTL contract:
+
+1. remote source scheduler paused and acknowledged;
+2. target export stopped and writer drain acknowledged;
+3. selected durable sequence leased;
+4. canonical target proven locally unwritable;
+5. qcow2 container copied with sparse/reflink preservation into a temporary
+   checkpoint, byte-compared, and guest-filesystem inspected;
+6. immutable checkpoint atomically published;
+7. Cloud test VM created from a disposable overlay only after FTCTL reports
+   `checkpointSealState=SEALED` and `checkpointIntegrityState=PASSED`.
+
+The UI operation history must preserve the structured FTCTL error when any
+gate fails. It must not show Test Failover success merely because the VM power
+state is `Running`. For the no-QGA case, the deterministic boot-safety claim is
+the checkpoint publication gate; power-state validation remains a separate
+runtime observation. Operator validation still inspects the Cloud console
+during the release test.
+
+Existing invalid immutable files are not part of normal Test Cleanup. They are
+failed engineering artifacts and are removed only after their active test
+session and lease have been safely cleared. This prevents routine customer
+cleanup from absorbing migration debris.
+
+The change is FILE/SharedMountPoint-only. RBD and VMware action contracts,
+artifact ownership, and cleanup behavior are unchanged.
+
+## 21. Terminal Run and active test-session UI authority
+
+A completed `TEST_FAILOVER` Run and its still-active test session represent two
+different facts. The finite Run is terminal and must never expose `cancelRun`;
+the active test session owns the disposable VM and must expose
+`stopTestFailover` until cleanup completes.
+
+The versioned protection-view projection and `listDrPlans` action availability
+are authoritative for the action menu. After a terminal Run is observed, the
+UI must clear any older cached `activeRun`, retain the terminal Run only as
+history, and render Test Cleanup from the active session. Reopening the menu or
+polling the detail page must not preserve a pre-terminal menu closure.
+
+The deployment gate therefore verifies all of the following through the active
+web application:
+
+1. `cancelRun` is absent after `TEST_FAILOVER/SUCCEEDED`;
+2. `stopTestFailover` is visible and enabled while the test session is ACTIVE;
+3. Test Cleanup transitions the session to CLEANED, removes the disposable VM
+   and overlay, and resumes protection scheduling;
+4. a new durable checkpoint is produced before Test Failover becomes available
+   again.
+
+This UI projection rule is independent of checkpoint contents. It prevents a
+correct Cloud/FTCTL terminal state from being hidden behind a stale browser
+action menu while retaining the asynchronous backend contract.
