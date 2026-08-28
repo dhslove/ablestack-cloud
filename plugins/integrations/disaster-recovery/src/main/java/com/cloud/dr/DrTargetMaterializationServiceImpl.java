@@ -1139,7 +1139,7 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
 
     private void normalizeTestVolumePaths(DrTestSessionVO session) {
         for (DrTestDiskVO disk : drTestDiskDao.listActiveBySessionId(session.getId())) {
-            if (disk.getTargetVolumeId() == null || !StringUtils.equalsIgnoreCase(disk.getProvider(), "RBD")) {
+            if (disk.getTargetVolumeId() == null) {
                 continue;
             }
             VolumeVO volume = volumeDao.findById(disk.getTargetVolumeId());
@@ -1157,7 +1157,22 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
 
     private String cloudVolumePath(String artifactRef, StoragePoolVO pool) {
         String path = stripArtifactScheme(artifactRef);
-        if (pool == null || pool.getPoolType() != Storage.StoragePoolType.RBD || StringUtils.isBlank(path)) {
+        if (pool == null || StringUtils.isBlank(path)) {
+            return path;
+        }
+        if (pool.getPoolType() == Storage.StoragePoolType.SharedMountPoint) {
+            String normalizedPath = StringUtils.replace(path, "\\", "/");
+            String storageRoot = StringUtils.removeEnd(StringUtils.trimToEmpty(pool.getPath()), "/");
+            String storagePrefix = StringUtils.isBlank(storageRoot) ? null : storageRoot + "/";
+            if (storagePrefix != null && StringUtils.startsWith(normalizedPath, storagePrefix)) {
+                return StringUtils.removeStart(normalizedPath, storagePrefix);
+            }
+            if (StringUtils.startsWith(normalizedPath, "/")) {
+                return StringUtils.substringAfterLast(normalizedPath, "/");
+            }
+            return normalizedPath;
+        }
+        if (pool.getPoolType() != Storage.StoragePoolType.RBD) {
             return path;
         }
         String poolPath = StringUtils.strip(pool.getPath(), "/");
