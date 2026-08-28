@@ -72,6 +72,15 @@ an engine failure before the test VM materializer could run.
    test failover.
 4. A failure shows the backend error code and leaves Test Cleanup available
    when cleanup is required.
+5. The protection-view snapshot is a fast display cache. On every detail
+   refresh, `listDrRuns` is the authority for action gating and terminal Run
+   state.
+6. If the cached `activeRun` is `ACCEPTED` or `RUNNING` but the matching live
+   Run is terminal, the UI clears the active Run immediately and exposes the
+   state-appropriate recovery action such as Test Cleanup.
+7. If a newer live Run is active, it supersedes a stale terminal snapshot. If
+   the live Run query fails, the UI keeps the snapshot for display and reports
+   a refresh warning instead of silently changing action availability.
 
 ## 4. Firmware Normalization
 
@@ -103,6 +112,9 @@ combinations.
 - Cloud accepts a healthy legacy answer with only the synthetic timeout code.
 - UI does not announce `ACCEPTED` as completed.
 - UI stage text and final `ACTIVE` success are covered by unit tests.
+- A cached accepted Run reconciles to a live failed Run and no longer blocks
+  Test Cleanup.
+- A newer live active Run supersedes a stale terminal cached Run.
 - A remote KVM source Test Failover projects both status scopes locally and
   never calls the remote Mold status transport.
 - Baseline sync, pause/resume, release, test cleanup, failover, and failback

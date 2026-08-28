@@ -7,6 +7,7 @@
 import {
   isActiveDrRun,
   isActiveDrSyncCycle,
+  reconcileDrRunProjection,
   resolveDrPlanSeverity,
   resolveDrPlanState,
   resolveDrReadinessState,
@@ -44,6 +45,31 @@ describe('DR protection state helpers', () => {
     expect(isActiveDrSyncCycle({ state: 'COMMITTING' })).toBe(true)
     expect(isActiveDrSyncCycle({ state: 'READY' })).toBe(false)
     expect(isActiveDrSyncCycle({ state: 'COMPLETED' })).toBe(false)
+  })
+
+  it('clears a stale cached active run when the live run is terminal', () => {
+    const projection = reconcileDrRunProjection({
+      activeRun: { id: 'test-run', state: 'ACCEPTED' },
+      latestOperationRun: { id: 'test-run', state: 'ACCEPTED' }
+    }, [
+      { id: 'test-run', state: 'FAILED', errorcode: 'DR_TEST_CLOUD_MATERIALIZATION_FAILED' }
+    ])
+
+    expect(projection.activeRun).toEqual({})
+    expect(projection.latestOperationRun.state).toBe('FAILED')
+  })
+
+  it('uses a live active run instead of a stale terminal snapshot', () => {
+    const projection = reconcileDrRunProjection({
+      activeRun: {},
+      latestOperationRun: { id: 'old-run', state: 'FAILED' }
+    }, [
+      { id: 'new-run', state: 'RUNNING' },
+      { id: 'old-run', state: 'FAILED' }
+    ])
+
+    expect(projection.activeRun.id).toBe('new-run')
+    expect(projection.latestOperationRun.id).toBe('new-run')
   })
 
   it('does not classify an acknowledged target authority as an error', () => {

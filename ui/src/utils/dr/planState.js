@@ -14,6 +14,21 @@ export function isActiveDrSyncCycle (cycle = {}) {
   return ACTIVE_DR_SYNC_CYCLE_STATES.includes(String(cycle?.state || '').toUpperCase())
 }
 
+export function reconcileDrRunProjection (snapshot = {}, liveRuns = []) {
+  const runs = Array.isArray(liveRuns)
+    ? liveRuns.filter(run => run && (run.id || run.uuid))
+    : []
+  const activeRun = runs.find(run => isActiveDrRun(run)) || {}
+  const latestOperationRun = runs[0] || snapshot.latestOperationRun || snapshot.latestRun || {}
+
+  return Object.assign({}, snapshot, {
+    activeRun,
+    activeRunSteps: activeRun.steps || [],
+    latestOperationRun,
+    latestOperationRunSteps: latestOperationRun.steps || []
+  })
+}
+
 export function resolveDrPlanState (plan = {}, currentRun = null) {
   const state = String(plan.state || '').toUpperCase()
   const adminState = String(plan.adminstate || plan.adminState || '').toUpperCase()
