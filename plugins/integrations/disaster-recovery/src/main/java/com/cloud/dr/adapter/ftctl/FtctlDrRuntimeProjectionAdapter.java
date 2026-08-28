@@ -220,7 +220,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         authorityCommand.setWait(STATUS_REFRESH_WAIT_SECONDS);
         Answer answer;
         try {
-            answer = sendStatusCommand(plan, null, authorityCommand, hostId);
+            answer = sendStatusCommand(plan, projectionRun, authorityCommand, hostId);
         } catch (RuntimeException e) {
             return DrAdapterResult.retryable(DrConstants.ERROR_ENGINE_UNAVAILABLE,
                     "Remote FTCTL_DR authority status is temporarily unavailable: " + e.getMessage(),

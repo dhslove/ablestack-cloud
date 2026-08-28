@@ -736,6 +736,45 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     }
 
     @Test
+    public void remoteKvmTestFailoverProjectsAuthorityAndOperationFromTargetCoordinator() {
+        DrPlanVO plan = new DrPlanVO("remote-kvm-test-failover", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
+        plan.setCoordinatorWorkerHostId(103L);
+        plan.setActiveSide("SOURCE");
+        DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_TEST_FAILOVER);
+        run.setState(DrConstants.RUN_STATE_ACCEPTED);
+
+        Mockito.when(drRunDao.findActiveByPlanId(plan.getId())).thenReturn(run);
+        Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        Mockito.when(agentManager.easySend(Mockito.eq(103L), Mockito.any(FtctlDrStatusCommand.class)))
+                .thenAnswer(invocation -> {
+                    FtctlDrStatusCommand command = invocation.getArgument(1);
+                    String state = command.getStatusScope() == FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY
+                            ? "READY" : "TEST_ARTIFACTS_READY";
+                    String statusJson = command.getStatusScope() == FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY
+                            ? "{\"scheduler_state\":\"RUNNING\"}"
+                            : "{\"state\":\"TEST_ARTIFACTS_READY\",\"worker_state\":\"SUCCEEDED\"}";
+                    FtctlDrStatusAnswer answer = new FtctlDrStatusAnswer(command, true, "ok", plan.getUuid(),
+                            command.getStatusScope() == FtctlDrStatusCommand.StatusScope.OPERATION
+                                    ? run.getUuid() : null,
+                            "ok", state, "projected", 100, null, null, null,
+                            null, null, 0, "", statusJson);
+                    answer.setStatusScope(command.getStatusScope().name());
+                    return answer;
+                });
+
+        DrAdapterResult result = adapter.refreshPlanProjection(plan);
+
+        Assert.assertTrue(result.isSuccess());
+        Mockito.verify(agentManager, Mockito.times(2))
+                .easySend(Mockito.eq(103L), Mockito.any(FtctlDrStatusCommand.class));
+        Mockito.verify(drRemoteAgentClient, Mockito.never()).execute(Mockito.eq(plan), Mockito.eq("STATUS"),
+                Mockito.any(FtctlDrStatusCommand.class), Mockito.anyString(),
+                Mockito.eq(FtctlDrStatusAnswer.class));
+    }
+
+    @Test
     public void refreshPlanProjectionRetainsLastGoodDataForMixedCompletedCycleGeneration() {
         DrPlanVO plan = new DrPlanVO("ftctl-dr-plan", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
         plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);

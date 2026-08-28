@@ -48,6 +48,11 @@ an engine failure before the test VM materializer could run.
 7. Management startup queries unfinished `ACCEPTED / TEST_FAILOVER` Runs and
    restores their bounded projection watches. A management restart must not
    strand a Run after FTCTL has already produced durable test artifacts.
+8. For a remote KVM source plan, an active `TEST_FAILOVER` Run owns both its
+   `PLAN_AUTHORITY` and `OPERATION` projection on the target coordinator. The
+   test artifacts and Cloud test VM are target-site resources, so this polling
+   must not depend on source Mold credentials. Protection sync and cutover Runs
+   retain the existing remote-source routing contract.
 
 ### 3.3 UI
 
@@ -74,6 +79,7 @@ combinations.
 | Success answer | Synthetic error may accompany success | Successful contract has no error |
 | Cloud Run | Immediately fails on synthetic code | Accepts and tracks materialization |
 | Projection watch | Initial DAO re-read can skip scheduling | Persisted accepted Run schedules the first watch; later iterations re-read |
+| Remote KVM test projection | Authority polling can be sent to the source Mold and fail before local artifacts are observed | Route authority and operation polling for an active Test Failover Run to the target coordinator |
 | Test success | May look successful at request acceptance | Succeeds after VM boot validation |
 | UI | Acceptance and completion both look successful | Shows each async lifecycle stage |
 | Firmware | Non-secure UEFI can be mistaken for BIOS | Preserve `UEFI/LEGACY` explicitly |
@@ -87,5 +93,7 @@ combinations.
 - Cloud accepts a healthy legacy answer with only the synthetic timeout code.
 - UI does not announce `ACCEPTED` as completed.
 - UI stage text and final `ACTIVE` success are covered by unit tests.
+- A remote KVM source Test Failover projects both status scopes locally and
+  never calls the remote Mold status transport.
 - Baseline sync, pause/resume, release, test cleanup, failover, and failback
   action-contract tests remain passing.
