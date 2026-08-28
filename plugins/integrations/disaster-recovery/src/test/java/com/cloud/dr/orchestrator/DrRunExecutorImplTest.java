@@ -175,6 +175,7 @@ public class DrRunExecutorImplTest {
         Assert.assertEquals(DrConstants.RUN_STATE_ACCEPTED, run.getState());
         Mockito.verify(projectionScheduler).schedule(Mockito.any(Runnable.class), Mockito.eq(2L),
                 Mockito.eq(TimeUnit.SECONDS));
+        Mockito.verify(drRunDao, Mockito.times(1)).findById(run.getId());
     }
 
     @Test

@@ -470,18 +470,18 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
         recordEvent(plan.getId(), run.getId(), DrConstants.EVENT_RUN_ACCEPTED, DrConstants.EVENT_SEVERITY_INFO,
                 StringUtils.defaultIfBlank(result.getMessage(), "DR run accepted by Agent"), result.getDetailsJson());
         refreshProjection(plan.getId());
-        scheduleAcceptedProjectionWatch(run.getId(), 0);
+        scheduleAcceptedProjectionWatch(run, 0);
     }
 
-    private void scheduleAcceptedProjectionWatch(final long runId, final int attempt) {
+    private void scheduleAcceptedProjectionWatch(final DrRunVO run, final int attempt) {
         ScheduledExecutorService executor = retryExecutor;
         if (executor == null || attempt >= ACCEPTED_PROJECTION_MAX_ATTEMPTS) {
             return;
         }
-        DrRunVO run = drRunDao.findById(runId);
         if (!isAcceptedProjectionWatchCandidate(run)) {
             return;
         }
+        final long runId = run.getId();
         executor.schedule(new ManagedContextRunnable() {
             @Override
             protected void runInContext() {
@@ -492,7 +492,7 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
                 refreshProjection(watchedRun.getPlanId());
                 DrRunVO projectedRun = drRunDao.findById(runId);
                 if (isAcceptedProjectionWatchCandidate(projectedRun)) {
-                    scheduleAcceptedProjectionWatch(runId, attempt + 1);
+                    scheduleAcceptedProjectionWatch(projectedRun, attempt + 1);
                 }
             }
         }, ACCEPTED_PROJECTION_INTERVAL_SECONDS, TimeUnit.SECONDS);
