@@ -53,6 +53,15 @@ an engine failure before the test VM materializer could run.
    test artifacts and Cloud test VM are target-site resources, so this polling
    must not depend on source Mold credentials. Protection sync and cutover Runs
    retain the existing remote-source routing contract.
+9. For a `SharedMountPoint` FILE target, the FTCTL `qcow2-copy` locator must be
+   an absolute file directly under the registered Cloud storage pool root.
+   Cloud imports that exact path and the KVM Agent refreshes the libvirt pool
+   before resolving the volume by basename. A runtime-private `/run/...`
+   locator is rejected as non-materializable even when the file itself exists.
+10. FTCTL owns the pool-root test file only when its manifest contains the
+    validated `storageRoot`, an `ftctl-dr-test-` basename, and
+    `ownedByFtctl=true`. Test Cleanup removes that exact file after Cloud VM
+    and volume cleanup; it never removes the pool root or the durable replica.
 
 ### 3.3 UI
 
@@ -80,6 +89,7 @@ combinations.
 | Cloud Run | Immediately fails on synthetic code | Accepts and tracks materialization |
 | Projection watch | Initial DAO re-read can skip scheduling | Persisted accepted Run schedules the first watch; later iterations re-read |
 | Remote KVM test projection | Authority polling can be sent to the source Mold and fail before local artifacts are observed | Route authority and operation polling for an active Test Failover Run to the target coordinator |
+| SharedMountPoint test disk | `/run/...` artifact exists but is invisible to the Cloud storage pool | Artifact is materialized in the validated pool root and imported by its absolute path |
 | Test success | May look successful at request acceptance | Succeeds after VM boot validation |
 | UI | Acceptance and completion both look successful | Shows each async lifecycle stage |
 | Firmware | Non-secure UEFI can be mistaken for BIOS | Preserve `UEFI/LEGACY` explicitly |
