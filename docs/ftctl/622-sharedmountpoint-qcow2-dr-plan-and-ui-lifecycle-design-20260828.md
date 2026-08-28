@@ -301,6 +301,45 @@ the corrected GFS replica is durable and no process has it open.
 | UI test failover | Request Run fails before a test VM exists | Progress reflects artifact preparation, VM creation, boot validation, and terminal completion |
 | Regression scope | A generic file-path relaxation could affect other providers | Normalization is limited to SharedMountPoint; RBD and VMware contracts remain unchanged |
 
+## 14.1. SharedMountPoint Immutable Checkpoint Transition Boundary
+
+The controller must establish a stable FILE checkpoint before it asks FTCTL to
+materialize a Test Failover disk. Request acceptance and a Running libvirt VM
+are not sufficient. The existing Plan remains the only validation object.
+
+For remote `KVM_TO_KVM` SharedMountPoint plans, Cloud owns this transition:
+
+1. submit and persist the asynchronous Test Failover Run;
+2. pause the source scheduler through the registered source Site Agent;
+3. stop and drain the Plan-owned forward target export;
+4. dispatch `TEST_PREPARE` with the same latest durable sequence and
+   checkpoint reference in both request and artifact contract;
+5. project FTCTL `checkpoint_lease_state=HELD`,
+   `test_checkpoint_seal_state=SEALED`, and
+   `test_checkpoint_integrity_state=PASSED` before target VM creation;
+6. continue through Cloud volume import, test VM creation, and configured boot
+   validation;
+7. on Test Cleanup or pre-materialization failure, restart the forward export
+   and resume the source scheduler without DB repair.
+
+The Cloud transition is provider-scoped. VMware-to-RBD and RBD-to-RBD retain
+their existing action order. A FILE transition failure must compensate only
+resources that were acquired by that Run and must preserve the original
+structured error.
+
+The UI presents the sequence as **검증 체크포인트**, the seal as **불변
+체크포인트**, and the filesystem result as **게스트 파일시스템 일관성**.
+Test Failover cannot be shown as successful until all three are authoritative
+and the Cloud test VM boot-validation state is terminal `PASSED`.
+
+| Layer | AS-IS | TO-BE |
+| --- | --- | --- |
+| Cloud transition | Target writer may remain active during FILE copy | Remote scheduler pause and target writer drain are barriers |
+| Agent/FTCTL | Mutable locator can be copied before lease | Lease and immutable sequence seal precede materialization |
+| API evidence | Artifact state does not prove guest consistency | Sequence, seal, integrity, and boot states are typed fields |
+| UI | Running VM can appear as Test Failover success | Checkpoint integrity and boot completion are separate mandatory gates |
+| Cleanup | FILE transport can remain paused | Cleanup restores export and automatic protection |
+
 ## 15. Artifact-free failed test session terminalization
 
 The existing Plan must remain the only validation object. A failed test

@@ -74,6 +74,24 @@
         :showProtectionSummary="true" />
     </section>
 
+    <section v-if="hasTestCheckpointEvidence" class="cross-dr-protection-info__section">
+      <h3>{{ $t('label.dr.test.checkpoint.validation') }}</h3>
+      <a-descriptions size="small" :column="2" bordered>
+        <a-descriptions-item :label="$t('label.dr.test.checkpoint.sequence')">
+          {{ currentProtectionRuntime.testcheckpointsequence || '-' }}
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.test.checkpoint.lease')">
+          <dr-status-pill :status="currentProtectionRuntime.checkpointleasestate || 'PENDING'" />
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.test.checkpoint.seal')">
+          <dr-status-pill :status="currentProtectionRuntime.testcheckpointsealstate || 'PENDING'" />
+        </a-descriptions-item>
+        <a-descriptions-item :label="$t('label.dr.test.checkpoint.integrity')">
+          <dr-status-pill :status="currentProtectionRuntime.testcheckpointintegritystate || 'PENDING'" />
+        </a-descriptions-item>
+      </a-descriptions>
+    </section>
+
     <section v-if="hasCutoverState" class="cross-dr-protection-info__section">
       <h3>{{ $t('label.dr.cutover.authority') }}</h3>
       <a-descriptions size="small" :column="2" bordered>
@@ -437,6 +455,11 @@ export default {
     }
   },
   computed: {
+    hasTestCheckpointEvidence () {
+      return Boolean(this.currentProtectionRuntime.testcheckpointsequence ||
+        this.currentProtectionRuntime.testcheckpointsealstate ||
+        this.currentProtectionRuntime.testcheckpointintegritystate)
+    },
     protectionPlan () {
       const merged = Object.assign({}, this.plan, this.currentProtectionRuntime)
       const action = String(this.currentRun.runtype || this.currentRun.action || this.currentRun.type || '').toUpperCase()

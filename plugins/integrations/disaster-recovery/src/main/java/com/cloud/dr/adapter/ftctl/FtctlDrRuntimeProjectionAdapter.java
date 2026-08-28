@@ -4311,6 +4311,10 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         copyJsonProperty(runtime, compact, "transition_action");
         copyJsonProperty(runtime, compact, "transition_quiesced_at");
         copyJsonProperty(runtime, compact, "checkpoint_lease_state");
+        copyJsonProperty(runtime, compact, "test_checkpoint_sequence");
+        copyJsonProperty(runtime, compact, "test_checkpoint_seal_state");
+        copyJsonProperty(runtime, compact, "test_checkpoint_integrity_state");
+        copyJsonProperty(runtime, compact, "test_checkpoint_path");
         copyJsonProperty(runtime, compact, "worker_pid");
         copyJsonProperty(runtime, compact, "worker_state");
         copyJsonProperty(runtime, compact, "worker_started_at");
