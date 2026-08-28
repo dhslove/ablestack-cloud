@@ -150,4 +150,27 @@ describe('DrRunProgress transfer authority', () => {
       errormessage: 'generic step message'
     })).toBe('translated:message.dr.error.dr.guest.prep.v2k.runtime.missing')
   })
+
+  it('shows the exact test disk locator failure instead of the accepted state', () => {
+    const wrapper = shallowMount(DrRunProgress, {
+      props: {
+        run: {
+          runtype: 'TEST_FAILOVER',
+          state: 'FAILED',
+          errorcode: 'DR_TARGET_DISK_LOCATOR_INVALID',
+          errormessage: 'unsupported test artifact type: qcow2-copy'
+        },
+        runtime: {}
+      },
+      global: {
+        mocks: {
+          $te: key => key === 'message.dr.error.dr.target.disk.locator.invalid',
+          $t: key => `translated:${key}`
+        }
+      }
+    })
+
+    expect(wrapper.vm.failureText).toBe('translated:message.dr.error.dr.target.disk.locator.invalid')
+    expect(wrapper.vm.testFailoverActive).toBe(false)
+  })
 })

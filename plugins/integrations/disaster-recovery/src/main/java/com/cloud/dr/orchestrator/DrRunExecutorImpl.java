@@ -71,6 +71,8 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
     private static final int STEP_ORDER_FINAL = 90;
     private static final int DEFAULT_RETRY_AFTER_SECONDS = 5;
     private static final int MAX_RETRY_COUNT = 12;
+    private static final int ACCEPTED_PROJECTION_INTERVAL_SECONDS = 2;
+    private static final int ACCEPTED_PROJECTION_MAX_ATTEMPTS = 180;
 
     @Inject
     private DrPlanDao drPlanDao;
@@ -468,6 +470,39 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
         recordEvent(plan.getId(), run.getId(), DrConstants.EVENT_RUN_ACCEPTED, DrConstants.EVENT_SEVERITY_INFO,
                 StringUtils.defaultIfBlank(result.getMessage(), "DR run accepted by Agent"), result.getDetailsJson());
         refreshProjection(plan.getId());
+        scheduleAcceptedProjectionWatch(run.getId(), 0);
+    }
+
+    private void scheduleAcceptedProjectionWatch(final long runId, final int attempt) {
+        ScheduledExecutorService executor = retryExecutor;
+        if (executor == null || attempt >= ACCEPTED_PROJECTION_MAX_ATTEMPTS) {
+            return;
+        }
+        DrRunVO run = drRunDao.findById(runId);
+        if (!isAcceptedProjectionWatchCandidate(run)) {
+            return;
+        }
+        executor.schedule(new ManagedContextRunnable() {
+            @Override
+            protected void runInContext() {
+                DrRunVO watchedRun = drRunDao.findById(runId);
+                if (!isAcceptedProjectionWatchCandidate(watchedRun)) {
+                    return;
+                }
+                refreshProjection(watchedRun.getPlanId());
+                DrRunVO projectedRun = drRunDao.findById(runId);
+                if (isAcceptedProjectionWatchCandidate(projectedRun)) {
+                    scheduleAcceptedProjectionWatch(runId, attempt + 1);
+                }
+            }
+        }, ACCEPTED_PROJECTION_INTERVAL_SECONDS, TimeUnit.SECONDS);
+    }
+
+    private boolean isAcceptedProjectionWatchCandidate(DrRunVO run) {
+        return run != null
+                && run.getRemoved() == null
+                && run.getCompleted() == null
+                && StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_TEST_FAILOVER);
     }
 
     private void retryRun(DrRunVO run, String errorCode, String message, String detailsJson, Integer retryAfterSeconds) {

@@ -17,6 +17,8 @@
 package com.cloud.dr.orchestrator;
 
 import java.util.List;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -26,6 +28,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnitRunner;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.cloud.dr.DrConstants;
 import com.cloud.dr.DrEventVO;
@@ -151,6 +154,27 @@ public class DrRunExecutorImplTest {
         Assert.assertEquals(DrConstants.EVENT_RUN_ACCEPTED, eventCaptor.getAllValues().get(1).getEventType());
         Mockito.verify(drProtectionOrchestrator).prepareSyncRun(plan, run);
         Mockito.verify(drProjectionService).refreshPlanProjection(plan.getId(), true);
+    }
+
+    @Test
+    public void acceptedTestFailoverSchedulesBoundedBackgroundProjection() {
+        DrPlanVO plan = ftctlDrPlan();
+        DrRunVO run = run(DrConstants.RUN_TYPE_TEST_FAILOVER);
+        ScheduledExecutorService projectionScheduler = Mockito.mock(ScheduledExecutorService.class);
+        ReflectionTestUtils.setField(executor, "retryExecutor", projectionScheduler);
+        Mockito.when(drRunDao.findById(run.getId())).thenReturn(run);
+        Mockito.when(drPlanDao.findById(plan.getId())).thenReturn(plan);
+        Mockito.when(drAdapterRegistry.getReplicationEngine(DrConstants.ENGINE_TYPE_FTCTL_DR,
+                DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR)).thenReturn(replicationEngine);
+        Mockito.when(replicationEngine.validatePlan(plan)).thenReturn(DrAdapterResult.success("valid", null));
+        Mockito.when(replicationEngine.execute(Mockito.any(DrExecutionContext.class)))
+                .thenReturn(DrAdapterResult.accepted("accepted by agent", "{\"accepted\":true}", "ftctl-test-job"));
+
+        executor.queueRun(run);
+
+        Assert.assertEquals(DrConstants.RUN_STATE_ACCEPTED, run.getState());
+        Mockito.verify(projectionScheduler).schedule(Mockito.any(Runnable.class), Mockito.eq(2L),
+                Mockito.eq(TimeUnit.SECONDS));
     }
 
     @Test

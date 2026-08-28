@@ -375,3 +375,33 @@ offers Test Cleanup only when the session proves cleanup is required.
 | Cloud | generic runtime/ISO projection | preserves specific FTCTL evidence |
 | UI | opaque failed execution | localized actionable cause on Run and step |
 | Validation | target package drift is discovered after acceptance | host prerequisites and hashes are checked before UI retest |
+
+## 18. Qcow2 Copy Consumption and Accepted-Run Terminal Convergence
+
+SharedMountPoint Test Failover is an asynchronous operation. FTCTL first
+accepts the command and then produces, prepares, and boots the test object. The
+published file artifact type is `qcow2-copy`; Cloud must not report success at
+request acceptance, and a terminal FTCTL error occurring after acceptance must
+converge promptly into the Run and test session.
+
+FTCTL preserves the manifest helper's original `error_code`, `error_message`,
+and exit code. Cloud performs a bounded background projection watch for every
+accepted finite Test Failover Run in addition to the periodic projection
+scheduler. The watch stops when the Run is terminal, removed, or its retry
+budget expires. It never blocks the UI request thread.
+
+When FTCTL reports terminal failure, Cloud updates the owning Run, current
+step, and `dr_test_session` from the same structured evidence. The UI displays
+request acceptance, disk preparation, VM creation, boot verification, and
+terminal completion as separate states. A successful notification is allowed
+only after the Cloud test VM exists, is Running, and the configured boot
+validation has passed.
+
+| Layer | AS-IS | TO-BE |
+| --- | --- | --- |
+| FTCTL artifact contract | Producer emits `qcow2-copy`, consumer rejects it | Producer and consumer share the canonical `file/qcow2` copy contract |
+| Cloud projection | One best-effort refresh at acceptance can miss a later failure | Bounded asynchronous projection watch plus periodic reconciliation |
+| Run/session error | Generic or stale ACCEPTED state | Original terminal code and message atomically projected |
+| UI progress | Acceptance can appear equivalent to completion | Acceptance, artifact, VM, boot, and terminal states are distinct |
+| PASS gate | Request accepted | UI history `SUCCEEDED`, real test VM Running, boot validation `PASSED` |
+| Regression scope | Shared status logic may affect validated paths | Changes are limited to finite Test Failover convergence; RBD and VMware behavior is retained |

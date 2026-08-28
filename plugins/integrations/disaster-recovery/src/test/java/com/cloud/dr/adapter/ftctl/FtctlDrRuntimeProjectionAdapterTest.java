@@ -663,6 +663,36 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     }
 
     @Test
+    public void failedTestManifestPreservesExactLocatorErrorInRunAndSession() {
+        DrPlanVO plan = new DrPlanVO("plan-test-locator-failure", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_TEST_FAILOVER);
+        DrTestSessionVO session = new DrTestSessionVO(plan.getId(), run.getId(), "REQUESTED");
+        ReflectionTestUtils.setField(run, "id", 315L);
+        ReflectionTestUtils.setField(session, "id", 20L);
+        Mockito.when(drTestSessionDao.findActiveByRunId(run.getId())).thenReturn(session);
+
+        String message = "unsupported test artifact type: qcow2-copy";
+        FtctlDrStatusCommand command = new FtctlDrStatusCommand(plan.getUuid(), run.getUuid());
+        FtctlDrStatusAnswer status = new FtctlDrStatusAnswer(command, true, "ok", plan.getUuid(), run.getUuid(),
+                "ok", "ERROR", "test-guest-preparation-failed", 100,
+                null, null, null, null, "DR_TARGET_DISK_LOCATOR_INVALID", 63, message,
+                "{\"state\":\"ERROR\",\"worker_state\":\"FAILED\"," +
+                        "\"error_code\":\"DR_TARGET_DISK_LOCATOR_INVALID\"," +
+                        "\"error_message\":\"unsupported test artifact type: qcow2-copy\"}");
+        JsonObject runtime = JsonParser.parseString(status.getStatusJson()).getAsJsonObject();
+
+        ReflectionTestUtils.invokeMethod(adapter, "reconcileCloudManagedTestTarget", plan, run, status, runtime);
+        ReflectionTestUtils.invokeMethod(adapter, "failRunFromProjection", plan, run, status, runtime);
+
+        Assert.assertEquals(DrConstants.RUN_STATE_FAILED, run.getState());
+        Assert.assertEquals("DR_TARGET_DISK_LOCATOR_INVALID", run.getErrorCode());
+        Assert.assertEquals(message, run.getErrorMessage());
+        Assert.assertEquals(DrTestSessionState.FAILED, session.getState());
+        Assert.assertEquals("DR_TARGET_DISK_LOCATOR_INVALID", session.getErrorCode());
+        Assert.assertEquals(message, session.getErrorMessage());
+    }
+
+    @Test
     public void refreshPlanProjectionSeparatesAuthorityAndOperationWithoutErasingLastGoodVerification() {
         DrPlanVO plan = new DrPlanVO("ftctl-dr-plan", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
         plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);

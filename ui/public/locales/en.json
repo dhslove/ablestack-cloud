@@ -7324,6 +7324,7 @@
   "message.dr.error.dr.management.serving.process.stale": "The management API is being served by an old Cloud process. Restart management before retrying DR.",
   "message.dr.error.dr.ablestack.driver.failed": "The ABLESTACK target driver failed before the target VM was materialized.",
   "message.dr.error.dr.target.disk.mapping.invalid": "The target disk mapping is incomplete or invalid.",
+  "message.dr.error.dr.target.disk.locator.invalid": "The test disk location is invalid or unsupported for the selected target storage.",
   "message.dr.error.dr.target.disk.type.invalid": "The target disk type is invalid for the selected target storage.",
   "message.dr.error.dr.target.disk.size.unresolved": "The source disk size could not be resolved for target disk preparation.",
   "message.dr.error.dr.target.disk.prepare.failed": "The target disk could not be prepared on the selected target storage.",
