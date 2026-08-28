@@ -45,6 +45,9 @@ an engine failure before the test VM materializer could run.
 6. Subsequent watch iterations re-read the Run and stop only when it is removed
    or terminal. A `TEST_ARTIFACTS_READY` runtime must enqueue Cloud target
    materialization without requiring an operator refresh.
+7. Management startup queries unfinished `ACCEPTED / TEST_FAILOVER` Runs and
+   restores their bounded projection watches. A management restart must not
+   strand a Run after FTCTL has already produced durable test artifacts.
 
 ### 3.3 UI
 

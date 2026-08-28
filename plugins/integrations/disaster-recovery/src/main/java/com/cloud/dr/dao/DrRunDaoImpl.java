@@ -35,6 +35,7 @@ public class DrRunDaoImpl extends GenericDaoBase<DrRunVO, Long> implements DrRun
     private final SearchBuilder<DrRunVO> byPlanAndIdempotencySearch;
     private final SearchBuilder<DrRunVO> byPlanSearch;
     private final SearchBuilder<DrRunVO> byUuidSearch;
+    private final SearchBuilder<DrRunVO> acceptedTestFailoverSearch;
 
     public DrRunDaoImpl() {
         activeByPlanSearch = createSearchBuilder();
@@ -58,6 +59,13 @@ public class DrRunDaoImpl extends GenericDaoBase<DrRunVO, Long> implements DrRun
         byUuidSearch.and("uuid", byUuidSearch.entity().getUuid(), SearchCriteria.Op.EQ);
         byUuidSearch.and("removed", byUuidSearch.entity().getRemoved(), SearchCriteria.Op.NULL);
         byUuidSearch.done();
+
+        acceptedTestFailoverSearch = createSearchBuilder();
+        acceptedTestFailoverSearch.and("state", acceptedTestFailoverSearch.entity().getState(), SearchCriteria.Op.EQ);
+        acceptedTestFailoverSearch.and("runType", acceptedTestFailoverSearch.entity().getRunType(), SearchCriteria.Op.EQ);
+        acceptedTestFailoverSearch.and("completed", acceptedTestFailoverSearch.entity().getCompleted(), SearchCriteria.Op.NULL);
+        acceptedTestFailoverSearch.and("removed", acceptedTestFailoverSearch.entity().getRemoved(), SearchCriteria.Op.NULL);
+        acceptedTestFailoverSearch.done();
     }
 
     @Override
@@ -111,5 +119,13 @@ public class DrRunDaoImpl extends GenericDaoBase<DrRunVO, Long> implements DrRun
                         DrConstants.RUN_TYPE_SYNC, DrConstants.RUN_TYPE_REPROTECT))
                 .findFirst()
                 .orElse(null);
+    }
+
+    @Override
+    public List<DrRunVO> listAcceptedTestFailoverRuns() {
+        SearchCriteria<DrRunVO> sc = acceptedTestFailoverSearch.create();
+        sc.setParameters("state", DrConstants.RUN_STATE_ACCEPTED);
+        sc.setParameters("runType", DrConstants.RUN_TYPE_TEST_FAILOVER);
+        return listBy(sc);
     }
 }

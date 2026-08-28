@@ -179,6 +179,20 @@ public class DrRunExecutorImplTest {
     }
 
     @Test
+    public void startupRecoveryResumesAcceptedTestFailoverProjectionWatch() {
+        DrRunVO run = run(DrConstants.RUN_TYPE_TEST_FAILOVER);
+        run.setState(DrConstants.RUN_STATE_ACCEPTED);
+        ScheduledExecutorService projectionScheduler = Mockito.mock(ScheduledExecutorService.class);
+        ReflectionTestUtils.setField(executor, "retryExecutor", projectionScheduler);
+        Mockito.when(drRunDao.listAcceptedTestFailoverRuns()).thenReturn(List.of(run));
+
+        ReflectionTestUtils.invokeMethod(executor, "resumeAcceptedProjectionWatches");
+
+        Mockito.verify(projectionScheduler).schedule(Mockito.any(Runnable.class), Mockito.eq(2L),
+                Mockito.eq(TimeUnit.SECONDS));
+    }
+
+    @Test
     public void remoteKvmSyncMaterializesPlanOwnedTargetBeforePreparingFtctlProfile() {
         DrPlanVO plan = remoteKvmFtctlDrPlan();
         DrPlanVO refreshed = remoteKvmFtctlDrPlan();

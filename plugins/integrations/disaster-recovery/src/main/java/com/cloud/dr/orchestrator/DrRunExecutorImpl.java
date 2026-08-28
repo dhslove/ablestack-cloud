@@ -104,6 +104,7 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
                 new ArrayBlockingQueue<>(512), new NamedThreadFactory("DrRunDispatcher"),
                 new ThreadPoolExecutor.AbortPolicy());
         retryExecutor = Executors.newSingleThreadScheduledExecutor(new NamedThreadFactory("DrRunRetryScheduler"));
+        resumeAcceptedProjectionWatches();
         return true;
     }
 
@@ -496,6 +497,20 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
                 }
             }
         }, ACCEPTED_PROJECTION_INTERVAL_SECONDS, TimeUnit.SECONDS);
+    }
+
+    private void resumeAcceptedProjectionWatches() {
+        try {
+            List<DrRunVO> acceptedRuns = drRunDao.listAcceptedTestFailoverRuns();
+            if (acceptedRuns == null) {
+                return;
+            }
+            for (DrRunVO run : acceptedRuns) {
+                scheduleAcceptedProjectionWatch(run, 0);
+            }
+        } catch (RuntimeException e) {
+            LOGGER.warn("Unable to restore accepted DR test failover projection watches", e);
+        }
     }
 
     private boolean isAcceptedProjectionWatchCandidate(DrRunVO run) {

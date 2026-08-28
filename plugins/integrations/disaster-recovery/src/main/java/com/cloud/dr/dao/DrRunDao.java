@@ -32,5 +32,7 @@ public interface DrRunDao extends GenericDao<DrRunVO, Long> {
 
     DrRunVO findLatestProtectionProducerByPlanId(long planId);
 
+    List<DrRunVO> listAcceptedTestFailoverRuns();
+
     List<DrRunVO> listByPlanId(long planId);
 }
