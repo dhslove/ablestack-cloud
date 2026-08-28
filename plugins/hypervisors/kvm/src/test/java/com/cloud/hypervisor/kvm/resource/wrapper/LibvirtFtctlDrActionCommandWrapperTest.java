@@ -16,13 +16,49 @@
 // under the License.
 package com.cloud.hypervisor.kvm.resource.wrapper;
 
+import java.io.IOException;
+
 import org.junit.Assert;
 import org.junit.Test;
 
+import com.cloud.agent.api.FtctlDrActionCommand;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 public class LibvirtFtctlDrActionCommandWrapperTest {
+
+    private static final String REPROTECT_AUTHORITY_SPEC = "{"
+            + "\"expectedActiveSide\":\"TARGET\","
+            + "\"authorityGeneration\":344,"
+            + "\"checkpointSequence\":344,"
+            + "\"targetVmId\":157,"
+            + "\"cutoverSessionId\":\"cutover-a\"}";
+
+    @Test
+    public void reprotectAuthorityValidationUsesSharedCommandContractVersion() throws IOException {
+        FtctlDrActionCommand command = new FtctlDrActionCommand(
+                FtctlDrActionCommand.Action.REPROTECT, "plan-a", "run-a");
+        command.setAuthorityContractVersion(FtctlDrActionCommand.REPROTECT_AUTHORITY_CONTRACT_VERSION);
+        command.setAuthoritySpecJson(REPROTECT_AUTHORITY_SPEC);
+
+        LibvirtFtctlDrActionCommandWrapper.validateAuthoritySpec(command);
+    }
+
+    @Test
+    public void reprotectAuthorityValidationRejectsStaleContractVersion() {
+        FtctlDrActionCommand command = new FtctlDrActionCommand(
+                FtctlDrActionCommand.Action.REPROTECT, "plan-a", "run-a");
+        command.setAuthorityContractVersion("2026-07-23");
+        command.setAuthoritySpecJson(REPROTECT_AUTHORITY_SPEC);
+
+        try {
+            LibvirtFtctlDrActionCommandWrapper.validateAuthoritySpec(command);
+            Assert.fail("Stale reprotect authority contract must be rejected");
+        } catch (IOException e) {
+            Assert.assertTrue(e.getMessage().contains(
+                    FtctlDrActionCommand.REPROTECT_AUTHORITY_CONTRACT_VERSION));
+        }
+    }
 
     @Test
     public void statusQuerySuccessDoesNotAcceptFailedRun() {

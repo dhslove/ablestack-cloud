@@ -161,12 +161,14 @@ public class LibvirtFtctlDrActionCommandWrapper extends CommandWrapper<FtctlDrAc
         }
     }
 
-    private void validateAuthoritySpec(FtctlDrActionCommand command) throws IOException {
+    static void validateAuthoritySpec(FtctlDrActionCommand command) throws IOException {
         if (command.getAction() != FtctlDrActionCommand.Action.REPROTECT) {
             return;
         }
-        if (!StringUtils.equals("2026-07-23", command.getAuthorityContractVersion())) {
-            throw new IOException("DR_REPROTECT_AUTHORITY_INVALID: authority contract version 2026-07-23 is required");
+        if (!StringUtils.equals(FtctlDrActionCommand.REPROTECT_AUTHORITY_CONTRACT_VERSION,
+                command.getAuthorityContractVersion())) {
+            throw new IOException("DR_REPROTECT_AUTHORITY_INVALID: authority contract version "
+                    + FtctlDrActionCommand.REPROTECT_AUTHORITY_CONTRACT_VERSION + " is required");
         }
         JsonObject spec = LibvirtFtctlWrapperHelper.parseJsonObject(command.getAuthoritySpecJson());
         if (spec == null

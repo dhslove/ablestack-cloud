@@ -22,6 +22,7 @@ import java.util.Map;
 public class FtctlDrActionCommand extends Command {
 
     public static final String ACTION_CONTRACT_VERSION = "2026-08-06";
+    public static final String REPROTECT_AUTHORITY_CONTRACT_VERSION = "2026-08-26";
 
     public enum Action {
         SYNC("dr-sync-start"),

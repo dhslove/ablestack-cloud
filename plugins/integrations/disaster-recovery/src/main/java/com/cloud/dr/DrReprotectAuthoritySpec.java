@@ -5,8 +5,10 @@
 // to you under the Apache License, Version 2.0.
 package com.cloud.dr;
 
+import com.cloud.agent.api.FtctlDrActionCommand;
+
 public class DrReprotectAuthoritySpec {
-    public static final String CONTRACT_VERSION = "2026-08-26";
+    public static final String CONTRACT_VERSION = FtctlDrActionCommand.REPROTECT_AUTHORITY_CONTRACT_VERSION;
 
     private String contractVersion = CONTRACT_VERSION;
     private String planUuid;

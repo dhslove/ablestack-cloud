@@ -159,3 +159,78 @@ plan.
 4. Register the 12 and 31 DR sites in the controller cluster UI.
 5. Run inventory discovery and create a single qcow2-to-qcow2 DR plan before
    expanding to multiple VMs.
+
+## 2026-08-28 31-Cluster DR Release Restoration
+
+The 31-cluster management server was found running the older
+`4.23.0.0-ABLESTACK.Mold.SNAPSHOT.1` packages. `/client/` returned HTTP 200,
+but the active UI contained none of the FTCTL markers or DR locale entries, so
+the Disaster Recovery menu was absent. The DR schema and
+`cloud.dr.service.enabled=true` configuration were still present; this was a
+package/UI baseline regression rather than a disabled DR service.
+
+The retained, checksum-verified 2026-08-26 test release was restored. The
+management rollback backup is
+`/root/qcow2-dr-release-backup-20260828-005111`. The Cloud common,
+management, UI, and usage packages now all report
+`4.23.0.0-Mold.Europa.202608261320.1`. Package verification reports only the
+expected local configuration and log metadata changes, with no missing
+package-owned JAR.
+
+The compute hosts already contained qemu-exec-tools, V2K, N2K, FTCTL, and
+HangCTL `0.9.5-1`. Their older Snapshot Agent/common packages were replaced
+one host at a time with `4.23.0.0-Mold.Europa.202608261320.1`. Backups are:
+
+- `10.10.31.1`: `/root/qcow2-dr-host-backup-20260828-005211`
+- `10.10.31.2`: `/root/qcow2-dr-host-backup-20260828-005218`
+- `10.10.31.3`: `/root/qcow2-dr-host-backup-20260828-005224`
+
+Post-deployment verification is PASS:
+
+- `mold` and `mold-usage` are active; `/client/` returns HTTP 200.
+- The active webapp preserves `WEB-INF` and contains `blockingLoadingState`,
+  `fetchSyncProgress`, and `extractJobId`.
+- Korean locale entries for `DR 사이트` and `DR 계획` are present.
+- An administrator browser session displays the `재해복구` menu and opens
+  both DR site and DR plan list pages successfully.
+- All three routing hosts are `Up/Enabled` with the Europa Agent version.
+- `mold-agent`, FTCTL, and HangCTL timers are active on all three hosts.
+- NBD reports `nbds_max=32`; FTCTL runtime hashes remain identical across the
+  three hosts.
+
+The 31 cluster is restored to the documented QCOW2 DR test-release baseline
+and is ready for UI-driven DR site and plan configuration.
+
+## Existing 13-to-31 SharedMountPoint Plan Reprotect Contract (2026-08-29)
+
+The authoritative functional target is the existing 31-controller plan
+`41886f03-c19e-4382-927d-89bc4d6ce8e9` (`rocky9-vm DR Plan`). Its source
+and target disks are both on the registered `/mnt/glue-gfs`
+`SharedMountPoint` pools in clusters 13 and 31. Validation must continue on
+this plan; creating a substitute plan or using local storage is out of scope.
+
+The first UI Failover completed and promoted the target VM, but UI Reprotect
+failed before Agent dispatch because the authority-spec producer emitted
+contract `2026-08-26` while the KVM wrapper still hard-coded `2026-07-23`.
+This is a Cloud command-contract regression, not a qcow2 checkpoint or
+SharedMountPoint transport failure.
+
+The Reprotect authority contract has one canonical version constant in
+`FtctlDrActionCommand`. The DR authority-spec producer and the KVM Agent
+consumer must both reference it. A release must fail its unit gate if either
+side accepts a different literal. This change does not alter transfer,
+checkpoint, target materialization, or any previously validated VMware/RBD
+provider behavior.
+
+| Area | AS-IS | TO-BE |
+|---|---|---|
+| Contract owner | Producer and consumer keep separate version literals | Core command owns one shared version constant |
+| Reprotect dispatch | Valid `2026-08-26` authority is rejected by Agent wrapper | Producer and consumer validate the same contract |
+| Failure timing | UI Run fails after successful preflight but before FTCTL | Valid contract reaches FTCTL and remains observable in UI |
+| Regression gate | Adapter tests cover only the producer | Producer and KVM consumer versions are both tested |
+
+The UI PASS gate remains strict: the same plan must show Reprotect
+`SUCCEEDED`, reverse protection ready, Failback `SUCCEEDED`, source VM
+`Running`, target authority released, and terminal operation history with no
+stale active Run. Database or host evidence supplements but does not replace
+the UI result.
