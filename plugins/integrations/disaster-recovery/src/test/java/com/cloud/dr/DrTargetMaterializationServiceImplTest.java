@@ -158,6 +158,7 @@ public class DrTargetMaterializationServiceImplTest {
         Mockito.when(drPlanDao.findById(planId)).thenReturn(plan);
         Mockito.when(accountDao.findById(1L)).thenReturn(owner);
         Mockito.when(disk.getId()).thenReturn(2L);
+        Mockito.when(disk.getProvider()).thenReturn("RBD");
         Mockito.when(disk.getArtifactRef()).thenReturn("rbd:rbd/test-clone");
         Mockito.when(disk.getTargetVolumeId()).thenReturn(483L);
         Mockito.when(drTestDiskDao.listActiveBySessionId(1L)).thenReturn(Collections.singletonList(disk));
@@ -196,6 +197,7 @@ public class DrTargetMaterializationServiceImplTest {
         Mockito.when(drPlanDao.findById(planId)).thenReturn(plan);
         Mockito.when(accountDao.findById(1L)).thenReturn(owner);
         Mockito.when(disk.getId()).thenReturn(4L);
+        Mockito.when(disk.getProvider()).thenReturn("FILE");
         Mockito.when(disk.getArtifactRef()).thenReturn(
                 "/run/ablestack-vm-ftctl/dr-runtime/plans/plan/test-sessions/run-artifacts/test-disk.qcow2");
         Mockito.when(disk.getTargetVolumeId()).thenReturn(484L);
