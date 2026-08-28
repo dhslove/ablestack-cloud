@@ -62,11 +62,6 @@ an engine failure before the test VM materializer could run.
     validated `storageRoot`, an `ftctl-dr-test-` basename, and
     `ownedByFtctl=true`. Test Cleanup removes that exact file after Cloud VM
     and volume cleanup; it never removes the pool root or the durable replica.
-11. Cloud stores `SharedMountPoint` test-volume paths relative to the pool
-    root. During Test Cleanup it also normalizes legacy absolute `/run/...`
-    test artifact paths to their generated artifact basename before expunge.
-    This compatibility path applies only to volumes referenced by an active DR
-    test session; ordinary VM and durable replica volume deletion is unchanged.
 
 ### 3.3 UI
 
@@ -111,7 +106,7 @@ combinations.
 | Test success | May look successful at request acceptance | Succeeds after VM boot validation |
 | UI | Acceptance and completion both look successful | Shows each async lifecycle stage |
 | Firmware | Non-secure UEFI can be mistaken for BIOS | Preserve `UEFI/LEGACY` explicitly |
-| Compensation | A legacy `/run/...` test-volume path makes Cloud expunge fail before FTCTL cleanup | Normalize only DR test-session SharedMountPoint volumes to a pool-relative path, then complete Cloud and FTCTL cleanup in order |
+| Compensation | Failed session/artifacts remain pending | Preserve evidence and expose cleanup path |
 
 ## 6. Regression Gates
 
@@ -128,7 +123,5 @@ combinations.
   Failover availability.
 - A remote KVM source Test Failover projects both status scopes locally and
   never calls the remote Mold status transport.
-- SharedMountPoint Test Cleanup normalizes both a pool-root absolute locator
-  and a legacy runtime-private locator before Cloud volume expunge.
 - Baseline sync, pause/resume, release, test cleanup, failover, and failback
   action-contract tests remain passing.

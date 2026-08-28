@@ -181,44 +181,6 @@ public class DrTargetMaterializationServiceImplTest {
     }
 
     @Test
-    public void cleanupNormalizesLegacySharedMountPointTestVolumePath() throws Exception {
-        long planId = 36L;
-        long cleanupRunId = 66L;
-        DrTestSessionVO session = Mockito.mock(DrTestSessionVO.class);
-        DrTestDiskVO disk = Mockito.mock(DrTestDiskVO.class);
-        VolumeVO volume = Mockito.mock(VolumeVO.class);
-        DrPlanVO plan = Mockito.mock(DrPlanVO.class);
-        AccountVO owner = Mockito.mock(AccountVO.class);
-        StoragePoolVO pool = Mockito.mock(StoragePoolVO.class);
-
-        Mockito.when(session.getId()).thenReturn(3L);
-        Mockito.when(session.getState()).thenReturn("FAILED");
-        Mockito.when(drTestSessionDao.findActiveByPlanId(planId)).thenReturn(session);
-        Mockito.when(drPlanDao.findById(planId)).thenReturn(plan);
-        Mockito.when(accountDao.findById(1L)).thenReturn(owner);
-        Mockito.when(disk.getId()).thenReturn(4L);
-        Mockito.when(disk.getProvider()).thenReturn("FILE");
-        Mockito.when(disk.getArtifactRef()).thenReturn(
-                "/run/ablestack-vm-ftctl/dr-runtime/plans/plan/test-sessions/run-artifacts/test-disk.qcow2");
-        Mockito.when(disk.getTargetVolumeId()).thenReturn(484L);
-        Mockito.when(drTestDiskDao.listActiveBySessionId(3L)).thenReturn(Collections.singletonList(disk));
-        Mockito.when(volumeDao.findById(484L)).thenReturn(volume);
-        Mockito.when(volume.getId()).thenReturn(484L);
-        Mockito.when(volume.getPoolId()).thenReturn(2L);
-        Mockito.when(volume.getPath()).thenReturn(
-                "/run/ablestack-vm-ftctl/dr-runtime/plans/plan/test-sessions/run-artifacts/test-disk.qcow2");
-        Mockito.when(primaryDataStoreDao.findById(2L)).thenReturn(pool);
-        Mockito.when(pool.getPoolType()).thenReturn(com.cloud.storage.Storage.StoragePoolType.SharedMountPoint);
-        Mockito.when(pool.getPath()).thenReturn("/mnt/glue-gfs");
-
-        Assert.assertTrue(service.cleanupTestTarget(planId, cleanupRunId));
-
-        Mockito.verify(volume).setPath("test-disk.qcow2");
-        Mockito.verify(volumeDao).update(484L, volume);
-        Mockito.verify(volumeApiService).destroyVolume(484L, owner, true, true);
-    }
-
-    @Test
     public void testFailoverUsesPersistedDefaultNetworkWhenGroupRequestOmitsNetworkId() {
         DrResolvedTargetPlacement placement = new DrResolvedTargetPlacement();
         DrResolvedNetworkMapping mapped = new DrResolvedNetworkMapping();
