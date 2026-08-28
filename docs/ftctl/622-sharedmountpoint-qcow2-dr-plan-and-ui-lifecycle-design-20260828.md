@@ -542,3 +542,47 @@ web application:
 This UI projection rule is independent of checkpoint contents. It prevents a
 correct Cloud/FTCTL terminal state from being hidden behind a stale browser
 action menu while retaining the asynchronous backend contract.
+
+## 22. Checkpoint invariance deployment and UI validation
+
+The FILE/SharedMountPoint checkpoint-invariance patch was validated on the
+13-to-31 test path with plan
+`41886f03-c19e-4382-927d-89bc4d6ce8e9`. The FTCTL release artifact was built
+by GitHub Actions run `33193935352` from qemu commit `72daf0a` and installed on
+all 13 and 31 compute hosts. Cloud UI commit `db5307d897` was deployed to both
+management servers while preserving `WEB-INF`.
+
+The accepted Test Failover Run
+`a46edf36-4127-4a52-a05c-337f3d189f33` consumed immutable checkpoint sequence
+`280`. Its version-2 metadata binds the source path, file size, mtime, virtual
+size, and contract digest. `qemu-img compare` against the drained canonical
+replica and `qemu-img check` both passed before Cloud materialization.
+
+The UI operation history converged to `TEST_FAILOVER / SUCCEEDED / 100%` only
+after test VM `i-2-164-VM` existed and was Running. The Cloud console showed a
+Rocky Linux 9.3 login prompt, rather than the former emergency-mode boot. This
+is the release evidence that the immutable checkpoint, not a repaired test
+artifact, supplied a bootable guest image.
+
+UI Test Cleanup Run `941267da-8680-4c90-ae29-139622f24acc` then converged to
+`SUCCEEDED / 100%`. The test session became `CLEANED`, its VM became
+`Expunging`, its overlay volume became `Expunged`, and active plan leases
+became zero. Because this plan was paused before the final test, the operator
+used the UI `Resume Sync` action. The plan subsequently converged to `READY`,
+the scheduler to `RUNNING`, the cycle to `IDLE`, and freshness to
+`WITHIN_RPO` after durable incremental sequence `281`.
+
+One environment prerequisite was also exposed during validation: the first
+post-patch materialization failed because the target host lacked libvirt base
+iptables chains. Restoring the standard libvirt chains on all 31 compute hosts
+allowed the same immutable-checkpoint path to pass. This host repair is not a
+normal Test Cleanup responsibility and does not alter the checkpoint contract.
+
+The validated release gate is therefore:
+
+1. FTCTL checkpoint metadata version 2 is present;
+2. canonical-to-checkpoint compare and qcow2 structural check pass;
+3. UI history reports Test Failover `SUCCEEDED` only after VM and boot gates;
+4. the Cloud console reaches the guest login prompt;
+5. UI Test Cleanup removes only disposable VM/overlay/session resources;
+6. plan protection returns to `READY/RUNNING/WITHIN_RPO` with no active lease.
