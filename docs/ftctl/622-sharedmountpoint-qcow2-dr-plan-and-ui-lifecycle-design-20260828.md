@@ -312,6 +312,8 @@ For remote `KVM_TO_KVM` SharedMountPoint plans, Cloud owns this transition:
 1. submit and persist the asynchronous Test Failover Run;
 2. pause the source scheduler through the registered source Site Agent;
 3. stop and drain the Plan-owned forward target export;
+   this Test Failover drain never carries a cutover checkpoint sequence and
+   never creates a reverse Failover baseline;
 4. dispatch `TEST_PREPARE` with the same latest durable sequence and
    checkpoint reference in both request and artifact contract;
 5. project FTCTL `checkpoint_lease_state=HELD`,
@@ -339,6 +341,14 @@ and the Cloud test VM boot-validation state is terminal `PASSED`.
 | API evidence | Artifact state does not prove guest consistency | Sequence, seal, integrity, and boot states are typed fields |
 | UI | Running VM can appear as Test Failover success | Checkpoint integrity and boot completion are separate mandatory gates |
 | Cleanup | FILE transport can remain paused | Cleanup restores export and automatic protection |
+
+The export-stop contract is purpose-aware. `TEST_FAILOVER` uses the durable
+sequence only in the artifact request, lease, seal metadata, and UI evidence.
+`FAILOVER` may pass the cutover sequence to FTCTL because that transition owns
+the reverse baseline needed by a later Failback. Mixing those contracts makes
+an otherwise normal initial export drain fail before checkpoint sealing, so
+Cloud strips the sequence for Test Failover and FTCTL independently rejects
+reverse-baseline work when the profile action intent is `TEST_FAILOVER`.
 
 ## 15. Artifact-free failed test session terminalization
 

@@ -73,7 +73,12 @@ public class DrPlanOwnedTransportServiceImpl extends ManagerBase implements DrPl
         HostVO targetHost = targetHost(plan);
         FtctlDrActionCommand command = command(plan, run, FtctlDrActionCommand.Action.TARGET_EXPORT_STOP,
                 "target", targetHost.getUuid(), profileJson);
-        command.setCutoverCheckpointSequence(checkpointSequence);
+        // Test Failover drains the mutable FILE writer before sealing the
+        // selected checkpoint. It must not ask FTCTL to create the reverse
+        // cutover baseline that is owned exclusively by a real Failover.
+        if (!StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_TEST_FAILOVER)) {
+            command.setCutoverCheckpointSequence(checkpointSequence);
+        }
         requireSuccess(agentManager.easySend(targetHost.getId(), command),
                 "Target Agent did not stop the Plan-owned RBD export");
     }

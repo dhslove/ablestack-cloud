@@ -83,6 +83,32 @@ public class DrPlanOwnedTransportServiceImplTest {
     }
 
     @Test
+    public void testFailoverDrainDoesNotRequestReverseCutoverBaseline() {
+        run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_TEST_FAILOVER);
+        Mockito.when(agentManager.easySend(Mockito.eq(22L), Mockito.any(FtctlDrActionCommand.class)))
+                .thenReturn(answer("{\"result\":\"ok\"}"));
+
+        service.stopForwardTargetExport(plan, run, "{\"request\":{\"actionIntent\":\"TEST_FAILOVER\"}}", 253L);
+
+        ArgumentCaptor<FtctlDrActionCommand> command = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
+        Mockito.verify(agentManager).easySend(Mockito.eq(22L), command.capture());
+        Assert.assertNull(command.getValue().getCutoverCheckpointSequence());
+    }
+
+    @Test
+    public void failoverDrainPreservesReverseCutoverBaselineSequence() {
+        run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_FAILOVER);
+        Mockito.when(agentManager.easySend(Mockito.eq(22L), Mockito.any(FtctlDrActionCommand.class)))
+                .thenReturn(answer("{\"result\":\"ok\"}"));
+
+        service.stopForwardTargetExport(plan, run, null, 253L);
+
+        ArgumentCaptor<FtctlDrActionCommand> command = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
+        Mockito.verify(agentManager).easySend(Mockito.eq(22L), command.capture());
+        Assert.assertEquals(Long.valueOf(253L), command.getValue().getCutoverCheckpointSequence());
+    }
+
+    @Test
     public void unsupportedRouteDoesNotDispatchTransport() {
         plan = new DrPlanVO("vmware-plan", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
 
