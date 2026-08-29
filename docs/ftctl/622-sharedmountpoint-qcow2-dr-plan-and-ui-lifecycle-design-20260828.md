@@ -776,8 +776,17 @@ The Cloud-owned order is therefore fixed as follows:
 3. pause the remote source scheduler and require its acknowledgement;
 4. stop the source VM through its owning Mold and require `POWERED_OFF`;
 5. dispatch the FTCTL Failover final delta from that immutable source;
-6. commit the resulting checkpoint and manifest before target VM power-on;
-7. validate target boot and commit TARGET authority.
+6. establish the reverse baseline, start the target VM as a non-authoritative
+   promotion candidate, and validate its boot contract;
+7. submit that target power and boot evidence with the immutable checkpoint to
+   FTCTL, then commit TARGET authority only after the engine acknowledgement.
+
+Target boot precedes the authority commit because
+`DR_CUTOVER_COMMIT_V2` deliberately includes the target VM identity, power
+state, and boot-validation evidence. This does not create dual authority: the
+source is already powered off and its scheduler remains paused, while the
+target remains a promotion candidate until both FTCTL and Cloud acknowledge
+the same immutable checkpoint.
 
 If scheduler pause, source stop, or final-delta dispatch fails before Agent
 acceptance, Cloud powers the source VM back on and resumes forward protection.
