@@ -757,3 +757,37 @@ unreadable guest metadata is
 `DR_TEST_CHECKPOINT_GUEST_FS_INCONSISTENT`. The UI must display the original
 reason and never report Test Failover success until VM creation, power-state
 validation, and terminal Run projection all succeed.
+
+## 26. Planned KVM failover checkpoint ordering
+
+A planned `KVM_TO_KVM` Failover must create its final checkpoint from an
+immutable source. Producing the final delta while the source VM is still
+running and attempting source isolation afterward is invalid: an operational
+delay such as SharedMountPoint clone flatten can resume the scheduler, advance
+the durable sequence, and leave the cutover manifest bound to an older
+checkpoint.
+
+The Cloud-owned order is therefore fixed as follows:
+
+1. refresh source hardware and VM Detail inventory and reject active clone
+   flatten;
+2. validate FTCTL capabilities, the latest durable checkpoint, and target
+   transport readiness;
+3. pause the remote source scheduler and require its acknowledgement;
+4. stop the source VM through its owning Mold and require `POWERED_OFF`;
+5. dispatch the FTCTL Failover final delta from that immutable source;
+6. commit the resulting checkpoint and manifest before target VM power-on;
+7. validate target boot and commit TARGET authority.
+
+If scheduler pause, source stop, or final-delta dispatch fails before Agent
+acceptance, Cloud powers the source VM back on and resumes forward protection.
+The Run fails with the original source-isolation or dispatch reason and cannot
+leave both sites active. After Agent acceptance, the source remains off and
+runtime projection verifies the same isolation state idempotently.
+
+This barrier applies only to planned remote `KVM_TO_KVM` Failover. Disaster
+Failover keeps its explicit source-isolation acknowledgement contract, and the
+validated VMware-to-RBD and local RBD-to-RBD dispatch paths are unchanged.
+Regression tests must prove the order `target export -> scheduler pause ->
+source power-off -> final-delta dispatch`, the rollback path, and the absence
+of source lifecycle calls for the unaffected providers.

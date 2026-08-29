@@ -234,6 +234,8 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
                 && isSharedMountPointFilePlan(context.getPlan());
         boolean immutableFileTestCleanup = action == FtctlDrActionCommand.Action.TEST_ARTIFACT_CLEANUP
                 && isSharedMountPointFilePlan(context.getPlan());
+        boolean plannedRemoteKvmIsolationRequired = requiresPlannedRemoteKvmIsolation(context, action);
+        boolean plannedRemoteKvmIsolated = false;
         if (action == null) {
             String message = "DR run type " + context.getRun().getRunType() + " is not supported by FTCTL_DR";
             return DrAdapterResult.failure(DrConstants.ERROR_ACTION_UNSUPPORTED, message, GSON.toJson(buildExecutionDetails(context, null, null)));
@@ -284,6 +286,13 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         try {
             command = buildActionCommand(context, action);
             preparePlanOwnedTransport(context, action, command);
+            if (plannedRemoteKvmIsolationRequired) {
+                DrAdapterResult isolationFailure = preparePlannedRemoteKvmIsolation(context, command);
+                if (isolationFailure != null) {
+                    return isolationFailure;
+                }
+                plannedRemoteKvmIsolated = true;
+            }
             if (reprotectPreflight != null) {
                 command.setAuthorityContractVersion(DrReprotectAuthoritySpec.CONTRACT_VERSION);
                 command.setAuthoritySpecJson(GSON.toJson(reprotectPreflight.getAuthoritySpec()));
@@ -310,6 +319,8 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
             DrAdapterResult result = toAdapterResult(context, action, coordinatorHostId, answer);
             if (immutableFileTestTransition && !result.isSuccess()) {
                 compensateImmutableFileTestTransition(context, true);
+            } else if (plannedRemoteKvmIsolated && !result.isSuccess()) {
+                compensatePlannedRemoteKvmIsolation(context);
             } else if (immutableFileTestCleanup && result.isSuccess()) {
                 resumeRemoteSourceProtection(context.getPlan(), context.getRun());
             }
@@ -321,19 +332,84 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
                 return acceptedFromStatus;
             }
             compensateImmutableFileTestTransition(context, immutableFileTestTransition);
+            if (plannedRemoteKvmIsolated) {
+                compensatePlannedRemoteKvmIsolation(context);
+            }
             return DrAdapterResult.failure(DrConstants.ERROR_AGENT_DISPATCH_TIMEOUT,
                     "Unable to dispatch FTCTL_DR run to Agent: " + e.getMessage(), GSON.toJson(buildExecutionDetails(context, action, coordinatorHostId)));
         } catch (AgentUnavailableException e) {
             LOGGER.warn("FTCTL_DR coordinator Agent is unavailable for run {} on host {}: {}", context.getRun().getId(), coordinatorHostId, e.getMessage());
             compensateImmutableFileTestTransition(context, immutableFileTestTransition);
+            if (plannedRemoteKvmIsolated) {
+                compensatePlannedRemoteKvmIsolation(context);
+            }
             return DrAdapterResult.failure(DrConstants.ERROR_AGENT_UNAVAILABLE,
                     "FTCTL_DR coordinator Agent is unavailable: " + e.getMessage(), GSON.toJson(buildExecutionDetails(context, action, coordinatorHostId)));
         } catch (CloudRuntimeException e) {
             LOGGER.warn("FTCTL_DR remote site dispatch failed for run {}: {}", context.getRun().getId(), e.getMessage());
             compensateImmutableFileTestTransition(context, immutableFileTestTransition);
+            if (plannedRemoteKvmIsolated) {
+                compensatePlannedRemoteKvmIsolation(context);
+            }
             return DrAdapterResult.retryable(DrConstants.ERROR_ENGINE_UNAVAILABLE,
                     "FTCTL_DR remote site dispatch failed: " + e.getMessage(),
                     GSON.toJson(buildExecutionDetails(context, action, coordinatorHostId)), 10);
+        }
+    }
+
+    private boolean requiresPlannedRemoteKvmIsolation(DrExecutionContext context,
+            FtctlDrActionCommand.Action action) {
+        if (context == null || action != FtctlDrActionCommand.Action.FAILOVER
+                || !isRemoteKvmToKvmPlan(context.getPlan())
+                || !StringUtils.equalsIgnoreCase(context.getPlan().getActiveSide(), "SOURCE")) {
+            return false;
+        }
+        return StringUtils.equalsIgnoreCase(requestString(requestJson(context.getRun()), "mode"), "planned");
+    }
+
+    private DrAdapterResult preparePlannedRemoteKvmIsolation(DrExecutionContext context,
+            FtctlDrActionCommand command) {
+        DrPlanVO plan = context.getPlan();
+        DrRunVO run = context.getRun();
+        try {
+            FtctlDrActionAnswer pause = drRemoteAgentClient.transitionSourceScheduler(plan,
+                    FtctlDrActionCommand.Action.PAUSE_SYNC, run.getUuid(), command.getProfileJson());
+            if (pause == null || !pause.getResult()) {
+                throw new CloudRuntimeException(StringUtils.defaultIfBlank(
+                        pause != null ? pause.getDetails() : null,
+                        "Remote KVM source scheduler did not acknowledge the final-delta barrier"));
+            }
+            String powerState = drRemoteAgentClient.ensureSourceVmPowerState(plan, false);
+            if (!StringUtils.equalsIgnoreCase(powerState, "POWERED_OFF")) {
+                throw new CloudRuntimeException("Remote KVM source VM did not reach POWERED_OFF before final delta");
+            }
+            return null;
+        } catch (RuntimeException e) {
+            compensatePlannedRemoteKvmIsolation(context);
+            JsonObject details = buildExecutionDetails(context, FtctlDrActionCommand.Action.FAILOVER,
+                    resolveCoordinatorHostId(plan));
+            details.addProperty("plannedSourceIsolation", "ROLLED_BACK");
+            details.addProperty("sourcePowerRequired", "POWERED_OFF");
+            return DrAdapterResult.failure(DrConstants.ERROR_SOURCE_ISOLATION_NOT_READY,
+                    "Unable to establish an immutable planned failover checkpoint: " + e.getMessage(),
+                    GSON.toJson(details));
+        }
+    }
+
+    private void compensatePlannedRemoteKvmIsolation(DrExecutionContext context) {
+        DrPlanVO plan = context.getPlan();
+        DrRunVO run = context.getRun();
+        try {
+            drRemoteAgentClient.ensureSourceVmPowerState(plan, true);
+        } catch (RuntimeException powerFailure) {
+            LOGGER.error("Unable to restore remote KVM source VM power after planned Failover failed for Plan {}: {}",
+                    plan.getUuid(), powerFailure.getMessage(), powerFailure);
+        }
+        try {
+            resumeRemoteSourceProtection(plan, run);
+        } catch (RuntimeException resumeFailure) {
+            LOGGER.error("Unable to resume remote KVM source protection after planned Failover failed for Plan {}: {}",
+                    plan.getUuid(), resumeFailure.getMessage(), resumeFailure);
         }
     }
 
