@@ -200,6 +200,41 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
         return targetPowerOnResult(refreshed, powerOnAt, false);
     }
 
+    @Override
+    public void ensureTargetPoweredOff(long planId) {
+        DrPlanVO plan = drPlanDao.findById(planId);
+        if (plan == null) {
+            throw new CloudRuntimeException("DR plan was removed before target power-off");
+        }
+        DrReplicaVO targetReplica = null;
+        for (DrReplicaVO replica : drReplicaDao.listActiveByPlanId(planId)) {
+            if (replica != null && replica.getTargetVmId() != null) {
+                targetReplica = replica;
+                break;
+            }
+        }
+        if (targetReplica == null) {
+            return;
+        }
+        UserVmVO targetVm = userVmDao.findById(targetReplica.getTargetVmId());
+        if (targetVm == null || targetVm.getRemoved() != null
+                || targetVm.getState() == VirtualMachine.State.Stopped) {
+            return;
+        }
+        if (targetVm.getState() != VirtualMachine.State.Running) {
+            throw new CloudRuntimeException("DR target VM is not stoppable from state " + targetVm.getState());
+        }
+        try {
+            userVmManager.stopVirtualMachine(targetVm.getId(), true);
+        } catch (ConcurrentOperationException e) {
+            throw new CloudRuntimeException("Failed to stop the DR target candidate VM: " + e.getMessage(), e);
+        }
+        UserVmVO refreshed = userVmDao.findById(targetVm.getId());
+        if (refreshed == null || refreshed.getState() != VirtualMachine.State.Stopped) {
+            throw new CloudRuntimeException("DR target candidate VM did not reach Stopped state after stop");
+        }
+    }
+
     private DrTargetPowerOnResult targetPowerOnResult(UserVmVO targetVm, Date powerOnAt, boolean alreadyRunning) {
         Date validatedAt = new Date();
         return new DrTargetPowerOnResult(targetVm.getId(), targetVm.getUuid(), "POWERED_ON",

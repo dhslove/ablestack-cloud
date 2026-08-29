@@ -142,6 +142,25 @@ public class DrTargetMaterializationServiceImplTest {
     }
 
     @Test
+    public void ensureTargetPoweredOffStopsRunningReplicaAndVerifiesState() throws Exception {
+        long planId = 43L;
+        DrPlanVO plan = Mockito.mock(DrPlanVO.class);
+        DrReplicaVO replica = Mockito.mock(DrReplicaVO.class);
+        UserVmVO targetVm = Mockito.mock(UserVmVO.class);
+        Mockito.when(drPlanDao.findById(planId)).thenReturn(plan);
+        Mockito.when(replica.getTargetVmId()).thenReturn(92L);
+        Mockito.when(drReplicaDao.listActiveByPlanId(planId)).thenReturn(Collections.singletonList(replica));
+        Mockito.when(userVmDao.findById(92L)).thenReturn(targetVm);
+        Mockito.when(targetVm.getId()).thenReturn(92L);
+        Mockito.when(targetVm.getState()).thenReturn(VirtualMachine.State.Running,
+                VirtualMachine.State.Running, VirtualMachine.State.Stopped);
+
+        service.ensureTargetPoweredOff(planId);
+
+        Mockito.verify(userVmManager).stopVirtualMachine(92L, true);
+    }
+
+    @Test
     public void cleanupExpungesTestVmBeforeDestroyingItsVolume() throws Exception {
         long planId = 35L;
         long cleanupRunId = 65L;

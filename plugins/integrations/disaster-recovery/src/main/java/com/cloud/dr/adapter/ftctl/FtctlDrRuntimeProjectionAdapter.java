@@ -2586,17 +2586,23 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
     }
 
     private boolean reconcileCanceledFailoverPreparation(DrPlanVO plan, DrRunVO run, JsonObject runtime) {
+        DrCutoverSessionVO session = run != null ? drCutoverSessionDao.findActiveByRunId(run.getId()) : null;
+        boolean compensationPending = session != null
+                && StringUtils.equalsAnyIgnoreCase(session.getState(), "CUTOVER_READY", "ABORTING", "ABORT_FAILED");
         if (plan == null || run == null || runtime == null
                 || !StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_FAILOVER)
                 || !StringUtils.equalsIgnoreCase(run.getState(), DrConstants.RUN_STATE_CANCELED)
-                || !StringUtils.equalsAnyIgnoreCase(stringValue(runtime, "state"), "CUTOVER_READY", "READY")
-                || !StringUtils.equalsIgnoreCase(stringValue(runtime, "active_side"), "SOURCE")
-                || !StringUtils.equalsIgnoreCase(stringValue(runtime, "target_power_state"), "POWERED_OFF")) {
+                || (!StringUtils.equalsAnyIgnoreCase(stringValue(runtime, "state"), "CUTOVER_READY", "READY")
+                        && !compensationPending)
+                || !StringUtils.equalsIgnoreCase(stringValue(runtime, "active_side"), "SOURCE")) {
             return false;
         }
-        return abortFailedFailoverPreparation(plan, run, runtime,
+        abortFailedFailoverPreparation(plan, run, runtime,
                 "DR_FAILOVER_CANCELED",
                 "Canceled failover preparation was reconciled before target promotion");
+        // Cancellation is terminal operator intent. Even when compensation is
+        // retryable, the canceled Run must never fall through into promotion.
+        return true;
     }
 
     private DrRunVO resolveCanceledFailoverReconciliationRun(DrPlanVO plan, DrRunVO projectionRun) {
@@ -2604,6 +2610,16 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                 && StringUtils.equalsIgnoreCase(projectionRun.getRunType(), DrConstants.RUN_TYPE_FAILOVER)
                 && StringUtils.equalsIgnoreCase(projectionRun.getState(), DrConstants.RUN_STATE_CANCELED)) {
             return projectionRun;
+        }
+        if (plan != null && drCutoverSessionDao != null) {
+            DrCutoverSessionVO activeSession = drCutoverSessionDao.findLatestActiveByPlanId(plan.getId());
+            DrRunVO sessionRun = activeSession != null && drRunDao != null
+                    ? drRunDao.findById(activeSession.getRunId()) : null;
+            if (sessionRun != null
+                    && StringUtils.equalsIgnoreCase(sessionRun.getRunType(), DrConstants.RUN_TYPE_FAILOVER)
+                    && StringUtils.equalsIgnoreCase(sessionRun.getState(), DrConstants.RUN_STATE_CANCELED)) {
+                return sessionRun;
+            }
         }
         if (plan == null || drRunDao == null
                 || !StringUtils.equalsIgnoreCase(plan.getActiveSide(), DrConstants.AUTHORITY_SIDE_TARGET)
@@ -3160,7 +3176,8 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         if (plan == null || run == null
                 || !StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_FAILOVER)
                 || StringUtils.equalsIgnoreCase(stringValue(runtime, "active_side"), "TARGET")
-                || StringUtils.equalsIgnoreCase(stringValue(runtime, "target_power_state"), "POWERED_ON")) {
+                || (StringUtils.equalsIgnoreCase(stringValue(runtime, "target_power_state"), "POWERED_ON")
+                        && !StringUtils.equalsIgnoreCase(run.getState(), DrConstants.RUN_STATE_CANCELED))) {
             return false;
         }
         DrCutoverSessionVO session = drCutoverSessionDao.findActiveByRunId(run.getId());
@@ -3176,11 +3193,14 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         session.markUpdated();
         drCutoverSessionDao.update(session.getId(), session);
 
-        if (!cloudTargetsStopped(plan)) {
+        try {
+            drTargetMaterializationService.ensureTargetPoweredOff(plan.getId());
+        } catch (RuntimeException e) {
             session.setState("ABORT_FAILED");
             session.setCleanupRequired(true);
             session.setErrorCode("DR_FAILOVER_ABORT_UNSAFE");
-            session.setErrorMessage("Cloud target VM is not stopped; source authority cannot be restored automatically");
+            session.setErrorMessage(StringUtils.defaultIfBlank(e.getMessage(),
+                    "Cloud target VM could not be stopped before source authority restoration"));
             session.markUpdated();
             drCutoverSessionDao.update(session.getId(), session);
             return false;
@@ -3230,6 +3250,10 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         if (isRemoteKvmToKvmPlan(plan)) {
             try {
                 restorePlanOwnedTargetExportAfterAbort(plan, run);
+                String sourcePowerState = drRemoteAgentClient.ensureSourceVmPowerState(plan, true);
+                if (!StringUtils.equalsIgnoreCase(sourcePowerState, "POWERED_ON")) {
+                    throw new CloudRuntimeException("Remote KVM source VM did not reach POWERED_ON after failover abort");
+                }
                 FtctlDrActionAnswer resumeAnswer = drRemoteAgentClient.transitionSourceScheduler(plan,
                         FtctlDrActionCommand.Action.RESUME_SYNC, run.getUuid());
                 if (resumeAnswer == null || !resumeAnswer.getResult()) {

@@ -800,3 +800,35 @@ validated VMware-to-RBD and local RBD-to-RBD dispatch paths are unchanged.
 Regression tests must prove the order `target export -> scheduler pause ->
 source power-off -> final-delta dispatch`, the rollback path, and the absence
 of source lifecycle calls for the unaffected providers.
+
+## 27. Canceled planned-failover compensation ordering
+
+A canceled `KVM_TO_KVM` Failover Run is terminal operator intent and can never
+re-enter target promotion merely because the engine still reports
+`CUTOVER_READY`. Cloud reconciles the canceled Run before evaluating normal
+cutover readiness. Runtime `target_power_state` is supporting evidence only;
+the Cloud target VM row is authoritative for the actual candidate power state.
+
+When SOURCE authority is still committed, cancellation compensation is fixed
+to the following order:
+
+1. stop the Cloud-managed target candidate VM and require `Stopped`;
+2. send the FTCTL failover-abort command for the accepted cutover session;
+3. restore the Plan-owned forward target export;
+4. power the remote source VM on and require `POWERED_ON`;
+5. resume the remote source scheduler;
+6. close the cutover session as `ABORTED` and project the Plan and replica back
+   to SOURCE/READY.
+
+The target candidate is safe to stop only while Cloud still owns SOURCE
+authority and the canceled Run has not committed TARGET authority. Failure of
+any compensation step leaves the session `ABORT_FAILED`, keeps the remaining
+authority explicit, and blocks a new action. Cloud must not restart forward
+replication while a target qemu process still holds the retained qcow2 file
+writable.
+
+Regression tests cover a canceled Run whose runtime incorrectly says
+`POWERED_OFF` while the actual Cloud target VM is Running, verify target-stop
+before export restoration, verify source power-on before scheduler resume, and
+prove that the canceled Run never invokes target power-on. VMware-to-RBD and
+local RBD-to-RBD provider behavior remains unchanged.

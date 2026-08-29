@@ -1660,6 +1660,86 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     }
 
     @Test
+    public void canceledRemoteKvmFailoverStopsTargetAndRestoresSourceBeforeResume() {
+        DrPlanVO plan = new DrPlanVO("remote-kvm-canceled-cutover", 1L, 2L,
+                DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
+        plan.setState(DrConstants.PLAN_STATE_ERROR);
+        plan.setActiveSide(DrConstants.AUTHORITY_SIDE_SOURCE);
+        plan.setCoordinatorWorkerHostId(103L);
+        plan.setTargetWorkerHostId(102L);
+        plan.setSourceExternalRef("source-vm-uuid");
+        plan.setMappingJson("{\"source\":{\"hardware\":{\"sourceHostUuid\":\"source-worker-uuid\"}}}");
+        DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_FAILOVER);
+        run.setState(DrConstants.RUN_STATE_CANCELED);
+        run.setCompleted(new Date());
+        DrCutoverSessionVO session = new DrCutoverSessionVO(plan.getId(), run.getId(),
+                run.getRunType(), "ABORT_FAILED");
+        DrPlanRuntimeVO planRuntime = new DrPlanRuntimeVO(plan.getId());
+        DrReplicaVO replica = new DrReplicaVO(plan.getId(), plan.getTargetSiteId());
+        replica.setTargetVmId(283L);
+        replica.setState(DrConstants.REPLICA_STATE_READY);
+        replica.setActiveSide(DrConstants.AUTHORITY_SIDE_SOURCE);
+        replica.setPowerState("POWERED_ON");
+        UserVmVO targetVm = Mockito.mock(UserVmVO.class);
+        Mockito.when(targetVm.getState()).thenReturn(VirtualMachine.State.Stopped);
+
+        String statusJson = "{\"state\":\"ERROR\",\"active_side\":\"SOURCE\","
+                + "\"target_power_state\":\"POWERED_ON\",\"failover_session_id\":\""
+                + plan.getUuid() + ":" + run.getUuid() + "\"}";
+        Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("STATUS"),
+                Mockito.any(FtctlDrStatusCommand.class), Mockito.eq("source-worker-uuid"),
+                Mockito.eq(FtctlDrStatusAnswer.class)))
+                .thenAnswer(invocation -> {
+                    FtctlDrStatusCommand command = invocation.getArgument(2);
+                    return new FtctlDrStatusAnswer(command, true, "ok", plan.getUuid(), run.getUuid(),
+                            "ok", "ERROR", "replication-cycle-failed", 100,
+                            null, null, null, null, "DR_REPLICATION_CYCLE_FAILED", 0, null, statusJson);
+                });
+        Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("ACTION"),
+                Mockito.any(FtctlDrActionCommand.class), Mockito.eq("source-worker-uuid"),
+                Mockito.eq(FtctlDrActionAnswer.class)))
+                .thenAnswer(invocation -> new FtctlDrActionAnswer(invocation.getArgument(2), true, "aborted"));
+        Mockito.when(drRemoteAgentClient.ensureSourceVmPowerState(plan, true)).thenReturn("POWERED_ON");
+        Mockito.when(drRemoteAgentClient.transitionSourceScheduler(plan,
+                FtctlDrActionCommand.Action.RESUME_SYNC, run.getUuid()))
+                .thenAnswer(invocation -> new FtctlDrActionAnswer(
+                        new FtctlDrActionCommand(FtctlDrActionCommand.Action.RESUME_SYNC,
+                                plan.getUuid(), run.getUuid()), true, "resumed"));
+        Mockito.when(drRunDao.findActiveByPlanId(plan.getId())).thenReturn(null);
+        Mockito.when(drRunDao.findById(run.getId())).thenReturn(run);
+        Mockito.when(drCutoverSessionDao.findLatestActiveByPlanId(plan.getId())).thenReturn(session);
+        Mockito.when(drCutoverSessionDao.findActiveByRunId(run.getId())).thenReturn(session);
+        Mockito.when(drPlanRuntimeDao.findByPlanId(plan.getId())).thenReturn(planRuntime);
+        Mockito.when(drReplicaDao.listActiveByPlanId(plan.getId())).thenReturn(Collections.singletonList(replica));
+        Mockito.when(userVmDao.findById(283L)).thenReturn(targetVm);
+
+        DrAdapterResult result = adapter.refreshPlanProjection(plan);
+
+        Assert.assertTrue(result.getErrorCode() + ": " + result.getMessage(), result.isSuccess());
+        Assert.assertEquals(session.getErrorCode() + ": " + session.getErrorMessage(),
+                "ABORTED", session.getState());
+        Assert.assertFalse(session.isCleanupRequired());
+        Assert.assertEquals(DrConstants.PLAN_STATE_READY, plan.getState());
+        Assert.assertEquals(DrConstants.AUTHORITY_SIDE_SOURCE, plan.getActiveSide());
+        Mockito.verify(drTargetMaterializationService, Mockito.never()).ensureTargetPoweredOn(plan.getId());
+
+        org.mockito.InOrder compensationOrder = Mockito.inOrder(drTargetMaterializationService,
+                drRemoteAgentClient, drPlanOwnedTransportService);
+        compensationOrder.verify(drTargetMaterializationService).ensureTargetPoweredOff(plan.getId());
+        compensationOrder.verify(drRemoteAgentClient).execute(Mockito.eq(plan), Mockito.eq("ACTION"),
+                Mockito.argThat(command -> command instanceof FtctlDrActionCommand
+                        && ((FtctlDrActionCommand) command).getAction() == FtctlDrActionCommand.Action.FAILOVER_ABORT),
+                Mockito.eq("source-worker-uuid"), Mockito.eq(FtctlDrActionAnswer.class));
+        compensationOrder.verify(drPlanOwnedTransportService).startForwardTargetExport(plan, run, null);
+        compensationOrder.verify(drRemoteAgentClient).ensureSourceVmPowerState(plan, true);
+        compensationOrder.verify(drRemoteAgentClient).transitionSourceScheduler(plan,
+                FtctlDrActionCommand.Action.RESUME_SYNC, run.getUuid());
+    }
+
+    @Test
     public void failoverAbortRefusesRunningCloudTarget() {
         DrPlanVO plan = new DrPlanVO("ftctl-dr-plan", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
         plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
@@ -1700,8 +1780,8 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         Mockito.when(drCutoverSessionDao.findActiveByRunId(run.getId())).thenReturn(session);
         Mockito.when(drReplicaDao.listActiveByPlanId(plan.getId()))
                 .thenReturn(Collections.singletonList(replica));
-        Mockito.when(userVmDao.findById(256L)).thenReturn(targetVm);
-        Mockito.when(targetVm.getState()).thenReturn(VirtualMachine.State.Running);
+        Mockito.doThrow(new com.cloud.utils.exception.CloudRuntimeException("target stop failed"))
+                .when(drTargetMaterializationService).ensureTargetPoweredOff(plan.getId());
 
         DrAdapterResult result = adapter.refreshPlanProjection(plan);
 
