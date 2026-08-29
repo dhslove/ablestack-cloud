@@ -1328,6 +1328,29 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     }
 
     @Test
+    public void sourceCloneFlattenDependencyIsProjectedAsActionableFailoverWait() {
+        DrPlanVO plan = new DrPlanVO("remote-kvm-cutover", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_FAILOVER);
+        run.setState(DrConstants.RUN_STATE_RUNNING);
+        Mockito.when(drRunDao.findActiveByPlanId(plan.getId())).thenReturn(run);
+
+        adapter.markSourceIsolationWaiting(plan, null,
+                new RuntimeException("Unable to stop VM while SharedMountPoint clone flatten is running."));
+
+        Assert.assertEquals(DrConstants.RUN_STATE_RUNNING, run.getState());
+        Assert.assertEquals("source-isolation-wait", run.getCurrentStepName());
+        Assert.assertEquals(DrConstants.ERROR_SOURCE_CLONE_FLATTEN_ACTIVE, run.getErrorCode());
+        Assert.assertTrue(run.isRetryable());
+        Assert.assertNull(run.getCompleted());
+        ArgumentCaptor<DrRunStepVO> stepCaptor = ArgumentCaptor.forClass(DrRunStepVO.class);
+        Mockito.verify(drRunStepDao).persist(stepCaptor.capture());
+        Assert.assertEquals("source-isolation", stepCaptor.getValue().getStepName());
+        Assert.assertEquals(DrConstants.STEP_STATE_RUNNING, stepCaptor.getValue().getState());
+        Assert.assertEquals(DrConstants.ERROR_SOURCE_CLONE_FLATTEN_ACTIVE, stepCaptor.getValue().getErrorCode());
+        Mockito.verify(drRunDao).update(Mockito.eq(run.getId()), Mockito.same(run));
+    }
+
+    @Test
     public void refreshPlanProjectionKeepsSourceAuthorityWhenCutoverCommitFails() {
         DrPlanVO plan = new DrPlanVO("ftctl-dr-commit-failure", 1L, 2L,
                 DrConstants.DIRECTION_VMWARE_TO_KVM);

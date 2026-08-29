@@ -45,6 +45,8 @@ public class DrSourceVmHardware {
     private Date observedAt;
     private String inventorySource;
     private String fingerprint;
+    private String operationBlockerCode;
+    private String operationBlockerMessage;
     private String errorCode;
     private String message;
 
@@ -76,6 +78,12 @@ public class DrSourceVmHardware {
         }
         if (StringUtils.isNotBlank(fingerprint)) {
             object.addProperty("fingerprint", fingerprint);
+        }
+        if (StringUtils.isNotBlank(operationBlockerCode)) {
+            object.addProperty("operationBlockerCode", operationBlockerCode);
+        }
+        if (StringUtils.isNotBlank(operationBlockerMessage)) {
+            object.addProperty("operationBlockerMessage", operationBlockerMessage);
         }
         if (StringUtils.isNotBlank(errorCode)) {
             object.addProperty("errorCode", errorCode);
@@ -182,6 +190,11 @@ public class DrSourceVmHardware {
     public String getInventorySource() { return inventorySource; }
     public void setInventorySource(String inventorySource) { this.inventorySource = inventorySource; }
     public String getFingerprint() { return fingerprint; }
+    public String getOperationBlockerCode() { return operationBlockerCode; }
+    public void setOperationBlockerCode(String operationBlockerCode) { this.operationBlockerCode = operationBlockerCode; }
+    public String getOperationBlockerMessage() { return operationBlockerMessage; }
+    public void setOperationBlockerMessage(String operationBlockerMessage) { this.operationBlockerMessage = operationBlockerMessage; }
+    public boolean hasOperationBlocker() { return StringUtils.isNotBlank(operationBlockerCode); }
     public String getErrorCode() { return errorCode; }
     public String getMessage() { return message; }
 }

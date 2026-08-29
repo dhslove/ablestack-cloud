@@ -47,6 +47,7 @@ public class DrMoldInventoryClient {
     private static final String COMMAND_LIST_STORAGE_POOLS = "listStoragePools";
     private static final String COMMAND_START_VM = "startVirtualMachine";
     private static final String COMMAND_STOP_VM = "stopVirtualMachine";
+    private static final String COMMAND_QUERY_ASYNC_JOB = "queryAsyncJobResult";
     private static final String COMMAND_EXECUTE_DR_SITE_AGENT = "executeFtctlDrSiteAgentCommand";
     private static final String COMMAND_PREPARE_REMOTE_SSH = "prepareFtctlDrRemoteSshAccess";
 
@@ -272,7 +273,8 @@ public class DrMoldInventoryClient {
         if (!poweredOn) {
             params.put("forced", "true");
         }
-        execute(credential, poweredOn ? COMMAND_START_VM : COMMAND_STOP_VM, params);
+        JsonObject actionResponse = execute(credential, poweredOn ? COMMAND_START_VM : COMMAND_STOP_VM, params);
+        waitForAsyncJob(credential, actionResponse, poweredOn ? COMMAND_START_VM : COMMAND_STOP_VM);
         for (int attempt = 0; attempt < 30; attempt++) {
             if (StringUtils.equals(expected, getVirtualMachinePowerState(credential, vmRef))) {
                 return expected;
@@ -280,6 +282,54 @@ public class DrMoldInventoryClient {
             sleep(2000L);
         }
         throw new InventoryException(0, "Mold VM did not reach " + expected + ": " + vmRef);
+    }
+
+    private void waitForAsyncJob(DrResolvedSiteCredential credential, JsonObject actionResponse, String command) {
+        JsonObject actionPayload = getObjectIgnoreCase(actionResponse, StringUtils.lowerCase(command) + "response");
+        String jobId = firstString(actionPayload, "jobid");
+        if (StringUtils.isBlank(jobId)) {
+            return;
+        }
+        for (int attempt = 0; attempt < 30; attempt++) {
+            Map<String, String> params = new LinkedHashMap<String, String>();
+            params.put("jobid", jobId);
+            JsonObject response = execute(credential, COMMAND_QUERY_ASYNC_JOB, params);
+            JsonObject payload = getObjectIgnoreCase(response, "queryasyncjobresultresponse");
+            int status = intValue(payload, "jobstatus");
+            if (status == 1) {
+                return;
+            }
+            if (status == 2) {
+                int resultCode = intValue(payload, "jobresultcode");
+                throw new InventoryException(resultCode,
+                        StringUtils.defaultIfBlank(asyncJobError(payload), "Mold " + command + " job failed"));
+            }
+            sleep(2000L);
+        }
+        throw new InventoryException(0, "Mold " + command + " job did not complete: " + jobId);
+    }
+
+    String asyncJobError(JsonObject payload) {
+        if (payload == null) {
+            return null;
+        }
+        JsonElement result = getElementIgnoreCase(payload, "jobresult");
+        if (result != null && result.isJsonObject()) {
+            String message = firstString(result.getAsJsonObject(), "errortext", "errorText", "message", "displaytext");
+            if (StringUtils.isNotBlank(message)) {
+                return message;
+            }
+        }
+        return firstString(payload, "errortext", "errorText", "message");
+    }
+
+    private int intValue(JsonObject object, String key) {
+        JsonElement value = getElementIgnoreCase(object, key);
+        try {
+            return value != null && !value.isJsonNull() ? value.getAsInt() : 0;
+        } catch (RuntimeException e) {
+            return 0;
+        }
     }
 
     public JsonObject executeSiteAgentCommand(DrResolvedSiteCredential credential, String commandType,

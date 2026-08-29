@@ -112,6 +112,36 @@ hard-coded light backgrounds or black text are prohibited.
 | DB | Existing plan stores stale preview evidence | Same plan updated, no duplicate plan |
 | UI | Cannot complete the existing plan | Full menu lifecycle with terminal evidence |
 
+### 8.1 Stable source Detail and remote power transition contract
+
+ABLESTACK-to-ABLESTACK hardware identity uses only VM Details that can be
+replicated to the target. Runtime ownership and maintenance keys such as
+`clone.fast.*`, `dr.*`, and `ftctl.*` are excluded from both the target Detail
+set and the source hardware fingerprint. A lifecycle progress update must not
+be reported as a source hardware change.
+
+Planned Failover also requires the remote source Mold to accept and complete
+its asynchronous `stopVirtualMachine` job before target promotion. Cloud must
+poll `queryAsyncJobResult`, preserve the remote error code and message, and
+only then confirm `POWERED_OFF`. A SharedMountPoint clone flatten dependency
+therefore appears as an actionable readiness failure instead of a generic
+power-state timeout. The target remains powered off while this condition is
+unresolved.
+
+| Layer | AS-IS | TO-BE |
+| --- | --- | --- |
+| Hardware identity | Transient clone/DR state can change the fingerprint | Fingerprint contains only replicable VM Details |
+| Remote Mold control | Ignores async job result and polls VM state for 60 seconds | Polls the job first and preserves its exact terminal failure |
+| Cutover safety | Repeats source stop and reports a generic timeout | Blocks promotion with the concrete source lifecycle dependency |
+| UI | Stays at 70% without an actionable reason | Shows the remote stop failure and required operator action |
+
+While the dependency remains retryable, the accepted Failover Run stays
+`RUNNING` at `source-isolation-wait`; it is not falsely failed and the target
+is not promoted. The Run and its source-isolation step carry
+`DR_SOURCE_CLONE_FLATTEN_ACTIVE` plus the Mold error message. Once flatten
+finishes, the same Run retries source isolation and clears the warning during
+successful terminal reconciliation.
+
 ## 9. Source format contract and failed-seed recovery
 
 The first UI-driven full synchronization of the existing plan proved that the
@@ -699,6 +729,15 @@ Refreshing only during later Cloud VM materialization is invalid because the
 FTCTL checkpoint session would already be bound to stale source Detail values.
 An unavailable or incomplete source inventory blocks the action before the
 writer-drain transition with a stable source-inventory reason.
+
+Source lifecycle metadata remains outside the hardware fingerprint and target
+VM Detail manifest. When the source reports `clone.fast.status` or
+`clone.fast.flatten.status` as `pending` or `running`, the common KVM-to-KVM
+action preflight returns `DR_SOURCE_CLONE_FLATTEN_ACTIVE` before dispatching an
+FTCTL cutover command. Runtime projection applies the same reason if a clone
+dependency appears after acceptance, keeps the Run retryable at source
+isolation, and must not promote the target while the source VM is still
+running.
 
 The resulting order is:
 

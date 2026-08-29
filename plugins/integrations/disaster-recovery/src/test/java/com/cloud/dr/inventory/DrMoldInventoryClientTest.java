@@ -120,4 +120,15 @@ public class DrMoldInventoryClientTest {
         Assert.assertEquals("qcow2", client.resolveVolumeFormat(explicit, "SharedMountPoint", "volume-uuid"));
         Assert.assertEquals("raw", client.resolveVolumeFormat(new JsonObject(), "RBD", "pool/image"));
     }
+
+    @Test
+    public void extractsExactAsyncVmPowerFailure() {
+        JsonObject payload = JsonParser.parseString("{\"jobstatus\":2,\"jobresultcode\":530,"
+                + "\"jobresult\":{\"errorcode\":530,\"errortext\":"
+                + "\"Unable to stop VM while SharedMountPoint clone flatten is running.\"}}")
+                .getAsJsonObject();
+
+        Assert.assertEquals("Unable to stop VM while SharedMountPoint clone flatten is running.",
+                client.asyncJobError(payload));
+    }
 }

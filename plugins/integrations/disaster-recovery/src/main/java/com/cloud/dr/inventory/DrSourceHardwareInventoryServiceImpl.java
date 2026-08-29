@@ -33,6 +33,7 @@ import com.cloud.dr.DrPlanVO;
 import com.cloud.dr.DrResolvedSiteCredential;
 import com.cloud.dr.DrSiteCredentialService;
 import com.cloud.dr.DrSiteVO;
+import com.cloud.dr.DrVmDetailReplicationPolicy;
 import com.cloud.dr.dao.DrSiteDao;
 import com.cloud.exception.AgentUnavailableException;
 import com.cloud.exception.OperationTimedoutException;
@@ -123,7 +124,9 @@ public class DrSourceHardwareInventoryServiceImpl extends ManagerBase implements
             hardware.setGuestId(firstNonBlank(values.get("guestOsName"), values.get("guestOsId")));
             hardware.setCpuCount(parseInteger(values.get("cpuCount")));
             hardware.setMemoryMiB(parseLong(values.get("memoryMiB")));
-            hardware.setVmDetails(extractVmDetails(values));
+            Map<String, String> sourceDetails = extractVmDetails(values);
+            hardware.setVmDetails(stableKvmDetails(sourceDetails));
+            applyKvmOperationBlocker(hardware, sourceDetails);
             hardware.setInventorySource("MOLD_API");
             hardware.seal();
             return hardware;
@@ -158,7 +161,8 @@ public class DrSourceHardwareInventoryServiceImpl extends ManagerBase implements
         hardware.setFirmware(StringUtils.isNotBlank(uefiBootMode) ? "UEFI" : "BIOS");
         hardware.setUefiMode(uefiBootMode);
         hardware.setSecureBootEnabled(StringUtils.equalsIgnoreCase(uefiBootMode, "SECURE"));
-        hardware.setVmDetails(details);
+        hardware.setVmDetails(stableKvmDetails(details));
+        applyKvmOperationBlocker(hardware, details);
         hardware.setInventorySource("LOCAL_MOLD_VM_DETAILS");
         hardware.seal();
         return hardware;
@@ -185,6 +189,24 @@ public class DrSourceHardwareInventoryServiceImpl extends ManagerBase implements
             }
         }
         return details;
+    }
+
+    private Map<String, String> stableKvmDetails(Map<String, String> details) {
+        return DrVmDetailReplicationPolicy.copyableSourceDetails(DrConstants.DIRECTION_KVM_TO_KVM, details);
+    }
+
+    private void applyKvmOperationBlocker(DrSourceVmHardware hardware, Map<String, String> details) {
+        if (hardware == null || details == null) {
+            return;
+        }
+        String cloneState = firstNonBlank(details.get("clone.fast.status"),
+                details.get("clone.fast.flatten.status"));
+        if (!StringUtils.equalsAnyIgnoreCase(cloneState, "pending", "running")) {
+            return;
+        }
+        hardware.setOperationBlockerCode(DrConstants.ERROR_SOURCE_CLONE_FLATTEN_ACTIVE);
+        hardware.setOperationBlockerMessage("Source VM SharedMountPoint clone flatten is "
+                + StringUtils.lowerCase(cloneState) + "; wait for dependent clone flatten completion before DR cutover");
     }
 
     private Integer parseInteger(String value) {

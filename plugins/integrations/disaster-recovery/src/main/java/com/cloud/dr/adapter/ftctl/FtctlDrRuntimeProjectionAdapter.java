@@ -107,6 +107,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
     private static final int RUNTIME_CREATION_GRACE_SECONDS = 120;
     private static final int WORKER_START_GRACE_SECONDS = 60;
     private static final int STEP_ORDER_RUNTIME_PROJECTION = 30;
+    private static final int STEP_ORDER_SOURCE_ISOLATION = 35;
     private static final int STEP_ORDER_TARGET_POWER_ON = 40;
     private static final int STEP_ORDER_BOOT_VALIDATION = 50;
     private static final int STEP_ORDER_CLOUD_PROMOTION = 60;
@@ -1424,9 +1425,10 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             } catch (RuntimeException e) {
                 LOGGER.warn("Unable to isolate source before DR cutover for plan {}",
                         plan.getUuid(), e);
+                markSourceIsolationWaiting(plan, projectionRun, e);
                 plan.setState(DrConstants.PLAN_STATE_COMMIT_VERIFYING);
                 plan.setActiveSide(DrConstants.AUTHORITY_SIDE_SOURCE);
-                plan.setLastErrorCode(DrConstants.ERROR_SOURCE_ISOLATION_NOT_READY);
+                plan.setLastErrorCode(sourceIsolationErrorCode(e));
                 plan.setLastErrorMessage(e.getMessage());
                 plan.markUpdated();
                 drPlanDao.update(plan.getId(), plan);
@@ -3030,6 +3032,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             recordRunStep(run, "boot-validation", 50, DrConstants.STEP_STATE_SUCCEEDED, 100, compactStatusJson, null, null);
             recordRunStep(run, "test-failover-active", 60, DrConstants.STEP_STATE_SUCCEEDED, 100, compactStatusJson, null, null);
         } else if (StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_FAILOVER)) {
+            recordRunStep(run, "source-isolation", STEP_ORDER_SOURCE_ISOLATION, DrConstants.STEP_STATE_SUCCEEDED, 100, compactStatusJson, null, null);
             recordRunStep(run, "target-power-on", STEP_ORDER_TARGET_POWER_ON, DrConstants.STEP_STATE_SUCCEEDED, 100, compactStatusJson, null, null);
             recordRunStep(run, "boot-validation", STEP_ORDER_BOOT_VALIDATION, DrConstants.STEP_STATE_SUCCEEDED, 100, compactStatusJson, null, null);
             recordRunStep(run, "cloud-promotion", STEP_ORDER_CLOUD_PROMOTION, DrConstants.STEP_STATE_SUCCEEDED, 100, compactStatusJson, null, null);
@@ -3069,6 +3072,40 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             persistRunProjectionEvent(plan, run, DrConstants.EVENT_TEST_VM_ACTIVE, DrConstants.EVENT_SEVERITY_INFO,
                     "Cloud-managed DR test VM is active", compactStatusJson);
         }
+    }
+
+    void markSourceIsolationWaiting(DrPlanVO plan, DrRunVO projectionRun, RuntimeException failure) {
+        if (plan == null || drRunDao == null) {
+            return;
+        }
+        DrRunVO run = projectionRun != null ? projectionRun : drRunDao.findActiveByPlanId(plan.getId());
+        if (run == null || !StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_FAILOVER)
+                || !isProjectableRunState(run)) {
+            return;
+        }
+        String errorCode = sourceIsolationErrorCode(failure);
+        String message = StringUtils.defaultIfBlank(failure != null ? failure.getMessage() : null,
+                "The source VM has not reached POWERED_OFF");
+        Date now = new Date();
+        recordRunStep(run, "source-isolation", STEP_ORDER_SOURCE_ISOLATION, DrConstants.STEP_STATE_RUNNING,
+                70, run.getLastStatusJson(), errorCode, message);
+        run.setCurrentStepName("source-isolation-wait");
+        run.setProjectionState("source-isolation-wait");
+        run.setProjectionChecked(now);
+        run.setRetryable(true);
+        run.setRetryAfterSeconds(STATUS_REFRESH_WAIT_SECONDS);
+        run.setNextRetryAt(new Date(now.getTime() + STATUS_REFRESH_WAIT_SECONDS * 1000L));
+        run.setErrorCode(errorCode);
+        run.setErrorMessage(message);
+        run.markUpdated();
+        drRunDao.update(run.getId(), run);
+    }
+
+    private String sourceIsolationErrorCode(RuntimeException failure) {
+        String message = failure != null ? failure.getMessage() : null;
+        return StringUtils.containsIgnoreCase(message, "clone flatten")
+                ? DrConstants.ERROR_SOURCE_CLONE_FLATTEN_ACTIVE
+                : DrConstants.ERROR_SOURCE_ISOLATION_NOT_READY;
     }
 
     private void failRunFromProjection(DrPlanVO plan, DrRunVO run, FtctlDrStatusAnswer status, JsonObject runtime) {

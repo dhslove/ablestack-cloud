@@ -251,6 +251,31 @@ public class FtctlDrUnifiedActionAdapterTest {
     }
 
     @Test
+    public void crossSiteKvmFailoverIsRejectedBeforeDispatchWhileSourceCloneFlattenIsActive() throws Exception {
+        DrPlanVO plan = new DrPlanVO("cross-site-kvm-plan", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
+        plan.setSourceExternalRef("source-vm-uuid");
+        plan.setActiveSide("SOURCE");
+        plan.setTargetWorkerHostId(102L);
+        plan.setCoordinatorWorkerHostId(103L);
+        plan.setMappingJson("{\"source\":{\"hardware\":{\"sourceHostUuid\":\"source-host-uuid\","
+                + "\"instanceName\":\"i-2-51-VM\"}},\"target\":{\"storagePoolType\":\"SharedMountPoint\"},"
+                + "\"disks\":[{\"device\":\"sda\",\"targetStorageRef\":\"target-pool-uuid\"}]}");
+        DrRunVO run = run(DrConstants.RUN_TYPE_FAILOVER, "{}");
+        DrSourceVmHardware hardware = sourceHardware();
+        hardware.setOperationBlockerCode(DrConstants.ERROR_SOURCE_CLONE_FLATTEN_ACTIVE);
+        hardware.setOperationBlockerMessage("Source VM SharedMountPoint clone flatten is running");
+        Mockito.when(drSourceHardwareInventoryService.resolve(plan)).thenReturn(hardware);
+
+        DrAdapterResult result = adapter.execute(new DrExecutionContext(plan, run));
+
+        Assert.assertFalse(result.isSuccess());
+        Assert.assertEquals(DrConstants.ERROR_SOURCE_CLONE_FLATTEN_ACTIVE, result.getErrorCode());
+        Mockito.verifyNoInteractions(agentManager, drRemoteAgentClient);
+    }
+
+    @Test
     public void crossSiteKvmResumeDispatchesWithReconciledTargetExports() throws Exception {
         DrPlanVO plan = new DrPlanVO("cross-site-kvm-resume", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
         plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
@@ -384,6 +409,7 @@ public class FtctlDrUnifiedActionAdapterTest {
         Mockito.when(targetHost.getPrivateIpAddress()).thenReturn("10.10.32.2");
         Mockito.when(hostDao.findById(102L)).thenReturn(targetHost);
         Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        Mockito.when(drSourceHardwareInventoryService.resolve(plan)).thenReturn(sourceHardware());
         Mockito.when(drPlanOwnedTransportService.supports(plan)).thenReturn(true);
         Mockito.when(drPlanOwnedTransportService.startForwardTargetExport(
                 Mockito.eq(plan), Mockito.eq(run), Mockito.anyString()))

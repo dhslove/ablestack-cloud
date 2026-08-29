@@ -245,6 +245,11 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
             return DrAdapterResult.failure(DrConstants.ERROR_TARGET_MAPPING_INVALID, message, GSON.toJson(buildExecutionDetails(context, action, null)));
         }
 
+        DrAdapterResult sourceHardwareResult = refreshSourceHardwareSnapshotBeforeAction(context, action);
+        if (sourceHardwareResult != null) {
+            return sourceHardwareResult;
+        }
+
         DrAdapterResult isolationValidation = validateFailoverIsolation(context, action);
         if (isolationValidation != null) {
             return isolationValidation;
@@ -274,10 +279,6 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
                 return DrAdapterResult.failure(reprotectPreflight.getErrorCode(), reprotectPreflight.getMessage(),
                         GSON.toJson(buildExecutionDetails(context, action, coordinatorHostId)));
             }
-        }
-        DrAdapterResult sourceHardwareResult = refreshSourceHardwareSnapshotBeforeAction(context, action);
-        if (sourceHardwareResult != null) {
-            return sourceHardwareResult;
         }
         FtctlDrActionCommand command;
         try {
@@ -343,7 +344,8 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
                 || !StringUtils.equalsIgnoreCase(plan.getActiveSide(), "SOURCE")
                 || (action != FtctlDrActionCommand.Action.SYNC
                         && action != FtctlDrActionCommand.Action.RECOVER_SYNC
-                        && action != FtctlDrActionCommand.Action.TEST_PREPARE)) {
+                        && action != FtctlDrActionCommand.Action.TEST_PREPARE
+                        && action != FtctlDrActionCommand.Action.FAILOVER)) {
             return null;
         }
         DrSourceVmHardware hardware = drSourceHardwareInventoryService.resolve(plan);
@@ -352,6 +354,12 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
                     "ABLESTACK source VM details could not be read before DR action dispatch");
             return DrAdapterResult.failure(DrPlanReadinessValidator.REASON_SOURCE_HARDWARE_INVENTORY_REQUIRED,
                     message, GSON.toJson(buildExecutionDetails(context, action, resolveCoordinatorHostId(plan))));
+        }
+        if (hardware.hasOperationBlocker()) {
+            return DrAdapterResult.failure(hardware.getOperationBlockerCode(),
+                    StringUtils.defaultIfBlank(hardware.getOperationBlockerMessage(),
+                            "ABLESTACK source VM has an active operation that blocks DR cutover"),
+                    GSON.toJson(buildExecutionDetails(context, action, resolveCoordinatorHostId(plan))));
         }
         JsonObject mapping = parseObject(plan.getMappingJson());
         JsonObject source = objectAt(mapping, "source");
