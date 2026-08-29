@@ -677,8 +677,12 @@ BIOS and must not create a synthetic `BIOS`, `bootType`, or `bootMode` Detail.
 The target stores `dr.source.vm.details.keys` as the manifest of copied keys.
 Reconciliation can therefore add changed values and remove only previously
 copied keys that disappeared from the source without touching target-owned
-details. Target materialization and test failover verify every manifest value
-before reporting hardware readiness. A mismatch is
+details. The same reconciliation transaction also replaces
+`dr.source.hardware.fingerprint` with the fingerprint computed from that
+source snapshot. Updating copied values without their fingerprint leaves a
+semantically current replica looking stale and is forbidden. Target
+materialization and test failover verify every manifest value before reporting
+hardware readiness. A mismatch is
 `TARGET_VM_DETAIL_MISMATCH` and blocks boot rather than guessing from the guest
 OS.
 

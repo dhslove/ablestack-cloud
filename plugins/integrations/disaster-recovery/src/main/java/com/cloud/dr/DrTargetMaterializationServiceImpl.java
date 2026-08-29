@@ -1531,6 +1531,15 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
                 vmInstanceDetailsDao.addDetail(targetVm.getId(), entry.getKey(), entry.getValue(), true);
             }
         }
+        String expectedFingerprint = firstString(sourceHardware(plan), "fingerprint");
+        String actualFingerprint = actual != null ? actual.get("dr.source.hardware.fingerprint") : null;
+        if (!StringUtils.equals(expectedFingerprint, actualFingerprint)) {
+            vmInstanceDetailsDao.removeDetail(targetVm.getId(), "dr.source.hardware.fingerprint");
+            if (StringUtils.isNotBlank(expectedFingerprint)) {
+                vmInstanceDetailsDao.addDetail(targetVm.getId(), "dr.source.hardware.fingerprint",
+                        expectedFingerprint, false);
+            }
+        }
         vmInstanceDetailsDao.removeDetail(targetVm.getId(), DrVmDetailReplicationPolicy.REPLICATED_KEYS_DETAIL);
         vmInstanceDetailsDao.addDetail(targetVm.getId(), DrVmDetailReplicationPolicy.REPLICATED_KEYS_DETAIL,
                 StringUtils.join(new TreeSet<String>(expected.keySet()), ","), false);

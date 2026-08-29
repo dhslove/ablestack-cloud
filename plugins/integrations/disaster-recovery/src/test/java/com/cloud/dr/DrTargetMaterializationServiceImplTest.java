@@ -240,7 +240,7 @@ public class DrTargetMaterializationServiceImplTest {
     @Test
     public void kvmTargetUsesExactSourceVmDetailsInsteadOfGuestOrGuidedBootInference() {
         DrPlanVO plan = new DrPlanVO("details", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
-        plan.setMappingJson("{\"source\":{\"hardware\":{\"vmDetails\":{"
+        plan.setMappingJson("{\"source\":{\"hardware\":{\"fingerprint\":\"current-fingerprint\",\"vmDetails\":{"
                 + "\"UEFI\":\"LEGACY\",\"tpmversion\":\"NONE\",\"io.policy\":\"io_uring\","
                 + "\"clone.fast.status\":\"running\"}}}}");
         DrResolvedTargetHardware hardware = new DrResolvedTargetHardware();
@@ -263,19 +263,23 @@ public class DrTargetMaterializationServiceImplTest {
     @Test
     public void existingReplicaReconcilesMissingSourceDetailsAndRemovesLegacyBootMode() {
         DrPlanVO plan = new DrPlanVO("details", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
-        plan.setMappingJson("{\"source\":{\"hardware\":{\"vmDetails\":{"
+        plan.setMappingJson("{\"source\":{\"hardware\":{\"fingerprint\":\"current-fingerprint\",\"vmDetails\":{"
                 + "\"UEFI\":\"LEGACY\",\"tpmversion\":\"NONE\"}}}}");
         UserVmVO target = Mockito.mock(UserVmVO.class);
         Mockito.when(target.getId()).thenReturn(165L);
         Map<String, String> actual = new HashMap<String, String>();
         actual.put("UEFI", "LEGACY");
         actual.put("boot.mode", "LEGACY");
+        actual.put("dr.source.hardware.fingerprint", "stale-fingerprint");
         Mockito.when(vmInstanceDetailsDao.listDetailsKeyPairs(165L)).thenReturn(actual);
 
         service.reconcileSourceVmDetails(plan, target);
 
         Mockito.verify(vmInstanceDetailsDao).removeDetail(165L, "boot.mode");
         Mockito.verify(vmInstanceDetailsDao).addDetail(165L, "tpmversion", "NONE", true);
+        Mockito.verify(vmInstanceDetailsDao).removeDetail(165L, "dr.source.hardware.fingerprint");
+        Mockito.verify(vmInstanceDetailsDao).addDetail(165L, "dr.source.hardware.fingerprint",
+                "current-fingerprint", false);
         Mockito.verify(vmInstanceDetailsDao).addDetail(Mockito.eq(165L),
                 Mockito.eq(DrVmDetailReplicationPolicy.REPLICATED_KEYS_DETAIL),
                 Mockito.contains("tpmversion"), Mockito.eq(false));
