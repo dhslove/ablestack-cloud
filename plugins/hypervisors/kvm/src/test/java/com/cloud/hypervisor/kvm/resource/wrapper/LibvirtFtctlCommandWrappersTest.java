@@ -332,6 +332,41 @@ public class LibvirtFtctlCommandWrappersTest {
     }
 
     @Test
+    public void testCanceledRunCanAcknowledgeCompletedFailoverAbort() {
+        LibvirtFtctlDrActionCommandWrapper wrapper = new LibvirtFtctlDrActionCommandWrapper();
+        FtctlDrActionCommand command = new FtctlDrActionCommand(
+                FtctlDrActionCommand.Action.FAILOVER_ABORT, "plan-a", "run-a");
+
+        try (MockedConstruction<Script> scripts = Mockito.mockConstruction(Script.class, (mock, context) -> {
+            Mockito.when(mock.execute(Mockito.any())).thenReturn(
+                    "{\"result\":\"ok\",\"accepted\":false,\"state\":\"ABORTED\","
+                            + "\"step\":\"failover-preparation-aborted\",\"active_side\":\"SOURCE\","
+                            + "\"target_power_state\":\"POWERED_OFF\"}");
+            Mockito.when(mock.getExitValue()).thenReturn(0);
+        })) {
+            FtctlDrActionAnswer answer = (FtctlDrActionAnswer) wrapper.execute(command, resource);
+
+            Assert.assertTrue(answer.getResult());
+            Assert.assertEquals("ABORTED", answer.getState());
+        }
+    }
+
+    @Test
+    public void testFailoverAbortWithPoweredOnTargetRemainsRejected() {
+        FtctlDrActionCommand command = new FtctlDrActionCommand(
+                FtctlDrActionCommand.Action.FAILOVER_ABORT, "plan-a", "run-a");
+        JsonObject payload = new JsonObject();
+        payload.addProperty("result", "ok");
+        payload.addProperty("accepted", false);
+        payload.addProperty("state", "ABORTED");
+        payload.addProperty("step", "failover-preparation-aborted");
+        payload.addProperty("active_side", "SOURCE");
+        payload.addProperty("target_power_state", "POWERED_ON");
+
+        Assert.assertFalse(LibvirtFtctlDrActionCommandWrapper.isCompletedFailoverAbort(command, payload));
+    }
+
+    @Test
     public void testCheckWrapperBuildsCommandAndParsesJson() {
         LibvirtFtctlCheckCommandWrapper wrapper = new LibvirtFtctlCheckCommandWrapper();
         FtctlCheckCommand command = new FtctlCheckCommand("vm-a", "i-2-309-VM", "secondary", "cloud-managed");

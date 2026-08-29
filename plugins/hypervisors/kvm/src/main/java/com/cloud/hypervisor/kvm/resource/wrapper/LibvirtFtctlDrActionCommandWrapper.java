@@ -443,7 +443,8 @@ public class LibvirtFtctlDrActionCommandWrapper extends CommandWrapper<FtctlDrAc
         int exitValue = script.getExitValue();
         boolean success = exitValue == 0 && (!isSemanticFailureStatus(payload)
                 || isAcceptedCanceledFailbackAbortPrepare(command, payload)
-                || isCompletedFailbackAbort(command, payload));
+                || isCompletedFailbackAbort(command, payload)
+                || isCompletedFailoverAbort(command, payload));
         boolean transportAmbiguous = shouldProbeStatus(result, output, payload, exitValue);
         if (!success && command.getAction() == FtctlDrActionCommand.Action.CUTOVER_COMMIT
                 && transportAmbiguous) {
@@ -687,6 +688,26 @@ public class LibvirtFtctlDrActionCommandWrapper extends CommandWrapper<FtctlDrAc
                 && StringUtils.equals(activeSide, "TARGET")
                 && StringUtils.equals(sourcePowerState, "POWERED_OFF")
                 && StringUtils.equals(targetPowerState, "POWERED_ON")
+                && StringUtils.isBlank(errorCode);
+    }
+
+    static boolean isCompletedFailoverAbort(FtctlDrActionCommand command, JsonObject payload) {
+        if (command == null || payload == null
+                || command.getAction() != FtctlDrActionCommand.Action.FAILOVER_ABORT) {
+            return false;
+        }
+        String result = StringUtils.lowerCase(LibvirtFtctlDrCommandHelper.getString(payload, "result"));
+        String state = StringUtils.upperCase(LibvirtFtctlDrCommandHelper.getString(payload, "state"));
+        String step = LibvirtFtctlDrCommandHelper.getString(payload, "step");
+        String activeSide = StringUtils.upperCase(LibvirtFtctlDrCommandHelper.getString(payload, "active_side"));
+        String targetPowerState = StringUtils.upperCase(
+                LibvirtFtctlDrCommandHelper.getString(payload, "target_power_state"));
+        String errorCode = LibvirtFtctlDrCommandHelper.getString(payload, "error_code");
+        return StringUtils.equalsAny(result, "ok", "success")
+                && StringUtils.equals(state, "ABORTED")
+                && StringUtils.equals(step, "failover-preparation-aborted")
+                && StringUtils.equals(activeSide, "SOURCE")
+                && StringUtils.equals(targetPowerState, "POWERED_OFF")
                 && StringUtils.isBlank(errorCode);
     }
 

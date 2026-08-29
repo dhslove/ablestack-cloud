@@ -841,3 +841,33 @@ persisted `SOURCE` authority together with an active, uncommitted
 `CUTOVER_READY`, `ABORTING`, or `ABORT_FAILED` session as the authority proof.
 This exception is limited to canceled Failover compensation; normal runtime
 projection continues to require explicit authority evidence.
+
+## 28. Failover-abort Agent terminal acknowledgement
+
+`dr-failover-abort` deliberately publishes `accepted=false` after it has
+completed because the canceled Failover must never be accepted for continued
+promotion. That terminal value is not a command failure. The KVM Agent wrapper
+must recognize the completed abort only when all of the following structured
+fields agree:
+
+```text
+action == FAILOVER_ABORT
+exit_code == 0
+result in {ok, success}
+state == ABORTED
+step == failover-preparation-aborted
+active_side == SOURCE
+target_power_state == POWERED_OFF
+error_code is empty
+```
+
+The exception is action-scoped and does not weaken generic semantic failure
+detection. A canceled, failed, TARGET-authority, powered-on target, incomplete
+step, nonzero exit, or error-bearing response remains a failure. Cloud can
+close the compensation session only after this Agent acknowledgement and its
+own target-stop verification both succeed.
+
+Regression coverage must include the real terminal payload with
+`accepted=false`, plus a near-match whose target remains powered on. The
+validated VMware-to-RBD, local RBD-to-RBD, normal Failover, and Failback action
+contracts are unchanged.
