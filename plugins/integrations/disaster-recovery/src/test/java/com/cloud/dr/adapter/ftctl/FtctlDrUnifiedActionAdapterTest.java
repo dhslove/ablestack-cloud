@@ -16,6 +16,9 @@
 // under the License.
 package com.cloud.dr.adapter.ftctl;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -45,8 +48,11 @@ import com.cloud.dr.DrSyncCycleVO;
 import com.cloud.dr.adapter.DrAdapterResult;
 import com.cloud.dr.adapter.DrExecutionContext;
 import com.cloud.dr.dao.DrRestorePointDao;
+import com.cloud.dr.dao.DrPlanDao;
 import com.cloud.dr.dao.DrPlanRuntimeDao;
 import com.cloud.dr.dao.DrSyncCycleDao;
+import com.cloud.dr.inventory.DrSourceHardwareInventoryService;
+import com.cloud.dr.inventory.DrSourceVmHardware;
 import com.cloud.host.dao.HostDao;
 import com.cloud.host.HostVO;
 import com.google.gson.JsonArray;
@@ -83,6 +89,10 @@ public class FtctlDrUnifiedActionAdapterTest {
     private DrRemoteAgentClient drRemoteAgentClient;
     @Mock
     private DrPlanOwnedTransportService drPlanOwnedTransportService;
+    @Mock
+    private DrPlanDao drPlanDao;
+    @Mock
+    private DrSourceHardwareInventoryService drSourceHardwareInventoryService;
 
     @InjectMocks
     private FtctlDrUnifiedActionAdapter adapter;
@@ -194,6 +204,7 @@ public class FtctlDrUnifiedActionAdapterTest {
         Mockito.when(targetHost.getPrivateIpAddress()).thenReturn("10.10.32.2");
         Mockito.when(hostDao.findById(102L)).thenReturn(targetHost);
         Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        Mockito.when(drSourceHardwareInventoryService.resolve(plan)).thenReturn(sourceHardware());
         Mockito.when(drPlanOwnedTransportService.supports(plan)).thenReturn(true);
         Mockito.when(drPlanOwnedTransportService.startForwardTargetExport(
                 Mockito.eq(plan), Mockito.eq(run), Mockito.anyString()))
@@ -232,6 +243,9 @@ public class FtctlDrUnifiedActionAdapterTest {
         Assert.assertTrue(command.getProfileJson().contains("\"targetHostAddress\":\"10.10.32.2\""));
         Assert.assertTrue(command.getProfileJson().contains("\"name\":\"dr-export-sda\""));
         Assert.assertTrue(command.getRequestJson().contains("\"schedulerTransitionScope\":\"REMOTE_SOURCE\""));
+        Assert.assertTrue(command.getProfileJson().contains("\"UEFI\":\"LEGACY\""));
+        Assert.assertTrue(command.getProfileJson().contains("\"tpmversion\":\"NONE\""));
+        Mockito.verify(drPlanDao).update(plan.getId(), plan);
         Assert.assertFalse(command.getProfileJson().contains("sshUser"));
         Assert.assertFalse(command.getProfileJson().contains("moldSecretKey"));
     }
@@ -607,6 +621,7 @@ public class FtctlDrUnifiedActionAdapterTest {
         DrRestorePointVO checkpoint = checkpoint(plan, "ftctl:" + plan.getUuid() + ":run-sync:2");
         Mockito.when(drRestorePointDao.findLatestTargetReadyByPlanId(plan.getId())).thenReturn(checkpoint);
         Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        Mockito.when(drSourceHardwareInventoryService.resolve(plan)).thenReturn(sourceHardware());
         Mockito.when(drPlanOwnedTransportService.supports(plan)).thenReturn(true);
         mockCapabilities();
         Mockito.when(drRemoteAgentClient.transitionSourceScheduler(Mockito.eq(plan),
@@ -632,6 +647,7 @@ public class FtctlDrUnifiedActionAdapterTest {
         Assert.assertTrue(action.getRequestJson().contains("\"checkpointWriterState\":\"DRAINED\""));
         Assert.assertTrue(action.getRequestJson().contains("\"checkpointImmutableRequired\":true"));
         Assert.assertTrue(action.getArtifactSpecJson().contains("\"checkpointImmutableRequired\":true"));
+        Assert.assertTrue(action.getProfileJson().contains("\"UEFI\":\"LEGACY\""));
         org.mockito.InOrder order = Mockito.inOrder(drRemoteAgentClient, drPlanOwnedTransportService, agentManager);
         order.verify(drRemoteAgentClient).transitionSourceScheduler(Mockito.eq(plan),
                 Mockito.eq(FtctlDrActionCommand.Action.PAUSE_SYNC), Mockito.eq(run.getUuid()), Mockito.anyString());
@@ -835,6 +851,25 @@ public class FtctlDrUnifiedActionAdapterTest {
                 + "\"disks\":[{\"device\":\"sda\",\"capacityBytes\":\"107374182400\",\"target\":{"
                 + "\"volumeId\":252,\"path\":\"Rocky10-1-dr-disk-0\",\"storagePoolType\":\"RBD\",\"storagePath\":\"rbd\",\"format\":\"raw\"}}]}");
         return plan;
+    }
+
+    private DrSourceVmHardware sourceHardware() {
+        DrSourceVmHardware hardware = new DrSourceVmHardware();
+        hardware.setSourceVmRef("source-vm-uuid");
+        hardware.setSourceHostUuid("source-host-uuid");
+        hardware.setInstanceName("i-2-51-VM");
+        hardware.setFirmware("UEFI");
+        hardware.setUefiMode("LEGACY");
+        hardware.setSecureBootEnabled(Boolean.FALSE);
+        Map<String, String> details = new HashMap<String, String>();
+        details.put("UEFI", "LEGACY");
+        details.put("tpmversion", "NONE");
+        details.put("io.policy", "io_uring");
+        details.put("iothreads", "true");
+        hardware.setVmDetails(details);
+        hardware.setInventorySource("MOLD_API");
+        hardware.seal();
+        return hardware;
     }
 
     private DrRunVO run(String runType, String requestJson) {

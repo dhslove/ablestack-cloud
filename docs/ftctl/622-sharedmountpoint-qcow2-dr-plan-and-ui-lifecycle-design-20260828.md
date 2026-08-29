@@ -686,3 +686,31 @@ This contract applies equally to Windows and Linux SharedMountPoint or RBD
 ABLESTACK-to-ABLESTACK Plans. VMware inventory and its validated target
 mapping remain unchanged and do not receive an empty KVM Detail snapshot or a
 different fingerprint.
+
+### Action-time snapshot ordering and checkpoint readiness (2026-08-29)
+
+For a remote `KVM_TO_KVM` SharedMountPoint Test Failover, source hardware
+inventory is refreshed before `FtctlDrActionCommand` and its profile are built.
+Refreshing only during later Cloud VM materialization is invalid because the
+FTCTL checkpoint session would already be bound to stale source Detail values.
+An unavailable or incomplete source inventory blocks the action before the
+writer-drain transition with a stable source-inventory reason.
+
+The resulting order is:
+
+1. resolve the remote source VM and authoritative VM Detail values;
+2. persist the refreshed `source.hardware` snapshot and fingerprint;
+3. build the action profile and immutable checkpoint request from that snapshot;
+4. pause and drain the SharedMountPoint writer;
+5. publish only a qcow2 checkpoint that passes the provider-specific guest
+   filesystem gate;
+6. reconcile the same Detail manifest onto the test VM before boot.
+
+Windows readiness is independent of QGA. FTCTL proves qcow2 container equality,
+read-only NTFS root access, and the Windows SYSTEM registry hive before Cloud
+creates a VM. A missing libguestfs filesystem helper is reported as
+`DR_TEST_CHECKPOINT_GUEST_FS_DRIVER_UNAVAILABLE`, while actual dirty or
+unreadable guest metadata is
+`DR_TEST_CHECKPOINT_GUEST_FS_INCONSISTENT`. The UI must display the original
+reason and never report Test Failover success until VM creation, power-state
+validation, and terminal Run projection all succeed.

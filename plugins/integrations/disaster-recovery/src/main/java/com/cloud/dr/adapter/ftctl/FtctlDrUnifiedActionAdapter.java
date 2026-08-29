@@ -45,6 +45,7 @@ import com.cloud.dr.DrFailbackPreflightResult;
 import com.cloud.dr.DrFailbackPreflightService;
 import com.cloud.dr.DrPlanVO;
 import com.cloud.dr.DrPlanRuntimeVO;
+import com.cloud.dr.DrPlanReadinessValidator;
 import com.cloud.dr.DrPlanOwnedTransportService;
 import com.cloud.dr.DrReprotectAuthoritySpec;
 import com.cloud.dr.DrReprotectPreflightResult;
@@ -60,11 +61,14 @@ import com.cloud.dr.adapter.DrAdapterResult;
 import com.cloud.dr.adapter.DrExecutionContext;
 import com.cloud.dr.adapter.DrReplicationEngine;
 import com.cloud.dr.dao.DrSiteDao;
+import com.cloud.dr.dao.DrPlanDao;
 import com.cloud.dr.dao.DrRestorePointDao;
 import com.cloud.dr.dao.DrReplicaDao;
 import com.cloud.dr.dao.DrPlanRuntimeDao;
 import com.cloud.dr.dao.DrSyncCycleDao;
 import com.cloud.dr.health.DrSiteProbeSupport;
+import com.cloud.dr.inventory.DrSourceHardwareInventoryService;
+import com.cloud.dr.inventory.DrSourceVmHardware;
 import com.cloud.exception.AgentUnavailableException;
 import com.cloud.exception.OperationTimedoutException;
 import com.cloud.host.DetailVO;
@@ -117,6 +121,10 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
     private DrRemoteAgentClient drRemoteAgentClient;
     @Inject
     private DrPlanOwnedTransportService drPlanOwnedTransportService;
+    @Inject
+    private DrPlanDao drPlanDao;
+    @Inject
+    private DrSourceHardwareInventoryService drSourceHardwareInventoryService;
 
     @Override
     public String getEngineType() {
@@ -267,6 +275,10 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
                         GSON.toJson(buildExecutionDetails(context, action, coordinatorHostId)));
             }
         }
+        DrAdapterResult sourceHardwareResult = refreshSourceHardwareSnapshotBeforeAction(context, action);
+        if (sourceHardwareResult != null) {
+            return sourceHardwareResult;
+        }
         FtctlDrActionCommand command;
         try {
             command = buildActionCommand(context, action);
@@ -322,6 +334,33 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
                     "FTCTL_DR remote site dispatch failed: " + e.getMessage(),
                     GSON.toJson(buildExecutionDetails(context, action, coordinatorHostId)), 10);
         }
+    }
+
+    private DrAdapterResult refreshSourceHardwareSnapshotBeforeAction(DrExecutionContext context,
+            FtctlDrActionCommand.Action action) {
+        DrPlanVO plan = context != null ? context.getPlan() : null;
+        if (plan == null || !StringUtils.equalsIgnoreCase(plan.getDirection(), DrConstants.DIRECTION_KVM_TO_KVM)
+                || !StringUtils.equalsIgnoreCase(plan.getActiveSide(), "SOURCE")
+                || (action != FtctlDrActionCommand.Action.SYNC
+                        && action != FtctlDrActionCommand.Action.RECOVER_SYNC
+                        && action != FtctlDrActionCommand.Action.TEST_PREPARE)) {
+            return null;
+        }
+        DrSourceVmHardware hardware = drSourceHardwareInventoryService.resolve(plan);
+        if (hardware == null || !hardware.isComplete()) {
+            String message = StringUtils.defaultIfBlank(hardware != null ? hardware.getMessage() : null,
+                    "ABLESTACK source VM details could not be read before DR action dispatch");
+            return DrAdapterResult.failure(DrPlanReadinessValidator.REASON_SOURCE_HARDWARE_INVENTORY_REQUIRED,
+                    message, GSON.toJson(buildExecutionDetails(context, action, resolveCoordinatorHostId(plan))));
+        }
+        JsonObject mapping = parseObject(plan.getMappingJson());
+        JsonObject source = objectAt(mapping, "source");
+        source.add("hardware", hardware.toJsonObject());
+        mapping.add("source", source);
+        plan.setMappingJson(GSON.toJson(mapping));
+        plan.markUpdated();
+        drPlanDao.update(plan.getId(), plan);
+        return null;
     }
 
     private DrAdapterResult validateReversePreflight(DrExecutionContext context, Long coordinatorHostId,
