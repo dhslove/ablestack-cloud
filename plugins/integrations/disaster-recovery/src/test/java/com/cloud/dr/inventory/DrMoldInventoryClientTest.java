@@ -62,6 +62,7 @@ public class DrMoldInventoryClientTest {
         Assert.assertEquals("UEFI", hardware.get("bootType"));
         Assert.assertEquals("LEGACY", hardware.get("bootMode"));
         Assert.assertEquals("false", hardware.get("secureBoot"));
+        Assert.assertEquals("LEGACY", hardware.get("vmDetail.UEFI"));
     }
 
     @Test
@@ -87,6 +88,22 @@ public class DrMoldInventoryClientTest {
         Assert.assertEquals("BIOS", hardware.get("bootType"));
         Assert.assertEquals("LEGACY", hardware.get("bootMode"));
         Assert.assertEquals("false", hardware.get("secureBoot"));
+    }
+
+    @Test
+    public void preservesAllSourceVmDetailValuesForKvmReplicationSnapshot() {
+        JsonObject vm = JsonParser.parseString("{\"hypervisor\":\"KVM\",\"details\":{"
+                + "\"UEFI\":\"LEGACY\",\"tpmversion\":\"NONE\",\"io.policy\":\"io_uring\","
+                + "\"iothreads\":\"true\",\"clone.fast.status\":\"running\"}}")
+                .getAsJsonObject();
+
+        Map<String, String> hardware = client.extractVirtualMachineHardware(vm);
+
+        Assert.assertEquals("LEGACY", hardware.get("vmDetail.UEFI"));
+        Assert.assertEquals("NONE", hardware.get("vmDetail.tpmversion"));
+        Assert.assertEquals("io_uring", hardware.get("vmDetail.io.policy"));
+        Assert.assertEquals("true", hardware.get("vmDetail.iothreads"));
+        Assert.assertEquals("running", hardware.get("vmDetail.clone.fast.status"));
     }
 
     @Test

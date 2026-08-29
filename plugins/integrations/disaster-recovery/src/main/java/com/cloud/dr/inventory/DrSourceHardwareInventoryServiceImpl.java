@@ -17,6 +17,7 @@
 package com.cloud.dr.inventory;
 
 import java.util.Map;
+import java.util.LinkedHashMap;
 
 import javax.inject.Inject;
 
@@ -115,15 +116,14 @@ public class DrSourceHardwareInventoryServiceImpl extends ManagerBase implements
             hardware.setSourceHostUuid(values.get("sourceHostUuid"));
             hardware.setSourceHostName(values.get("sourceHostName"));
             hardware.setInstanceName(values.get("instanceName"));
-            String bootType = normalizeBootType(values.get("bootType"), values.get("uefi"));
-            if (bootType == null) {
-                bootType = "BIOS";
-            }
-            hardware.setFirmware(bootType);
-            hardware.setSecureBootEnabled(resolveSecureBoot(values.get("secureBoot"), values.get("bootMode"), values.get("uefi")));
+            String uefiBootMode = firstNonBlank(values.get("UEFI"), values.get("uefi"));
+            hardware.setUefiMode(uefiBootMode);
+            hardware.setFirmware(StringUtils.isNotBlank(uefiBootMode) ? "UEFI" : "BIOS");
+            hardware.setSecureBootEnabled(StringUtils.equalsIgnoreCase(uefiBootMode, "SECURE"));
             hardware.setGuestId(firstNonBlank(values.get("guestOsName"), values.get("guestOsId")));
             hardware.setCpuCount(parseInteger(values.get("cpuCount")));
             hardware.setMemoryMiB(parseLong(values.get("memoryMiB")));
+            hardware.setVmDetails(extractVmDetails(values));
             hardware.setInventorySource("MOLD_API");
             hardware.seal();
             return hardware;
@@ -156,7 +156,9 @@ public class DrSourceHardwareInventoryServiceImpl extends ManagerBase implements
             hardware.setSourceHostName(host.getName());
         }
         hardware.setFirmware(StringUtils.isNotBlank(uefiBootMode) ? "UEFI" : "BIOS");
+        hardware.setUefiMode(uefiBootMode);
         hardware.setSecureBootEnabled(StringUtils.equalsIgnoreCase(uefiBootMode, "SECURE"));
+        hardware.setVmDetails(details);
         hardware.setInventorySource("LOCAL_MOLD_VM_DETAILS");
         hardware.seal();
         return hardware;
@@ -171,28 +173,18 @@ public class DrSourceHardwareInventoryServiceImpl extends ManagerBase implements
         return null;
     }
 
-    private Boolean parseBoolean(String value, boolean fallback) {
-        return StringUtils.isBlank(value) ? fallback : Boolean.valueOf(value);
-    }
-
-    private String normalizeBootType(String bootType, String uefiBootMode) {
-        if (StringUtils.isNotBlank(uefiBootMode)) {
-            return "UEFI";
+    private Map<String, String> extractVmDetails(Map<String, String> values) {
+        Map<String, String> details = new LinkedHashMap<String, String>();
+        if (values == null) {
+            return details;
         }
-        if (StringUtils.equalsAnyIgnoreCase(bootType, "UEFI", "EFI")) {
-            return "UEFI";
+        for (Map.Entry<String, String> entry : values.entrySet()) {
+            if (StringUtils.startsWith(entry.getKey(), DrMoldInventoryClient.SOURCE_VM_DETAIL_PREFIX)) {
+                details.put(StringUtils.removeStart(entry.getKey(), DrMoldInventoryClient.SOURCE_VM_DETAIL_PREFIX),
+                        entry.getValue());
+            }
         }
-        if (StringUtils.equalsIgnoreCase(bootType, "BIOS")) {
-            return "BIOS";
-        }
-        return null;
-    }
-
-    private Boolean resolveSecureBoot(String secureBoot, String bootMode, String uefiBootMode) {
-        if (StringUtils.isNotBlank(secureBoot)) {
-            return parseBoolean(secureBoot, false);
-        }
-        return StringUtils.equalsAnyIgnoreCase(firstNonBlank(bootMode, uefiBootMode), "SECURE", "SECURE_BOOT");
+        return details;
     }
 
     private Integer parseInteger(String value) {

@@ -46,6 +46,8 @@ public class DrSourceHardwareInventoryServiceImplTest {
         inventory.put("sourceHostUuid", "source-host-uuid");
         inventory.put("sourceHostName", "ablecube13-1");
         inventory.put("instanceName", "i-2-13-VM");
+        inventory.put("vmDetail.tpmversion", "NONE");
+        inventory.put("vmDetail.io.policy", "io_uring");
 
         Mockito.when(drSiteDao.findById(1L)).thenReturn(site);
         Mockito.when(drSiteCredentialService.resolveCredential(site)).thenReturn(resolved);
@@ -60,6 +62,8 @@ public class DrSourceHardwareInventoryServiceImplTest {
         Assert.assertFalse(json.get("secureBoot").getAsBoolean());
         Assert.assertEquals("source-host-uuid", json.get("sourceHostUuid").getAsString());
         Assert.assertEquals("ablecube13-1", json.get("sourceHostName").getAsString());
+        Assert.assertEquals("NONE", json.getAsJsonObject("vmDetails").get("tpmversion").getAsString());
+        Assert.assertEquals("io_uring", json.getAsJsonObject("vmDetails").get("io.policy").getAsString());
         Assert.assertFalse(json.has("errorCode"));
     }
 }

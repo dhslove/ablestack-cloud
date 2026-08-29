@@ -22,6 +22,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.TreeMap;
 
 import org.apache.commons.lang3.StringUtils;
 
@@ -33,12 +34,14 @@ public class DrSourceVmHardware {
     private String sourceHostName;
     private String instanceName;
     private String firmware;
+    private String uefiMode;
     private Boolean secureBootEnabled;
     private String guestId;
     private Integer cpuCount;
     private Long memoryMiB;
     private String rootDiskController;
     private String dataDiskController;
+    private Map<String, String> vmDetails;
     private Date observedAt;
     private String inventorySource;
     private String fingerprint;
@@ -101,6 +104,7 @@ public class DrSourceVmHardware {
         add(object, "sourceHostName", sourceHostName);
         add(object, "instanceName", instanceName);
         add(object, "firmware", firmware);
+        add(object, "UEFI", uefiMode);
         if (secureBootEnabled != null) {
             object.addProperty("secureBoot", secureBootEnabled);
         }
@@ -113,6 +117,15 @@ public class DrSourceVmHardware {
         }
         add(object, "rootDiskController", rootDiskController);
         add(object, "dataDiskController", dataDiskController);
+        if (vmDetails != null) {
+            JsonObject details = new JsonObject();
+            for (Map.Entry<String, String> entry : new TreeMap<String, String>(vmDetails).entrySet()) {
+                if (StringUtils.isNotBlank(entry.getKey()) && entry.getValue() != null) {
+                    details.addProperty(entry.getKey(), entry.getValue());
+                }
+            }
+            object.add("vmDetails", details);
+        }
         return object;
     }
 
@@ -144,6 +157,8 @@ public class DrSourceVmHardware {
     public void setInstanceName(String instanceName) { this.instanceName = instanceName; }
     public String getFirmware() { return firmware; }
     public void setFirmware(String firmware) { this.firmware = firmware; }
+    public String getUefiMode() { return uefiMode; }
+    public void setUefiMode(String uefiMode) { this.uefiMode = uefiMode; }
     public Boolean getSecureBootEnabled() { return secureBootEnabled; }
     public void setSecureBootEnabled(Boolean secureBootEnabled) { this.secureBootEnabled = secureBootEnabled; }
     public String getGuestId() { return guestId; }
@@ -156,6 +171,12 @@ public class DrSourceVmHardware {
     public void setRootDiskController(String rootDiskController) { this.rootDiskController = rootDiskController; }
     public String getDataDiskController() { return dataDiskController; }
     public void setDataDiskController(String dataDiskController) { this.dataDiskController = dataDiskController; }
+    public Map<String, String> getVmDetails() { return vmDetails == null ? new LinkedHashMap<String, String>()
+            : new LinkedHashMap<String, String>(vmDetails); }
+    public void setVmDetails(Map<String, String> vmDetails) {
+        this.vmDetails = vmDetails == null ? new LinkedHashMap<String, String>()
+                : new LinkedHashMap<String, String>(vmDetails);
+    }
     public Date getObservedAt() { return observedAt; }
     public void setObservedAt(Date observedAt) { this.observedAt = observedAt; }
     public String getInventorySource() { return inventorySource; }

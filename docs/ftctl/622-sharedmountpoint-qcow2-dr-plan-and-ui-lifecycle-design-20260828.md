@@ -650,3 +650,39 @@ three independently maintained version literals.
 The release gate covers VMware-to-RBD, ABLESTACK RBD-to-RBD, and
 SharedMountPoint qcow2-to-qcow2 so a shared contract change cannot ship as a
 single-path fix.
+
+## 25. ABLESTACK-to-ABLESTACK VM Detail preservation contract
+
+Guest operating-system detection is not the authority for target VM hardware.
+For every `KVM_TO_KVM` Plan, Cloud snapshots the source
+`vm_instance_details` values through the local DAO or the remote Mold API and
+stores that snapshot under `source.hardware.vmDetails`. The snapshot is part
+of the source hardware fingerprint and is refreshed by the read-only
+materialization preflight before a replica or test VM is created.
+
+Cloud copies the source Detail values to the target before adding DR-owned
+metadata. The exclusion boundary is deliberately small and provider-scoped:
+
+- `clone.fast.*` is a source-side transient clone operation;
+- `ftctl.*` and `dr.*` belong to the source protection or target DR lifecycle;
+- `volumeId` and `deployvm` are generated for the target Cloud resource;
+- legacy `boot.mode` is not an authoritative KVM Detail.
+
+Every other source Detail, including `UEFI`, `tpmversion`, `io.policy`,
+`iothreads`, disk-controller settings, and supported future Detail keys, keeps
+its exact key and value. The official Cloud firmware rule remains: a source
+`UEFI=LEGACY` or `UEFI=SECURE` value is copied as-is; absence of `UEFI` means
+BIOS and must not create a synthetic `BIOS`, `bootType`, or `bootMode` Detail.
+
+The target stores `dr.source.vm.details.keys` as the manifest of copied keys.
+Reconciliation can therefore add changed values and remove only previously
+copied keys that disappeared from the source without touching target-owned
+details. Target materialization and test failover verify every manifest value
+before reporting hardware readiness. A mismatch is
+`TARGET_VM_DETAIL_MISMATCH` and blocks boot rather than guessing from the guest
+OS.
+
+This contract applies equally to Windows and Linux SharedMountPoint or RBD
+ABLESTACK-to-ABLESTACK Plans. VMware inventory and its validated target
+mapping remain unchanged and do not receive an empty KVM Detail snapshot or a
+different fingerprint.

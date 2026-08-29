@@ -47,12 +47,14 @@ public class DrTargetHardwareResolver {
         JsonObject runtimeSource = objectAt(runtime, "source");
         JsonObject runtimeSourceVm = firstObject(runtimeSource, "vm", "sourceVm");
         JsonObject runtimeSourceHardware = firstObject(runtimeSource, "hardware", "sourceHardware");
+        boolean kvmToKvm = plan != null && StringUtils.equalsIgnoreCase(plan.getDirection(), DrConstants.DIRECTION_KVM_TO_KVM);
 
         DrResolvedTargetHardware hardware = new DrResolvedTargetHardware();
         boolean requireSourceBoot = plan != null && StringUtils.startsWithIgnoreCase(plan.getDirection(), "VMWARE_");
         hardware.setBootType(resolveBootType(guided, mapping, target, targetHardware, sourceVm, sourceHardware,
-                runtimeSourceVm, runtimeSourceHardware, requireSourceBoot));
-        hardware.setBootMode(resolveBootMode(guided, mapping, target, targetHardware, sourceVm, sourceHardware, runtimeSourceVm, runtimeSourceHardware, hardware.getBootType()));
+                runtimeSourceVm, runtimeSourceHardware, requireSourceBoot, kvmToKvm));
+        hardware.setBootMode(resolveBootMode(guided, mapping, target, targetHardware, sourceVm, sourceHardware,
+                runtimeSourceVm, runtimeSourceHardware, hardware.getBootType(), kvmToKvm));
         hardware.setRootDiskController(resolveController(true, guided, mapping, target, targetHardware, sourceVm, sourceHardware, runtimeSourceVm, runtimeSourceHardware, placement));
         hardware.setDataDiskController(resolveController(false, guided, mapping, target, targetHardware, sourceVm, sourceHardware, runtimeSourceVm, runtimeSourceHardware, placement));
         hardware.setIoThreadsEnabled(resolveBoolean(guided != null ? guided.getTargetIoThreadsEnabled() : null,
@@ -71,7 +73,24 @@ public class DrTargetHardwareResolver {
 
     private ApiConstants.BootType resolveBootType(DrPlanGuidedSpec guided, JsonObject mapping, JsonObject target, JsonObject targetHardware,
             JsonObject sourceVm, JsonObject sourceHardware, JsonObject runtimeSourceVm, JsonObject runtimeSourceHardware,
-            boolean requireSourceBoot) {
+            boolean requireSourceBoot, boolean kvmToKvm) {
+        if (kvmToKvm) {
+            String uefiMode = firstNonBlank(firstString(sourceHardware, "UEFI", "uefi", "uefiMode"),
+                    firstString(sourceVm, "UEFI", "uefi", "uefiMode"),
+                    firstString(runtimeSourceHardware, "UEFI", "uefi", "uefiMode"),
+                    firstString(runtimeSourceVm, "UEFI", "uefi", "uefiMode"));
+            if (StringUtils.isNotBlank(uefiMode)) {
+                return ApiConstants.BootType.UEFI;
+            }
+            String inventorySource = firstNonBlank(firstString(sourceHardware, "inventorySource"),
+                    firstString(runtimeSourceHardware, "inventorySource"));
+            String legacyFirmware = firstNonBlank(firstString(sourceHardware, "firmware"),
+                    firstString(runtimeSourceHardware, "firmware"));
+            if (StringUtils.isNotBlank(inventorySource) && StringUtils.containsIgnoreCase(legacyFirmware, "efi")) {
+                return ApiConstants.BootType.UEFI;
+            }
+            return ApiConstants.BootType.BIOS;
+        }
         String explicit = firstNonBlank(guided != null ? guided.getTargetBootType() : null,
                 firstString(targetHardware, "bootType", "boottype"),
                 firstString(target, "bootType", "boottype"),
@@ -101,7 +120,25 @@ public class DrTargetHardwareResolver {
 
     private ApiConstants.BootMode resolveBootMode(DrPlanGuidedSpec guided, JsonObject mapping, JsonObject target, JsonObject targetHardware,
             JsonObject sourceVm, JsonObject sourceHardware, JsonObject runtimeSourceVm, JsonObject runtimeSourceHardware,
-            ApiConstants.BootType bootType) {
+            ApiConstants.BootType bootType, boolean kvmToKvm) {
+        if (kvmToKvm) {
+            String uefiMode = firstNonBlank(firstString(sourceHardware, "UEFI", "uefi", "uefiMode"),
+                    firstString(sourceVm, "UEFI", "uefi", "uefiMode"),
+                    firstString(runtimeSourceHardware, "UEFI", "uefi", "uefiMode"),
+                    firstString(runtimeSourceVm, "UEFI", "uefi", "uefiMode"));
+            ApiConstants.BootMode parsedUefiMode = parseBootMode(uefiMode);
+            if (parsedUefiMode != null) {
+                return parsedUefiMode;
+            }
+            Boolean secureBoot = resolveBoolean(null,
+                    firstBoolean(sourceHardware, "secureBoot", "secure_boot", "secure"),
+                    firstBoolean(sourceVm, "secureBoot", "secure_boot", "secure"),
+                    firstBoolean(runtimeSourceHardware, "secureBoot", "secure_boot", "secure"),
+                    firstBoolean(runtimeSourceVm, "secureBoot", "secure_boot", "secure"),
+                    Boolean.FALSE);
+            return bootType == ApiConstants.BootType.UEFI && Boolean.TRUE.equals(secureBoot)
+                    ? ApiConstants.BootMode.SECURE : ApiConstants.BootMode.LEGACY;
+        }
         String explicit = firstNonBlank(guided != null ? guided.getTargetBootMode() : null,
                 firstString(targetHardware, "bootMode", "bootmode"),
                 firstString(target, "bootMode", "bootmode"),

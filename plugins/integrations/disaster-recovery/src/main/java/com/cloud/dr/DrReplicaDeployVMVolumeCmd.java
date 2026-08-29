@@ -145,15 +145,14 @@ public class DrReplicaDeployVMVolumeCmd extends DeployVMVolumeCmdByAdmin {
             merged.putAll(details);
         }
         if (hardware != null) {
-            if (hardware.getBootType() != null && hardware.getBootMode() != null) {
-                merged.put(hardware.getBootType().toString(), hardware.getBootMode().toString());
-                merged.put(VmDetailConstants.BOOT_MODE, hardware.getBootMode().toString());
+            if (hardware.getBootType() == ApiConstants.BootType.UEFI && hardware.getBootMode() != null) {
+                merged.putIfAbsent(ApiConstants.BootType.UEFI.toString(), hardware.getBootMode().toString());
             }
             if (hardware.getIoPolicy() != null) {
-                merged.put(VmDetailConstants.IO_POLICY, hardware.getIoPolicy().toString());
+                merged.putIfAbsent(VmDetailConstants.IO_POLICY, hardware.getIoPolicy().toString());
             }
             if (Boolean.TRUE.equals(hardware.getIoThreadsEnabled())) {
-                merged.put(VmDetailConstants.IOTHREADS, "true");
+                merged.putIfAbsent(VmDetailConstants.IOTHREADS, "true");
             }
         }
         return merged;

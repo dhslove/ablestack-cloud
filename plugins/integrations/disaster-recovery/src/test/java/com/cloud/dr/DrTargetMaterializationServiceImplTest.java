@@ -4,6 +4,8 @@
 package com.cloud.dr;
 
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -13,6 +15,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnitRunner;
+import org.apache.cloudstack.api.ApiConstants;
 import org.apache.cloudstack.storage.datastore.db.PrimaryDataStoreDao;
 import org.apache.cloudstack.storage.datastore.db.StoragePoolVO;
 
@@ -31,6 +34,7 @@ import com.cloud.vm.UserVmService;
 import com.cloud.vm.UserVmVO;
 import com.cloud.vm.VirtualMachine;
 import com.cloud.vm.dao.UserVmDao;
+import com.cloud.vm.dao.VMInstanceDetailsDao;
 
 @RunWith(MockitoJUnitRunner.class)
 public class DrTargetMaterializationServiceImplTest {
@@ -47,6 +51,7 @@ public class DrTargetMaterializationServiceImplTest {
     @Mock private AccountDao accountDao;
     @Mock private PrimaryDataStoreDao primaryDataStoreDao;
     @Mock private DrTargetResourceOwnershipService targetResourceOwnershipService;
+    @Mock private VMInstanceDetailsDao vmInstanceDetailsDao;
     @InjectMocks private DrTargetMaterializationServiceImpl service;
 
     @Test
@@ -230,5 +235,49 @@ public class DrTargetMaterializationServiceImplTest {
         DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_RECOVER_SYNC);
 
         Assert.assertTrue(service.isMaterializationOwnerRun(plan, run));
+    }
+
+    @Test
+    public void kvmTargetUsesExactSourceVmDetailsInsteadOfGuestOrGuidedBootInference() {
+        DrPlanVO plan = new DrPlanVO("details", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setMappingJson("{\"source\":{\"hardware\":{\"vmDetails\":{"
+                + "\"UEFI\":\"LEGACY\",\"tpmversion\":\"NONE\",\"io.policy\":\"io_uring\","
+                + "\"clone.fast.status\":\"running\"}}}}");
+        DrResolvedTargetHardware hardware = new DrResolvedTargetHardware();
+        hardware.setBootType(ApiConstants.BootType.UEFI);
+        hardware.setBootMode(ApiConstants.BootMode.SECURE);
+        VolumeVO root = Mockito.mock(VolumeVO.class);
+        Mockito.when(root.getSize()).thenReturn(100L * 1024L * 1024L * 1024L);
+
+        Map<String, String> details = service.buildTargetVmDetails(plan, null,
+                new DrResolvedTargetPlacement(), null, root, hardware);
+
+        Assert.assertEquals("LEGACY", details.get("UEFI"));
+        Assert.assertEquals("NONE", details.get("tpmversion"));
+        Assert.assertEquals("io_uring", details.get("io.policy"));
+        Assert.assertFalse(details.containsKey("clone.fast.status"));
+        Assert.assertFalse(details.containsKey("boot.mode"));
+        Assert.assertTrue(details.get(DrVmDetailReplicationPolicy.REPLICATED_KEYS_DETAIL).contains("tpmversion"));
+    }
+
+    @Test
+    public void existingReplicaReconcilesMissingSourceDetailsAndRemovesLegacyBootMode() {
+        DrPlanVO plan = new DrPlanVO("details", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setMappingJson("{\"source\":{\"hardware\":{\"vmDetails\":{"
+                + "\"UEFI\":\"LEGACY\",\"tpmversion\":\"NONE\"}}}}");
+        UserVmVO target = Mockito.mock(UserVmVO.class);
+        Mockito.when(target.getId()).thenReturn(165L);
+        Map<String, String> actual = new HashMap<String, String>();
+        actual.put("UEFI", "LEGACY");
+        actual.put("boot.mode", "LEGACY");
+        Mockito.when(vmInstanceDetailsDao.listDetailsKeyPairs(165L)).thenReturn(actual);
+
+        service.reconcileSourceVmDetails(plan, target);
+
+        Mockito.verify(vmInstanceDetailsDao).removeDetail(165L, "boot.mode");
+        Mockito.verify(vmInstanceDetailsDao).addDetail(165L, "tpmversion", "NONE", true);
+        Mockito.verify(vmInstanceDetailsDao).addDetail(Mockito.eq(165L),
+                Mockito.eq(DrVmDetailReplicationPolicy.REPLICATED_KEYS_DETAIL),
+                Mockito.contains("tpmversion"), Mockito.eq(false));
     }
 }

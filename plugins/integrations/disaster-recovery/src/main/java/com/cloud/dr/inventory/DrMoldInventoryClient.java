@@ -36,6 +36,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 public class DrMoldInventoryClient {
+    static final String SOURCE_VM_DETAIL_PREFIX = "vmDetail.";
     private static final int CONNECT_TIMEOUT_MS = 10000;
     private static final int READ_TIMEOUT_MS = 15000;
     private static final String COMMAND_LIST_ZONES = "listZones";
@@ -188,6 +189,12 @@ public class DrMoldInventoryClient {
     Map<String, String> extractVirtualMachineHardware(JsonObject vm) {
         JsonObject details = getObjectIgnoreCase(vm, "details");
         Map<String, String> hardware = new LinkedHashMap<String, String>();
+        for (Map.Entry<String, JsonElement> entry : details.entrySet()) {
+            JsonElement value = entry.getValue();
+            if (StringUtils.isNotBlank(entry.getKey()) && value != null && value.isJsonPrimitive()) {
+                hardware.put(SOURCE_VM_DETAIL_PREFIX + entry.getKey(), value.getAsString());
+            }
+        }
         putIfNotBlank(hardware, "cpuCount", firstString(vm, "cpunumber"));
         putIfNotBlank(hardware, "cpuSpeed", firstString(vm, "cpuspeed"));
         putIfNotBlank(hardware, "memoryMiB", firstString(vm, "memory"));
@@ -199,9 +206,9 @@ public class DrMoldInventoryClient {
         String uefiBootMode = firstString(details, "UEFI", "uefi");
         String bootType = StringUtils.isNotBlank(uefiBootMode) ? "UEFI" : firstString(vm, "boottype");
         String bootMode = StringUtils.isNotBlank(uefiBootMode) ? uefiBootMode : firstString(vm, "bootmode");
-        if (StringUtils.equalsIgnoreCase(hypervisorType, "KVM") && StringUtils.isBlank(bootType)) {
-            bootType = "BIOS";
-            bootMode = "LEGACY";
+        if (StringUtils.equalsIgnoreCase(hypervisorType, "KVM")) {
+            bootType = StringUtils.isNotBlank(uefiBootMode) ? "UEFI" : "BIOS";
+            bootMode = StringUtils.isNotBlank(uefiBootMode) ? uefiBootMode : "LEGACY";
         }
         String secureBoot = firstString(details, "secureboot", "secureBoot");
         putIfNotBlank(hardware, "firmware", bootType);
@@ -209,6 +216,7 @@ public class DrMoldInventoryClient {
         putIfNotBlank(hardware, "bootMode", bootMode);
         putIfNotBlank(hardware, "secureBoot", StringUtils.defaultIfBlank(secureBoot,
                 String.valueOf(StringUtils.equalsIgnoreCase(bootMode, "SECURE"))));
+        putIfNotBlank(hardware, "UEFI", uefiBootMode);
         putIfNotBlank(hardware, "uefi", uefiBootMode);
         putIfNotBlank(hardware, "tpmVersion", firstString(details, "tpmversion", "tpmVersion"));
         putIfNotBlank(hardware, "sourceHostUuid", firstString(vm, "hostid"));

@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -30,6 +31,7 @@ import java.util.concurrent.RejectedExecutionException;
 
 import javax.inject.Inject;
 
+import org.apache.cloudstack.api.ApiConstants;
 import org.apache.cloudstack.context.CallContext;
 import org.apache.cloudstack.engine.orchestration.service.VolumeOrchestrationService;
 import org.apache.cloudstack.managed.context.ManagedContextRunnable;
@@ -54,6 +56,8 @@ import com.cloud.dr.dao.DrRunDao;
 import com.cloud.dr.dao.DrRunStepDao;
 import com.cloud.dr.dao.DrTestDiskDao;
 import com.cloud.dr.dao.DrTestSessionDao;
+import com.cloud.dr.inventory.DrSourceHardwareInventoryService;
+import com.cloud.dr.inventory.DrSourceVmHardware;
 import com.cloud.exception.ConcurrentOperationException;
 import com.cloud.exception.InsufficientCapacityException;
 import com.cloud.exception.ResourceAllocationException;
@@ -124,6 +128,8 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
     private DrTargetResourceOwnershipService targetResourceOwnershipService;
     @Inject
     private DrPlanTargetPlacementResolver targetPlacementResolver;
+    @Inject
+    private DrSourceHardwareInventoryService sourceHardwareInventoryService;
     @Inject
     private AccountDao accountDao;
     @Inject
@@ -497,6 +503,7 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
                 DrConstants.STEP_STATE_RUNNING, 85, runtimeStatusJson, null, null);
 
         try {
+            refreshSourceHardwareSnapshot(plan);
             DrResolvedTargetPlacement placement = resolvePlacement(plan, runtime);
             if (placement == null || !placement.getBlockingReasons().isEmpty()) {
                 throw new CloudRuntimeException("DR test target placement is not ready");
@@ -912,6 +919,7 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
     }
 
     private MaterializationResult materializeTarget(DrPlanVO plan, DrRunVO run, JsonObject runtime, boolean durable) {
+        refreshSourceHardwareSnapshot(plan);
         DrReplicaVO replica = firstActiveReplica(plan);
         if (replica == null) {
             throw new CloudRuntimeException("DR target materialization requires a prepared replica row");
@@ -920,6 +928,7 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
             UserVmVO existing = userVmDao.findById(replica.getTargetVmId());
             if (existing != null && existing.getRemoved() == null) {
                 targetResourceOwnershipService.claimVm(plan, replica, run, existing);
+                reconcileSourceVmDetails(plan, existing);
                 verifyTargetVmHardware(plan, existing);
                 observeReplicaPowerState(replica, existing);
                 List<DrReplicaDiskVO> existingDisks = drReplicaDiskDao.listActiveByReplicaId(replica.getId());
@@ -1361,9 +1370,14 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
         }
     }
 
-    private Map<String, String> buildTargetVmDetails(DrPlanVO plan, DrReplicaVO replica, DrResolvedTargetPlacement placement,
+    Map<String, String> buildTargetVmDetails(DrPlanVO plan, DrReplicaVO replica, DrResolvedTargetPlacement placement,
             ServiceOfferingVO serviceOffering, VolumeVO rootVolume, DrResolvedTargetHardware hardware) {
         Map<String, String> details = new HashMap<String, String>();
+        Map<String, String> replicatedSourceDetails = DrVmDetailReplicationPolicy.copyableSourceDetails(
+                plan.getDirection(), sourceVmDetails(plan));
+        details.putAll(replicatedSourceDetails);
+        details.put(DrVmDetailReplicationPolicy.REPLICATED_KEYS_DETAIL,
+                StringUtils.join(new TreeSet<String>(replicatedSourceDetails.keySet()), ","));
         details.put("dr.replica.vm", String.valueOf(replica != null));
         details.put("dr.plan.uuid", plan.getUuid());
         details.put("dr.plan.id", String.valueOf(plan.getId()));
@@ -1380,20 +1394,22 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
         if (StringUtils.isNotBlank(sourceHardwareFingerprint)) {
             details.put("dr.source.hardware.fingerprint", sourceHardwareFingerprint);
         }
-        details.put(VmDetailConstants.ROOT_DISK_SIZE, String.valueOf(bytesToGiBRoundedUp(rootVolume.getSize())));
-        details.put(VmDetailConstants.ROOT_DISK_CONTROLLER, StringUtils.defaultIfBlank(
+        details.putIfAbsent(VmDetailConstants.ROOT_DISK_SIZE, String.valueOf(bytesToGiBRoundedUp(rootVolume.getSize())));
+        details.putIfAbsent(VmDetailConstants.ROOT_DISK_CONTROLLER, StringUtils.defaultIfBlank(
                 hardware != null ? hardware.getRootDiskController() : null, "scsi"));
-        details.put(VmDetailConstants.DATA_DISK_CONTROLLER, StringUtils.defaultIfBlank(
+        details.putIfAbsent(VmDetailConstants.DATA_DISK_CONTROLLER, StringUtils.defaultIfBlank(
                 hardware != null ? hardware.getDataDiskController() : null, "scsi"));
-        if (hardware != null && hardware.getBootType() != null && hardware.getBootMode() != null) {
-            details.put(hardware.getBootType().toString(), hardware.getBootMode().toString());
-            details.put(VmDetailConstants.BOOT_MODE, hardware.getBootMode().toString());
+        boolean authoritativeKvmDetails = StringUtils.equalsIgnoreCase(plan.getDirection(), DrConstants.DIRECTION_KVM_TO_KVM)
+                && sourceHardware(plan).has("vmDetails");
+        if (!authoritativeKvmDetails && hardware != null && hardware.getBootType() == ApiConstants.BootType.UEFI
+                && hardware.getBootMode() != null) {
+            details.put(ApiConstants.BootType.UEFI.toString(), hardware.getBootMode().toString());
         }
         if (hardware != null && hardware.getIoPolicy() != null) {
-            details.put(VmDetailConstants.IO_POLICY, hardware.getIoPolicy().toString());
+            details.putIfAbsent(VmDetailConstants.IO_POLICY, hardware.getIoPolicy().toString());
         }
         if (hardware != null && Boolean.TRUE.equals(hardware.getIoThreadsEnabled())) {
-            details.put(VmDetailConstants.IOTHREADS, "true");
+            details.putIfAbsent(VmDetailConstants.IOTHREADS, "true");
         }
         putDynamicVmDetail(details, VmDetailConstants.CPU_NUMBER, serviceOffering != null ? serviceOffering.getCpu() : null,
                 placement != null ? placement.getTargetCpuNumber() : null);
@@ -1417,11 +1433,28 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
         JsonObject sourceHardware = objectAt(objectAt(mapping, "source"), "hardware");
         JsonObject targetHardware = objectAt(objectAt(mapping, "target"), "hardware");
         Map<String, String> actual = vmInstanceDetailsDao.listDetailsKeyPairs(targetVm.getId());
-        String expectedBootMode = firstString(targetHardware, "bootMode", "bootmode");
-        String actualBootMode = actual.get(VmDetailConstants.BOOT_MODE);
-        if (StringUtils.isNotBlank(expectedBootMode) && !StringUtils.equalsIgnoreCase(expectedBootMode, actualBootMode)) {
-            throw new CloudRuntimeException("TARGET_VM_HARDWARE_MISMATCH: expected boot.mode=" + expectedBootMode
-                    + " but target VM has " + StringUtils.defaultString(actualBootMode, "<missing>"));
+        actual = actual != null ? actual : new HashMap<String, String>();
+        Map<String, String> expectedSourceDetails = DrVmDetailReplicationPolicy.copyableSourceDetails(
+                plan.getDirection(), sourceVmDetails(plan));
+        for (Map.Entry<String, String> expected : expectedSourceDetails.entrySet()) {
+            if (!StringUtils.equals(expected.getValue(), actual.get(expected.getKey()))) {
+                throw new CloudRuntimeException("TARGET_VM_DETAIL_MISMATCH: key=" + expected.getKey()
+                        + " expected=" + expected.getValue() + " actual="
+                        + StringUtils.defaultString(actual.get(expected.getKey()), "<absent>"));
+            }
+        }
+        String expectedUefiMode = expectedSourceDetails.get(ApiConstants.BootType.UEFI.toString());
+        if (StringUtils.isBlank(expectedUefiMode)
+                && !sourceHardware.has("vmDetails")
+                && StringUtils.containsIgnoreCase(firstString(sourceHardware, "firmware"), "efi")) {
+            expectedUefiMode = Boolean.TRUE.equals(firstBoolean(sourceHardware, "secureBoot", "secure_boot", "secure"))
+                    ? ApiConstants.BootMode.SECURE.toString() : ApiConstants.BootMode.LEGACY.toString();
+        }
+        if (!StringUtils.equalsIgnoreCase(StringUtils.defaultString(expectedUefiMode),
+                StringUtils.defaultString(actual.get(ApiConstants.BootType.UEFI.toString())))) {
+            throw new CloudRuntimeException("TARGET_VM_HARDWARE_MISMATCH: expected UEFI detail="
+                    + StringUtils.defaultString(expectedUefiMode, "<absent>") + " but target VM has "
+                    + StringUtils.defaultString(actual.get(ApiConstants.BootType.UEFI.toString()), "<absent>"));
         }
         String expectedFingerprint = firstString(sourceHardware, "fingerprint");
         String actualFingerprint = actual.get("dr.source.hardware.fingerprint");
@@ -1438,6 +1471,69 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
                 && !StringUtils.equalsIgnoreCase("true", actual.get(VmDetailConstants.IOTHREADS))) {
             throw new CloudRuntimeException("TARGET_VM_HARDWARE_MISMATCH: target iothreads differs");
         }
+    }
+
+    private void refreshSourceHardwareSnapshot(DrPlanVO plan) {
+        if (plan == null || sourceHardwareInventoryService == null
+                || !StringUtils.equalsIgnoreCase(plan.getDirection(), DrConstants.DIRECTION_KVM_TO_KVM)) {
+            return;
+        }
+        DrSourceVmHardware hardware = sourceHardwareInventoryService.resolve(plan);
+        if (hardware == null || !hardware.isComplete()) {
+            throw new CloudRuntimeException("SOURCE_VM_DETAILS_UNAVAILABLE: "
+                    + StringUtils.defaultIfBlank(hardware != null ? hardware.getMessage() : null,
+                            "ABLESTACK source VM details could not be read"));
+        }
+        JsonObject mapping = parseObject(plan.getMappingJson());
+        JsonObject source = objectAt(mapping, "source");
+        source.add("hardware", hardware.toJsonObject());
+        mapping.add("source", source);
+        plan.setMappingJson(GSON.toJson(mapping));
+        plan.markUpdated();
+        drPlanDao.update(plan.getId(), plan);
+    }
+
+    private JsonObject sourceHardware(DrPlanVO plan) {
+        return objectAt(objectAt(parseObject(plan != null ? plan.getMappingJson() : null), "source"), "hardware");
+    }
+
+    private Map<String, String> sourceVmDetails(DrPlanVO plan) {
+        Map<String, String> details = new HashMap<String, String>();
+        JsonObject object = objectAt(sourceHardware(plan), "vmDetails");
+        for (Map.Entry<String, JsonElement> entry : object.entrySet()) {
+            if (StringUtils.isNotBlank(entry.getKey()) && entry.getValue() != null && entry.getValue().isJsonPrimitive()) {
+                details.put(entry.getKey(), entry.getValue().getAsString());
+            }
+        }
+        return details;
+    }
+
+    void reconcileSourceVmDetails(DrPlanVO plan, UserVmVO targetVm) {
+        if (plan == null || targetVm == null || vmInstanceDetailsDao == null
+                || !StringUtils.equalsIgnoreCase(plan.getDirection(), DrConstants.DIRECTION_KVM_TO_KVM)) {
+            return;
+        }
+        Map<String, String> expected = DrVmDetailReplicationPolicy.copyableSourceDetails(
+                plan.getDirection(), sourceVmDetails(plan));
+        Map<String, String> actual = vmInstanceDetailsDao.listDetailsKeyPairs(targetVm.getId());
+        String previousManifest = actual != null ? actual.get(DrVmDetailReplicationPolicy.REPLICATED_KEYS_DETAIL) : null;
+        if (StringUtils.isNotBlank(previousManifest)) {
+            for (String key : StringUtils.split(previousManifest, ',')) {
+                if (StringUtils.isNotBlank(key) && !expected.containsKey(key)) {
+                    vmInstanceDetailsDao.removeDetail(targetVm.getId(), key);
+                }
+            }
+        }
+        vmInstanceDetailsDao.removeDetail(targetVm.getId(), "boot.mode");
+        for (Map.Entry<String, String> entry : expected.entrySet()) {
+            if (actual == null || !StringUtils.equals(entry.getValue(), actual.get(entry.getKey()))) {
+                vmInstanceDetailsDao.removeDetail(targetVm.getId(), entry.getKey());
+                vmInstanceDetailsDao.addDetail(targetVm.getId(), entry.getKey(), entry.getValue(), true);
+            }
+        }
+        vmInstanceDetailsDao.removeDetail(targetVm.getId(), DrVmDetailReplicationPolicy.REPLICATED_KEYS_DETAIL);
+        vmInstanceDetailsDao.addDetail(targetVm.getId(), DrVmDetailReplicationPolicy.REPLICATED_KEYS_DETAIL,
+                StringUtils.join(new TreeSet<String>(expected.keySet()), ","), false);
     }
 
     private void putDynamicVmDetail(Map<String, String> details, String key, Integer offeringValue, Integer resolvedValue) {
