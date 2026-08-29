@@ -79,8 +79,11 @@ class DrPlanActionAvailabilityEvaluator {
             DrPlanActionAvailabilityContext context, String action, boolean applicable) {
         boolean enabled = Boolean.TRUE.equals(eligibility.get(action));
         String reasonCode = applicable && !enabled ? reasonCode(action, context) : null;
+        Map<String, String> reasonArgs = reasonCode != null
+                ? context.capabilityReasonArgs.getOrDefault(action, Collections.emptyMap())
+                : Collections.emptyMap();
         result.put(action, new DrActionAvailability(applicable, applicable && enabled, reasonCode,
-                Collections.emptyMap()));
+                reasonArgs));
     }
 
     private String reasonCode(String action, DrPlanActionAvailabilityContext context) {
@@ -89,6 +92,9 @@ class DrPlanActionAvailabilityEvaluator {
         }
         if (context.runtimeReconciliationRequired && !"cancelRun".equals(action)) {
             return RUNTIME_RECONCILIATION_REQUIRED;
+        }
+        if (context.capabilityBlockingReasons.containsKey(action)) {
+            return context.capabilityBlockingReasons.get(action);
         }
         if (context.activeRun && !"cancelRun".equals(action)) {
             return ACTIVE_RUN;

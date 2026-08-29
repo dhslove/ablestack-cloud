@@ -41,4 +41,26 @@ describe('DR action availability', () => {
     expect(drActionReasonMessageKey('DR_ACTION_TARGET_NOT_READY'))
       .toBe('message.dr.action.target.not.ready')
   })
+
+  it('keeps capability block reason and args for pre-action UI gating', () => {
+    const state = resolveDrActionAvailability({ key: 'reprotect' }, {
+      actionavailability: {
+        reprotect: {
+          applicable: true,
+          enabled: false,
+          reasoncode: 'DR_ACTION_REPROTECT_CONTRACT_UNSUPPORTED',
+          reasonargs: { requiredVersion: 'current' }
+        }
+      }
+    })
+
+    expect(state).toEqual({
+      applicable: true,
+      enabled: false,
+      reasonCode: 'DR_ACTION_REPROTECT_CONTRACT_UNSUPPORTED',
+      reasonArgs: { requiredVersion: 'current' }
+    })
+    expect(drActionReasonMessageKey(state.reasonCode))
+      .toBe('message.dr.action.reprotect.contract.unsupported')
+  })
 })

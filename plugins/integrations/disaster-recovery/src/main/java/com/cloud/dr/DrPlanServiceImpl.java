@@ -72,6 +72,8 @@ public class DrPlanServiceImpl extends ManagerBase implements DrPlanService {
     private DrTestSessionDao drTestSessionDao;
     @Inject
     private DrCutoverSessionDao drCutoverSessionDao;
+    @Inject
+    private DrFtctlActionCapabilityService drFtctlActionCapabilityService;
 
     @Override
     public DrPlanVO createPlan(DrPlanVO plan) {
@@ -301,6 +303,11 @@ public class DrPlanServiceImpl extends ManagerBase implements DrPlanService {
                 ? drProtectionAuthorityService.getAuthority(planId) : null;
         boolean normalCutoverReady = !ftctlDrPlan || (authority != null && authority.isNormalCutoverReady());
         boolean committedTargetAuthority = !ftctlDrPlan || hasCommittedTargetAuthority(plan);
+        DrFtctlActionCapabilitySnapshot capabilitySnapshot = ftctlDrPlan
+                && drFtctlActionCapabilityService != null
+                && (plan.getCoordinatorWorkerHostId() != null || plan.getSourceWorkerHostId() != null
+                        || plan.getTargetWorkerHostId() != null)
+                ? drFtctlActionCapabilityService.evaluate(plan) : null;
 
         Map<String, Boolean> eligibility = new LinkedHashMap<String, Boolean>();
         eligibility.put("update", !activeRun);
@@ -329,6 +336,15 @@ public class DrPlanServiceImpl extends ManagerBase implements DrPlanService {
         eligibility.put("releaseProtection", enabled && !activeRun && hasEngine && ftctlDrPlan && ftctlDrControlReady && ftctlDrReleaseReady);
         eligibility.put("migrationOnly", vmwarePhase1 || v2kPlan);
         eligibility.put("cancelRun", activeRun);
+        if (capabilitySnapshot != null) {
+            for (String action : new String[] {"sync", "recoverSync", "pauseSync", "resumeSync",
+                    "testFailover", "stopTestFailover", "failover", "failback", "reprotect",
+                    "releaseProtection"}) {
+                if (capabilitySnapshot.getBlockingReason(action) != null) {
+                    eligibility.put(action, false);
+                }
+            }
+        }
         if (lifecycleTransition) {
             eligibility.replaceAll((action, allowed) -> false);
             eligibility.put("cancelRun", activeRun);
@@ -366,6 +382,19 @@ public class DrPlanServiceImpl extends ManagerBase implements DrPlanService {
         context.lifecycleTransition = lifecycleTransition;
         context.nbdRecoveryRequired = nbdRecoveryRequired;
         context.runtimeReconciliationRequired = runtimeReconciliationRequired;
+        if (capabilitySnapshot != null) {
+            Map<String, String> capabilityReasons = new LinkedHashMap<String, String>();
+            Map<String, Map<String, String>> capabilityArgs = new LinkedHashMap<String, Map<String, String>>();
+            for (String action : eligibility.keySet()) {
+                String reason = capabilitySnapshot.getBlockingReason(action);
+                if (reason != null) {
+                    capabilityReasons.put(action, reason);
+                    capabilityArgs.put(action, capabilitySnapshot.getReasonArgs(action));
+                }
+            }
+            context.capabilityBlockingReasons = capabilityReasons;
+            context.capabilityReasonArgs = capabilityArgs;
+        }
         return new DrPlanActionEvaluation(eligibility,
                 ACTION_AVAILABILITY_EVALUATOR.evaluate(eligibility, context));
     }

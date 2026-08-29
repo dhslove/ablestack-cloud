@@ -16,6 +16,9 @@
 // under the License.
 package com.cloud.dr;
 
+import java.util.Collections;
+import java.util.Map;
+
 class DrPlanActionAvailabilityContext {
     boolean planEnabled;
     boolean activeRun;
@@ -40,4 +43,6 @@ class DrPlanActionAvailabilityContext {
     boolean lifecycleTransition;
     boolean nbdRecoveryRequired;
     boolean runtimeReconciliationRequired;
+    Map<String, String> capabilityBlockingReasons = Collections.emptyMap();
+    Map<String, Map<String, String>> capabilityReasonArgs = Collections.emptyMap();
 }

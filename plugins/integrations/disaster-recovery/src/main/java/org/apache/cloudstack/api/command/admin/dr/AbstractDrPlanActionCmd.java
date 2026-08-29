@@ -35,6 +35,7 @@ import org.apache.cloudstack.api.response.dr.DrRestorePointResponse;
 import org.apache.cloudstack.api.response.dr.DrRunResponse;
 import org.apache.cloudstack.context.CallContext;
 
+import com.cloud.dr.DrActionAvailability;
 import com.cloud.dr.DrConstants;
 import com.cloud.dr.DrPlanService;
 import com.cloud.dr.DrRunVO;
@@ -156,14 +157,17 @@ public abstract class AbstractDrPlanActionCmd extends BaseAsyncCmd {
 
     protected void validateActionAllowed() {
         String actionKey = getActionEligibilityKey();
-        Map<String, Boolean> eligibility = drPlanService.getActionEligibility(planId);
-        if (eligibility == null || !eligibility.containsKey(actionKey)) {
+        Map<String, DrActionAvailability> availability = drPlanService.getActionAvailability(planId);
+        if (availability == null || !availability.containsKey(actionKey)) {
             throw new ServerApiException(ApiErrorCode.PARAM_ERROR,
                     String.format("DR action %s is not supported by the current plan engine", getApiName()));
         }
-        if (!Boolean.TRUE.equals(eligibility.get(actionKey))) {
+        DrActionAvailability actionAvailability = availability.get(actionKey);
+        if (actionAvailability == null || !actionAvailability.isEnabled()) {
+            String reason = actionAvailability != null ? actionAvailability.getReasonCode() : null;
             throw new ServerApiException(ApiErrorCode.PARAM_ERROR,
-                    String.format("DR action %s is not allowed in the current plan state", getApiName()));
+                    String.format("DR action %s is not allowed in the current plan state%s", getApiName(),
+                            StringUtils.isNotBlank(reason) ? ": " + reason : ""));
         }
     }
 

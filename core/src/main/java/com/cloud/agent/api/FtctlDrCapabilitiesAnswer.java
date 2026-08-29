@@ -67,8 +67,16 @@ public class FtctlDrCapabilitiesAnswer extends Answer {
         return supportedActions;
     }
 
+    public void setSupportedActions(List<String> values) {
+        supportedActions = values == null ? new ArrayList<String>() : values;
+    }
+
     public List<String> getSupportedCliCommands() {
         return supportedCliCommands;
+    }
+
+    public void setSupportedCliCommands(List<String> values) {
+        supportedCliCommands = values == null ? new ArrayList<String>() : values;
     }
 
     public List<String> getMissingActions() {

@@ -7,6 +7,7 @@ package com.cloud.dr;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Collections;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -88,6 +89,28 @@ public class DrPlanActionAvailabilityEvaluatorTest {
                 result.get("sync").getReasonCode());
         Assert.assertEquals(DrPlanActionAvailabilityEvaluator.RUNTIME_RECONCILIATION_REQUIRED,
                 result.get("update").getReasonCode());
+    }
+
+    @Test
+    public void capabilityMismatchBlocksApplicableActionBeforeExecution() {
+        DrPlanActionAvailabilityContext context = baseContext();
+        context.targetAuthority = true;
+        context.failedOver = true;
+        context.committedTargetAuthority = true;
+        context.capabilityBlockingReasons = Collections.singletonMap("reprotect",
+                DrFtctlActionCapabilityServiceImpl.REPROTECT_CONTRACT_UNSUPPORTED);
+        context.capabilityReasonArgs = Collections.singletonMap("reprotect",
+                Collections.singletonMap("requiredVersion", "current"));
+        Map<String, Boolean> eligibility = eligibility();
+        eligibility.put("reprotect", false);
+
+        DrActionAvailability availability = evaluator.evaluate(eligibility, context).get("reprotect");
+
+        Assert.assertTrue(availability.isApplicable());
+        Assert.assertFalse(availability.isEnabled());
+        Assert.assertEquals(DrFtctlActionCapabilityServiceImpl.REPROTECT_CONTRACT_UNSUPPORTED,
+                availability.getReasonCode());
+        Assert.assertEquals("current", availability.getReasonArgs().get("requiredVersion"));
     }
 
     private DrPlanActionAvailabilityContext baseContext() {

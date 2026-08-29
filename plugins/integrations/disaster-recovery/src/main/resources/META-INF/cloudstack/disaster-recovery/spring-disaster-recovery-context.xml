@@ -68,6 +68,7 @@
     <bean id="drPlanTargetPlacementResolver" class="com.cloud.dr.DrPlanTargetPlacementResolverImpl"/>
     <bean id="drPlanGuidedSpecBuilder" class="com.cloud.dr.DrPlanGuidedSpecBuilder"/>
     <bean id="drPlanReadinessValidator" class="com.cloud.dr.DrPlanReadinessValidator"/>
+    <bean id="drFtctlActionCapabilityServiceImpl" class="com.cloud.dr.DrFtctlActionCapabilityServiceImpl"/>
     <bean id="drPlanServiceImpl" class="com.cloud.dr.DrPlanServiceImpl"/>
     <bean id="drRunServiceImpl" class="com.cloud.dr.DrRunServiceImpl"/>
     <bean id="drProjectionServiceImpl" class="com.cloud.dr.DrProjectionServiceImpl"/>

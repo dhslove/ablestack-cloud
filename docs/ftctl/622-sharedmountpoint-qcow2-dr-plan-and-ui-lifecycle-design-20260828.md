@@ -617,3 +617,36 @@ The corrected lifecycle is:
 RBD and VMware paths retain their existing reverse-baseline implementation.
 The FILE provider branch is a strict capability dispatch and cannot fall back
 to RBD helpers.
+
+## 24. Pre-action capability consistency gate
+
+Agent capability discovery is an action-availability input, not an execution
+failure mechanism. Cloud caches the authoritative FTCTL capability response
+per dispatch endpoint for 30 seconds and evaluates the command surface before
+publishing `actionAvailability` to the UI. The cache prevents a plan list with
+many rows from issuing one Agent command per row while keeping package rolling
+updates visible within a bounded interval.
+
+For every FTCTL control action, Cloud requires the advertised action name and
+CLI command. Reprotect additionally requires the Cloud writer's authority
+contract version in `reprotect_authority_contract_versions`. A missing answer,
+missing command, or incompatible contract makes only the affected action
+unavailable with a stable reason code and arguments. The UI keeps the action
+visible when it is state-applicable, disables it, and explains the compatibility
+failure before the confirmation dialog can submit a Run.
+
+The API command validates the same typed availability immediately before Run
+creation. The adapter repeats capability validation immediately before Agent
+dispatch as a TOCTOU guard. These are the same contract at three points, not
+three independently maintained version literals.
+
+| Layer | Responsibility |
+| --- | --- |
+| FTCTL | Publish supported commands, features, and reader contract versions |
+| Cloud availability | Cache endpoint snapshot and compute action-specific readiness |
+| UI | Render enabled/disabled state and localized blocking reason |
+| API/adapter | Revalidate the same result before Run creation and dispatch |
+
+The release gate covers VMware-to-RBD, ABLESTACK RBD-to-RBD, and
+SharedMountPoint qcow2-to-qcow2 so a shared contract change cannot ship as a
+single-path fix.
