@@ -234,3 +234,31 @@ The UI PASS gate remains strict: the same plan must show Reprotect
 `Running`, target authority released, and terminal operation history with no
 stale active Run. Database or host evidence supplements but does not replace
 the UI result.
+
+### Contract Patch Test Release And Deployment
+
+The canonical contract patch was built from Cloud commit `06cdd9feac` by
+GitHub Actions run `33221768861`. The release artifact SHA256 is
+`0a4a78087779f2af57fd1110af8341fed00538e2ae53dc1cf6859e031797eb55`,
+and its package release is `4.23.0.0-Mold.Europa.202608282352.1`.
+
+The Cloud management/common/UI/usage packages were deployed to the 13 and 31
+management servers. The Cloud common/Agent packages were deployed one host at
+a time to `13.1`, `13.2`, `13.3`, `31.1`, `31.2`, and `31.3`. Post-deployment
+verification found both management services active, both `/client/` endpoints
+returning HTTP 200, both active webapps retaining `WEB-INF`, and all six Agents
+active on the same package release.
+
+The 13 management package cleanup exposed the already documented package-owned
+JAR quarantine condition. Only the exact newly installed JARs were restored
+from that deployment's `legacy-lib` backup before restarting Mold. This was a
+package installation recovery and did not alter DR plan, Run, VM, or storage
+state.
+
+The preserved UI regression baseline is Reprotect Run
+`2a531906-e9ce-4a3e-b63d-478d927a8c77`, which terminated as `FAILED` with
+`DR_ENGINE_ACTION_FAILED` before the contract patch. The plan remains
+`FAILED_OVER`, and Failover Run `ed096e21-8bab-4760-b912-7c2c64da501c`
+remains the last successful authority transition. The patched UI test must
+create a new Reprotect Run rather than modifying or retrying either historical
+row directly.
