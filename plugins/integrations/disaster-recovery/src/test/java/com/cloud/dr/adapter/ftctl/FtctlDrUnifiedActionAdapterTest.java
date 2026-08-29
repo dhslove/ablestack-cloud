@@ -428,6 +428,8 @@ public class FtctlDrUnifiedActionAdapterTest {
         Mockito.when(agentManager.send(Mockito.eq(103L), Mockito.isA(FtctlDrCapabilitiesCommand.class)))
                 .thenAnswer(invocation -> {
                     FtctlDrCapabilitiesAnswer answer = new FtctlDrCapabilitiesAnswer(invocation.getArgument(1), true, "ok");
+                    answer.setReprotectAuthorityContractVersions(java.util.Collections.singletonList(
+                            DrReprotectAuthoritySpec.CONTRACT_VERSION));
                     answer.setSupportedFeatures(java.util.Arrays.asList("control-protocol-v2",
                             "dr-transition-preflight-v2", "dr-reverse-site-agent-rbd-transport-v1",
                             "dr-remote-source-failback-commit-v1"));
@@ -492,6 +494,8 @@ public class FtctlDrUnifiedActionAdapterTest {
         Mockito.when(agentManager.send(Mockito.eq(103L), Mockito.isA(FtctlDrCapabilitiesCommand.class)))
                 .thenAnswer(invocation -> {
                     FtctlDrCapabilitiesAnswer answer = new FtctlDrCapabilitiesAnswer(invocation.getArgument(1), true, "ok");
+                    answer.setReprotectAuthorityContractVersions(java.util.Collections.singletonList(
+                            DrReprotectAuthoritySpec.CONTRACT_VERSION));
                     answer.setSupportedFeatures(java.util.Arrays.asList("control-protocol-v2",
                             "dr-transition-preflight-v2", "dr-reverse-site-agent-rbd-transport-v1"));
                     return answer;
@@ -757,6 +761,32 @@ public class FtctlDrUnifiedActionAdapterTest {
     }
 
     @Test
+    public void reprotectStopsBeforeDispatchWhenRuntimeDoesNotAdvertiseWriterContract() throws Exception {
+        DrPlanVO plan = ftctlDrPlan();
+        plan.setState(DrConstants.PLAN_STATE_FAILED_OVER);
+        plan.setActiveSide("TARGET");
+        DrRunVO run = run(DrConstants.RUN_TYPE_REPROTECT, "{}");
+        Mockito.when(agentManager.send(Mockito.eq(103L), Mockito.isA(FtctlDrCapabilitiesCommand.class)))
+                .thenAnswer(invocation -> {
+                    FtctlDrCapabilitiesAnswer answer = new FtctlDrCapabilitiesAnswer(
+                            invocation.getArgument(1), true, "ok");
+                    answer.setSupportedFeatures(java.util.Arrays.asList(
+                            "control-protocol-v2", "dr-transition-preflight-v2"));
+                    answer.setReprotectAuthorityContractVersions(
+                            java.util.Collections.singletonList("2026-07-23"));
+                    return answer;
+                });
+
+        DrAdapterResult result = adapter.execute(new DrExecutionContext(plan, run));
+
+        Assert.assertFalse(result.isSuccess());
+        Assert.assertEquals(DrConstants.ERROR_AGENT_CAPABILITY_MISMATCH, result.getErrorCode());
+        Assert.assertTrue(result.getMessage().contains("does not support"));
+        Mockito.verify(agentManager, Mockito.never()).send(
+                Mockito.eq(103L), Mockito.isA(FtctlDrActionCommand.class));
+    }
+
+    @Test
     public void failbackStopsBeforeAgentDispatchWhenSitePreflightFails() throws Exception {
         DrPlanVO plan = ftctlDrPlan();
         plan.setState(DrConstants.PLAN_STATE_FAILED_OVER);
@@ -829,6 +859,8 @@ public class FtctlDrUnifiedActionAdapterTest {
     private void mockCapabilities() throws Exception {
         Mockito.when(agentManager.send(Mockito.eq(103L), Mockito.isA(FtctlDrCapabilitiesCommand.class))).thenAnswer(invocation -> {
             FtctlDrCapabilitiesAnswer answer = new FtctlDrCapabilitiesAnswer(invocation.getArgument(1), true, "ok");
+            answer.setReprotectAuthorityContractVersions(java.util.Collections.singletonList(
+                    DrReprotectAuthoritySpec.CONTRACT_VERSION));
             answer.setSupportedFeatures(java.util.Arrays.asList("control-protocol-v2", "guest-preparation-v2",
                     "test-artifact-lifecycle-v2", "test-domain-lifecycle-v1", "file-checkpoint-invariance-v1", "cutover-ready-v1",
                     "cutover-manifest-v2", "cutover-preflight-v1"));

@@ -838,6 +838,17 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
                 return DrAdapterResult.failure(DrConstants.ERROR_CONTROL_PROTOCOL_UNSUPPORTED,
                         "FTCTL_DR control protocol v2 is required for coordinated DR actions", GSON.toJson(details));
             }
+            if (action == FtctlDrActionCommand.Action.REPROTECT
+                    && !supportsFeature(capabilities.getReprotectAuthorityContractVersions(),
+                            DrReprotectAuthoritySpec.CONTRACT_VERSION)) {
+                details.addProperty("requiredReprotectAuthorityContractVersion",
+                        DrReprotectAuthoritySpec.CONTRACT_VERSION);
+                details.add("supportedReprotectAuthorityContractVersions",
+                        GSON.toJsonTree(capabilities.getReprotectAuthorityContractVersions()));
+                return DrAdapterResult.failure(DrConstants.ERROR_AGENT_CAPABILITY_MISMATCH,
+                        "FTCTL_DR host does not support the Reprotect authority contract produced by Cloud",
+                        GSON.toJson(details));
+            }
             if (requiresVmwareGuestPreparation(context, action)) {
                 String missingFeature = action == FtctlDrActionCommand.Action.TEST_PREPARE
                         ? firstMissingFeature(capabilities.getSupportedFeatures(),

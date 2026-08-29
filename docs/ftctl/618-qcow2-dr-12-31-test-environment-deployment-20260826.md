@@ -262,3 +262,27 @@ The preserved UI regression baseline is Reprotect Run
 remains the last successful authority transition. The patched UI test must
 create a new Reprotect Run rather than modifying or retrying either historical
 row directly.
+
+### Capability-Negotiated Reprotect Authority Contract
+
+The first patched UI retry reached FTCTL but exposed a third independent
+contract literal in the runtime authority persistence gate. Run
+`2c5b1863-52b9-4918-b425-be7c3cd86d17` terminated as
+`DR_REPROTECT_AUTHORITY_INVALID` because Cloud produced `2026-08-26` while
+FTCTL accepted only `2026-07-23`.
+
+The structural correction keeps one current writer version in Cloud and one
+supported-reader list in FTCTL. FTCTL publishes that list through
+`dr-capabilities`. The KVM capability wrapper projects it as structured Agent
+data, and the unified action adapter refuses Reprotect before dispatch unless
+the current Cloud writer version is advertised. The action wrapper validates
+that the command and immutable authority JSON declare the same version; it no
+longer owns a separate date literal.
+
+The FTCTL reader list is used by both `dr-capabilities` and authority-spec
+persistence. Its release smoke consumes the advertised list, validates every
+advertised version, and rejects an unknown version. VMware-to-RBD final
+checkpoint/guest-preparation smokes and ABLESTACK RBD-to-RBD reverse transport
+smokes remain mandatory in the same release workflow. This turns a future
+cross-repository version skew into a capability-preflight failure rather than
+a runtime Reprotect failure.

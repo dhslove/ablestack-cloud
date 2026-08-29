@@ -28,6 +28,7 @@ import com.google.gson.JsonParser;
 public class LibvirtFtctlDrActionCommandWrapperTest {
 
     private static final String REPROTECT_AUTHORITY_SPEC = "{"
+            + "\"contractVersion\":\"" + FtctlDrActionCommand.REPROTECT_AUTHORITY_CONTRACT_VERSION + "\","
             + "\"expectedActiveSide\":\"TARGET\","
             + "\"authorityGeneration\":344,"
             + "\"checkpointSequence\":344,"
@@ -45,7 +46,18 @@ public class LibvirtFtctlDrActionCommandWrapperTest {
     }
 
     @Test
-    public void reprotectAuthorityValidationRejectsStaleContractVersion() {
+    public void reprotectAuthorityValidationAcceptsMatchingLegacyContractVersion() throws IOException {
+        FtctlDrActionCommand command = new FtctlDrActionCommand(
+                FtctlDrActionCommand.Action.REPROTECT, "plan-a", "run-a");
+        command.setAuthorityContractVersion("2026-07-23");
+        command.setAuthoritySpecJson(REPROTECT_AUTHORITY_SPEC.replace(
+                FtctlDrActionCommand.REPROTECT_AUTHORITY_CONTRACT_VERSION, "2026-07-23"));
+
+        LibvirtFtctlDrActionCommandWrapper.validateAuthoritySpec(command);
+    }
+
+    @Test
+    public void reprotectAuthorityValidationRejectsCommandSpecVersionMismatch() {
         FtctlDrActionCommand command = new FtctlDrActionCommand(
                 FtctlDrActionCommand.Action.REPROTECT, "plan-a", "run-a");
         command.setAuthorityContractVersion("2026-07-23");
@@ -53,10 +65,9 @@ public class LibvirtFtctlDrActionCommandWrapperTest {
 
         try {
             LibvirtFtctlDrActionCommandWrapper.validateAuthoritySpec(command);
-            Assert.fail("Stale reprotect authority contract must be rejected");
+            Assert.fail("Mismatched reprotect authority contracts must be rejected");
         } catch (IOException e) {
-            Assert.assertTrue(e.getMessage().contains(
-                    FtctlDrActionCommand.REPROTECT_AUTHORITY_CONTRACT_VERSION));
+            Assert.assertTrue(e.getMessage().contains("must match"));
         }
     }
 

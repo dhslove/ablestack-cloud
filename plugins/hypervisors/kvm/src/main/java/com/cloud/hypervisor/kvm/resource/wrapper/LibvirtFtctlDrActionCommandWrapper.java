@@ -165,12 +165,13 @@ public class LibvirtFtctlDrActionCommandWrapper extends CommandWrapper<FtctlDrAc
         if (command.getAction() != FtctlDrActionCommand.Action.REPROTECT) {
             return;
         }
-        if (!StringUtils.equals(FtctlDrActionCommand.REPROTECT_AUTHORITY_CONTRACT_VERSION,
-                command.getAuthorityContractVersion())) {
-            throw new IOException("DR_REPROTECT_AUTHORITY_INVALID: authority contract version "
-                    + FtctlDrActionCommand.REPROTECT_AUTHORITY_CONTRACT_VERSION + " is required");
-        }
         JsonObject spec = LibvirtFtctlWrapperHelper.parseJsonObject(command.getAuthoritySpecJson());
+        String specContractVersion = spec != null
+                ? LibvirtFtctlDrCommandHelper.getString(spec, "contractVersion") : null;
+        if (StringUtils.isBlank(command.getAuthorityContractVersion())
+                || !StringUtils.equals(command.getAuthorityContractVersion(), specContractVersion)) {
+            throw new IOException("DR_REPROTECT_AUTHORITY_INVALID: command and authority spec contract versions must match");
+        }
         if (spec == null
                 || !StringUtils.equals("TARGET", LibvirtFtctlDrCommandHelper.getString(spec, "expectedActiveSide"))
                 || LibvirtFtctlDrCommandHelper.getLong(spec, "authorityGeneration") == null

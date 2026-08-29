@@ -63,6 +63,7 @@ public class LibvirtFtctlDrCapabilitiesCommandWrapper extends CommandWrapper<Ftc
         answer.setActionContractVersion(FtctlDrActionCommand.ACTION_CONTRACT_VERSION);
         answer.setSupportedFeatures(snapshot.supportedFeatures);
         answer.setMissingFeatures(missingFeatures);
+        answer.setReprotectAuthorityContractVersions(snapshot.reprotectAuthorityContractVersions);
         answer.setActionCommandCodeSource(codeSource(FtctlDrActionCommand.class));
         answer.setWrapperCodeSource(codeSource(getClass()));
         if (StringUtils.contains(answer.getActionCommandCodeSource(), "cloud-plugin-hypervisor-kvm")) {
@@ -94,6 +95,8 @@ public class LibvirtFtctlDrCapabilitiesCommandWrapper extends CommandWrapper<Ftc
         snapshot.runtimeSchemaVersion = LibvirtFtctlDrCommandHelper.getString(payload, "runtime_schema_version");
         snapshot.supportedCliCommands.addAll(jsonArrayValues(payload.getAsJsonArray("supported_commands")));
         snapshot.supportedFeatures.addAll(jsonArrayValues(payload.getAsJsonArray("supported_features")));
+        snapshot.reprotectAuthorityContractVersions.addAll(
+                reprotectAuthorityContractVersions(payload));
         snapshot.supportedActions.addAll(toActionNames(snapshot.supportedCliCommands));
         return snapshot;
     }
@@ -122,7 +125,12 @@ public class LibvirtFtctlDrCapabilitiesCommandWrapper extends CommandWrapper<Ftc
         return snapshot;
     }
 
-    private List<String> jsonArrayValues(JsonArray array) {
+    static List<String> reprotectAuthorityContractVersions(JsonObject payload) {
+        return jsonArrayValues(payload != null
+                ? payload.getAsJsonArray("reprotect_authority_contract_versions") : null);
+    }
+
+    private static List<String> jsonArrayValues(JsonArray array) {
         List<String> values = new ArrayList<String>();
         if (array == null) {
             return values;
@@ -230,6 +238,7 @@ public class LibvirtFtctlDrCapabilitiesCommandWrapper extends CommandWrapper<Ftc
         private final List<String> supportedActions = new ArrayList<String>();
         private final List<String> supportedCliCommands = new ArrayList<String>();
         private final List<String> supportedFeatures = new ArrayList<String>();
+        private final List<String> reprotectAuthorityContractVersions = new ArrayList<String>();
         private String ftctlVersion;
         private String runtimeSchemaVersion;
         private String capabilitiesJson;

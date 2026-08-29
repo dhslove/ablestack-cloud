@@ -28,6 +28,7 @@ public class FtctlDrCapabilitiesAnswer extends Answer {
     private List<String> missingCliCommands = new ArrayList<String>();
     private List<String> supportedFeatures = new ArrayList<String>();
     private List<String> missingFeatures = new ArrayList<String>();
+    private List<String> reprotectAuthorityContractVersions = new ArrayList<String>();
     private String ftctlVersion;
     private String runtimeSchemaVersion;
     private String actionContractVersion;
@@ -89,6 +90,14 @@ public class FtctlDrCapabilitiesAnswer extends Answer {
     public List<String> getMissingFeatures() { return missingFeatures; }
     public void setMissingFeatures(List<String> values) {
         missingFeatures = values == null ? new ArrayList<String>() : values;
+    }
+
+    public List<String> getReprotectAuthorityContractVersions() {
+        return reprotectAuthorityContractVersions;
+    }
+
+    public void setReprotectAuthorityContractVersions(List<String> values) {
+        reprotectAuthorityContractVersions = values == null ? new ArrayList<String>() : values;
     }
 
     public String getFtctlVersion() {
