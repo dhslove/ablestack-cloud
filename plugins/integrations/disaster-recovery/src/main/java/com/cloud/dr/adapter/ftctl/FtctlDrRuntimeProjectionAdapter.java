@@ -254,6 +254,12 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                     "FTCTL_DR authority status failed validation; last-good projection was retained");
         }
         JsonObject authorityRuntime = parseObject(authorityStatus.getStatusJson());
+        DrRunVO canceledFailoverRun = resolveCanceledFailoverReconciliationRun(plan, projectionRun);
+        if (reconcileCanceledFailoverPreparation(plan, canceledFailoverRun, authorityRuntime)) {
+            authorityDetails.addProperty("canceledFailoverCompensated", true);
+            return DrAdapterResult.success("Canceled failover preparation was compensated before status projection",
+                    GSON.toJson(authorityDetails));
+        }
         if (isReleasedRuntime(authorityStatus, authorityRuntime)) {
             cleanupReleasedProjection(plan, authorityStatus, authorityRuntime);
             reconcileAcceptedRunFromStatus(plan, authorityStatus, authorityRuntime);
@@ -2589,12 +2595,18 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         DrCutoverSessionVO session = run != null ? drCutoverSessionDao.findActiveByRunId(run.getId()) : null;
         boolean compensationPending = session != null
                 && StringUtils.equalsAnyIgnoreCase(session.getState(), "CUTOVER_READY", "ABORTING", "ABORT_FAILED");
+        String runtimeActiveSide = stringValue(runtime, "active_side");
+        boolean sourceAuthorityOwned = StringUtils.equalsIgnoreCase(runtimeActiveSide,
+                DrConstants.AUTHORITY_SIDE_SOURCE)
+                || (compensationPending && StringUtils.isBlank(runtimeActiveSide)
+                        && plan != null && StringUtils.equalsIgnoreCase(plan.getActiveSide(),
+                                DrConstants.AUTHORITY_SIDE_SOURCE));
         if (plan == null || run == null || runtime == null
                 || !StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_FAILOVER)
                 || !StringUtils.equalsIgnoreCase(run.getState(), DrConstants.RUN_STATE_CANCELED)
                 || (!StringUtils.equalsAnyIgnoreCase(stringValue(runtime, "state"), "CUTOVER_READY", "READY")
                         && !compensationPending)
-                || !StringUtils.equalsIgnoreCase(stringValue(runtime, "active_side"), "SOURCE")) {
+                || !sourceAuthorityOwned) {
             return false;
         }
         abortFailedFailoverPreparation(plan, run, runtime,

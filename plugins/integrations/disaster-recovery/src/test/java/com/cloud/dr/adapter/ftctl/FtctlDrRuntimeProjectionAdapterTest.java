@@ -1660,7 +1660,7 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     }
 
     @Test
-    public void canceledRemoteKvmFailoverStopsTargetAndRestoresSourceBeforeResume() {
+    public void canceledRemoteKvmFailoverCompensatesBeforeFailedAuthorityProjection() {
         DrPlanVO plan = new DrPlanVO("remote-kvm-canceled-cutover", 1L, 2L,
                 DrConstants.DIRECTION_KVM_TO_KVM);
         plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
@@ -1685,7 +1685,7 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         UserVmVO targetVm = Mockito.mock(UserVmVO.class);
         Mockito.when(targetVm.getState()).thenReturn(VirtualMachine.State.Stopped);
 
-        String statusJson = "{\"state\":\"ERROR\",\"active_side\":\"SOURCE\","
+        String statusJson = "{\"state\":\"ERROR\",\"active_side\":\"\","
                 + "\"target_power_state\":\"POWERED_ON\",\"failover_session_id\":\""
                 + plan.getUuid() + ":" + run.getUuid() + "\"}";
         Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
@@ -1694,8 +1694,8 @@ public class FtctlDrRuntimeProjectionAdapterTest {
                 Mockito.eq(FtctlDrStatusAnswer.class)))
                 .thenAnswer(invocation -> {
                     FtctlDrStatusCommand command = invocation.getArgument(2);
-                    return new FtctlDrStatusAnswer(command, true, "ok", plan.getUuid(), run.getUuid(),
-                            "ok", "ERROR", "replication-cycle-failed", 100,
+                    return new FtctlDrStatusAnswer(command, false, "replication cycle failed",
+                            plan.getUuid(), run.getUuid(), "error", "ERROR", "replication-cycle-failed", 100,
                             null, null, null, null, "DR_REPLICATION_CYCLE_FAILED", 0, null, statusJson);
                 });
         Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("ACTION"),

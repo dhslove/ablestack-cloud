@@ -832,3 +832,12 @@ Regression tests cover a canceled Run whose runtime incorrectly says
 before export restoration, verify source power-on before scheduler resume, and
 prove that the canceled Run never invokes target power-on. VMware-to-RBD and
 local RBD-to-RBD provider behavior remains unchanged.
+
+Cancellation compensation is evaluated before ordinary FTCTL status-result
+projection. An authority response in `ERROR` with `result=false` is the state
+that compensation is expected to recover and therefore cannot short-circuit
+that path. If error publication omits `active_side`, Cloud may use the
+persisted `SOURCE` authority together with an active, uncommitted
+`CUTOVER_READY`, `ABORTING`, or `ABORT_FAILED` session as the authority proof.
+This exception is limited to canceled Failover compensation; normal runtime
+projection continues to require explicit authority evidence.
