@@ -285,6 +285,7 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         FtctlDrActionCommand command;
         try {
             command = buildActionCommand(context, action);
+            applyPlannedFileSourceQuiesceContract(context, action, command);
             preparePlanOwnedTransport(context, action, command);
             if (plannedRemoteKvmIsolationRequired) {
                 DrAdapterResult isolationFailure = preparePlannedRemoteKvmIsolation(context, command);
@@ -379,6 +380,9 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
                         pause != null ? pause.getDetails() : null,
                         "Remote KVM source scheduler did not acknowledge the final-delta barrier"));
             }
+            if (isSharedMountPointFilePlan(plan)) {
+                return null;
+            }
             String powerState = drRemoteAgentClient.ensureSourceVmPowerState(plan, false);
             if (!StringUtils.equalsIgnoreCase(powerState, "POWERED_OFF")) {
                 throw new CloudRuntimeException("Remote KVM source VM did not reach POWERED_OFF before final delta");
@@ -389,11 +393,38 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
             JsonObject details = buildExecutionDetails(context, FtctlDrActionCommand.Action.FAILOVER,
                     resolveCoordinatorHostId(plan));
             details.addProperty("plannedSourceIsolation", "ROLLED_BACK");
-            details.addProperty("sourcePowerRequired", "POWERED_OFF");
+            details.addProperty("sourcePowerRequired", isSharedMountPointFilePlan(plan)
+                    ? "QMP_PAUSED_THEN_POWERED_OFF" : "POWERED_OFF");
             return DrAdapterResult.failure(DrConstants.ERROR_SOURCE_ISOLATION_NOT_READY,
                     "Unable to establish an immutable planned failover checkpoint: " + e.getMessage(),
                     GSON.toJson(details));
         }
+    }
+
+    private void applyPlannedFileSourceQuiesceContract(DrExecutionContext context,
+            FtctlDrActionCommand.Action action, FtctlDrActionCommand command) {
+        if (!requiresPlannedRemoteKvmIsolation(context, action)
+                || !isSharedMountPointFilePlan(context.getPlan())) {
+            return;
+        }
+        JsonObject request = parseObject(command.getRequestJson());
+        request.addProperty("sourceRuntimeQuiesceRequired", true);
+        request.addProperty("sourceRuntimeQuiesceMode", "QMP_STOP");
+        request.addProperty("cutoverRunUuid", context.getRun().getUuid());
+        request.addProperty("sourcePowerOffAfterCheckpoint", true);
+        command.setRequestJson(GSON.toJson(request));
+
+        JsonObject profile = parseObject(command.getProfileJson());
+        JsonObject profileRequest = profile.has("request") && profile.get("request").isJsonObject()
+                ? profile.getAsJsonObject("request") : new JsonObject();
+        if (!profile.has("request") || !profile.get("request").isJsonObject()) {
+            profile.add("request", profileRequest);
+        }
+        profileRequest.addProperty("sourceRuntimeQuiesceRequired", true);
+        profileRequest.addProperty("sourceRuntimeQuiesceMode", "QMP_STOP");
+        profileRequest.addProperty("cutoverRunUuid", context.getRun().getUuid());
+        profileRequest.addProperty("sourcePowerOffAfterCheckpoint", true);
+        command.setProfileJson(GSON.toJson(profile));
     }
 
     private void compensatePlannedRemoteKvmIsolation(DrExecutionContext context) {
@@ -932,6 +963,11 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         if (action == FtctlDrActionCommand.Action.TEST_PREPARE
                 && isSharedMountPointFilePlan(context.getPlan())) {
             requiredFeatures.add("file-checkpoint-invariance-v1");
+        }
+        if (action == FtctlDrActionCommand.Action.FAILOVER
+                && isSharedMountPointFilePlan(context.getPlan())
+                && StringUtils.equalsIgnoreCase(requestString(requestJson(context.getRun()), "mode"), "planned")) {
+            requiredFeatures.add("dr-file-planned-failover-qmp-quiesce-v1");
         }
         if (drRemoteAgentClient != null && drRemoteAgentClient.isRemoteKvmSource(context.getPlan())
                 && (action == FtctlDrActionCommand.Action.SYNC

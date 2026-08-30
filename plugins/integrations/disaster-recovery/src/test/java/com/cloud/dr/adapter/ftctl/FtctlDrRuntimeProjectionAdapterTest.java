@@ -99,6 +99,33 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     }
 
     @Test
+    public void sharedMountPointCutoverRequiresRunOwnedQmpQuiesceEvidence() {
+        DrPlanVO plan = new DrPlanVO("shared-file-cutover", 1L, 2L,
+                DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setMappingJson("{\"target\":{\"storagePoolType\":\"SharedMountPoint\"},"
+                + "\"disks\":[{\"target\":{\"storagePoolType\":\"SharedMountPoint\"}}]}");
+        Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        FtctlDrStatusAnswer status = Mockito.mock(FtctlDrStatusAnswer.class);
+        Mockito.when(status.getState()).thenReturn("CUTOVER_READY");
+        JsonObject runtime = JsonParser.parseString("{\"state\":\"CUTOVER_READY\","
+                + "\"failover_mode\":\"planned\",\"failover_restore_point_sequence\":12,"
+                + "\"manifest_sha256\":\"" + String.join("", Collections.nCopies(64, "a")) + "\","
+                + "\"target_external_ref\":\"target-vm-uuid\"}").getAsJsonObject();
+
+        Boolean readyWithoutQuiesce = ReflectionTestUtils.invokeMethod(adapter,
+                "isCutoverReadyRuntime", plan, status, runtime);
+
+        Assert.assertFalse(Boolean.TRUE.equals(readyWithoutQuiesce));
+        runtime.addProperty("source_runtime_quiesce_state", "PAUSED");
+        runtime.addProperty("source_runtime_quiesce_mode", "QMP_STOP");
+        runtime.addProperty("cutover_source_disk_map_sha256",
+                String.join("", Collections.nCopies(64, "b")));
+        Boolean readyWithQuiesce = ReflectionTestUtils.invokeMethod(adapter,
+                "isCutoverReadyRuntime", plan, status, runtime);
+        Assert.assertTrue(Boolean.TRUE.equals(readyWithQuiesce));
+    }
+
+    @Test
     public void schemaSafeControlRequestRunUuidRejectsLegacySuffixedIdentity() {
         String uuid = "d64fdb24-9fb3-49ad-82de-2556db63698b";
 

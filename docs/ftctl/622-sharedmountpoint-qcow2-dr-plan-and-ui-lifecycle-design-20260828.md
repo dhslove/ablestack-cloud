@@ -774,12 +774,24 @@ The Cloud-owned order is therefore fixed as follows:
 2. validate FTCTL capabilities, the latest durable checkpoint, and target
    transport readiness;
 3. pause the remote source scheduler and require its acknowledgement;
-4. stop the source VM through its owning Mold and require `POWERED_OFF`;
-5. dispatch the FTCTL Failover final delta from that immutable source;
-6. establish the reverse baseline, start the target VM as a non-authoritative
+4. for SharedMountPoint qcow2, FTCTL resolves and freezes the live source disk
+   map, issues QMP `stop`, and requires `query-status=paused`; this keeps the
+   QEMU process and persistent bitmap available while preventing further guest
+   writes;
+5. dispatch the FTCTL Failover final delta from the frozen map while the guest
+   remains QMP-paused;
+6. after FTCTL publishes `CUTOVER_READY`, stop the source VM through its owning
+   Mold and require `POWERED_OFF`;
+7. establish the reverse baseline, start the target VM as a non-authoritative
    promotion candidate, and validate its boot contract;
-7. submit that target power and boot evidence with the immutable checkpoint to
+8. submit that target power and boot evidence with the immutable checkpoint to
    FTCTL, then commit TARGET authority only after the engine acknowledgement.
+
+For RBD and VMware-backed Plans, the already validated provider-specific
+power-off/final-checkpoint order remains unchanged. The QMP pause barrier is
+limited to remote `KVM_TO_KVM` SharedMountPoint qcow2 because its incremental
+writer consumes a persistent QEMU dirty bitmap and cannot run after Mold has
+destroyed the source domain.
 
 Target boot precedes the authority commit because
 `DR_CUTOVER_COMMIT_V2` deliberately includes the target VM identity, power
@@ -788,8 +800,10 @@ source is already powered off and its scheduler remains paused, while the
 target remains a promotion candidate until both FTCTL and Cloud acknowledge
 the same immutable checkpoint.
 
-If scheduler pause, source stop, or final-delta dispatch fails before Agent
-acceptance, Cloud powers the source VM back on and resumes forward protection.
+If scheduler pause, QMP quiesce, source stop, or final-delta dispatch fails
+before Agent acceptance, Cloud releases an FTCTL-owned QMP pause, powers the
+source VM back on when necessary, and resumes forward protection only after
+`POWERED_ON` is confirmed.
 The Run fails with the original source-isolation or dispatch reason and cannot
 leave both sites active. After Agent acceptance, the source remains off and
 runtime projection verifies the same isolation state idempotently.
@@ -797,9 +811,11 @@ runtime projection verifies the same isolation state idempotently.
 This barrier applies only to planned remote `KVM_TO_KVM` Failover. Disaster
 Failover keeps its explicit source-isolation acknowledgement contract, and the
 validated VMware-to-RBD and local RBD-to-RBD dispatch paths are unchanged.
-Regression tests must prove the order `target export -> scheduler pause ->
-source power-off -> final-delta dispatch`, the rollback path, and the absence
-of source lifecycle calls for the unaffected providers.
+Regression tests must prove the SharedMountPoint order `target export ->
+scheduler pause -> frozen disk-map -> QMP paused -> final-delta -> source
+power-off`, the rollback path `QMP cont -> source POWERED_ON -> scheduler
+resume`, and the absence of this QMP lifecycle contract for the unaffected
+providers.
 
 ## 27. Canceled planned-failover compensation ordering
 

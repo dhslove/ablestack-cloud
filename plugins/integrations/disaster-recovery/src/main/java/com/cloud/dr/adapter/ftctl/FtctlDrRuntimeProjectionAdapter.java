@@ -96,6 +96,7 @@ import com.cloud.vm.UserVmVO;
 import com.cloud.vm.VirtualMachine;
 import com.cloud.vm.dao.UserVmDao;
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -1651,12 +1652,51 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             return true;
         }
         Long checkpointSequence = longValue(runtime, "failover_restore_point_sequence");
+        boolean sourceRuntimeQuiesceReady = !requiresPlannedFileRuntimeQuiesce(plan, runtime)
+                || (StringUtils.equalsIgnoreCase(stringValue(runtime, "source_runtime_quiesce_state"), "PAUSED")
+                        && StringUtils.equalsIgnoreCase(stringValue(runtime, "source_runtime_quiesce_mode"), "QMP_STOP")
+                        && StringUtils.length(stringValue(runtime, "cutover_source_disk_map_sha256")) == 64
+                        && stringValue(runtime, "cutover_source_disk_map_sha256").matches("[0-9a-fA-F]{64}"));
         return isRemoteKvmToKvmPlan(plan)
                 && StringUtils.equals(state, "CUTOVER_READY")
                 && checkpointSequence != null && checkpointSequence > 0L
                 && StringUtils.length(manifestSha256) == 64
                 && manifestSha256.matches("[0-9a-fA-F]{64}")
-                && StringUtils.isNotBlank(stringValue(runtime, "target_external_ref"));
+                && StringUtils.isNotBlank(stringValue(runtime, "target_external_ref"))
+                && sourceRuntimeQuiesceReady;
+    }
+
+    private boolean requiresPlannedFileRuntimeQuiesce(DrPlanVO plan, JsonObject runtime) {
+        return isSharedMountPointFilePlan(plan)
+                && StringUtils.equalsIgnoreCase(stringValue(runtime, "failover_mode"), "planned");
+    }
+
+    private boolean isSharedMountPointFilePlan(DrPlanVO plan) {
+        if (!isRemoteKvmToKvmPlan(plan)) {
+            return false;
+        }
+        JsonObject mapping = parseObject(plan.getMappingJson());
+        JsonObject target = objectValue(mapping, "target");
+        if (StringUtils.equalsIgnoreCase(stringValue(target, "storagePoolType"), "SharedMountPoint")
+                || StringUtils.equalsIgnoreCase(stringValue(target, "poolType"), "SharedMountPoint")) {
+            return true;
+        }
+        JsonElement disksElement = mapping.get("disks");
+        if (disksElement == null || !disksElement.isJsonArray()) {
+            return false;
+        }
+        JsonArray disks = disksElement.getAsJsonArray();
+        for (JsonElement element : disks) {
+            if (element == null || !element.isJsonObject()) {
+                continue;
+            }
+            JsonObject diskTarget = objectValue(element.getAsJsonObject(), "target");
+            if (StringUtils.equalsIgnoreCase(stringValue(diskTarget, "storagePoolType"), "SharedMountPoint")
+                    || StringUtils.equalsIgnoreCase(stringValue(diskTarget, "poolType"), "SharedMountPoint")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean isRemoteKvmToKvmPlan(DrPlanVO plan) {
@@ -4322,6 +4362,13 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         copyJsonProperty(runtime, compact, "source_firmware");
         copyJsonProperty(runtime, compact, "source_secure_boot");
         copyJsonProperty(runtime, compact, "source_hardware_fingerprint");
+        copyJsonProperty(runtime, compact, "source_runtime_quiesce_state");
+        copyJsonProperty(runtime, compact, "source_runtime_quiesce_mode");
+        copyJsonProperty(runtime, compact, "source_runtime_quiesce_owner_run");
+        copyJsonProperty(runtime, compact, "source_runtime_quiesced_at");
+        copyJsonProperty(runtime, compact, "source_runtime_quiesce_released_at");
+        copyJsonProperty(runtime, compact, "cutover_source_disk_map_path");
+        copyJsonProperty(runtime, compact, "cutover_source_disk_map_sha256");
         copyJsonProperty(runtime, compact, "target_boot_type");
         copyJsonProperty(runtime, compact, "target_boot_mode");
         copyJsonProperty(runtime, compact, "target_io_policy");

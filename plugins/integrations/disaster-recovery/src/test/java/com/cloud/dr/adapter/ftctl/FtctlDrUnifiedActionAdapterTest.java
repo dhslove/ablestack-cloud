@@ -459,6 +459,90 @@ public class FtctlDrUnifiedActionAdapterTest {
     }
 
     @Test
+    public void sharedMountPointPlannedFailoverDelegatesQmpQuiesceBeforeSourcePowerOff() throws Exception {
+        DrPlanVO plan = new DrPlanVO("cross-site-file-failover", 1L, 2L,
+                DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
+        plan.setSourceExternalRef("source-vm-uuid");
+        plan.setActiveSide(DrConstants.AUTHORITY_SIDE_SOURCE);
+        plan.setTargetWorkerHostId(102L);
+        plan.setCoordinatorWorkerHostId(103L);
+        plan.setMappingJson("{\"source\":{\"hardware\":{\"sourceHostUuid\":\"source-host-uuid\","
+                + "\"instanceName\":\"i-2-51-VM\"}},\"target\":{\"storagePoolType\":\"SharedMountPoint\"},"
+                + "\"disks\":[{\"device\":\"sda\",\"sourcePath\":\"/mnt/glue-gfs/source.qcow2\","
+                + "\"sourceType\":\"file\",\"sourceFormat\":\"qcow2\","
+                + "\"targetPath\":\"/mnt/glue-gfs/target.qcow2\",\"targetType\":\"file\","
+                + "\"targetFormat\":\"qcow2\",\"targetStorageRef\":\"target-pool-uuid\","
+                + "\"target\":{\"storageRef\":\"target-pool-uuid\","
+                + "\"storagePoolType\":\"SharedMountPoint\",\"path\":\"target.qcow2\"}}]}");
+        DrRunVO run = run(DrConstants.RUN_TYPE_FAILOVER, "{\"mode\":\"planned\",\"finalSync\":true}");
+        Mockito.when(drRestorePointDao.findLatestTargetReadyByPlanId(plan.getId()))
+                .thenReturn(checkpoint(plan, "ftctl:" + plan.getUuid() + ":source-run:12"));
+        HostVO targetHost = Mockito.mock(HostVO.class);
+        Mockito.when(targetHost.getUuid()).thenReturn("target-host-uuid");
+        Mockito.when(targetHost.getPrivateIpAddress()).thenReturn("10.10.31.2");
+        Mockito.when(hostDao.findById(102L)).thenReturn(targetHost);
+        Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        Mockito.when(drSourceHardwareInventoryService.resolve(plan)).thenReturn(sourceHardware());
+        Mockito.when(drPlanOwnedTransportService.supports(plan)).thenReturn(true);
+        Mockito.when(drPlanOwnedTransportService.startForwardTargetExport(
+                Mockito.eq(plan), Mockito.eq(run), Mockito.anyString()))
+                .thenReturn(exports("10.10.31.2", 12031, "dr-export-sda"));
+        Mockito.when(drRemoteAgentClient.transitionSourceScheduler(Mockito.eq(plan),
+                Mockito.eq(FtctlDrActionCommand.Action.PAUSE_SYNC), Mockito.eq(run.getUuid()),
+                Mockito.anyString())).thenAnswer(invocation -> new FtctlDrActionAnswer(
+                        new FtctlDrActionCommand(FtctlDrActionCommand.Action.PAUSE_SYNC,
+                                plan.getUuid(), run.getUuid()), true, "paused"));
+        Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("CAPABILITIES"),
+                Mockito.isA(FtctlDrCapabilitiesCommand.class), Mockito.eq("source-host-uuid"),
+                Mockito.eq(FtctlDrCapabilitiesAnswer.class))).thenAnswer(invocation -> {
+                    FtctlDrCapabilitiesAnswer answer = new FtctlDrCapabilitiesAnswer(
+                            invocation.getArgument(2), true, "ok");
+                    answer.setSupportedFeatures(java.util.Arrays.asList(
+                            "control-protocol-v2", "dr-site-agent-rbd-transport-v1",
+                            "file-checkpoint-invariance-v1",
+                            "dr-file-planned-failover-qmp-quiesce-v1"));
+                    return answer;
+                });
+        ArgumentCaptor<FtctlDrActionCommand> commandCaptor = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
+        Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("ACTION"),
+                commandCaptor.capture(), Mockito.eq("source-host-uuid"),
+                Mockito.eq(FtctlDrActionAnswer.class))).thenAnswer(invocation -> {
+                    FtctlDrActionCommand command = invocation.getArgument(2);
+                    return new FtctlDrActionAnswer(command, true, "accepted",
+                            FtctlDrActionCommand.Action.FAILOVER, plan.getUuid(), run.getUuid(),
+                            "accepted", true, "RUNNING", "source-runtime-quiesce", 1,
+                            run.getUuid(), 0L, null, 0, "{\"result\":\"accepted\"}",
+                            "{\"state\":\"RUNNING\"}");
+                });
+
+        DrAdapterResult result = adapter.execute(new DrExecutionContext(plan, run));
+
+        Assert.assertTrue(result.isSuccess());
+        FtctlDrActionCommand command = commandCaptor.getValue();
+        JsonObject request = JsonParser.parseString(command.getRequestJson()).getAsJsonObject();
+        Assert.assertTrue(request.get("sourceRuntimeQuiesceRequired").getAsBoolean());
+        Assert.assertEquals("QMP_STOP", request.get("sourceRuntimeQuiesceMode").getAsString());
+        Assert.assertEquals(run.getUuid(), request.get("cutoverRunUuid").getAsString());
+        JsonObject profileRequest = JsonParser.parseString(command.getProfileJson()).getAsJsonObject()
+                .getAsJsonObject("request");
+        Assert.assertTrue(profileRequest.get("sourceRuntimeQuiesceRequired").getAsBoolean());
+        Assert.assertEquals("QMP_STOP", profileRequest.get("sourceRuntimeQuiesceMode").getAsString());
+        Assert.assertEquals(run.getUuid(), profileRequest.get("cutoverRunUuid").getAsString());
+        Mockito.verify(drRemoteAgentClient, Mockito.never()).ensureSourceVmPowerState(plan, false);
+        org.mockito.InOrder order = Mockito.inOrder(drPlanOwnedTransportService, drRemoteAgentClient);
+        order.verify(drPlanOwnedTransportService).startForwardTargetExport(
+                Mockito.eq(plan), Mockito.eq(run), Mockito.anyString());
+        order.verify(drRemoteAgentClient).transitionSourceScheduler(Mockito.eq(plan),
+                Mockito.eq(FtctlDrActionCommand.Action.PAUSE_SYNC), Mockito.eq(run.getUuid()),
+                Mockito.anyString());
+        order.verify(drRemoteAgentClient).execute(Mockito.eq(plan), Mockito.eq("ACTION"),
+                Mockito.isA(FtctlDrActionCommand.class), Mockito.eq("source-host-uuid"),
+                Mockito.eq(FtctlDrActionAnswer.class));
+    }
+
+    @Test
     public void plannedCrossSiteKvmFailoverRestoresSourceWhenPowerOffFails() throws Exception {
         DrPlanVO plan = crossSiteKvmPlan();
         DrRunVO run = run(DrConstants.RUN_TYPE_FAILOVER, "{\"mode\":\"planned\",\"finalSync\":true}");
