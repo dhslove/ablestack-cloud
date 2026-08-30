@@ -18,12 +18,18 @@ guard, so users see neither bytes nor ETA.
   displayed as completion.
 - The UI maps the transfer into the 70-95 percent workflow range. Only a
   terminal Run may display completed 100 percent.
+- The operation table and expanded progress panel use the same shared progress
+  resolver. A non-terminal backend value of 100 is reduced to the current
+  lifecycle floor until a valid transfer sample arrives, then follows the
+  70-95 transfer range.
 - The transfer panel shows bytes, throughput, ETA, disk position, and transfer
   mode using the same sample.
 
 ## Regression gate
 
 - Unit test an active failback with backend workflow 100 and transfer 11.
+- Unit test a dispatching Run with backend workflow 100 and require 15 percent
+  in both the table and expanded panel.
 - Retain the existing monotonic SYNC progress tests.
 - Run FTCTL qcow2 SharedMountPoint smoke tests and Cloud UI unit tests.
 - Validate the deployed UI from a real failback before marking the menu PASS.

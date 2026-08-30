@@ -54,6 +54,7 @@
 import DrRunProgress from '@/components/dr/DrRunProgress.vue'
 import DrStatusPill from '@/components/dr/DrStatusPill.vue'
 import { listDrRuns } from '@/api/dr'
+import { drOperationProgress } from '@/utils/drProgress'
 
 export default {
   name: 'DrRunsTab',
@@ -122,27 +123,8 @@ export default {
       return ['QUEUED', 'DISPATCHING', 'ACCEPTED', 'RUNNING', 'CANCEL_REQUESTED'].includes(String(run?.state || '').toUpperCase())
     },
     progressValue (run) {
-      const value = Number(run?.progresspercent)
-      if (Number.isFinite(value)) {
-        return Math.max(0, Math.min(100, Math.round(value)))
-      }
-      const state = String(run?.state || '').toUpperCase()
-      if (state === 'QUEUED') {
-        return 5
-      }
-      if (state === 'DISPATCHING') {
-        return 15
-      }
-      if (state === 'ACCEPTED') {
-        return 35
-      }
-      if (state === 'RUNNING' || state === 'CANCEL_REQUESTED') {
-        return 60
-      }
-      if (['SUCCEEDED', 'FAILED', 'CANCELED'].includes(state)) {
-        return 100
-      }
-      return null
+      const progress = drOperationProgress(run)
+      return progress > 0 ? progress : null
     },
     hasActiveRun () {
       return this.runs.some(run => this.isActiveRun(run))

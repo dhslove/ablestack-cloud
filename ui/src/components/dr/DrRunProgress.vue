@@ -109,6 +109,13 @@
 
 <script>
 import DrStatusPill from '@/components/dr/DrStatusPill.vue'
+import {
+  drOperationProgress,
+  drStateProgress,
+  drTransferPercent,
+  drTransferWorkflowProgress,
+  hasDrTransferProgress
+} from '@/utils/drProgress'
 
 export default {
   name: 'DrRunProgress',
@@ -233,48 +240,13 @@ export default {
       return this.$te && this.$te(key) ? this.$t(key) : (this.run.errormessage || code)
     },
     progress () {
-      const value = Number(this.run.progresspercent)
-      const authoritative = Number.isFinite(value)
-        ? Math.max(0, Math.min(100, Math.round(value)))
-        : this.stateProgress
-      if (this.transferWorkflowFloor > 0 && authoritative >= 100) {
-        return this.transferWorkflowFloor
-      }
-      return Math.max(authoritative, this.transferWorkflowFloor)
+      return drOperationProgress(this.run, this.transferValue)
     },
     transferWorkflowFloor () {
-      const runType = String(this.run.runtype || this.run.runType || '').toUpperCase()
-      const runState = String(this.run.state || '').toUpperCase()
-      if (!['SYNC', 'RECOVER_SYNC', 'FAILBACK'].includes(runType) ||
-        !this.hasTransferProgress || ['SUCCEEDED', 'FAILED', 'CANCELED'].includes(runState)) {
-        return 0
-      }
-      return 70 + Math.round(this.transferPercent * 25 / 100)
+      return drTransferWorkflowProgress(this.run, this.transferValue)
     },
     stateProgress () {
-      const state = String(this.run.state || '').toUpperCase()
-      if (state === 'QUEUED') {
-        return 5
-      }
-      if (state === 'PREPARING') {
-        return 10
-      }
-      if (state === 'DISPATCHING') {
-        return 15
-      }
-      if (state === 'RETRYING') {
-        return 25
-      }
-      if (state === 'ACCEPTED') {
-        return 35
-      }
-      if (state === 'RUNNING' || state === 'CANCEL_REQUESTED') {
-        return 60
-      }
-      if (['SUCCEEDED', 'FAILED', 'CANCELED'].includes(state)) {
-        return 100
-      }
-      return 0
+      return drStateProgress(this.run.state)
     },
     hasProgress () {
       return (this.run.progresspercent !== undefined && this.run.progresspercent !== null) || this.stateProgress > 0
@@ -305,8 +277,7 @@ export default {
       return Object.assign({}, runtimeValue, runValue)
     },
     hasTransferProgress () {
-      return Number(this.transferValue.transferprogressschemaversion || 0) >= 2 &&
-        Number(this.transferValue.transferbytestotal || 0) > 0
+      return hasDrTransferProgress(this.transferValue)
     },
     transferExpected () {
       const step = String(this.run.runtimestep || this.run.currentstep || '').toUpperCase()
@@ -318,12 +289,7 @@ export default {
       return this.hasTransferProgress || this.transferExpected
     },
     transferPercent () {
-      const value = Number(this.transferValue.transferpercent)
-      if (Number.isFinite(value)) {
-        return Math.max(0, Math.min(100, Math.round(value)))
-      }
-      const total = this.transferBytesTotal
-      return total > 0 ? Math.max(0, Math.min(100, Math.round(this.transferBytesProcessed * 100 / total))) : 0
+      return drTransferPercent(this.transferValue)
     },
     transferBytesTotal () { return Number(this.transferValue.transferbytestotal || 0) },
     transferBytesProcessed () { return Number(this.transferValue.transferbytesprocessed || this.transferValue.transferpayloadbytes || 0) },
