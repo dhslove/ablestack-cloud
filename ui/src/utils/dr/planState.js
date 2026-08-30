@@ -24,11 +24,14 @@ export function reconcileDrRunProjection (snapshot = {}, liveRuns = [], options 
   const matchingLiveRun = snapshotActiveRunId
     ? runs.find(run => String(run.id || run.uuid || '') === snapshotActiveRunId)
     : null
-  const activeRun = authoritativeActiveRun
-    ? (snapshotActiveRunId
-        ? (matchingLiveRun ? (isActiveDrRun(matchingLiveRun) ? matchingLiveRun : {}) : snapshotActiveRun)
-        : {})
-    : (runs.find(run => isActiveDrRun(run)) || {})
+  let activeRun = {}
+  if (authoritativeActiveRun && snapshotActiveRunId) {
+    activeRun = matchingLiveRun
+      ? (isActiveDrRun(matchingLiveRun) ? matchingLiveRun : {})
+      : snapshotActiveRun
+  } else if (!authoritativeActiveRun) {
+    activeRun = runs.find(run => isActiveDrRun(run)) || {}
+  }
   const latestOperationRun = runs[0] || snapshot.latestOperationRun || snapshot.latestRun || {}
 
   return Object.assign({}, snapshot, {
