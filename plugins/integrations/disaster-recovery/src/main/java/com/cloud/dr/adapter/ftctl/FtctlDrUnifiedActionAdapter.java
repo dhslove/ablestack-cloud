@@ -685,12 +685,7 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
     }
 
     private String remoteSourceWorkerUuid(DrPlanVO plan) {
-        JsonObject mapping = parseObject(plan != null ? plan.getMappingJson() : null);
-        JsonObject source = objectAt(mapping, "source");
-        JsonObject hardware = objectAt(source, "hardware");
-        return firstNonBlank(firstString(hardware, "sourceHostUuid", "hostUuid"),
-                firstNonBlank(firstString(source, "sourceHostUuid", "hostUuid"),
-                        firstString(mapping, "sourceWorkerHostUuid")));
+        return drRemoteAgentClient.sourceWorkerUuid(plan);
     }
 
     private FtctlDrActionCommand buildActionCommand(DrExecutionContext context, FtctlDrActionCommand.Action action) {

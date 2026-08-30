@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
@@ -97,6 +98,12 @@ public class FtctlDrUnifiedActionAdapterTest {
 
     @InjectMocks
     private FtctlDrUnifiedActionAdapter adapter;
+
+    @Before
+    public void resolveRemoteSourceWorkerThroughSharedResolver() {
+        Mockito.lenient().when(drRemoteAgentClient.sourceWorkerUuid(Mockito.any(DrPlanVO.class)))
+                .thenReturn("source-host-uuid");
+    }
 
     @Test
     public void syncDispatchesToCoordinatorWorkerAndReturnsAcceptedRun() throws Exception {
@@ -1041,6 +1048,7 @@ public class FtctlDrUnifiedActionAdapterTest {
     }
 
     private void mockRemoteKvmCapabilities(DrPlanVO plan) {
+        Mockito.when(drRemoteAgentClient.sourceWorkerUuid(plan)).thenReturn("source-host-uuid");
         Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("CAPABILITIES"),
                 Mockito.isA(FtctlDrCapabilitiesCommand.class), Mockito.eq("source-host-uuid"),
                 Mockito.eq(FtctlDrCapabilitiesAnswer.class))).thenAnswer(invocation -> {

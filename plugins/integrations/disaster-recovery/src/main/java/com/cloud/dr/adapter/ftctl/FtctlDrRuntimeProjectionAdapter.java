@@ -384,12 +384,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
     }
 
     private String remoteSourceWorkerUuid(DrPlanVO plan) {
-        JsonObject mapping = parseObject(plan != null ? plan.getMappingJson() : null);
-        JsonObject source = objectValue(mapping, "source");
-        JsonObject hardware = objectValue(source, "hardware");
-        String hostUuid = firstNonBlank(stringValue(hardware, "sourceHostUuid"), stringValue(hardware, "hostUuid"));
-        hostUuid = firstNonBlank(hostUuid, stringValue(source, "sourceHostUuid"));
-        return firstNonBlank(hostUuid, stringValue(source, "hostUuid"));
+        return drRemoteAgentClient.sourceWorkerUuid(plan);
     }
 
     private String firstNonBlank(String first, String second) {

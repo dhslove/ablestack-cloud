@@ -1283,6 +1283,7 @@ public class FtctlDrRuntimeProjectionAdapterTest {
                 + "\"target_external_ref\":\"target-vm-uuid\",\"failover_mode\":\"planned\"}";
 
         Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        Mockito.when(drRemoteAgentClient.sourceWorkerUuid(plan)).thenReturn("source-worker-uuid");
         Mockito.when(drRemoteAgentClient.transitionSourceScheduler(Mockito.eq(plan),
                 Mockito.eq(FtctlDrActionCommand.Action.PAUSE_SYNC), Mockito.eq(run.getUuid())))
                 .thenAnswer(invocation -> {
@@ -1716,6 +1717,7 @@ public class FtctlDrRuntimeProjectionAdapterTest {
                 + "\"target_power_state\":\"POWERED_ON\",\"failover_session_id\":\""
                 + plan.getUuid() + ":" + run.getUuid() + "\"}";
         Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        Mockito.when(drRemoteAgentClient.sourceWorkerUuid(plan)).thenReturn("source-worker-uuid");
         Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("STATUS"),
                 Mockito.any(FtctlDrStatusCommand.class), Mockito.eq("source-worker-uuid"),
                 Mockito.eq(FtctlDrStatusAnswer.class)))

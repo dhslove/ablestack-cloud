@@ -107,12 +107,7 @@ public class DrFtctlActionCapabilityServiceImpl extends ManagerBase implements D
     }
 
     private String remoteSourceWorkerUuid(DrPlanVO plan) {
-        com.google.gson.JsonObject mapping = parseObject(plan.getMappingJson());
-        com.google.gson.JsonObject source = objectAt(mapping, "source");
-        com.google.gson.JsonObject hardware = objectAt(source, "hardware");
-        return firstNonBlank(firstString(hardware, "sourceHostUuid", "hostUuid"),
-                firstNonBlank(firstString(source, "sourceHostUuid", "hostUuid"),
-                        firstString(mapping, "sourceWorkerHostUuid")));
+        return drRemoteAgentClient.sourceWorkerUuid(plan);
     }
 
     private DrFtctlActionCapabilitySnapshot unavailableSnapshot(String detail) {

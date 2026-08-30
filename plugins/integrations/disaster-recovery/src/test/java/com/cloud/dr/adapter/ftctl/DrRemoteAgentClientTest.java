@@ -16,11 +16,14 @@
 // under the License.
 package com.cloud.dr.adapter.ftctl;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.cloud.agent.api.FtctlDrActionAnswer;
 import com.cloud.agent.api.FtctlDrActionCommand;
@@ -28,8 +31,71 @@ import com.cloud.agent.api.FtctlDrCancelAnswer;
 import com.cloud.agent.api.FtctlDrCancelCommand;
 import com.cloud.dr.DrConstants;
 import com.cloud.dr.DrPlanVO;
+import com.cloud.dr.DrResolvedSiteCredential;
+import com.cloud.dr.DrSiteCredentialService;
+import com.cloud.dr.DrSiteVO;
+import com.cloud.dr.dao.DrPlanDao;
+import com.cloud.dr.dao.DrSiteDao;
+import com.cloud.dr.inventory.DrMoldInventoryClient;
 
 public class DrRemoteAgentClientTest {
+
+    @Test
+    public void sourceWorkerUuidRefreshesAndPersistsCurrentRemoteWorker() {
+        DrRemoteAgentClient client = new DrRemoteAgentClient();
+        DrSiteDao siteDao = Mockito.mock(DrSiteDao.class);
+        DrPlanDao planDao = Mockito.mock(DrPlanDao.class);
+        DrSiteCredentialService credentialService = Mockito.mock(DrSiteCredentialService.class);
+        DrMoldInventoryClient inventoryClient = Mockito.mock(DrMoldInventoryClient.class);
+        DrResolvedSiteCredential credential = Mockito.mock(DrResolvedSiteCredential.class);
+        DrSiteVO site = Mockito.mock(DrSiteVO.class);
+        ReflectionTestUtils.setField(client, "drSiteDao", siteDao);
+        ReflectionTestUtils.setField(client, "drPlanDao", planDao);
+        ReflectionTestUtils.setField(client, "drSiteCredentialService", credentialService);
+        ReflectionTestUtils.setField(client, "drMoldInventoryClient", inventoryClient);
+
+        DrPlanVO plan = new DrPlanVO("remote-source", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        ReflectionTestUtils.setField(plan, "id", 42L);
+        plan.setSourceExternalRef("source-vm-uuid");
+        plan.setMappingJson("{\"source\":{\"hardware\":{}}}");
+        Map<String, String> hardware = new LinkedHashMap<String, String>();
+        hardware.put("sourceHostUuid", "current-source-host-uuid");
+        Mockito.when(siteDao.findById(1L)).thenReturn(site);
+        Mockito.when(credentialService.resolveCredential(site)).thenReturn(credential);
+        Mockito.when(credential.hasSecrets()).thenReturn(true);
+        Mockito.when(inventoryClient.getVirtualMachineHardware(credential, "source-vm-uuid"))
+                .thenReturn(hardware);
+        Mockito.when(planDao.update(42L, plan)).thenReturn(true);
+
+        Assert.assertEquals("current-source-host-uuid", client.sourceWorkerUuid(plan));
+        Assert.assertTrue(plan.getMappingJson().contains("\"sourceWorkerHostUuid\":\"current-source-host-uuid\""));
+        Assert.assertTrue(plan.getMappingJson().contains("\"sourceHostUuid\":\"current-source-host-uuid\""));
+        Mockito.verify(planDao).update(42L, plan);
+        Mockito.verify(credential).close();
+    }
+
+    @Test
+    public void sourceWorkerUuidUsesDurableMappingWhenCurrentInventoryIsUnavailable() {
+        DrRemoteAgentClient client = new DrRemoteAgentClient();
+        DrSiteDao siteDao = Mockito.mock(DrSiteDao.class);
+        DrPlanDao planDao = Mockito.mock(DrPlanDao.class);
+        DrSiteCredentialService credentialService = Mockito.mock(DrSiteCredentialService.class);
+        DrMoldInventoryClient inventoryClient = Mockito.mock(DrMoldInventoryClient.class);
+        ReflectionTestUtils.setField(client, "drSiteDao", siteDao);
+        ReflectionTestUtils.setField(client, "drPlanDao", planDao);
+        ReflectionTestUtils.setField(client, "drSiteCredentialService", credentialService);
+        ReflectionTestUtils.setField(client, "drMoldInventoryClient", inventoryClient);
+
+        DrPlanVO plan = new DrPlanVO("remote-source", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setSourceExternalRef("source-vm-uuid");
+        plan.setMappingJson("{\"sourceWorkerHostUuid\":\"durable-source-host-uuid\"}");
+        Mockito.when(siteDao.findById(1L)).thenReturn(Mockito.mock(DrSiteVO.class));
+        Mockito.when(credentialService.resolveCredential(Mockito.any(DrSiteVO.class)))
+                .thenThrow(new IllegalStateException("source site temporarily unavailable"));
+
+        Assert.assertEquals("durable-source-host-uuid", client.sourceWorkerUuid(plan));
+        Mockito.verifyNoInteractions(planDao);
+    }
 
     @Test
     public void sourceTransitionRunUuidIsDeterministicAndSchemaSafe() {
