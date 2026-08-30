@@ -1705,6 +1705,10 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         if (!isRemoteKvmToKvmPlan(plan)) {
             return;
         }
+        if (session != null && StringUtils.equalsAnyIgnoreCase(session.getCloudPromotionState(),
+                "POWER_ON_VALIDATED", "PROMOTED")) {
+            return;
+        }
         drPlanOwnedTransportService.stopForwardTargetExport(plan, run, null,
                 session != null ? session.getCheckpointSequence() : null);
     }
@@ -1729,7 +1733,11 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         if (!StringUtils.equalsIgnoreCase(session.getCloudPromotionState(), "PROMOTED")) {
             session.setState(StringUtils.defaultIfBlank(status.getState(), session.getState()));
         }
-        Long checkpointSequence = status.getGuestPreparationCheckpointSequence();
+        Long checkpointSequence = isRemoteKvmToKvmPlan(plan)
+                ? longValue(runtime, "failover_restore_point_sequence") : null;
+        if (checkpointSequence == null) {
+            checkpointSequence = status.getGuestPreparationCheckpointSequence();
+        }
         if (checkpointSequence == null) {
             checkpointSequence = longValue(runtime, "guestprep_checkpoint_sequence");
         }

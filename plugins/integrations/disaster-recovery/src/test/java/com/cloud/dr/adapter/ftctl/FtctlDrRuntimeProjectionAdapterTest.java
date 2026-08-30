@@ -126,6 +126,46 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     }
 
     @Test
+    public void remoteKvmCutoverUsesOperationCheckpointInsteadOfStaleSchedulerCheckpoint() {
+        DrPlanVO plan = new DrPlanVO("remote-kvm-cutover-sequence", 1L, 2L,
+                DrConstants.DIRECTION_KVM_TO_KVM);
+        DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_FAILOVER);
+        DrCutoverSessionVO session = new DrCutoverSessionVO(plan.getId(), run.getId(),
+                run.getRunType(), "CUTOVER_READY");
+        JsonObject runtime = JsonParser.parseString("{\"state\":\"CUTOVER_READY\","
+                + "\"latest_completed_checkpoint_sequence\":109,"
+                + "\"failover_restore_point_sequence\":110}").getAsJsonObject();
+        FtctlDrStatusAnswer status = Mockito.mock(FtctlDrStatusAnswer.class);
+        Mockito.when(status.getState()).thenReturn("CUTOVER_READY");
+        Mockito.when(status.getLatestCompletedCheckpointSequence()).thenReturn(109L);
+        Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        Mockito.when(drCutoverSessionDao.findActiveByRunId(run.getId())).thenReturn(session);
+
+        DrCutoverSessionVO projected = ReflectionTestUtils.invokeMethod(adapter,
+                "upsertCutoverSession", plan, run, status, runtime);
+
+        Assert.assertNotNull(projected);
+        Assert.assertEquals(Long.valueOf(110L), projected.getCheckpointSequence());
+    }
+
+    @Test
+    public void powerOnValidatedCutoverRetryDoesNotDrainRunningTargetAgain() {
+        DrPlanVO plan = new DrPlanVO("remote-kvm-cutover-retry", 1L, 2L,
+                DrConstants.DIRECTION_KVM_TO_KVM);
+        DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_FAILOVER);
+        DrCutoverSessionVO session = new DrCutoverSessionVO(plan.getId(), run.getId(),
+                run.getRunType(), "ENGINE_COMMIT_PENDING");
+        session.setCheckpointSequence(110L);
+        session.setCloudPromotionState("POWER_ON_VALIDATED");
+        Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+
+        ReflectionTestUtils.invokeMethod(adapter, "stopPlanOwnedTargetExportForPromotion",
+                plan, run, session);
+
+        Mockito.verifyNoInteractions(drPlanOwnedTransportService);
+    }
+
+    @Test
     public void schemaSafeControlRequestRunUuidRejectsLegacySuffixedIdentity() {
         String uuid = "d64fdb24-9fb3-49ad-82de-2556db63698b";
 
