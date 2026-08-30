@@ -126,6 +126,25 @@ describe('DrRunProgress transfer authority', () => {
     expect(wrapper.vm.progress).toBe(90)
   })
 
+  it('does not report a running failback as complete while data is still transferring', () => {
+    const wrapper = mountProgress({
+      run: {
+        runtype: 'FAILBACK',
+        state: 'RUNNING',
+        currentstep: 'runtime-transfer',
+        progresspercent: 100,
+        transferprogressschemaversion: 2,
+        transferbytestotal: 1000,
+        transferbytesprocessed: 110,
+        transferpercent: 11
+      }
+    })
+
+    expect(wrapper.vm.hasTransferProgress).toBe(true)
+    expect(wrapper.vm.transferPercent).toBe(11)
+    expect(wrapper.vm.progress).toBe(73)
+  })
+
   it('shows a localized guest preparation blocker for the run and step', () => {
     const wrapper = shallowMount(DrRunProgress, {
       props: {

@@ -237,12 +237,16 @@ export default {
       const authoritative = Number.isFinite(value)
         ? Math.max(0, Math.min(100, Math.round(value)))
         : this.stateProgress
+      if (this.transferWorkflowFloor > 0 && authoritative >= 100) {
+        return this.transferWorkflowFloor
+      }
       return Math.max(authoritative, this.transferWorkflowFloor)
     },
     transferWorkflowFloor () {
       const runType = String(this.run.runtype || this.run.runType || '').toUpperCase()
       const runState = String(this.run.state || '').toUpperCase()
-      if (runType !== 'SYNC' || !this.hasTransferProgress || ['SUCCEEDED', 'FAILED', 'CANCELED'].includes(runState)) {
+      if (!['SYNC', 'RECOVER_SYNC', 'FAILBACK'].includes(runType) ||
+        !this.hasTransferProgress || ['SUCCEEDED', 'FAILED', 'CANCELED'].includes(runState)) {
         return 0
       }
       return 70 + Math.round(this.transferPercent * 25 / 100)
