@@ -39,6 +39,7 @@ public class DrReprotectPreflightServiceImplTest {
     @Mock private UserVmDao userVmDao;
     @Mock private AgentManager agentManager;
     @Mock private DrSourceIsolationPreflightService drSourceIsolationPreflightService;
+    @Mock private DrCurrentAuthorityResolver drCurrentAuthorityResolver;
 
     @InjectMocks
     private DrReprotectPreflightServiceImpl service;
@@ -84,8 +85,101 @@ public class DrReprotectPreflightServiceImplTest {
                         && DrConstants.ERROR_REPROTECT_TARGET_RUNTIME_NOT_RUNNING.equals(step.getErrorCode())));
     }
 
+    @Test
+    public void validatesRemoteKvmCutoverUsingCanonicalCloudCycleSequence() {
+        Fixture fixture = fixture(DrConstants.DIRECTION_KVM_TO_KVM);
+        fixture.cutover.setCheckpointSequence(112L);
+        fixture.cutover.setDetailsJson("{\"checkpoint_sequence\":112,\"plan_cycle_sequence\":179}");
+        durableCutoverCycle(fixture, 179L);
+        allowReprotect(fixture);
+
+        DrReprotectPreflightResult result = service.validate(fixture.plan, fixture.run);
+
+        Assert.assertTrue(result.isReady());
+        Assert.assertEquals(112L, result.getAuthoritySpec().getCheckpointSequence());
+    }
+
+    @Test
+    public void validatesTargetAuthorityProjectionWhenRawPlanStateIsReady() {
+        Fixture fixture = fixture(DrConstants.DIRECTION_KVM_TO_KVM);
+        fixture.plan.setState(DrConstants.PLAN_STATE_READY);
+        durableCutoverCycle(fixture, 17L);
+        allowReprotect(fixture);
+
+        DrReprotectPreflightResult result = service.validate(fixture.plan, fixture.run);
+
+        Assert.assertTrue(result.isReady());
+        Assert.assertEquals("TARGET", result.getAuthoritySpec().getExpectedActiveSide());
+    }
+
+    @Test
+    public void acceptsCanonicalCutoverWhenReverseSchedulerUsesIndependentSequenceDomain() {
+        Fixture fixture = fixture(DrConstants.DIRECTION_KVM_TO_KVM);
+        fixture.cutover.setCheckpointSequence(112L);
+        fixture.cutover.setDetailsJson("{\"checkpoint_sequence\":112,\"plan_cycle_sequence\":179}");
+        fixture.checkpoint.setCheckpointSequence(122L);
+        durableCutoverCycle(fixture, 179L);
+        allowReprotect(fixture);
+
+        DrReprotectPreflightResult result = service.validate(fixture.plan, fixture.run);
+
+        Assert.assertTrue(result.isReady());
+        Assert.assertEquals(112L, result.getAuthoritySpec().getCheckpointSequence());
+    }
+
+    @Test
+    public void rejectsMissingCanonicalDurableCutoverCycle() {
+        Fixture fixture = fixture(DrConstants.DIRECTION_KVM_TO_KVM);
+        fixture.cutover.setCheckpointSequence(112L);
+        fixture.cutover.setDetailsJson("{\"checkpoint_sequence\":112,\"plan_cycle_sequence\":179}");
+
+        DrReprotectPreflightResult result = service.validate(fixture.plan, fixture.run);
+
+        Assert.assertFalse(result.isReady());
+        Assert.assertEquals(DrConstants.ERROR_REPROTECT_CHECKPOINT_MISMATCH, result.getErrorCode());
+    }
+
+    @Test
+    public void rejectsCanonicalCycleWithoutDurableCommit() {
+        Fixture fixture = fixture(DrConstants.DIRECTION_KVM_TO_KVM);
+        fixture.cutover.setCheckpointSequence(112L);
+        fixture.cutover.setDetailsJson("{\"checkpoint_sequence\":112,\"plan_cycle_sequence\":179}");
+        DrSyncCycleVO cutoverCycle = durableCutoverCycle(fixture, 179L);
+        cutoverCycle.setCommitState("COMMITTING");
+
+        DrReprotectPreflightResult result = service.validate(fixture.plan, fixture.run);
+
+        Assert.assertFalse(result.isReady());
+        Assert.assertEquals(DrConstants.ERROR_REPROTECT_CHECKPOINT_MISMATCH, result.getErrorCode());
+    }
+
+    private DrSyncCycleVO durableCutoverCycle(Fixture fixture, long sequence) {
+        DrSyncCycleVO cycle = new DrSyncCycleVO(fixture.plan.getId(), "cutover-run", sequence);
+        cycle.setCycleToken(fixture.plan.getUuid() + ":" + sequence);
+        cycle.setState("READY");
+        cycle.setCommitState("LOCAL_DURABLE");
+        cycle.setTargetDurableAt(new java.util.Date());
+        Mockito.when(drSyncCycleDao.findByPlanSequence(fixture.plan.getId(), sequence)).thenReturn(cycle);
+        return cycle;
+    }
+
+    private void allowReprotect(Fixture fixture) {
+        Mockito.when(agentManager.easySend(Mockito.eq(102L), Mockito.any(CheckVirtualMachineCommand.class)))
+                .thenAnswer(invocation -> new CheckVirtualMachineAnswer(
+                        invocation.getArgument(1), PowerState.PowerOn, null));
+        Mockito.when(drSourceIsolationPreflightService.validate(fixture.plan, fixture.run,
+                DrConstants.RUN_TYPE_REPROTECT))
+                .thenReturn(DrSourceIsolationPreflightResult.success(
+                        DrConstants.RUN_TYPE_REPROTECT, 3L, "ACKNOWLEDGED",
+                        "POWERED_OFF", "POWERED_ON", "{\"ready\":true}"));
+    }
+
     private Fixture fixture() {
-        DrPlanVO plan = new DrPlanVO("reprotect-plan", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
+        return fixture(DrConstants.DIRECTION_VMWARE_TO_KVM);
+    }
+
+    private Fixture fixture(String direction) {
+        DrPlanVO plan = new DrPlanVO("reprotect-plan", 1L, 2L, direction);
         plan.setState(DrConstants.PLAN_STATE_FAILED_OVER);
         plan.setActiveSide("TARGET");
         DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_REPROTECT);
@@ -116,16 +210,23 @@ public class DrReprotectPreflightServiceImplTest {
         Mockito.when(drPlanRuntimeDao.findByPlanId(plan.getId())).thenReturn(runtime);
         Mockito.when(drSyncCycleDao.findLatestCompletedByPlanId(plan.getId())).thenReturn(latestCompleted);
         Mockito.when(userVmDao.findById(256L)).thenReturn(targetVm);
-        return new Fixture(plan, run);
+        Mockito.when(drCurrentAuthorityResolver.resolve(plan)).thenReturn(new DrCurrentAuthorityProjection(
+                "TARGET", "FAILED_OVER_UNPROTECTED", 3L, true, null, null, cutover));
+        return new Fixture(plan, run, cutover, checkpoint);
     }
 
     private static class Fixture {
         private final DrPlanVO plan;
         private final DrRunVO run;
+        private final DrCutoverSessionVO cutover;
+        private final DrRestorePointVO checkpoint;
 
-        Fixture(DrPlanVO plan, DrRunVO run) {
+        Fixture(DrPlanVO plan, DrRunVO run, DrCutoverSessionVO cutover,
+                DrRestorePointVO checkpoint) {
             this.plan = plan;
             this.run = run;
+            this.cutover = cutover;
+            this.checkpoint = checkpoint;
         }
     }
 }

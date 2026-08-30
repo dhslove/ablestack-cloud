@@ -1,5 +1,10 @@
 # ABLESTACK RBD Cross-Site DR Plan Authority And UI Lifecycle Design
 
+> 2026-08-27 addendum: test failover Agent acceptance, Cloud test VM
+> materialization, boot validation, and UI completion follow
+> `621-dr-test-failover-agent-acceptance-and-ui-completion-contract-design-20260827.md`.
+> `UEFI/LEGACY` remains the established non-secure UEFI target contract.
+
 Date: 2026-08-24
 
 ## 1. Scope
@@ -1680,3 +1685,165 @@ Cycle projection code. Scheduler lease changes must therefore follow
 Lease-aware Cycle identity and strict terminal replay are compatibility guards;
 they must not alter the RBD copy transport, target ownership, release, failover,
 or failback contracts defined in this document.
+
+## Authoritative action availability after runtime transitions (2026-08-30)
+
+The versioned protection snapshot is the authoritative UI projection after a
+runtime transition. Its `planProjection.actionAvailability` and
+`actionEligibility` must not be overwritten by an older detail response that
+was read before the transition reached terminal state.
+
+This matters for mutually exclusive controls such as Pause and Resume. After a
+successful Pause, the snapshot may already contain `state=PAUSED`,
+`pauseSync.applicable=false`, and `resumeSync.applicable=true` while the initial
+detail response still describes the preceding READY state. Merging the stale
+detail action maps back into the snapshot leaves the Plan visibly PAUSED but
+offers only Pause, making Resume impossible through the UI.
+
+The UI reconciliation contract is therefore:
+
+1. a non-authoritative cached projection may retain live detail action maps;
+2. a versioned authoritative protection snapshot owns action availability and
+   eligibility;
+3. live operation history may still supersede cached `lastRun` data;
+4. Pause and Resume must be tested as one UI state transition, including menu
+   replacement and a new durable incremental Cycle after Resume.
+
+| Area | AS-IS | TO-BE |
+| --- | --- | --- |
+| Snapshot merge | Old detail action maps overwrite the snapshot | Authoritative snapshot action maps are preserved |
+| Paused menu | Pause remains visible; Resume is absent | Resume replaces Pause when state is PAUSED |
+| Resume proof | API acceptance only | UI RUNNING state plus a new durable incremental Cycle |
+| Regression boundary | General plan/runtime behavior may change | Only authoritative action-map precedence changes |
+
+## Reprotect checkpoint namespace separation (2026-08-30)
+
+Remote `KVM_TO_KVM` cutover has two related but distinct sequence namespaces.
+FTCTL writes the immutable cutover artifact with its engine checkpoint
+sequence, while Cloud projects the same durable data into a canonical Plan
+Cycle sequence. Reprotect must not compare these two numbers directly.
+
+The cutover session therefore preserves both identities without rewriting
+historical data:
+
+1. `dr_cutover_session.checkpoint_sequence` remains the FTCTL engine
+   checkpoint used by the Reprotect authority contract.
+2. The immutable cutover status in `details_json.plan_cycle_sequence` identifies
+   the Cloud canonical Cycle that was durable when authority moved to TARGET.
+3. Reprotect preflight compares the latest target-ready restore point with the
+   canonical Plan Cycle sequence.
+4. If an older cutover status has no canonical Plan Cycle field, preflight
+   falls back to the historical engine sequence contract.
+5. A mismatch within the same namespace remains a hard
+   `DR_REPROTECT_CHECKPOINT_MISMATCH`; target power and committed authority
+   checks are unchanged.
+
+The canonical cutover sequence is an immutable lower bound, not a permanently
+exact current value. After a reverse seed has become durable, the reverse
+scheduler may complete later incremental Cycles before Cloud retries a partially
+projected Reprotect Run. A latest target-ready sequence greater than the
+canonical cutover sequence is therefore valid for the same Plan. A lower
+sequence remains stale and is rejected. `DrRestorePointDao` performs the lookup
+within the same Plan, so a checkpoint from another Plan cannot satisfy this
+floor.
+
+| Area | AS-IS | TO-BE |
+| --- | --- | --- |
+| Durable identity | Engine checkpoint and Cloud Cycle treated as one counter | Engine and canonical Cloud sequences retained separately |
+| Remote KVM example | FTCTL `112` compared directly with Cloud `179` and rejected | Cloud `179` validates durability; FTCTL `112` remains in authority spec |
+| Legacy paths | Direct sequence equality | The resolved engine sequence is also treated as a minimum floor when no canonical Cycle is recorded |
+| Regression scope | Reprotect can fail after a valid Failover | Cloud preflight-only correction; mover and scheduler are unchanged |
+
+### Idempotent Reprotect retry after reverse protection is already live
+
+An FTCTL Reprotect retry must not transfer the full disk again when the prior
+attempt already produced a durable reverse baseline and a healthy continuous
+reverse scheduler, but Cloud missed or rejected the terminal projection.
+Idempotent adoption is restricted to `ABLESTACK_TO_ABLESTACK` and requires all
+of the following evidence from the same Plan:
+
+1. the active Reprotect session is `READY`, owns `TARGET`, and references an
+   existing reverse profile;
+2. the installed Plan profile is `KVM_TO_KVM`, `activeSide=TARGET`, and names
+   the same Plan;
+3. the canonical scheduler worker is live, the control ACK is `RUNNING` with
+   `owner_matched=true`, and the ACK owner matches the active worker lease;
+4. the latest completed sequence is not below the Reprotect baseline and its
+   manifest and checkpoint files both exist.
+
+When these conditions hold, FTCTL hydrates the new Run from the latest durable
+Cycle, rotates scheduler ownership through the normal activation barrier, and
+publishes a new authoritative `SUCCEEDED` terminal. It records
+`reprotect_idempotent_adopted=true` for audit. Any missing or inconsistent
+evidence falls back to the established reverse full-seed path; VMware-to-RBD and
+initial Reprotect behavior are unchanged.
+
+## Post-Reprotect target authority convergence (2026-08-31)
+
+A committed TARGET cutover is the authority prerequisite for Reprotect, but it
+must not permanently force the protection projection to
+`FAILED_OVER_UNPROTECTED`. Once FTCTL publishes an error-free durable Reprotect
+terminal, the same TARGET authority becomes protected and Failback-ready.
+
+The authoritative terminal evidence is:
+
+1. `action=dr-reprotect`, `state=READY`, `step=reprotect-ready`, and
+   `protection_state=READY`;
+2. `active_side=TARGET` with a non-empty Reprotect session and restore-point
+   reference;
+3. a positive checkpoint sequence and a durable baseline state;
+4. no FTCTL error code.
+
+Cloud applies this evidence before the generic committed-target preservation
+rule. The Plan converges to `READY/TARGET`, the replica remains the running
+TARGET, and the UI removes the Reprotect-required guidance while retaining
+Failback eligibility. A later Plan-level status refresh with no active Run must
+preserve the same result. Failed or incomplete Reprotect attempts continue to
+preserve `FAILED_OVER_UNPROTECTED/TARGET` and the serving replica.
+
+| Area | AS-IS | TO-BE |
+| --- | --- | --- |
+| Runtime precedence | Any committed TARGET cutover forces unprotected state | Durable Reprotect terminal takes precedence |
+| Post-terminal refresh | No active Run regresses UI to Reprotect required | `READY/TARGET` remains stable |
+| Failure behavior | Serving TARGET preserved | Unchanged |
+| Data plane | No change | No change to RBD/qcow2 transfer or scheduler drivers |
+
+### Continuous reverse protection completion barrier
+
+`READY/TARGET` is not granted by the reverse seed alone. FTCTL must promote the
+reverse profile, start a distinct scheduler owner, and publish a healthy owned
+`RUNNING` scheduler with a durable checkpoint before the Reprotect Run may
+finish successfully. Cloud projects this condition as `TARGET_PROTECTED`, keeps
+RPO evaluation in `REVERSE_LIVE`, and retains Failback eligibility. A stopped,
+unowned, or unhealthy reverse scheduler remains `FAILED_OVER_UNPROTECTED` even
+when the one-time reverse seed itself was durable.
+
+### Reprotect menu convergence after a partial terminal projection
+
+Action availability must use the current authority projection, not only the raw
+`dr_plan.state`. A completed one-shot Reprotect can leave `dr_plan.state=READY`
+and `active_side=TARGET` while the reverse scheduler is stopped. In that case
+the authoritative phase remains `FAILED_OVER_UNPROTECTED`; the UI must continue
+to expose and enable Reprotect so the operator can converge the plan without a
+database repair. Reprotect is hidden again only after the authority resolver
+publishes `TARGET_PROTECTED`, which requires a healthy, owned reverse scheduler.
+The Reprotect preflight consumes the same authority projection and must not
+reintroduce a raw `dr_plan.state=FAILED_OVER` requirement after the menu admits
+the operation.
+
+### Canonical checkpoint identity across scheduler directions
+
+FTCTL engine checkpoint sequences, Cloud Plan Cycle sequences, and reverse
+scheduler checkpoint sequences are independent sequence domains. Reprotect
+must never compare their numeric values. For `ABLESTACK_TO_ABLESTACK`, the
+committed cutover's `plan_cycle_sequence` identifies the canonical
+`dr_sync_cycle`; preflight requires that exact Cycle token to be `READY`,
+`LOCAL_DURABLE`, and have `target_durable_at`. A later reverse checkpoint may
+use a numerically smaller sequence and remains valid. VMware-to-KVM keeps its
+existing engine checkpoint equality contract.
+
+| Area | AS-IS | TO-BE |
+| --- | --- | --- |
+| KVM cutover verification | Compare forward Cloud sequence with reverse engine sequence | Resolve the exact canonical Cloud Cycle and verify its durability |
+| Reprotect retry | A healthy reverse scheduler can be rejected after its sequence restarts | Independent reverse sequence is accepted when the cutover Cycle is durable |
+| VMware path | Engine checkpoint equality | Unchanged |

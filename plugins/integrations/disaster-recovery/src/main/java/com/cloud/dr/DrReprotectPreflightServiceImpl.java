@@ -27,6 +27,8 @@ import com.cloud.vm.VirtualMachine.PowerState;
 import com.cloud.vm.UserVmVO;
 import com.cloud.vm.dao.UserVmDao;
 import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 
 public class DrReprotectPreflightServiceImpl extends ManagerBase implements DrReprotectPreflightService {
     private static final int STEP_ORDER_REPROTECT_PREFLIGHT = 15;
@@ -41,6 +43,7 @@ public class DrReprotectPreflightServiceImpl extends ManagerBase implements DrRe
     @Inject private UserVmDao userVmDao;
     @Inject private AgentManager agentManager;
     @Inject private DrSourceIsolationPreflightService drSourceIsolationPreflightService;
+    @Inject private DrCurrentAuthorityResolver drCurrentAuthorityResolver;
 
     @Override
     public DrReprotectPreflightResult validate(DrPlanVO plan, DrRunVO run) {
@@ -54,10 +57,14 @@ public class DrReprotectPreflightServiceImpl extends ManagerBase implements DrRe
             return failure(DrConstants.ERROR_REPROTECT_AUTHORITY_INVALID,
                     "DR plan and Reprotect run are required");
         }
-        if (!StringUtils.equals(plan.getState(), DrConstants.PLAN_STATE_FAILED_OVER)
-                || !StringUtils.equalsIgnoreCase(plan.getActiveSide(), "TARGET")) {
+        DrCurrentAuthorityProjection currentAuthority = drCurrentAuthorityResolver != null
+                ? drCurrentAuthorityResolver.resolve(plan) : null;
+        if (currentAuthority == null || !currentAuthority.isConsistent()
+                || !StringUtils.equalsIgnoreCase(currentAuthority.getAuthoritySide(), "TARGET")
+                || !StringUtils.equalsAnyIgnoreCase(currentAuthority.getAuthorityPhase(),
+                        "FAILED_OVER_UNPROTECTED", "TARGET_PROMOTED_ENGINE_PENDING")) {
             return failure(DrConstants.ERROR_REPROTECT_REQUIRES_TARGET_ACTIVE,
-                    "Reprotect requires a failed-over plan with TARGET authority");
+                    "Reprotect requires committed TARGET authority without active reverse protection");
         }
 
         DrCutoverSessionVO cutover = drCutoverSessionDao.findLatestActiveByPlanId(plan.getId());
@@ -83,11 +90,9 @@ public class DrReprotectPreflightServiceImpl extends ManagerBase implements DrRe
         }
 
         DrRestorePointVO checkpoint = drRestorePointDao.findLatestTargetReadyByPlanId(plan.getId());
-        if (checkpoint == null || checkpoint.getCheckpointSequence() == null
-                || cutover.getCheckpointSequence() == null
-                || !checkpoint.getCheckpointSequence().equals(cutover.getCheckpointSequence())) {
+        if (!hasDurableCutoverCheckpoint(plan, cutover, checkpoint)) {
             return failure(DrConstants.ERROR_REPROTECT_CHECKPOINT_MISMATCH,
-                    "Latest durable checkpoint does not match the committed cutover checkpoint");
+                    "Committed cutover checkpoint is not durable in its canonical sequence domain");
         }
 
         Answer answer = agentManager.easySend(targetVm.getHostId(),
@@ -127,6 +132,50 @@ public class DrReprotectPreflightServiceImpl extends ManagerBase implements DrRe
         spec.setSourceFenceState(cutover.getSourceFenceState());
         spec.setSourcePowerState(cutover.getSourcePowerState());
         return DrReprotectPreflightResult.success(spec);
+    }
+
+    private Long canonicalCutoverSequence(DrCutoverSessionVO cutover) {
+        if (cutover == null) {
+            return null;
+        }
+        if (StringUtils.isNotBlank(cutover.getDetailsJson())) {
+            try {
+                JsonObject details = GSON.fromJson(cutover.getDetailsJson(), JsonObject.class);
+                JsonElement planCycle = details != null ? details.get("plan_cycle_sequence") : null;
+                if (planCycle != null && !planCycle.isJsonNull()) {
+                    long sequence = planCycle.getAsLong();
+                    if (sequence > 0L) {
+                        return sequence;
+                    }
+                }
+            } catch (RuntimeException ignored) {
+                // Older cutover rows fall back to the engine checkpoint sequence.
+            }
+        }
+        return cutover.getCheckpointSequence();
+    }
+
+    private boolean hasDurableCutoverCheckpoint(DrPlanVO plan, DrCutoverSessionVO cutover,
+            DrRestorePointVO checkpoint) {
+        if (cutover == null || cutover.getCheckpointSequence() == null
+                || cutover.getCheckpointSequence() <= 0L) {
+            return false;
+        }
+        if (!StringUtils.equalsIgnoreCase(plan.getDirection(), DrConstants.DIRECTION_KVM_TO_KVM)) {
+            return checkpoint != null && checkpoint.getCheckpointSequence() != null
+                    && checkpoint.getCheckpointSequence().equals(cutover.getCheckpointSequence());
+        }
+
+        Long planCycleSequence = canonicalCutoverSequence(cutover);
+        if (planCycleSequence == null || planCycleSequence <= 0L) {
+            return false;
+        }
+        DrSyncCycleVO cutoverCycle = drSyncCycleDao.findByPlanSequence(plan.getId(), planCycleSequence);
+        return cutoverCycle != null
+                && StringUtils.equalsIgnoreCase(cutoverCycle.getState(), "READY")
+                && StringUtils.equalsIgnoreCase(cutoverCycle.getCommitState(), "LOCAL_DURABLE")
+                && cutoverCycle.getTargetDurableAt() != null
+                && StringUtils.equals(cutoverCycle.getCycleToken(), plan.getUuid() + ":" + planCycleSequence);
     }
 
     private long resolveAuthoritySequenceFloor(DrPlanVO plan, long authorityGeneration) {
