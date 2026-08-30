@@ -137,7 +137,6 @@ public class FtctlDrRuntimeProjectionAdapterTest {
                 + "\"failover_restore_point_sequence\":110}").getAsJsonObject();
         FtctlDrStatusAnswer status = Mockito.mock(FtctlDrStatusAnswer.class);
         Mockito.when(status.getState()).thenReturn("CUTOVER_READY");
-        Mockito.when(status.getLatestCompletedCheckpointSequence()).thenReturn(109L);
         Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
         Mockito.when(drCutoverSessionDao.findActiveByRunId(run.getId())).thenReturn(session);
 
