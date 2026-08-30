@@ -2641,7 +2641,15 @@ export default {
       }).catch(error => {
         this.detailLoadWarning = this.errorMessage(error)
       })
-      const tasks = [planTask.then(() => this.fetchProtectionView())]
+      const tasks = [planTask
+        .then(() => this.fetchProtectionView())
+        .then(() => {
+          // A snapshot can be generated while the previous operation is still
+          // active. Apply the live plan last so its terminal action contract wins.
+          return getDrPlan(this.detailId).then(plan => {
+            this.detailPlan = reconcileDrPlanProjection(this.detailPlan, plan || {})
+          })
+        })]
       if (options.skipSites !== true && !('getDrProtectionView' in this.$store.getters.apis)) {
         tasks.unshift(this.fetchSites())
       }

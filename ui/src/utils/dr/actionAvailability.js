@@ -103,6 +103,9 @@ export function resolveDrActionAvailability (action, resource = {}, currentRun =
   }
 
   const key = String(action.key).toLowerCase()
+  if (key === 'cancelrun' && !isActiveDrRun(currentRun)) {
+    return { applicable: false, enabled: false, reasonCode: '' }
+  }
   const typed = normalizeActionAvailability(
     resource.actionavailability || resource.actionAvailability || {}
   )

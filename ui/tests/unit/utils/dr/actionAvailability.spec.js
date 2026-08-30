@@ -63,4 +63,18 @@ describe('DR action availability', () => {
     expect(drActionReasonMessageKey(state.reasonCode))
       .toBe('message.dr.action.reprotect.contract.unsupported')
   })
+
+  it('never exposes cancel after the live run has reached terminal state', () => {
+    const staleResource = {
+      actionavailability: {
+        cancelRun: { applicable: true, enabled: true }
+      }
+    }
+
+    expect(resolveDrActionAvailability(
+      { key: 'cancelrun' },
+      staleResource,
+      { id: 'terminal-run', state: 'SUCCEEDED' }
+    )).toEqual({ applicable: false, enabled: false, reasonCode: '' })
+  })
 })

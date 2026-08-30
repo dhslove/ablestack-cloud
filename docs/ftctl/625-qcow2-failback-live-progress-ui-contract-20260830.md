@@ -24,6 +24,9 @@ guard, so users see neither bytes nor ETA.
   70-95 transfer range.
 - The transfer panel shows bytes, throughput, ETA, disk position, and transfer
   mode using the same sample.
+- After a Run becomes terminal, the UI applies the cached protection snapshot
+  first and the live Plan action contract last. A stale snapshot must not keep
+  `cancelRun` visible or suppress the next valid action.
 
 ## Regression gate
 
@@ -33,3 +36,5 @@ guard, so users see neither bytes nor ETA.
 - Retain the existing monotonic SYNC progress tests.
 - Run FTCTL qcow2 SharedMountPoint smoke tests and Cloud UI unit tests.
 - Validate the deployed UI from a real failback before marking the menu PASS.
+- Verify that terminal failback removes `cancelRun` and restores the source-side
+  actions without a page reload.
