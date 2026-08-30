@@ -73,6 +73,35 @@ describe('DR protection state helpers', () => {
     expect(projection.latestOperationRun.id).toBe('new-run')
   })
 
+  it('does not revive a historical active row when the authoritative snapshot has no active run', () => {
+    const projection = reconcileDrRunProjection({
+      version: 4,
+      activeRun: {},
+      latestOperationRun: { id: 'completed-run', state: 'SUCCEEDED' }
+    }, [
+      { id: 'completed-run', state: 'SUCCEEDED' },
+      { id: 'stale-run', state: 'ACCEPTED' }
+    ], {
+      authoritativeActiveRun: true
+    })
+
+    expect(projection.activeRun).toEqual({})
+    expect(projection.latestOperationRun.id).toBe('completed-run')
+  })
+
+  it('clears an authoritative active run after the matching live row becomes terminal', () => {
+    const projection = reconcileDrRunProjection({
+      version: 4,
+      activeRun: { id: 'accepted-run', state: 'ACCEPTED' }
+    }, [
+      { id: 'accepted-run', state: 'SUCCEEDED' }
+    ], {
+      authoritativeActiveRun: true
+    })
+
+    expect(projection.activeRun).toEqual({})
+  })
+
   it('keeps live action availability when applying a cached plan projection', () => {
     const projection = reconcileDrPlanProjection({
       state: 'READY',

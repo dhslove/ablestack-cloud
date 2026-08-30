@@ -27,6 +27,11 @@ guard, so users see neither bytes nor ETA.
 - After a Run becomes terminal, the UI applies the cached protection snapshot
   first and the live Plan action contract last. A stale snapshot must not keep
   `cancelRun` visible or suppress the next valid action.
+- Protection View snapshot version 4 and later is authoritative for active-run
+  ownership. When `activeRun` is empty, the UI must not promote an older
+  non-terminal operation-history row back into the current action contract.
+  Live history may only confirm or terminalize the active Run named by the
+  snapshot.
 
 ## Regression gate
 
@@ -38,3 +43,5 @@ guard, so users see neither bytes nor ETA.
 - Validate the deployed UI from a real failback before marking the menu PASS.
 - Verify that terminal failback removes `cancelRun` and restores the source-side
   actions without a page reload.
+- Verify that an old `ACCEPTED` history row cannot revive `cancelRun` when the
+  authoritative snapshot has no active Run.

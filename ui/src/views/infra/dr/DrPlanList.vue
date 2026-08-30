@@ -1819,6 +1819,9 @@ export default {
     },
     currentRun () {
       const cachedActiveRun = this.protectionSnapshot.activeRun || {}
+      if (Number(this.protectionSnapshot.version || 0) >= 4) {
+        return isActiveDrRun(cachedActiveRun) ? cachedActiveRun : {}
+      }
       return isActiveDrRun(cachedActiveRun)
         ? cachedActiveRun
         : (this.detailRuns.find(run => isActiveDrRun(run)) || {})
@@ -2742,7 +2745,9 @@ export default {
           return listDrRuns({ planid: this.detailId }).then(result => {
             const liveRuns = (result.items || []).map(item => this.normalizeCachedRecord(item))
             this.detailRuns = liveRuns
-            this.protectionSnapshot = reconcileDrRunProjection(this.protectionSnapshot, liveRuns)
+            this.protectionSnapshot = reconcileDrRunProjection(this.protectionSnapshot, liveRuns, {
+              authoritativeActiveRun: authoritativeProjection
+            })
           }).catch(error => {
             if (!options.silent) {
               this.detailLoadWarning = this.errorMessage(error)
