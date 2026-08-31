@@ -131,3 +131,25 @@ The deployed scope (`10.10.13.10` and compute hosts `10.10.13.1`, `.2`, and
 `4.23.0.0-Mold.Europa.202608261320.1` and DR tools `0.9.5-1`; `mold-agent`,
 FTCTL, and HangCTL timers are active, NBD uses `nbds_max=32`, and Cloud reports
 the host as `Up/Enabled`.
+
+## 2026-08-31 Current Branch Test Release
+
+Cluster 13 was upgraded from the working branches built by Cloud Actions Run
+[`33376001864`](https://github.com/dhslove/ablestack-cloud/actions/runs/33376001864)
+and qemu tools Run
+[`33376444887`](https://github.com/dhslove/ablestack-qemu-exec-tools/actions/runs/33376444887).
+The installed Cloud release is
+`4.23.0.0-Mold.Europa.202608310915.1`; all DR tool packages remain release
+`0.9.5-1` from the new qemu Run.
+
+The management server had mixed SNAPSHOT/Europa package state before this
+alignment and an expected package-owned aggregate JAR was absent. The service
+was recovered only with the current package payload and then fully replaced
+with the new coherent release. Postflight verification now reports Mold
+active, `/client/` HTTP 200, `WEB-INF` present, expected UI markers present,
+and 40 GiB free on `/`.
+
+Hosts `13.1`, `13.2`, and `13.3` are `Up / Enabled`; their Agents and FTCTL
+timers are active and their installed runtime/scheduler hashes match the
+three-cluster release record. `13.2` continues to use SSH port `10022` while
+the other 13-cluster nodes use port `22`.

@@ -286,3 +286,25 @@ checkpoint/guest-preparation smokes and ABLESTACK RBD-to-RBD reverse transport
 smokes remain mandatory in the same release workflow. This turns a future
 cross-repository version skew into a capability-preflight failure rather than
 a runtime Reprotect failure.
+
+## 2026-08-31 Current Branch Test Release
+
+Cluster 31 was aligned with Cloud Actions Run
+[`33376001864`](https://github.com/dhslove/ablestack-cloud/actions/runs/33376001864)
+and qemu tools Run
+[`33376444887`](https://github.com/dhslove/ablestack-qemu-exec-tools/actions/runs/33376444887).
+The installed Cloud release is
+`4.23.0.0-Mold.Europa.202608310915.1`, and the qemu-exec-tools, V2K, N2K,
+FTCTL, and HangCTL packages are `0.9.5-1` from that qemu Run.
+
+The management root filesystem was 95% used before deployment. Superseded
+generated deployment artifacts were removed and, after confirming no MySQL
+replication channel, test binlog expiry was set to two days. The current root
+usage is 62% with about 32 GiB free. Mold is active, `/client/` returns HTTP
+200, `WEB-INF` and the FTCTL UI markers are present, and no post-deployment
+ServerDaemon class-load error is present.
+
+All three routing hosts are `Up / Enabled`; all Agents and FTCTL timers are
+active. The VM list was unchanged across package replacement and the installed
+runtime/scheduler hashes match the three-cluster release record. Host `31.1`
+uses native `rpm`; `31.2` and `31.3` use `aspkg`.

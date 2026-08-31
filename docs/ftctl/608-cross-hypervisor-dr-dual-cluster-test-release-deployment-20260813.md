@@ -708,3 +708,53 @@ completed sequence is `348`, active replica `51` is `READY`, and Cloud target
 VM id `287` remains bound. This confirms that Cloud-owned KVM VM/network
 materialization and FTCTL-owned storage/checkpoint durability now converge to
 one READY runtime projection.
+
+## 2026-08-31 Three-cluster Test Release Alignment
+
+The `feature/ftctl-cloud-integration` branches were built by GitHub Actions
+from Cloud commit `912a66ec4baa3a895fef36efaf0f2be55ad482c5` and qemu tools
+commit `469dbda3902d79256625dab9a3ab36f9d28df2f8`. The successful build Runs
+were [Cloud 33376001864](https://github.com/dhslove/ablestack-cloud/actions/runs/33376001864)
+and [qemu tools 33376444887](https://github.com/dhslove/ablestack-qemu-exec-tools/actions/runs/33376444887).
+
+The Cloud package release is
+`4.23.0.0-Mold.Europa.202608310915.1`; qemu-exec-tools, V2K, N2K, FTCTL,
+and HangCTL are `0.9.5-1`. The same Cloud management/common/UI/usage release
+was installed on `10.10.13.10`, `10.10.31.10`, and `10.10.32.10`. The same
+Cloud common/Agent release and matching Rocky 9.7 or 9.8 qemu tool set were
+installed on all nine compute hosts. The `13.2` SSH exception remains port
+`10022`; all other deployment endpoints use port `22`.
+
+Independent postflight verification, separate from the deployment script,
+confirmed the following:
+
+- all three Mold services are active and all three `/client/` endpoints return
+  HTTP 200;
+- every active webapp retains `WEB-INF` and contains the expected FTCTL UI
+  markers;
+- all nine routing hosts are `Up / Enabled` in their controller database;
+- all nine Agents and FTCTL timers are active, with no VM-list change across
+  package replacement;
+- every host has `dr_runtime.sh` SHA256
+  `82c20687082fe0385119fba93a91c7249ae1b89116a7faf79f543eedf588a3a5`
+  and `dr_scheduler.sh` SHA256
+  `1170968add33f0464e520889b63a280a48446707b71786e41201bc1c670c85f0`;
+- Chrome rendered the ABLESTACK login view from the DR Plan URL on all three
+  management servers.
+
+### 32-cluster Mold incident and correction
+
+`10.10.32.10` was responsive at the process level but its root filesystem was
+100% full with about 20 KiB free. Old generated deployment/test artifacts
+under `/root` and accumulated MySQL binary logs were the immediate availability
+cause. Only generated, superseded deployment artifacts were removed; the Cloud
+database, active webapp, package-owned runtime, DR profiles, and VM data were
+preserved. Test-cluster binlog expiry was set persistently to two days after
+confirming that no replication channel was configured.
+
+After cleanup and exact-package deployment, the 32 management root filesystem
+is 51% used with about 41 GiB free. Mold is active, `/client/` returns HTTP
+200, `WEB-INF` is present, and no new `ServerDaemon` class-load or
+`No space left on device` error was recorded after deployment. The 13 and 31
+management roots are respectively 52% and 62% used after the same retention
+and stale-artifact review.
