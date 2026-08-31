@@ -46,7 +46,8 @@ public class LibvirtGetBackupStatsCommandWrapper extends CommandWrapper<GetBacku
                 "-o", "stats",
                 "-t", backupRepoType,
                 "-s", backupRepoAddress,
-                "-m", mountOptions
+                "-m", mountOptions,
+                "-w", String.valueOf(command.getMountTimeout())
         });
 
         Pair<Integer, String> result = Script.executePipedCommands(commands, libvirtComputingResource.getCmdsTimeout());
@@ -58,7 +59,7 @@ public class LibvirtGetBackupStatsCommandWrapper extends CommandWrapper<GetBacku
             return new BackupStorageStatsAnswer(command, false, result.second());
         }
 
-        BackupStorageStatsAnswer answer = new BackupStorageStatsAnswer(command, false, result.second());
+        BackupStorageStatsAnswer answer = new BackupStorageStatsAnswer(command, true, result.second());
 
         String [] stats = result.second().split("\\s+");
         Long total = Long.parseLong(stats[1]) * 1024;

@@ -506,7 +506,7 @@ export default {
       columns: ['name', 'status', 'size', 'virtualsize', 'virtualmachinename', 'backupofferingname', 'intervaltype', 'type', 'created', 'account', 'domain', 'zone'],
       details: ['name', 'description', 'virtualmachinename', 'id', 'intervaltype', 'type', 'externalid', 'size', 'virtualsize', 'volumes', 'backupofferingname', 'zone', 'account', 'domain', 'created'],
       searchFilters: () => {
-        var filters = ['name', 'zoneid', 'domainid', 'account', 'backupofferingid']
+        var filters = ['name', 'zoneid', 'domainid', 'account', 'backupofferingname']
         return filters
       },
       tabs: [
@@ -776,6 +776,15 @@ export default {
           popup: true,
           args: ['cleanup'],
           show: (record) => { return ['Stopped', 'Ready', 'Detached'].includes(record.state) }
+        },
+        {
+          api: 'getStorageServiceRuntimeUpgradeCapabilities',
+          icon: 'cloud-upload-outlined',
+          label: 'label.storage.service.runtime.upgrade',
+          dataView: true,
+          popup: true,
+          component: shallowRef(defineAsyncComponent(() => import('@/views/storage/StorageServiceRuntimeUpgrade.vue'))),
+          show: (record) => { return ['Ready', 'Stopped'].includes(record.state) }
         },
         {
           api: 'changeSharedFileSystemServiceOffering',
