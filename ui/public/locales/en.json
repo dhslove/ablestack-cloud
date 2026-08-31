@@ -6835,6 +6835,7 @@
   "label.dr.action.reprotect": "Reprotect from current operating site",
   "label.dr.action.release.protection": "End protection relationship",
   "label.dr.state.unprotected": "Protection released",
+  "label.dr.state.target_protected": "Protected at recovery site",
   "message.dr.reprotect.preflight.automatic": "The current operating site, source isolation, authority generation, and FTCTL engine contract are checked automatically before reprotection starts.",
   "message.dr.release.effects": "Releasing protection stops replication and its scheduler and removes the DR relationship. It does not delete or change the power state of the current operating VM, disks, or network.",
   "label.dr.release.resource.disposition": "Replica resource disposition",

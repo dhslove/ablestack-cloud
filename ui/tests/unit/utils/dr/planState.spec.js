@@ -120,6 +120,28 @@ describe('DR protection state helpers', () => {
     expect(projection.actionavailability.cancelrun.applicable).toBe(false)
   })
 
+  it('keeps authoritative action availability when the protection snapshot supersedes stale detail data', () => {
+    const projection = reconcileDrPlanProjection({
+      state: 'PAUSED',
+      actionavailability: {
+        pausesync: { applicable: false, enabled: false },
+        resumesync: { applicable: true, enabled: true }
+      }
+    }, {
+      state: 'READY',
+      actionavailability: {
+        pausesync: { applicable: true, enabled: true },
+        resumesync: { applicable: false, enabled: false }
+      }
+    }, {
+      authoritativeActions: true
+    })
+
+    expect(projection.state).toBe('PAUSED')
+    expect(projection.actionavailability.pausesync.applicable).toBe(false)
+    expect(projection.actionavailability.resumesync.enabled).toBe(true)
+  })
+
   it('does not classify an acknowledged target authority as an error', () => {
     const plan = {
       currentseverity: 'INFO',
@@ -128,6 +150,20 @@ describe('DR protection state helpers', () => {
     }
 
     expect(resolveDrPlanSeverity(plan)).toBe('INFO')
+  })
+
+  it('shows a healthy reverse scheduler as target protected', () => {
+    const plan = {
+      state: 'READY',
+      operatingside: 'TARGET',
+      protectionphase: 'TARGET_PROTECTED',
+      protectionstate: 'READY',
+      schedulerstate: 'RUNNING',
+      schedulerhealth: 'HEALTHY'
+    }
+
+    expect(resolveDrPlanState(plan)).toBe('TARGET_PROTECTED')
+    expect(resolveDrPlanSeverity(plan)).toBe('NONE')
   })
 
   it('shows a retryable source outage as waiting instead of a terminal error', () => {

@@ -61,11 +61,25 @@ public class DrCurrentAuthorityResolverImpl extends ManagerBase implements DrCur
         boolean committed = current != null
                 && StringUtils.equalsIgnoreCase(current.getCloudPromotionState(), "PROMOTED")
                 && StringUtils.equalsIgnoreCase(current.getEngineAckState(), "ACKNOWLEDGED");
+        boolean targetProtected = committed && isTargetProtected(runtimeAuthority);
         return new DrCurrentAuthorityProjection(side,
-                committed ? "FAILED_OVER_UNPROTECTED" : "TARGET_PROMOTED_ENGINE_PENDING",
+                targetProtected ? "TARGET_PROTECTED"
+                        : committed ? "FAILED_OVER_UNPROTECTED" : "TARGET_PROMOTED_ENGINE_PENDING",
                 sequence, committed,
                 committed ? null : DrConstants.AUTHORITY_INCONSISTENT_TARGET_SESSION_MISSING,
                 committed ? null : "Target authority is active without a committed current cutover session",
                 current);
+    }
+
+    private boolean isTargetProtected(DrProtectionAuthoritySnapshot authority) {
+        return authority != null
+                && StringUtils.equalsIgnoreCase(authority.getProtectionState(), DrConstants.PLAN_STATE_READY)
+                && StringUtils.equalsIgnoreCase(authority.getSchedulerState(), "RUNNING")
+                && StringUtils.equalsIgnoreCase(authority.getSchedulerHealthState(), "HEALTHY")
+                && authority.isSchedulerPidAlive()
+                && authority.isOwnerMatched()
+                && StringUtils.equalsAnyIgnoreCase(authority.getBaselineState(),
+                        "LOCAL_DURABLE", "DURABLE", "COMMITTED")
+                && StringUtils.isBlank(authority.getErrorCode());
     }
 }

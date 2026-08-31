@@ -680,3 +680,31 @@ consistent projection, healthy running scheduler, idle replication activity,
 target readiness, and usable update/sync/pause/release actions. This validates
 the required automatic path: `Run SUCCEEDED -> plan READY -> UI action state`
 without manual DB state changes.
+
+## Cloud-managed KVM readiness projection overlay - 2026-08-27
+
+The 32-cluster management server received a changed-class overlay for
+`FtctlDrRuntimeProjectionAdapter` and a matching UI static bundle. The Cloud
+package itself remains the aligned test release
+`4.23.0.0-Mold.Europa.202608261320.1`; no unrelated package files were
+replaced.
+
+- deployed class SHA256:
+  `19d78aa2d7ab639f77d5093161fd7ef870eeae34c8f5915d548cae2d90b7c934`
+- deployed UI archive SHA256:
+  `99b51248ade9e4396dbe415679daa8f3f59ac56b2aaaf145755803d574ba1a43`
+- active UI entry bundle: `js/app.a5c45800.js`
+- deployment backup:
+  `/root/dr-kvm-ready-deploy-20260827-160750`
+
+The deployment preserved `/usr/share/cloudstack-management/webapp/WEB-INF`,
+left `mold` active, and returned HTTP 200 from `/client/`. The deployed class
+hash was verified from the active aggregate Cloud JAR.
+
+Plan `7ec74483-8554-415d-ac56-f62f8b17fbd0` converged without direct DB repair
+to plan `READY / ENABLED / SOURCE` and runtime
+`READY / RUNNING / HEALTHY / IDLE`. Its current Cycle is `COMPLETED`, latest
+completed sequence is `348`, active replica `51` is `READY`, and Cloud target
+VM id `287` remains bound. This confirms that Cloud-owned KVM VM/network
+materialization and FTCTL-owned storage/checkpoint durability now converge to
+one READY runtime projection.

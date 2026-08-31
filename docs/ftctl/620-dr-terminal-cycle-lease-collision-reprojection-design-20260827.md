@@ -92,6 +92,37 @@ flags. FTCTL remains authoritative for target storage durability and checkpoint
 publication. VMware targets and directions without a Cloud target binding keep
 the strict engine presence checks.
 
+### Cloud-managed KVM materialization authority and UI readiness
+
+`dr-status` can correctly report an idle scheduler and a durable completed
+cycle while its non-owning `target_vm_present` and `target_network_present`
+flags remain false. For a Cloud-managed KVM target these two objects are
+created and owned by Cloud, so the active `dr_replica.target_vm_id` and the
+latest target-ready restore point are the authoritative materialization proof.
+The FTCTL evidence is still mandatory for target storage, durable checkpoint,
+and completed-cycle integrity.
+
+The runtime projection therefore derives `targetMaterialized` from either an
+explicit FTCTL materialization result or all of the following conditions:
+
+1. the scheduler is healthy and the current cycle is `IDLE` or `COMPLETED`;
+2. a durable checkpoint and latest target-ready restore point exist;
+3. the active KVM replica has a non-null `target_vm_id`;
+4. FTCTL does not report target storage or restore-point absence.
+
+The UI presents two independent contracts. The primary status continues to use
+the projected protection state, while execution readiness uses
+`readinessstate`. A transient replication state must not overwrite or duplicate
+the execution-readiness value.
+
+| Area | AS-IS | TO-BE |
+|---|---|---|
+| KVM target VM/network authority | FTCTL false flags force `SYNCING` | Active Cloud replica and target-ready checkpoint prove VM/network materialization |
+| Storage and checkpoint authority | Mixed with Cloud-owned object presence | FTCTL remains strict authority for storage and durable checkpoint |
+| Runtime convergence | Healthy idle/completed runtime can remain `SYNCING` | Runtime converges to `READY` when all split-authority conditions pass |
+| UI execution readiness | Reuses the protection status | Displays `readinessstate` independently |
+| Regression proof | No combined projection/UI assertion | Java projection and UI state-resolution tests cover the split contract |
+
 ## 7. Verification Gate
 
 1. Unit test a reused engine sequence under a new scheduler lease.
@@ -105,3 +136,10 @@ the strict engine presence checks.
    - latest durable Cycle belongs to the current scheduler lease;
    - UI actions are available;
    - no active worker, lock, or NBD endpoint remains.
+6. For a Cloud-managed KVM replica, set the FTCTL VM/network presence flags to
+   false while retaining a valid Cloud replica, target-ready restore point,
+   durable storage, and healthy idle/completed scheduler. Verify the projected
+   protection state is `READY`.
+7. In the UI, verify protection status and execution readiness are rendered
+   from `protectionstate` and `readinessstate` respectively, including dark
+   mode, after the operator presses Update.

@@ -1138,6 +1138,123 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     }
 
     @Test
+    public void completedRemoteKvmReprotectIsNotRegressedByCommittedTargetAuthority() {
+        DrPlanVO plan = new DrPlanVO("remote-kvm-reprotected", 1L, 2L,
+                DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
+        plan.setState(DrConstants.PLAN_STATE_FAILED_OVER);
+        plan.setActiveSide("TARGET");
+        plan.setCoordinatorWorkerHostId(103L);
+
+        DrCutoverSessionVO cutover = new DrCutoverSessionVO(plan.getId(), 41L,
+                DrConstants.RUN_TYPE_FAILOVER, DrConstants.PLAN_STATE_FAILED_OVER);
+        cutover.setCloudPromotionState("PROMOTED");
+        cutover.setEngineAckState("ACKNOWLEDGED");
+        cutover.setCloudAuthorityGeneration(112L);
+        DrPlanRuntimeVO authority = new DrPlanRuntimeVO(plan.getId());
+        authority.setProtectionState("FAILED_OVER_UNPROTECTED");
+        authority.setAuthoritySequence(389L);
+        DrReplicaVO replica = new DrReplicaVO(plan.getId(), plan.getTargetSiteId());
+        replica.setState(DrConstants.REPLICA_STATE_FAILED_OVER);
+        replica.setActiveSide("TARGET");
+        replica.setPowerState("POWERED_ON");
+        replica.setTargetVmId(165L);
+
+        String sessionId = plan.getUuid() + ":run-reprotect";
+        String statusJson = "{\"action\":\"dr-reprotect\",\"state\":\"READY\","
+                + "\"step\":\"reprotect-ready\",\"protection_state\":\"READY\","
+                + "\"active_side\":\"TARGET\",\"baseline_state\":\"LOCAL_DURABLE\","
+                + "\"checkpoint_sequence\":113,\"reprotect_session_id\":\"" + sessionId + "\","
+                + "\"reprotect_restore_point_ref\":\"ftctl:" + plan.getUuid() + ":113\","
+                + "\"target_power_state\":\"POWERED_ON\",\"target_promotion_state\":\"PROMOTED\"}";
+        Mockito.when(agentManager.easySend(Mockito.eq(103L), Mockito.any(FtctlDrStatusCommand.class)))
+                .thenAnswer(invocation -> {
+                    FtctlDrStatusCommand command = invocation.getArgument(1);
+                    FtctlDrStatusAnswer answer = new FtctlDrStatusAnswer(command, true, "ok", plan.getUuid(),
+                            null, "ok", "READY", "reprotect-ready", 100,
+                            "2026-08-30T14:48:58Z", "2026-08-30T14:54:17Z", 4,
+                            389L, null, 0, "", statusJson);
+                    answer.setProtectionState("READY");
+                    answer.setBaselineState("LOCAL_DURABLE");
+                    answer.setLatestCompletedCheckpointSequence(113L);
+                    return answer;
+                });
+        Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        Mockito.when(drCutoverSessionDao.findCurrentAuthorityByPlanId(plan.getId())).thenReturn(cutover);
+        Mockito.when(drPlanRuntimeDao.findByPlanId(plan.getId())).thenReturn(authority);
+        Mockito.when(drReplicaDao.listActiveByPlanId(plan.getId())).thenReturn(Collections.singletonList(replica));
+
+        DrAdapterResult result = adapter.refreshPlanProjection(plan);
+
+        Assert.assertTrue(result.isSuccess());
+        Assert.assertEquals(DrConstants.PLAN_STATE_READY, plan.getState());
+        Assert.assertEquals("TARGET", plan.getActiveSide());
+        Assert.assertEquals(DrConstants.PLAN_STATE_READY, authority.getProtectionState());
+        Assert.assertEquals(DrConstants.REPLICA_STATE_READY, replica.getState());
+        Assert.assertEquals("TARGET", replica.getActiveSide());
+        Mockito.verify(drPlanDao, Mockito.atLeastOnce()).update(Mockito.eq(plan.getId()), Mockito.same(plan));
+        Mockito.verify(drReplicaDao).update(Mockito.eq(replica.getId()), Mockito.same(replica));
+    }
+
+    @Test
+    public void healthyReverseSchedulerKeepsCommittedTargetProtectedAfterNextCycle() {
+        DrPlanVO plan = new DrPlanVO("remote-kvm-reverse-live", 1L, 2L,
+                DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
+        plan.setState(DrConstants.PLAN_STATE_READY);
+        plan.setActiveSide("TARGET");
+        plan.setCoordinatorWorkerHostId(103L);
+
+        DrCutoverSessionVO cutover = new DrCutoverSessionVO(plan.getId(), 41L,
+                DrConstants.RUN_TYPE_FAILOVER, DrConstants.PLAN_STATE_FAILED_OVER);
+        cutover.setCloudPromotionState("PROMOTED");
+        cutover.setEngineAckState("ACKNOWLEDGED");
+        DrPlanRuntimeVO authority = new DrPlanRuntimeVO(plan.getId());
+        authority.setProtectionState(DrConstants.PLAN_STATE_READY);
+        authority.setAuthoritySequence(113L);
+        DrReplicaVO replica = new DrReplicaVO(plan.getId(), plan.getTargetSiteId());
+        replica.setState(DrConstants.REPLICA_STATE_READY);
+        replica.setActiveSide("TARGET");
+        replica.setPowerState("POWERED_ON");
+        replica.setTargetVmId(165L);
+
+        String statusJson = "{\"action\":\"dr-scheduler-run\",\"state\":\"READY\","
+                + "\"step\":\"target-checkpoint-ready\",\"protection_state\":\"READY\","
+                + "\"active_side\":\"TARGET\",\"scheduler_state\":\"RUNNING\","
+                + "\"scheduler_health\":\"HEALTHY\",\"scheduler_pid_alive\":true,"
+                + "\"owner_matched\":true,\"baseline_state\":\"LOCAL_DURABLE\","
+                + "\"latest_completed_checkpoint_sequence\":114}";
+        Mockito.when(agentManager.easySend(Mockito.eq(103L), Mockito.any(FtctlDrStatusCommand.class)))
+                .thenAnswer(invocation -> {
+                    FtctlDrStatusCommand command = invocation.getArgument(1);
+                    FtctlDrStatusAnswer answer = new FtctlDrStatusAnswer(command, true, "ok", plan.getUuid(),
+                            null, "ok", "READY", "target-checkpoint-ready", 100,
+                            "2026-08-31T00:10:00Z", "2026-08-31T00:10:03Z", 3,
+                            114L, null, 0, "", statusJson);
+                    answer.setProtectionState("READY");
+                    answer.setSchedulerHealth("HEALTHY");
+                    answer.setSchedulerPidAlive(true);
+                    answer.setOwnerMatched(true);
+                    answer.setBaselineState("LOCAL_DURABLE");
+                    answer.setLatestCompletedCheckpointSequence(114L);
+                    return answer;
+                });
+        Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        Mockito.when(drCutoverSessionDao.findCurrentAuthorityByPlanId(plan.getId())).thenReturn(cutover);
+        Mockito.when(drPlanRuntimeDao.findByPlanId(plan.getId())).thenReturn(authority);
+        Mockito.when(drReplicaDao.listActiveByPlanId(plan.getId())).thenReturn(Collections.singletonList(replica));
+
+        DrAdapterResult result = adapter.refreshPlanProjection(plan);
+
+        Assert.assertTrue(result.isSuccess());
+        Assert.assertEquals(DrConstants.PLAN_STATE_READY, plan.getState());
+        Assert.assertEquals(DrConstants.PLAN_STATE_READY, authority.getProtectionState());
+        Assert.assertEquals("TARGET", plan.getActiveSide());
+    }
+
+    @Test
     public void authoritativeReprotectCompletesRunWhileRpoHealthRemainsDegraded() {
         DrPlanVO plan = new DrPlanVO("ftctl-dr-reprotect-overdue", 1L, 2L,
                 DrConstants.DIRECTION_VMWARE_TO_KVM);

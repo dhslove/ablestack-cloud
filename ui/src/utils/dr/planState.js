@@ -42,13 +42,15 @@ export function reconcileDrRunProjection (snapshot = {}, liveRuns = [], options 
   })
 }
 
-export function reconcileDrPlanProjection (cachedPlan = {}, livePlan = {}) {
+export function reconcileDrPlanProjection (cachedPlan = {}, livePlan = {}, options = {}) {
   const projection = Object.assign({}, cachedPlan)
-  const liveFields = [
-    ['actionavailability', 'actionAvailability'],
-    ['actioneligibility', 'actionEligibility'],
-    ['lastrun', 'lastRun']
-  ]
+  const liveFields = [['lastrun', 'lastRun']]
+  if (options.authoritativeActions !== true) {
+    liveFields.unshift(
+      ['actionavailability', 'actionAvailability'],
+      ['actioneligibility', 'actionEligibility']
+    )
+  }
 
   liveFields.forEach(([normalizedKey, alternateKey]) => {
     const value = livePlan[normalizedKey] !== undefined

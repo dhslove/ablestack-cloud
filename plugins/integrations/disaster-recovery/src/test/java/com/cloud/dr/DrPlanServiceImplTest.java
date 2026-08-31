@@ -71,6 +71,8 @@ public class DrPlanServiceImplTest {
     private DrProtectionAuthorityService drProtectionAuthorityService;
     @Mock
     private DrTestSessionDao drTestSessionDao;
+    @Mock
+    private DrCurrentAuthorityResolver drCurrentAuthorityResolver;
 
     @InjectMocks
     private DrPlanServiceImpl service;
@@ -200,12 +202,48 @@ public class DrPlanServiceImplTest {
                 .thenReturn(replicationEngine);
         Mockito.when(drRunDao.findLatestByPlanId(plan.getId())).thenReturn(controlReadyRun(plan));
         Mockito.when(drPlanReadinessValidator.validateForRelease(plan)).thenReturn(releaseReady());
+        Mockito.when(drCurrentAuthorityResolver.resolve(plan)).thenReturn(new DrCurrentAuthorityProjection(
+                "TARGET", "TARGET_PROTECTED", 113L, true, null, null, null));
 
         Map<String, Boolean> eligibility = service.getActionEligibility(plan.getId());
 
         Assert.assertTrue(eligibility.get("failback"));
         Assert.assertFalse(eligibility.get("reprotect"));
         Assert.assertTrue(eligibility.get("releaseProtection"));
+    }
+
+    @Test
+    public void ftctlDrEligibilityAllowsReprotectWhenTargetIsActiveButReverseProtectionStopped() {
+        DrPlanVO plan = new DrPlanVO("ftctl-dr-target-unprotected", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setAdminState(DrConstants.ADMIN_STATE_ENABLED);
+        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
+        plan.setState(DrConstants.PLAN_STATE_READY);
+        plan.setActiveSide("TARGET");
+        plan.setTargetReadyAt(new Date());
+        DrCutoverSessionVO cutover = new DrCutoverSessionVO(plan.getId(), 11L, "planned", "PROMOTED");
+        cutover.setCloudPromotionState("PROMOTED");
+        cutover.setEngineAckState("ACKNOWLEDGED");
+        cutover.setCloudAuthorityGeneration(3L);
+        DrReplicaVO replica = new DrReplicaVO(plan.getId(), plan.getTargetSiteId());
+        replica.setTargetVmId(256L);
+        replica.setActiveSide("TARGET");
+
+        Mockito.when(drPlanDao.findById(plan.getId())).thenReturn(plan);
+        Mockito.when(drAdapterRegistry.getReplicationEngine(DrConstants.ENGINE_TYPE_FTCTL_DR,
+                DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR)).thenReturn(replicationEngine);
+        Mockito.when(drRunDao.findLatestByPlanId(plan.getId())).thenReturn(controlReadyRun(plan));
+        Mockito.when(drPlanReadinessValidator.validateForRelease(plan)).thenReturn(releaseReady());
+        Mockito.when(drCutoverSessionDao.findLatestActiveByPlanId(plan.getId())).thenReturn(cutover);
+        Mockito.when(drReplicaDao.listActiveByPlanId(plan.getId())).thenReturn(Arrays.asList(replica));
+        Mockito.when(drCurrentAuthorityResolver.resolve(plan)).thenReturn(new DrCurrentAuthorityProjection(
+                "TARGET", "FAILED_OVER_UNPROTECTED", 113L, true, null, null, cutover));
+
+        Map<String, Boolean> eligibility = service.getActionEligibility(plan.getId());
+
+        Assert.assertTrue(eligibility.get("failback"));
+        Assert.assertTrue(eligibility.get("reprotect"));
+        Assert.assertTrue(service.getActionAvailability(plan.getId()).get("reprotect").isApplicable());
     }
 
     @Test

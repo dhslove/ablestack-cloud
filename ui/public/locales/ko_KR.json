@@ -6835,6 +6835,7 @@
   "label.dr.action.reprotect": "현재 운영 사이트에서 재보호",
   "label.dr.action.release.protection": "보호 관계 종료",
   "label.dr.state.unprotected": "보호 해제됨",
+  "label.dr.state.target_protected": "복구 사이트 보호 중",
   "message.dr.reprotect.preflight.automatic": "현재 운영 사이트, 원본 격리, 권한 세대 및 FTCTL 엔진 계약을 자동으로 확인한 뒤 재보호를 시작합니다.",
   "message.dr.release.effects": "보호 해제는 복제와 스케줄러를 중지하고 DR 구성을 해제합니다. 현재 운영 가상머신과 디스크, 네트워크는 삭제하거나 전원을 변경하지 않습니다.",
   "label.dr.release.resource.disposition": "복제 자원 처리",

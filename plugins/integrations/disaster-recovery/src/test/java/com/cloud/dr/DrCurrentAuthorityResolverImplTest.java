@@ -64,6 +64,32 @@ public class DrCurrentAuthorityResolverImplTest {
     }
 
     @Test
+    public void healthyReverseSchedulerProjectsTargetProtectedAuthority() {
+        DrPlanVO plan = Mockito.mock(DrPlanVO.class);
+        Mockito.when(plan.getId()).thenReturn(39L);
+        Mockito.when(plan.getActiveSide()).thenReturn("TARGET");
+        DrCutoverSessionVO cutover = Mockito.mock(DrCutoverSessionVO.class);
+        Mockito.when(cutover.getCloudPromotionState()).thenReturn("PROMOTED");
+        Mockito.when(cutover.getEngineAckState()).thenReturn("ACKNOWLEDGED");
+        Mockito.when(drCutoverSessionDao.findCurrentAuthorityByPlanId(39L)).thenReturn(cutover);
+        DrPlanRuntimeVO runtime = new DrPlanRuntimeVO(39L);
+        runtime.setProtectionState(DrConstants.PLAN_STATE_READY);
+        runtime.setSchedulerState("RUNNING");
+        runtime.setSchedulerHealthState("HEALTHY");
+        runtime.setSchedulerPidAlive(true);
+        runtime.setOwnerMatched(true);
+        runtime.setBaselineState("LOCAL_DURABLE");
+        Mockito.when(drProtectionAuthorityService.getAuthority(39L))
+                .thenReturn(new DrProtectionAuthoritySnapshot(runtime, true));
+
+        DrCurrentAuthorityProjection projection = resolver.resolve(plan);
+
+        Assert.assertTrue(projection.isConsistent());
+        Assert.assertEquals("TARGET", projection.getAuthoritySide());
+        Assert.assertEquals("TARGET_PROTECTED", projection.getAuthorityPhase());
+    }
+
+    @Test
     public void sourceAuthorityRecognizesActiveFailbackConvergence() {
         DrPlanVO plan = Mockito.mock(DrPlanVO.class);
         Mockito.when(plan.getId()).thenReturn(38L);

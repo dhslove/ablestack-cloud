@@ -421,7 +421,8 @@ public class DrResponseGenerator extends ManagerBase {
                 && StringUtils.equalsIgnoreCase(cutoverSession.getCloudPromotionState(), "PROMOTED")
                 && StringUtils.equalsIgnoreCase(cutoverSession.getEngineAckState(), "ACKNOWLEDGED");
         String mode;
-        if (target && StringUtils.contains(phase, "REPROTECT")) {
+        if (target && (StringUtils.contains(phase, "REPROTECT")
+                || StringUtils.equals(phase, "TARGET_PROTECTED"))) {
             mode = "REVERSE_LIVE";
         } else if (target && acknowledged) {
             mode = "CUTOVER_FROZEN";

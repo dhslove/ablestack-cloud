@@ -235,6 +235,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
 
         FtctlDrStatusAnswer authorityStatus = (FtctlDrStatusAnswer) answer;
         JsonObject authorityDetails = buildDetails(plan, hostId, authorityStatus);
+        JsonObject authorityRuntime = parseObject(authorityStatus.getStatusJson());
         if (!isCorrelatedRuntime(plan, null, authorityStatus)) {
             authorityDetails.addProperty("projectionIgnored", true);
             authorityDetails.addProperty("reason", "STALE_PLAN_AUTHORITY_IGNORED");
@@ -244,7 +245,8 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             return DrAdapterResult.success("Ignored stale FTCTL_DR authority status", GSON.toJson(authorityDetails));
         }
         if (projectionRun == null && isRemoteKvmToKvmPlan(plan)
-                && findCommittedTargetAuthority(plan) != null) {
+                && findCommittedTargetAuthority(plan) != null
+                && !isTargetProtectedRuntime(authorityStatus, authorityRuntime)) {
             preserveFailedOverTargetAuthority(plan);
             authorityDetails.addProperty("committedTargetAuthorityPreserved", true);
             return DrAdapterResult.success("Committed target authority retained while no transition is active",
@@ -254,7 +256,6 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             return handleStatusBoundaryFailure(plan, projectionRun, authorityStatus, authorityDetails,
                     "FTCTL_DR authority status failed validation; last-good projection was retained");
         }
-        JsonObject authorityRuntime = parseObject(authorityStatus.getStatusJson());
         DrRunVO canceledFailoverRun = resolveCanceledFailoverReconciliationRun(plan, projectionRun);
         if (reconcileCanceledFailoverPreparation(plan, canceledFailoverRun, authorityRuntime)) {
             authorityDetails.addProperty("canceledFailoverCompensated", true);
@@ -408,6 +409,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
 
         DrCutoverSessionVO committedTargetSession = findCommittedTargetAuthority(plan);
         boolean committedTargetAuthority = committedTargetSession != null;
+        boolean targetProtectedRuntime = isTargetProtectedRuntime(status, runtime);
         DrPlanRuntimeVO authority = drPlanRuntimeDao.findByPlanId(plan.getId());
         if (committedTargetAuthority) {
             if (authority != null) {
@@ -616,6 +618,9 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             errorCode = StringUtils.defaultIfBlank(nbdTeardownErrorCode, "DR_NBD_RECOVERY_REQUIRED");
             errorMessage = StringUtils.defaultIfBlank(nbdTeardownErrorMessage,
                     "NBD teardown did not reach a stable detached state");
+        } else if (committedTargetAuthority && targetProtectedRuntime) {
+            protectionState = DrConstants.PLAN_STATE_READY;
+            freshnessState = "WITHIN_RPO";
         } else if (committedTargetAuthority) {
             protectionState = "FAILED_OVER_UNPROTECTED";
             freshnessState = "WITHIN_RPO";
@@ -647,7 +652,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         authority.setRuntimeGeneration(generation);
         authority.setSchedulerState(schedulerState);
         authority.setSchedulerDesiredState(StringUtils.defaultIfBlank(schedulerDesiredState,
-                StringUtils.equalsIgnoreCase(plan.getActiveSide(), "TARGET") ? "STOPPED" : "RUNNING"));
+                committedTargetAuthority && !targetProtectedRuntime ? "STOPPED" : "RUNNING"));
         authority.setSchedulerServiceUnit(schedulerServiceUnit);
         authority.setSchedulerUnitActiveState(schedulerUnitActiveState);
         authority.setSchedulerUnitSubState(schedulerUnitSubState);
@@ -2536,6 +2541,68 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                 && StringUtils.equalsIgnoreCase(stringValue(runtime, "active_side"), "TARGET")
                 && (StringUtils.isNotBlank(stringValue(runtime, "reprotect_session_id"))
                 || StringUtils.isNotBlank(stringValue(runtime, "reprotect_completed_at")));
+    }
+
+    private boolean isDurableReprotectedRuntime(FtctlDrStatusAnswer status, JsonObject runtime) {
+        if (status == null || runtime == null || !status.getResult()) {
+            return false;
+        }
+        String errorCode = StringUtils.defaultIfBlank(status.getErrorCode(), stringValue(runtime, "error_code"));
+        Long checkpointSequence = longValue(runtime, "checkpoint_sequence");
+        if (checkpointSequence == null) {
+            checkpointSequence = status.getLatestCompletedCheckpointSequence();
+        }
+        if (checkpointSequence == null) {
+            checkpointSequence = longValue(runtime, "latest_completed_checkpoint_sequence");
+        }
+        String baselineState = StringUtils.defaultIfBlank(status.getBaselineState(),
+                stringValue(runtime, "baseline_state"));
+        return StringUtils.isBlank(errorCode)
+                && StringUtils.equalsIgnoreCase(stringValue(runtime, "action"), "dr-reprotect")
+                && StringUtils.equalsIgnoreCase(StringUtils.defaultIfBlank(status.getState(),
+                        stringValue(runtime, "state")), DrConstants.PLAN_STATE_READY)
+                && StringUtils.equalsIgnoreCase(StringUtils.defaultIfBlank(status.getStep(),
+                        stringValue(runtime, "step")), "reprotect-ready")
+                && StringUtils.equalsIgnoreCase(StringUtils.defaultIfBlank(status.getProtectionState(),
+                        stringValue(runtime, "protection_state")), DrConstants.PLAN_STATE_READY)
+                && StringUtils.equalsIgnoreCase(stringValue(runtime, "active_side"), "TARGET")
+                && StringUtils.equalsAnyIgnoreCase(baselineState, "LOCAL_DURABLE", "DURABLE", "COMMITTED")
+                && StringUtils.isNotBlank(stringValue(runtime, "reprotect_session_id"))
+                && StringUtils.isNotBlank(stringValue(runtime, "reprotect_restore_point_ref"))
+                && checkpointSequence != null && checkpointSequence > 0L;
+    }
+
+    private boolean isTargetProtectedRuntime(FtctlDrStatusAnswer status, JsonObject runtime) {
+        if (isDurableReprotectedRuntime(status, runtime)) {
+            return true;
+        }
+        if (status == null || runtime == null || !status.getResult()) {
+            return false;
+        }
+        String errorCode = StringUtils.defaultIfBlank(status.getErrorCode(), stringValue(runtime, "error_code"));
+        String schedulerState = stringValue(runtime, "scheduler_state");
+        String schedulerHealth = StringUtils.defaultIfBlank(status.getSchedulerHealth(),
+                stringValue(runtime, "scheduler_health"));
+        String protectionState = StringUtils.defaultIfBlank(status.getProtectionState(),
+                stringValue(runtime, "protection_state"));
+        Boolean pidAlive = status.getSchedulerPidAlive() != null ? status.getSchedulerPidAlive()
+                : booleanValue(runtime, "scheduler_pid_alive");
+        Boolean ownerMatched = status.getOwnerMatched() != null ? status.getOwnerMatched()
+                : booleanValue(runtime, "owner_matched");
+        Long checkpointSequence = status.getLatestCompletedCheckpointSequence() != null
+                ? status.getLatestCompletedCheckpointSequence()
+                : longValue(runtime, "latest_completed_checkpoint_sequence");
+        String baselineState = StringUtils.defaultIfBlank(status.getBaselineState(),
+                stringValue(runtime, "baseline_state"));
+        return StringUtils.isBlank(errorCode)
+                && StringUtils.equalsIgnoreCase(stringValue(runtime, "active_side"), "TARGET")
+                && StringUtils.equalsIgnoreCase(protectionState, DrConstants.PLAN_STATE_READY)
+                && StringUtils.equalsIgnoreCase(schedulerState, "RUNNING")
+                && StringUtils.equalsIgnoreCase(schedulerHealth, "HEALTHY")
+                && Boolean.TRUE.equals(pidAlive)
+                && Boolean.TRUE.equals(ownerMatched)
+                && StringUtils.equalsAnyIgnoreCase(baselineState, "LOCAL_DURABLE", "DURABLE", "COMMITTED")
+                && checkpointSequence != null && checkpointSequence > 0L;
     }
 
     private void reconcileAcceptedRunFromStatus(DrPlanVO plan, FtctlDrStatusAnswer status, JsonObject runtime) {

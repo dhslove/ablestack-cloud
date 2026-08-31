@@ -2765,7 +2765,9 @@ export default {
       }
       if (options.authoritative === true) {
         const publicId = cachedPlan.id || cachedPlan.uuid || this.detailPlan.id || this.detailId
-        const reconciledPlan = reconcileDrPlanProjection(cachedPlan, this.detailPlan)
+        const reconciledPlan = reconcileDrPlanProjection(cachedPlan, this.detailPlan, {
+          authoritativeActions: true
+        })
         this.detailPlan = Object.assign({}, this.detailPlan, reconciledPlan, {
           id: publicId,
           uuid: publicId

@@ -74,6 +74,8 @@ public class DrPlanServiceImpl extends ManagerBase implements DrPlanService {
     private DrCutoverSessionDao drCutoverSessionDao;
     @Inject
     private DrFtctlActionCapabilityService drFtctlActionCapabilityService;
+    @Inject
+    private DrCurrentAuthorityResolver drCurrentAuthorityResolver;
 
     @Override
     public DrPlanVO createPlan(DrPlanVO plan) {
@@ -303,6 +305,12 @@ public class DrPlanServiceImpl extends ManagerBase implements DrPlanService {
                 ? drProtectionAuthorityService.getAuthority(planId) : null;
         boolean normalCutoverReady = !ftctlDrPlan || (authority != null && authority.isNormalCutoverReady());
         boolean committedTargetAuthority = !ftctlDrPlan || hasCommittedTargetAuthority(plan);
+        DrCurrentAuthorityProjection currentAuthority = ftctlDrPlan && drCurrentAuthorityResolver != null
+                ? drCurrentAuthorityResolver.resolve(plan) : null;
+        boolean targetProtected = currentAuthority != null
+                && StringUtils.equalsIgnoreCase(currentAuthority.getAuthorityPhase(), "TARGET_PROTECTED");
+        boolean targetNeedsReprotect = ftctlDrPlan && targetActive && committedTargetAuthority
+                && !targetProtected;
         DrFtctlActionCapabilitySnapshot capabilitySnapshot = ftctlDrPlan
                 && drFtctlActionCapabilityService != null
                 && (plan.getCoordinatorWorkerHostId() != null || plan.getSourceWorkerHostId() != null
@@ -330,7 +338,7 @@ public class DrPlanServiceImpl extends ManagerBase implements DrPlanService {
         eligibility.put("failback", enabled && !activeRun && hasEngine
                 && (legacyFtctlPlan || (ftctlDrPlan && ftctlDrControlReady && (failedOver || targetActive))));
         eligibility.put("reprotect", enabled && !activeRun && hasEngine
-                && (legacyFtctlPlan || (ftctlDrPlan && ftctlDrControlReady && failedOver
+                && (legacyFtctlPlan || (ftctlDrPlan && ftctlDrControlReady && targetNeedsReprotect
                         && targetActive && committedTargetAuthority && !testRunning)));
         eligibility.put("adoptReplica", enabled && !activeRun && hasEngine && legacyFtctlPlan);
         eligibility.put("releaseProtection", enabled && !activeRun && hasEngine && ftctlDrPlan && ftctlDrControlReady && ftctlDrReleaseReady);
@@ -375,7 +383,7 @@ public class DrPlanServiceImpl extends ManagerBase implements DrPlanService {
         context.testRunning = testRunning;
         context.targetReady = targetReady;
         context.normalCutoverReady = normalCutoverReady;
-        context.failedOver = failedOver;
+        context.failedOver = failedOver || targetNeedsReprotect;
         context.committedTargetAuthority = committedTargetAuthority;
         context.ftctlControlReady = ftctlDrControlReady;
         context.ftctlReleaseReady = ftctlDrReleaseReady;
