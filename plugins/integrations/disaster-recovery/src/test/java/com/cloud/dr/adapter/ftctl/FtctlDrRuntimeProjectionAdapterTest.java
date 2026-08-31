@@ -1590,6 +1590,143 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     }
 
     @Test
+    public void cutoverCommitPrepareReusesThePersistedAttempt() {
+        DrPlanVO plan = new DrPlanVO("cutover-attempt-plan", 1L, 2L,
+                DrConstants.DIRECTION_KVM_TO_KVM);
+        DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_FAILOVER);
+        DrCutoverSessionVO session = new DrCutoverSessionVO(plan.getId(), run.getId(),
+                run.getRunType(), "CUTOVER_READY");
+        DrTargetPowerOnResult powerOn = new DrTargetPowerOnResult(92L, "target-uuid", "POWERED_ON",
+                "POWER_STATE_VALIDATED", new Date(), new Date(), false);
+
+        DrCutoverSessionVO first = ReflectionTestUtils.invokeMethod(adapter,
+                "prepareCutoverCommitSession", plan, run, session, powerOn, 546L,
+                plan.getUuid() + ":" + run.getUuid(), "ACKNOWLEDGED", "POWERED_OFF");
+        String attemptId = first.getCommitAttemptId();
+        String envelopeSha = first.getCommitEnvelopeSha256();
+
+        first.setEngineAckState("RETRY_REQUIRED");
+        DrCutoverSessionVO retry = ReflectionTestUtils.invokeMethod(adapter,
+                "prepareCutoverCommitSession", plan, run, first, powerOn, 546L,
+                plan.getUuid() + ":" + run.getUuid(), "ACKNOWLEDGED", "POWERED_OFF");
+
+        Assert.assertNotNull(attemptId);
+        Assert.assertEquals(attemptId, retry.getCommitAttemptId());
+        Assert.assertEquals(envelopeSha, retry.getCommitEnvelopeSha256());
+    }
+
+    @Test
+    public void lateCutoverCommitFailureCannotRegressAcknowledgedAuthority() {
+        DrCutoverSessionVO session = new DrCutoverSessionVO(2L, 71L,
+                DrConstants.RUN_TYPE_FAILOVER, DrConstants.PLAN_STATE_FAILED_OVER);
+        session.setCommitAttemptId("attempt-accepted");
+        session.setCommitState("ACKNOWLEDGED");
+        session.setEngineAckState("ACKNOWLEDGED");
+        session.setCloudPromotionState("PROMOTED");
+
+        DrCutoverSessionVO result = ReflectionTestUtils.invokeMethod(adapter,
+                "recordCutoverCommitFailure", session, "attempt-accepted",
+                "DR_CUTOVER_COMMIT_CONFLICT");
+
+        Assert.assertSame(session, result);
+        Assert.assertEquals("ACKNOWLEDGED", session.getEngineAckState());
+        Assert.assertEquals("ACKNOWLEDGED", session.getCommitState());
+        Assert.assertEquals("PROMOTED", session.getCloudPromotionState());
+        Assert.assertNull(session.getErrorCode());
+        Assert.assertNull(session.getErrorMessage());
+    }
+
+    @Test
+    public void matchingEngineAuthorityRepairsRetryRequiredCutoverForFailbackReadiness() {
+        DrPlanVO plan = new DrPlanVO("engine-authority-repair", 1L, 2L,
+                DrConstants.DIRECTION_KVM_TO_KVM);
+        ReflectionTestUtils.setField(plan, "id", 2L);
+        plan.setState(DrConstants.PLAN_STATE_ERROR);
+        plan.setActiveSide(DrConstants.AUTHORITY_SIDE_TARGET);
+        plan.setLastErrorCode("DR_CUTOVER_COMMIT_FAILED");
+        plan.setLastErrorMessage("stale conflict");
+        DrCutoverSessionVO session = new DrCutoverSessionVO(plan.getId(), 71L,
+                DrConstants.RUN_TYPE_FAILOVER, "ENGINE_COMMIT_PENDING");
+        session.setCloudAuthorityGeneration(546L);
+        session.setCloudPromotionState("POWER_ON_VALIDATED");
+        session.setEngineAckState("RETRY_REQUIRED");
+        session.setCommitState("UNKNOWN");
+        session.setErrorCode("DR_CUTOVER_COMMIT_FAILED");
+        session.setErrorMessage("stale conflict");
+        DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_FAILOVER);
+        run.setState(DrConstants.RUN_STATE_SUCCEEDED);
+        run.setCompleted(new Date());
+        DrPlanRuntimeVO planRuntime = new DrPlanRuntimeVO(plan.getId());
+        planRuntime.setProtectionState(DrConstants.PLAN_STATE_ERROR);
+
+        JsonObject runtime = new JsonObject();
+        runtime.addProperty("state", DrConstants.PLAN_STATE_FAILED_OVER);
+        runtime.addProperty("active_side", DrConstants.AUTHORITY_SIDE_TARGET);
+        runtime.addProperty("target_promotion_state", "PROMOTED");
+        runtime.addProperty("engine_ack_state", "ACKNOWLEDGED");
+        runtime.addProperty("cloud_cutover_session_id", session.getUuid());
+        runtime.addProperty("cloud_authority_generation", 546L);
+        FtctlDrStatusCommand command = new FtctlDrStatusCommand(plan.getUuid(), null,
+                FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY);
+        FtctlDrStatusAnswer status = new FtctlDrStatusAnswer(command, true, "ok", plan.getUuid(), null,
+                "ok", DrConstants.PLAN_STATE_FAILED_OVER, "failed-over", 100,
+                null, null, null, 546L, null, 0, "", runtime.toString());
+
+        Mockito.when(drCutoverSessionDao.findLatestActiveByPlanId(plan.getId())).thenReturn(session);
+        Mockito.when(drRunDao.findById(session.getRunId())).thenReturn(run);
+        Mockito.when(drPlanRuntimeDao.findByPlanId(plan.getId())).thenReturn(planRuntime);
+        Mockito.when(drReplicaDao.listActiveByPlanId(plan.getId())).thenReturn(Collections.emptyList());
+
+        DrCutoverSessionVO repaired = ReflectionTestUtils.invokeMethod(adapter,
+                "reconcileAcknowledgedTargetAuthority", plan, status, runtime);
+
+        Assert.assertSame(session, repaired);
+        Assert.assertEquals(DrConstants.PLAN_STATE_FAILED_OVER, plan.getState());
+        Assert.assertEquals(DrConstants.AUTHORITY_SIDE_TARGET, plan.getActiveSide());
+        Assert.assertNull(plan.getLastErrorCode());
+        Assert.assertEquals(DrConstants.PLAN_STATE_FAILED_OVER, session.getState());
+        Assert.assertEquals("PROMOTED", session.getCloudPromotionState());
+        Assert.assertEquals("ACKNOWLEDGED", session.getEngineAckState());
+        Assert.assertEquals("ACKNOWLEDGED", session.getCommitState());
+        Assert.assertNull(session.getErrorCode());
+        Assert.assertEquals("FAILED_OVER_UNPROTECTED", planRuntime.getProtectionState());
+        Assert.assertEquals("STOPPED", planRuntime.getSchedulerState());
+    }
+
+    @Test
+    public void mismatchedEngineAuthorityCannotRepairAnotherCutoverSession() {
+        DrPlanVO plan = new DrPlanVO("engine-authority-mismatch", 1L, 2L,
+                DrConstants.DIRECTION_KVM_TO_KVM);
+        ReflectionTestUtils.setField(plan, "id", 3L);
+        plan.setState(DrConstants.PLAN_STATE_ERROR);
+        plan.setActiveSide(DrConstants.AUTHORITY_SIDE_TARGET);
+        DrCutoverSessionVO session = new DrCutoverSessionVO(plan.getId(), 72L,
+                DrConstants.RUN_TYPE_FAILOVER, "ENGINE_COMMIT_PENDING");
+        session.setCloudAuthorityGeneration(546L);
+        session.setEngineAckState("RETRY_REQUIRED");
+        JsonObject runtime = new JsonObject();
+        runtime.addProperty("active_side", DrConstants.AUTHORITY_SIDE_TARGET);
+        runtime.addProperty("target_promotion_state", "PROMOTED");
+        runtime.addProperty("engine_ack_state", "ACKNOWLEDGED");
+        runtime.addProperty("cloud_cutover_session_id", "another-session");
+        runtime.addProperty("cloud_authority_generation", 546L);
+        FtctlDrStatusCommand command = new FtctlDrStatusCommand(plan.getUuid(), null,
+                FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY);
+        FtctlDrStatusAnswer status = new FtctlDrStatusAnswer(command, true, "ok", plan.getUuid(), null,
+                "ok", DrConstants.PLAN_STATE_FAILED_OVER, "failed-over", 100,
+                null, null, null, 546L, null, 0, "", runtime.toString());
+        Mockito.when(drCutoverSessionDao.findLatestActiveByPlanId(plan.getId())).thenReturn(session);
+
+        DrCutoverSessionVO repaired = ReflectionTestUtils.invokeMethod(adapter,
+                "reconcileAcknowledgedTargetAuthority", plan, status, runtime);
+
+        Assert.assertNull(repaired);
+        Assert.assertEquals(DrConstants.PLAN_STATE_ERROR, plan.getState());
+        Assert.assertEquals("RETRY_REQUIRED", session.getEngineAckState());
+        Mockito.verify(drPlanDao, Mockito.never()).update(Mockito.eq(plan.getId()), Mockito.any(DrPlanVO.class));
+    }
+
+    @Test
     public void refreshPlanProjectionFailsAcceptedRunWhenStatusRefreshFails() {
         DrPlanVO plan = new DrPlanVO("ftctl-dr-plan", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
         plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);

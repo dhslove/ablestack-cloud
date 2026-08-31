@@ -244,8 +244,10 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                     "Ignored FTCTL_DR authority status for a different plan", GSON.toJson(authorityDetails));
             return DrAdapterResult.success("Ignored stale FTCTL_DR authority status", GSON.toJson(authorityDetails));
         }
+        DrCutoverSessionVO reconciledTargetAuthority = reconcileAcknowledgedTargetAuthority(
+                plan, authorityStatus, authorityRuntime);
         if (projectionRun == null && isRemoteKvmToKvmPlan(plan)
-                && findCommittedTargetAuthority(plan) != null
+                && (reconciledTargetAuthority != null || findCommittedTargetAuthority(plan) != null)
                 && !isTargetProtectedRuntime(authorityStatus, authorityRuntime)) {
             preserveFailedOverTargetAuthority(plan);
             authorityDetails.addProperty("committedTargetAuthorityPreserved", true);
@@ -972,6 +974,89 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                 && StringUtils.equalsIgnoreCase(session.getEngineAckState(), "ACKNOWLEDGED")
                 && StringUtils.equalsIgnoreCase(session.getState(), DrConstants.PLAN_STATE_FAILED_OVER)
                 ? session : null;
+    }
+
+    private DrCutoverSessionVO reconcileAcknowledgedTargetAuthority(DrPlanVO plan,
+            FtctlDrStatusAnswer status, JsonObject runtime) {
+        if (plan == null || runtime == null || drCutoverSessionDao == null
+                || !StringUtils.equalsIgnoreCase(stringValue(runtime, "active_side"),
+                        DrConstants.AUTHORITY_SIDE_TARGET)
+                || !StringUtils.equalsIgnoreCase(stringValue(runtime, "target_promotion_state"), "PROMOTED")
+                || !StringUtils.equalsIgnoreCase(stringValue(runtime, "engine_ack_state"), "ACKNOWLEDGED")) {
+            return null;
+        }
+        String cloudSessionUuid = stringValue(runtime, "cloud_cutover_session_id");
+        Long authorityGeneration = longValue(runtime, "cloud_authority_generation");
+        DrCutoverSessionVO candidate = drCutoverSessionDao.findLatestActiveByPlanId(plan.getId());
+        if (!matchesEngineAuthorityTuple(candidate, cloudSessionUuid, authorityGeneration)) {
+            return null;
+        }
+        DrCutoverSessionVO reconciled = reconcileCutoverSessionFromEngine(candidate,
+                cloudSessionUuid, authorityGeneration);
+        if (reconciled == null) {
+            return null;
+        }
+        Date committedAt = reconciled.getEngineAckAt() != null ? reconciled.getEngineAckAt() : new Date();
+        plan.setState(DrConstants.PLAN_STATE_FAILED_OVER);
+        plan.setActiveSide(DrConstants.AUTHORITY_SIDE_TARGET);
+        plan.setLastErrorCode(null);
+        plan.setLastErrorMessage(null);
+        plan.markUpdated();
+        drPlanDao.update(plan.getId(), plan);
+        updateReplicaRuntimeProjection(plan, status, runtime, DrConstants.REPLICA_STATE_FAILED_OVER,
+                DrConstants.AUTHORITY_SIDE_TARGET, "POWERED_ON");
+        applyFailedOverRuntime(plan, status, authorityGeneration, committedAt);
+        DrRunVO run = drRunDao != null ? drRunDao.findById(reconciled.getRunId()) : null;
+        if (run != null && !StringUtils.equalsIgnoreCase(run.getState(), DrConstants.RUN_STATE_SUCCEEDED)
+                && run.getCompleted() == null) {
+            completeRunFromProjection(plan, run, status);
+        }
+        return reconciled;
+    }
+
+    private DrCutoverSessionVO reconcileCutoverSessionFromEngine(DrCutoverSessionVO session,
+            String cloudSessionUuid, Long authorityGeneration) {
+        if (session.getId() == 0) {
+            if (!matchesEngineAuthorityTuple(session, cloudSessionUuid, authorityGeneration)) {
+                return null;
+            }
+            return applyEngineAuthorityAcknowledgement(session, new Date());
+        }
+        final long sessionId = session.getId();
+        return Transaction.execute(new TransactionCallback<DrCutoverSessionVO>() {
+            @Override
+            public DrCutoverSessionVO doInTransaction(TransactionStatus transactionStatus) {
+                DrCutoverSessionVO current = drCutoverSessionDao.lockRow(sessionId, true);
+                if (!matchesEngineAuthorityTuple(current, cloudSessionUuid, authorityGeneration)) {
+                    return null;
+                }
+                return applyEngineAuthorityAcknowledgement(current, new Date());
+            }
+        });
+    }
+
+    private boolean matchesEngineAuthorityTuple(DrCutoverSessionVO session,
+            String cloudSessionUuid, Long authorityGeneration) {
+        return session != null && StringUtils.isNotBlank(cloudSessionUuid) && authorityGeneration != null
+                && StringUtils.equals(session.getUuid(), cloudSessionUuid)
+                && authorityGeneration.equals(session.getCloudAuthorityGeneration());
+    }
+
+    private DrCutoverSessionVO applyEngineAuthorityAcknowledgement(DrCutoverSessionVO session, Date acknowledgedAt) {
+        if (isAcknowledgedTargetCutover(session)) {
+            return session;
+        }
+        session.setEngineAckState("ACKNOWLEDGED");
+        session.setEngineAckAt(acknowledgedAt);
+        session.setCommitState("ACKNOWLEDGED");
+        session.setCloudPromotionState("PROMOTED");
+        session.setState(DrConstants.PLAN_STATE_FAILED_OVER);
+        session.setCompletedAt(acknowledgedAt);
+        session.setErrorCode(null);
+        session.setErrorMessage(null);
+        session.markUpdated();
+        drCutoverSessionDao.update(session.getId(), session);
+        return session;
     }
 
     boolean isCompletedFailbackSourceAuthorityHandoff(DrPlanVO plan, DrPlanRuntimeVO authority,
@@ -1769,9 +1854,14 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         session.setSchedulerRecoveryState(stringValue(runtime, "scheduler_recovery_state"));
         session.setCleanupRequired(StringUtils.equalsAnyIgnoreCase(status.getState(), "TESTING", "TEST_RUNNING", "ERROR"));
         session.setDetailsJson(compactRuntimeStatusJson(status.getStatusJson()));
-        session.setErrorCode(status.getErrorCode());
-        session.setErrorMessage(StringUtils.isNotBlank(status.getErrorCode())
-                ? projectionFailureMessage(status.getErrorCode(), status, runtime) : null);
+        if (isAcknowledgedTargetCutover(session)) {
+            session.setErrorCode(null);
+            session.setErrorMessage(null);
+        } else {
+            session.setErrorCode(status.getErrorCode());
+            session.setErrorMessage(StringUtils.isNotBlank(status.getErrorCode())
+                    ? projectionFailureMessage(status.getErrorCode(), status, runtime) : null);
+        }
         session.markUpdated();
         drCutoverSessionDao.update(session.getId(), session);
         upsertCutoverDisks(plan, session, runtime);
@@ -1798,6 +1888,107 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                 stringValue(runtime, "source_fence_state"));
         String sourcePowerState = StringUtils.defaultIfBlank(session.getSourcePowerState(),
                 stringValue(runtime, "source_power_state"));
+        session = prepareCutoverCommitSession(plan, run, session, powerOnResult, generation,
+                engineSessionId, sourceFenceState, sourcePowerState);
+        final String commitAttemptId = session.getCommitAttemptId();
+
+        plan.setState(DrConstants.PLAN_STATE_COMMIT_VERIFYING);
+        plan.setLastErrorCode(null);
+        plan.setLastErrorMessage(null);
+        plan.markUpdated();
+        drPlanDao.update(plan.getId(), plan);
+        runtime.addProperty("state", "CUTOVER_READY");
+        runtime.addProperty("target_power_state", powerOnResult.getPowerState());
+        runtime.addProperty("target_promotion_state", "AWAITING_ENGINE_ACK");
+        runtime.addProperty("boot_validation_state", powerOnResult.getBootValidationState());
+        runtime.addProperty("cloud_authority_generation", generation);
+        runtime.addProperty("cutover_commit_state", "PREPARED");
+        recordRunStep(run, "cloud-promotion", STEP_ORDER_CLOUD_PROMOTION, DrConstants.STEP_STATE_RUNNING,
+                90, GSON.toJson(runtime), null, null);
+
+        Answer answer = sendCutoverCommit(plan, run, session, powerOnResult, runtime, generation);
+        if (answer == null || !answer.getResult()) {
+            String message = answer != null ? answer.getDetails() : "Agent returned no cutover commit acknowledgement";
+            DrCutoverSessionVO current = recordCutoverCommitFailure(session, commitAttemptId, message);
+            if (current == null) {
+                LOGGER.info("Ignored stale cutover commit failure for Plan {} Run {} attempt {}",
+                        plan.getUuid(), run.getUuid(), commitAttemptId);
+                return false;
+            }
+            if (isAcknowledgedTargetCutover(current)) {
+                session = current;
+            } else {
+                session = current;
+                plan.setState(DrConstants.PLAN_STATE_COMMIT_VERIFYING);
+                plan.setLastErrorCode("DR_CUTOVER_COMMIT_FAILED");
+                plan.setLastErrorMessage(message);
+                plan.markUpdated();
+                drPlanDao.update(plan.getId(), plan);
+                recordRunStep(run, "engine-state-reconciliation", STEP_ORDER_ENGINE_ACK, DrConstants.STEP_STATE_RUNNING,
+                        95, GSON.toJson(runtime), "DR_CUTOVER_COMMIT_FAILED", message);
+                return false;
+            }
+        }
+
+        session = acknowledgeCutoverCommit(session, commitAttemptId);
+        if (session == null) {
+            LOGGER.info("Ignored stale cutover commit acknowledgement for Plan {} Run {} attempt {}",
+                    plan.getUuid(), run.getUuid(), commitAttemptId);
+            return false;
+        }
+        Date now = session.getEngineAckAt() != null ? session.getEngineAckAt() : new Date();
+        plan.setState(DrConstants.PLAN_STATE_FAILED_OVER);
+        plan.setActiveSide("TARGET");
+        plan.setLastErrorCode(null);
+        plan.setLastErrorMessage(null);
+        plan.markUpdated();
+        drPlanDao.update(plan.getId(), plan);
+        runtime.addProperty("state", "FAILED_OVER");
+        runtime.addProperty("active_side", "TARGET");
+        runtime.addProperty("target_promotion_state", "PROMOTED");
+        runtime.addProperty("cutover_commit_state", "ACKNOWLEDGED");
+        runtime.addProperty("engine_ack_state", "ACKNOWLEDGED");
+        runtime.addProperty("engine_ack_at", DateUtil.getDateDisplayString(TimeZone.getTimeZone("GMT"), now));
+        updateReplicaRuntimeProjection(plan, status, runtime, DrConstants.REPLICA_STATE_FAILED_OVER,
+                "TARGET", powerOnResult.getPowerState());
+        recordRunStep(run, "cloud-promotion", STEP_ORDER_CLOUD_PROMOTION, DrConstants.STEP_STATE_SUCCEEDED,
+                100, GSON.toJson(runtime), null, null);
+        applyFailedOverRuntime(plan, status, generation, now);
+        upsertCutoverDisks(plan, session, runtime);
+        completeRunFromProjection(plan, run, status);
+        return true;
+    }
+
+    private DrCutoverSessionVO prepareCutoverCommitSession(DrPlanVO plan, DrRunVO run,
+            DrCutoverSessionVO session, DrTargetPowerOnResult powerOnResult, long generation,
+            String engineSessionId, String sourceFenceState, String sourcePowerState) {
+        if (session.getId() == 0) {
+            prepareCutoverCommitSessionFields(plan, run, session, powerOnResult, generation,
+                    engineSessionId, sourceFenceState, sourcePowerState);
+            drCutoverSessionDao.update(session.getId(), session);
+            return session;
+        }
+        final long sessionId = session.getId();
+        return Transaction.execute(new TransactionCallback<DrCutoverSessionVO>() {
+            @Override
+            public DrCutoverSessionVO doInTransaction(TransactionStatus transactionStatus) {
+                DrCutoverSessionVO current = drCutoverSessionDao.lockRow(sessionId, true);
+                if (current == null) {
+                    throw new CloudRuntimeException("Cutover session disappeared before authority commit");
+                }
+                if (!isAcknowledgedTargetCutover(current)) {
+                    prepareCutoverCommitSessionFields(plan, run, current, powerOnResult, generation,
+                            engineSessionId, sourceFenceState, sourcePowerState);
+                    drCutoverSessionDao.update(current.getId(), current);
+                }
+                return current;
+            }
+        });
+    }
+
+    private void prepareCutoverCommitSessionFields(DrPlanVO plan, DrRunVO run, DrCutoverSessionVO session,
+            DrTargetPowerOnResult powerOnResult, long generation, String engineSessionId,
+            String sourceFenceState, String sourcePowerState) {
         session.setCloudAuthorityGeneration(generation);
         session.setCommitContractVersion(DrCutoverCommitEnvelope.CONTRACT_VERSION);
         session.setEngineSessionId(engineSessionId);
@@ -1821,72 +2012,80 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         session.setErrorCode(null);
         session.setErrorMessage(null);
         session.markUpdated();
-        drCutoverSessionDao.update(session.getId(), session);
+    }
 
-        plan.setState(DrConstants.PLAN_STATE_COMMIT_VERIFYING);
-        plan.setLastErrorCode(null);
-        plan.setLastErrorMessage(null);
-        plan.markUpdated();
-        drPlanDao.update(plan.getId(), plan);
-        runtime.addProperty("state", "CUTOVER_READY");
-        runtime.addProperty("target_power_state", powerOnResult.getPowerState());
-        runtime.addProperty("target_promotion_state", "AWAITING_ENGINE_ACK");
-        runtime.addProperty("boot_validation_state", powerOnResult.getBootValidationState());
-        runtime.addProperty("cloud_authority_generation", generation);
-        runtime.addProperty("cutover_commit_state", "PREPARED");
-        recordRunStep(run, "cloud-promotion", STEP_ORDER_CLOUD_PROMOTION, DrConstants.STEP_STATE_RUNNING,
-                90, GSON.toJson(runtime), null, null);
-
-        Answer answer = sendCutoverCommit(plan, run, session, powerOnResult, runtime, generation);
-        if (answer == null || !answer.getResult()) {
-            String message = answer != null ? answer.getDetails() : "Agent returned no cutover commit acknowledgement";
-            session.setEngineAckState("RETRY_REQUIRED");
-            session.setCommitState("UNKNOWN");
-            session.setErrorCode("DR_CUTOVER_COMMIT_FAILED");
-            session.setErrorMessage(message);
-            session.markUpdated();
-            drCutoverSessionDao.update(session.getId(), session);
-            plan.setState(DrConstants.PLAN_STATE_COMMIT_VERIFYING);
-            plan.setLastErrorCode("DR_CUTOVER_COMMIT_FAILED");
-            plan.setLastErrorMessage(message);
-            plan.markUpdated();
-            drPlanDao.update(plan.getId(), plan);
-            recordRunStep(run, "engine-state-reconciliation", STEP_ORDER_ENGINE_ACK, DrConstants.STEP_STATE_RUNNING,
-                    95, GSON.toJson(runtime), "DR_CUTOVER_COMMIT_FAILED", message);
-            return false;
+    private DrCutoverSessionVO recordCutoverCommitFailure(DrCutoverSessionVO session,
+            String expectedAttemptId, String message) {
+        if (session.getId() == 0) {
+            return applyCutoverCommitFailure(session, expectedAttemptId, message);
         }
+        final long sessionId = session.getId();
+        return Transaction.execute(new TransactionCallback<DrCutoverSessionVO>() {
+            @Override
+            public DrCutoverSessionVO doInTransaction(TransactionStatus transactionStatus) {
+                DrCutoverSessionVO current = drCutoverSessionDao.lockRow(sessionId, true);
+                return applyCutoverCommitFailure(current, expectedAttemptId, message);
+            }
+        });
+    }
 
-        Date now = new Date();
-        session.setEngineAckState("ACKNOWLEDGED");
-        session.setEngineAckAt(now);
-        session.setCommitState("ACKNOWLEDGED");
-        session.setCloudPromotionState("PROMOTED");
-        session.setState(DrConstants.PLAN_STATE_FAILED_OVER);
-        session.setCompletedAt(now);
-        session.setErrorCode(null);
-        session.setErrorMessage(null);
-        session.markUpdated();
-        drCutoverSessionDao.update(session.getId(), session);
-        plan.setState(DrConstants.PLAN_STATE_FAILED_OVER);
-        plan.setActiveSide("TARGET");
-        plan.setLastErrorCode(null);
-        plan.setLastErrorMessage(null);
-        plan.markUpdated();
-        drPlanDao.update(plan.getId(), plan);
-        runtime.addProperty("state", "FAILED_OVER");
-        runtime.addProperty("active_side", "TARGET");
-        runtime.addProperty("target_promotion_state", "PROMOTED");
-        runtime.addProperty("cutover_commit_state", "ACKNOWLEDGED");
-        runtime.addProperty("engine_ack_state", "ACKNOWLEDGED");
-        runtime.addProperty("engine_ack_at", DateUtil.getDateDisplayString(TimeZone.getTimeZone("GMT"), now));
-        updateReplicaRuntimeProjection(plan, status, runtime, DrConstants.REPLICA_STATE_FAILED_OVER,
-                "TARGET", powerOnResult.getPowerState());
-        recordRunStep(run, "cloud-promotion", STEP_ORDER_CLOUD_PROMOTION, DrConstants.STEP_STATE_SUCCEEDED,
-                100, GSON.toJson(runtime), null, null);
-        applyFailedOverRuntime(plan, status, generation, now);
-        upsertCutoverDisks(plan, session, runtime);
-        completeRunFromProjection(plan, run, status);
-        return true;
+    private DrCutoverSessionVO applyCutoverCommitFailure(DrCutoverSessionVO current,
+            String expectedAttemptId, String message) {
+        if (current == null || isAcknowledgedTargetCutover(current)) {
+            return current;
+        }
+        if (!StringUtils.equals(current.getCommitAttemptId(), expectedAttemptId)) {
+            return null;
+        }
+        current.setEngineAckState("RETRY_REQUIRED");
+        current.setCommitState("UNKNOWN");
+        current.setErrorCode("DR_CUTOVER_COMMIT_FAILED");
+        current.setErrorMessage(message);
+        current.markUpdated();
+        drCutoverSessionDao.update(current.getId(), current);
+        return current;
+    }
+
+    private DrCutoverSessionVO acknowledgeCutoverCommit(DrCutoverSessionVO session, String expectedAttemptId) {
+        if (session.getId() == 0) {
+            return applyCutoverCommitAcknowledgement(session, expectedAttemptId, new Date());
+        }
+        final long sessionId = session.getId();
+        return Transaction.execute(new TransactionCallback<DrCutoverSessionVO>() {
+            @Override
+            public DrCutoverSessionVO doInTransaction(TransactionStatus transactionStatus) {
+                DrCutoverSessionVO current = drCutoverSessionDao.lockRow(sessionId, true);
+                return applyCutoverCommitAcknowledgement(current, expectedAttemptId, new Date());
+            }
+        });
+    }
+
+    private DrCutoverSessionVO applyCutoverCommitAcknowledgement(DrCutoverSessionVO current,
+            String expectedAttemptId, Date acknowledgedAt) {
+        if (current == null || isAcknowledgedTargetCutover(current)) {
+            return current;
+        }
+        if (!StringUtils.equals(current.getCommitAttemptId(), expectedAttemptId)) {
+            return null;
+        }
+        current.setEngineAckState("ACKNOWLEDGED");
+        current.setEngineAckAt(acknowledgedAt);
+        current.setCommitState("ACKNOWLEDGED");
+        current.setCloudPromotionState("PROMOTED");
+        current.setState(DrConstants.PLAN_STATE_FAILED_OVER);
+        current.setCompletedAt(acknowledgedAt);
+        current.setErrorCode(null);
+        current.setErrorMessage(null);
+        current.markUpdated();
+        drCutoverSessionDao.update(current.getId(), current);
+        return current;
+    }
+
+    private boolean isAcknowledgedTargetCutover(DrCutoverSessionVO session) {
+        return session != null
+                && StringUtils.equalsIgnoreCase(session.getEngineAckState(), "ACKNOWLEDGED")
+                && StringUtils.equalsIgnoreCase(session.getCloudPromotionState(), "PROMOTED")
+                && StringUtils.equalsIgnoreCase(session.getState(), DrConstants.PLAN_STATE_FAILED_OVER);
     }
 
     private void applyFailedOverRuntime(DrPlanVO plan, FtctlDrStatusAnswer status, long authorityGeneration,

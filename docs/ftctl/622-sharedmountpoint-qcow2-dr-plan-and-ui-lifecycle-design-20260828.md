@@ -1,5 +1,8 @@
 # SharedMountPoint QCOW2 DR Plan and UI Lifecycle Design
 
+> 2026-09-01 cutover authority serialization and Failback readiness convergence:
+> `625-dr-cutover-authority-commit-serialization-and-failback-readiness-convergence-design-20260901.md`
+
 ## 1. Authority and Test Object
 
 The 31 ABLESTACK cluster owns DR site, plan, run, replica, and UI state. The 13

@@ -1,5 +1,8 @@
 # 599. Cross Hypervisor DR Forward Cutover Commit Contract And Authority Convergence Design
 
+> 2026-09-01 concurrency and late-failure addendum:
+> `625-dr-cutover-authority-commit-serialization-and-failback-readiness-convergence-design-20260901.md`
+
 - 작성일: 2026-08-06
 - 상태: 상세 설계 완료, 실환경 read-only 및 격리 preflight 검증 완료, 구현 대기
 - 적용 방향: VMware -> ABLESTACK 실제 Failover
