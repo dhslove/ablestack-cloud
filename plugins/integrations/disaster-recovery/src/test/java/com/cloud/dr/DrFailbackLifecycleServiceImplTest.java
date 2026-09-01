@@ -4,6 +4,8 @@
 // The ASF licenses this file to you under the Apache License, Version 2.0.
 package com.cloud.dr;
 
+import java.util.Date;
+
 import javax.inject.Provider;
 
 import org.junit.Assert;
@@ -104,6 +106,31 @@ public class DrFailbackLifecycleServiceImplTest {
         Assert.assertEquals("UNKNOWN", session.getCommitOutcome());
         Assert.assertEquals(DrConstants.PLAN_STATE_COMMIT_VERIFYING, plan.getState());
         Mockito.verify(drEventDao, Mockito.never()).persist(Mockito.any());
+    }
+
+    @Test
+    public void terminalRunReconcilerClosesArtifactFreeRequestedSession() {
+        run.setState(DrConstants.RUN_STATE_FAILED);
+        run.setCompleted(new Date());
+        run.setErrorCode(DrConstants.ERROR_ENGINE_ACTION_FAILED);
+        run.setErrorMessage("Mold API returned HTTP 401");
+        session.setState("REQUESTED");
+        session.setAcceptanceState("SUBMITTED");
+        session.setEngineAckState("PENDING");
+        session.setCommitOutcome("PENDING");
+        session.setRollbackState("NONE");
+        session.setCheckpointSequence(null);
+
+        DrFailbackSessionVO result = service.reconcile(plan, run, new JsonObject());
+
+        Assert.assertSame(session, result);
+        Assert.assertEquals("FAILED", session.getState());
+        Assert.assertEquals("REJECTED", session.getAcceptanceState());
+        Assert.assertEquals("PRE_DISPATCH", session.getFailurePhase());
+        Assert.assertNotNull(session.getCompletedAt());
+        Assert.assertNotNull(session.getRemoved());
+        Mockito.verify(drFailbackSessionDao).update(session.getId(), session);
+        Mockito.verifyNoInteractions(drRemoteAgentClient);
     }
 
     @Test

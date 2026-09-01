@@ -12,6 +12,7 @@ KVM-to-KVM reprotect also used `plan_cycle_sequence` as both the Cloud `dr_sync_
 
 - A session is artifact-free only when its Run is terminal failed or canceled and the session is still `REQUESTED / SUBMITTED` with no engine acknowledgement, checkpoint, data-ready, power-transition, commit, rollback, authority, or live worker evidence.
 - `DrRunExecutor` terminalizes that session as `FAILED` or `ABORTED`, records `PRE_DISPATCH`, copies the Run error, sets `completed_at`, and removes it from the active set.
+- The periodic failback lifecycle reconciler applies the same terminalization so existing artifact-free rows converge after deployment without a DB repair or a new operator action.
 - Creating a later failback performs the same narrow reconciliation for legacy rows before applying the cleanup gate.
 - Any engine-accepted or transition-started session remains active and continues to require the normal compensation and cleanup lifecycle.
 

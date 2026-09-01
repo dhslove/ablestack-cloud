@@ -163,6 +163,10 @@ public class DrFailbackLifecycleServiceImpl extends ManagerBase implements DrFai
         String engineSessionId = stringValue(runtime, "failback_session_id");
         String runtimeState = upper(stringValue(runtime, "state"));
         DrFailbackSessionVO session = drFailbackSessionDao.findActiveByRunId(run.getId());
+        if (DrFailbackSessionState.isTerminalRunFailureWithoutEngineArtifacts(session, run)) {
+            terminalizeArtifactFreeFailure(session, run);
+            return session;
+        }
         if (isCanceledFailbackPendingCompensation(run, session)) {
             cancelAndRestoreTargetAuthority(plan, run);
             return drFailbackSessionDao.findActiveByRunId(run.getId());
@@ -299,6 +303,10 @@ public class DrFailbackLifecycleServiceImpl extends ManagerBase implements DrFai
     private void executeLifecycle(long runId) {
         DrRunVO run = drRunDao.findById(runId);
         DrFailbackSessionVO session = drFailbackSessionDao.findActiveByRunId(runId);
+        if (DrFailbackSessionState.isTerminalRunFailureWithoutEngineArtifacts(session, run)) {
+            terminalizeArtifactFreeFailure(session, run);
+            return;
+        }
         if (isCanceledFailbackPendingCompensation(run, session)) {
             DrPlanVO plan = drPlanDao.findById(run.getPlanId());
             if (plan != null) {
@@ -1434,6 +1442,20 @@ public class DrFailbackLifecycleServiceImpl extends ManagerBase implements DrFai
                 return null;
             }
         });
+    }
+
+    private void terminalizeArtifactFreeFailure(DrFailbackSessionVO session, DrRunVO run) {
+        session.setState(StringUtils.equals(run.getState(), DrConstants.RUN_STATE_CANCELED)
+                ? "ABORTED" : "FAILED");
+        session.setAcceptanceState("REJECTED");
+        session.setFailurePhase("PRE_DISPATCH");
+        session.setFailedComponent("cloud-dr-run-executor");
+        session.setErrorCode(run.getErrorCode());
+        session.setErrorMessage(run.getErrorMessage());
+        session.setCompletedAt(run.getCompleted());
+        session.setRemoved(new Date());
+        session.markUpdated();
+        drFailbackSessionDao.update(session.getId(), session);
     }
 
     private DrFailbackSessionVO convergeSuccessfulTerminalFailureMetadata(DrFailbackSessionVO session) {
