@@ -758,3 +758,47 @@ is 51% used with about 41 GiB free. Mold is active, `/client/` returns HTTP
 `No space left on device` error was recorded after deployment. The 13 and 31
 management roots are respectively 52% and 62% used after the same retention
 and stale-artifact review.
+
+## 2026-09-01 Five-cluster Current Branch Test Release
+
+The 22 and 32 clusters were realigned together with the 12, 13, and 31 test
+clusters. Cloud was built from commit
+`46c5b483bbd821008bf362e9a656d56b8b369410` by successful Actions Run
+[`33500908830`](https://github.com/dhslove/ablestack-cloud/actions/runs/33500908830).
+The first RPM attempt encountered a transient Maven Central HTTP 403; the
+failed job was rerun and the RPM, System VM, and release publication jobs all
+completed successfully. The deployed Cloud release is
+`4.23.0.0-Mold.Europa.202609011108.1`, and the downloaded RPM artifact SHA256
+is `2d4a297c48564d5bd54cfecb6920f9f4c12f47bfa137d36318c0b742c777615a`.
+
+qemu-exec-tools was built from commit
+`469dbda3902d79256625dab9a3ab36f9d28df2f8` by successful Actions Run
+[`33500674589`](https://github.com/dhslove/ablestack-qemu-exec-tools/actions/runs/33500674589).
+The five deployed host packages are `ablestack-qemu-exec-tools`, V2K, N2K,
+FTCTL, and HangCTL, all release `0.9.5-1`.
+
+Postflight verification on both clusters confirmed:
+
+- management, common, UI, usage, common/Agent, and all DR tool packages are
+  from the paired release above;
+- Mold and usage are active, `/client/` returns HTTP 200, `WEB-INF` is
+  preserved, and the active UI contains the DR action/progress markers;
+- the aggregate Cloud JAR reports implementation revision
+  `46c5b483bbd821008bf362e9a656d56b8b369410`;
+- both databases contain 23 DR tables, `cloud.dr.service.enabled=true`, all
+  three routing hosts are `Up`, active DR Runs are zero, and active leases are
+  zero;
+- all six Agents and FTCTL timers are active, at least 32 NBD devices exist,
+  and VM inventory did not change across Agent replacement;
+- installed `dr_runtime.sh` SHA256 is
+  `82c20687082fe0385119fba93a91c7249ae1b89116a7faf79f543eedf588a3a5`
+  and `dr_scheduler.sh` SHA256 is
+  `1170968add33f0464e520889b63a280a48446707b71786e41201bc1c670c85f0`.
+
+The 22-cluster HangCTL timers remain masked by their existing host policy;
+FTCTL timers and the DR execution path are active. Browser verification after
+clearing stale client cache rendered the current release string
+`v4.10.0-Europa-20260901-ALPHA1` from both `/drplan` entry points. Deployment
+staging directories were removed after checksum and postflight verification;
+the pre-deployment backup remains at
+`/root/dr-test-release-backup-20260901-2010` on each node.

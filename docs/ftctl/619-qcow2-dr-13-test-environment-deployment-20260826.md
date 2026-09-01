@@ -153,3 +153,38 @@ Hosts `13.1`, `13.2`, and `13.3` are `Up / Enabled`; their Agents and FTCTL
 timers are active and their installed runtime/scheduler hashes match the
 three-cluster release record. `13.2` continues to use SSH port `10022` while
 the other 13-cluster nodes use port `22`.
+
+## 2026-09-01 Five-cluster Current Branch Test Release
+
+Cluster 13 was aligned with Cloud commit
+`46c5b483bbd821008bf362e9a656d56b8b369410` from successful Actions Run
+[`33500908830`](https://github.com/dhslove/ablestack-cloud/actions/runs/33500908830)
+and qemu tools commit `469dbda3902d79256625dab9a3ab36f9d28df2f8`
+from successful Run
+[`33500674589`](https://github.com/dhslove/ablestack-qemu-exec-tools/actions/runs/33500674589).
+The Cloud RPM artifact SHA256 is
+`2d4a297c48564d5bd54cfecb6920f9f4c12f47bfa137d36318c0b742c777615a`.
+
+The installed Cloud release is
+`4.23.0.0-Mold.Europa.202609011108.1`; all five DR tool packages are release
+`0.9.5-1`. A numerically newer package timestamp from an older source commit
+was present before alignment. Package replacement therefore used the package
+manager's explicit old-package mode, and the active aggregate JAR was verified
+to report the intended newer source revision
+`46c5b483bbd821008bf362e9a656d56b8b369410`.
+
+Mold and usage are active, `/client/` returns HTTP 200, `WEB-INF` is present,
+all expected UI markers are in the active bundle, and no package-owned JAR is
+missing. The database contains 23 DR tables, DR service is enabled, all three
+routing hosts are `Up`, and active Runs and leases are zero. All three Agents,
+FTCTL timers, and HangCTL timers are active; at least 32 NBD devices and all
+five DR tool packages are present. Runtime and scheduler SHA256 values are
+respectively
+`82c20687082fe0385119fba93a91c7249ae1b89116a7faf79f543eedf588a3a5`
+and `1170968add33f0464e520889b63a280a48446707b71786e41201bc1c670c85f0`.
+
+The `13.2` SSH exception remains port `10022`; every other node in this
+cluster uses port `22`. Browser verification rendered the current release
+string `v4.10.0-Europa-20260901-ALPHA1` from `/drplan`. Deployment staging was
+removed after verification, and the pre-deployment backup remains at
+`/root/dr-test-release-backup-20260901-2010` on every node.

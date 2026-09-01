@@ -307,4 +307,46 @@ ServerDaemon class-load error is present.
 All three routing hosts are `Up / Enabled`; all Agents and FTCTL timers are
 active. The VM list was unchanged across package replacement and the installed
 runtime/scheduler hashes match the three-cluster release record. Host `31.1`
-uses native `rpm`; `31.2` and `31.3` use `aspkg`.
+was historically deployed with native `rpm`; the current 2026-09-01 release
+uses the administrator `aspkg` wrapper consistently on all 31-cluster nodes.
+
+## 2026-09-01 Five-cluster Current Branch Test Release
+
+Clusters 12 and 31 are now aligned with Cloud commit
+`46c5b483bbd821008bf362e9a656d56b8b369410` from successful Actions Run
+[`33500908830`](https://github.com/dhslove/ablestack-cloud/actions/runs/33500908830)
+and qemu tools commit `469dbda3902d79256625dab9a3ab36f9d28df2f8`
+from successful Run
+[`33500674589`](https://github.com/dhslove/ablestack-qemu-exec-tools/actions/runs/33500674589).
+The Cloud RPM artifact SHA256 is
+`2d4a297c48564d5bd54cfecb6920f9f4c12f47bfa137d36318c0b742c777615a`.
+
+The deployed Cloud package release is
+`4.23.0.0-Mold.Europa.202609011108.1`; qemu-exec-tools, V2K, N2K, FTCTL, and
+HangCTL are `0.9.5-1`. Cluster 12 was upgraded from Cloud 4.21 and its DR
+schema was created by the normal management startup path. Both clusters now
+have 23 DR tables and `cloud.dr.service.enabled=true`.
+
+Postflight results are PASS on both management servers and all six hosts:
+
+- Mold and usage are active, `/client/` returns HTTP 200, `WEB-INF` is
+  present, no package-owned management JAR is missing, and no new class-load,
+  disk-full, or schema-upgrade error was found;
+- the active Cloud JAR implementation revision is
+  `46c5b483bbd821008bf362e9a656d56b8b369410`, and the UI exposes the current
+  DR action/progress bundle markers;
+- all routing hosts are `Up` on Agent release
+  `4.23.0.0-Mold.Europa-202609011108`, with no VM-list change during Agent
+  replacement;
+- FTCTL and HangCTL timers are active, at least 32 NBD devices exist, and the
+  five DR tool packages are present on every host;
+- runtime SHA256 is
+  `82c20687082fe0385119fba93a91c7249ae1b89116a7faf79f543eedf588a3a5`
+  and scheduler SHA256 is
+  `1170968add33f0464e520889b63a280a48446707b71786e41201bc1c670c85f0`;
+- active DR Runs, stale active Runs, and active resource leases are all zero.
+
+Browser verification rendered the current release string
+`v4.10.0-Europa-20260901-ALPHA1` from both `/drplan` entry points. Deployment
+staging was removed after verification; the per-node backup remains at
+`/root/dr-test-release-backup-20260901-2010`.
