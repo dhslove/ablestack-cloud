@@ -1,7 +1,7 @@
 # 625. DR Cutover Authority Commit Serialization And Failback Readiness Convergence
 
 - 작성일: 2026-09-01
-- 상태: 구현 및 테스트 대상
+- 상태: 구현·스모크 테스트·31번 테스트 배포 완료
 - 적용 레이어: Cloud DR Backend, Cloud DB projection
 - 비적용 레이어: UI component, API contract, Agent, FTCTL, scheduler, data transfer, VM lifecycle
 - 관련 설계: 599, 617, 622, 624
@@ -96,8 +96,30 @@ Cloud DR integration 모듈 테스트 후 테스트 릴리즈 패키지를 31번
 ```text
 Plan              FAILED_OVER / TARGET
 Cutover session   FAILED_OVER / PROMOTED / ACKNOWLEDGED
-Replica           FAILED_OVER / TARGET / POWERED_ON
+Replica           READY / TARGET / POWERED_ON
 Failback preflight ready=true
 ```
 
 실제 Failback 실행은 사용자가 UI에서 수행한다.
+
+## 7. 구현 및 배포 증거
+
+- Cloud 코드 커밋: `8bb5108c4c265b21986c0adbf0b7a4383f17cb43`
+- GitHub Actions 테스트 릴리스: run `33449271367`, 전체 작업 `success`
+- 배포 패키지:
+  - `cloudstack-common-4.23.0.0-Mold.Europa.202608312307.1`
+  - `cloudstack-management-4.23.0.0-Mold.Europa.202608312307.1`
+- 비배포 범위: Cloud UI, usage, Agent, FTCTL, scheduler, 전송 경로, VM lifecycle
+- 배포 후 관리 서비스: `mold=active`, `/client/=HTTP 200`, `WEB-INF=present`
+- 자동 재투영 결과:
+  - Plan `FAILED_OVER / TARGET`, 오류 필드 없음
+  - Cutover session `FAILED_OVER / PROMOTED / ACKNOWLEDGED`, generation `546`, 오류 필드 없음
+  - Replica `READY / TARGET / POWERED_ON`
+  - Runtime `FAILED_OVER_UNPROTECTED`, 오류 필드 없음
+- `getDrFailbackPreflight` 결과: `ready=true`; `AUTHORITY`, `SOURCE_RUNTIME`,
+  `TARGET_RUNTIME`, `FTCTL_TRANSITION`, `REVERSE_DATA` 모두 `READY`
+- 이번 Plan의 역방향 기준선은 아직 없으므로 preflight가 선택한 모드는
+  `FULL_RESEED`, 예상 가상 용량은 `100 GiB`다. 이는 authority 수렴 결함과 별개인
+  기존 Failback 데이터 경로의 정상 초기 시드 판정이다.
+
+실제 Failback 실행과 완료 판정은 사용자 UI 재검증으로 남긴다.
