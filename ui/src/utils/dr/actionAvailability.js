@@ -18,6 +18,7 @@
 import { normalizeActionEligibility } from '@/api/dr'
 
 const ACTIVE_RUN_STATES = ['QUEUED', 'PREPARING', 'DISPATCHING', 'ACCEPTED', 'RUNNING', 'RETRYING', 'CANCEL_REQUESTED']
+export const DR_ACTION_CUTOVER_NOT_READY = 'DR_ACTION_CUTOVER_NOT_READY'
 
 export function normalizeActionAvailability (availability = {}) {
   const normalized = {}
@@ -35,6 +36,21 @@ export function normalizeActionAvailability (availability = {}) {
 
 export function isActiveDrRun (run = {}) {
   return ACTIVE_RUN_STATES.includes(String(run?.state || '').toUpperCase())
+}
+
+export function requiresDisasterFailover (resource = {}) {
+  const normalCutoverReady = resource.normalcutoverready ?? resource.normalCutoverReady
+  const eligibility = normalizeActionEligibility(
+    resource.actioneligibility || resource.actionEligibility || {}
+  )
+  const availability = normalizeActionAvailability(
+    resource.actionavailability || resource.actionAvailability || {}
+  ).failover
+  return normalCutoverReady === false &&
+    eligibility.disasterfailover === true &&
+    availability?.applicable === true &&
+    availability?.enabled === false &&
+    availability?.reasonCode === DR_ACTION_CUTOVER_NOT_READY
 }
 
 function authoritySide (resource = {}) {
@@ -110,6 +126,9 @@ export function resolveDrActionAvailability (action, resource = {}, currentRun =
     resource.actionavailability || resource.actionAvailability || {}
   )
   if (Object.prototype.hasOwnProperty.call(typed, key)) {
+    if (key === 'failover' && requiresDisasterFailover(resource)) {
+      return Object.assign({}, typed[key], { enabled: true })
+    }
     return typed[key]
   }
 

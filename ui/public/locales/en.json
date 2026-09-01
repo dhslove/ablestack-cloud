@@ -7312,6 +7312,7 @@
   "message.dr.failover.source.isolation.acknowledgement": "I confirm that the source VM cannot serve production traffic.",
   "message.dr.failover.source.isolation.reason.placeholder": "Describe the isolation check, incident, or operator evidence.",
   "message.dr.failover.source.isolation.required": "Confirm source isolation and enter the supporting reason before starting disaster failover.",
+  "message.dr.failover.degraded.disaster.required": "Normal cutover conditions are not met. Only disaster failover using the latest durable synchronization checkpoint is available after you confirm source isolation.",
   "message.dr.test.network.placeholder": "Select the Cloud network for the temporary test VM.",
   "message.dr.test.network.required": "Select a test VM network or choose No network adapter.",
   "message.dr.no.vm.plan": "No DR plan is linked to this virtual machine.",

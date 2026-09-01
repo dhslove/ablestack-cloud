@@ -64,6 +64,8 @@ public final class DrConstants {
     public static final String HEALTH_DISCONNECTED = "DISCONNECTED";
     public static final String HEALTH_UNKNOWN = "UNKNOWN";
 
+    public static final String ACTION_REASON_CUTOVER_NOT_READY = "DR_ACTION_CUTOVER_NOT_READY";
+
     public static final String HEALTH_REASON_CREDENTIAL_MISSING = "CREDENTIAL_MISSING";
     public static final String HEALTH_REASON_CREDENTIAL_INVALID = "CREDENTIAL_INVALID";
     public static final String HEALTH_REASON_ENDPOINT_UNREACHABLE = "ENDPOINT_UNREACHABLE";

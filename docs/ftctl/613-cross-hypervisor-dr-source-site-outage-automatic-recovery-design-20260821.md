@@ -100,3 +100,83 @@ scheduler가 재시도 소유권을 유지한다.
 사용자 수동 전체 동기화 없이 같은 대기 Run이 자동으로 source preflight를 재개하고,
 필요한 경우 한 번의 Full Reseed 후 다음 Cycle의 `CBT_INCREMENTAL` 또는
 `NO_CHANGE`까지 검증한다.
+
+## 7. 2026-09-01 장기 원본 장애 중 재해 페일오버 계약
+
+### 오류 원인
+
+기존 Action Availability는 `normalCutoverReady=false`를 계획된 페일오버와 재해
+페일오버에 동일하게 적용했다. 이 때문에 마지막 target-ready durable checkpoint가
+존재해도 RPO 초과 또는 원본 복구 대기 상태에서는 사용자가 재해 모드를 선택할
+대화상자에 진입할 수 없었고, API도 Run 생성 전에 같은 이유로 요청을 거부했다.
+
+### AS-IS / TO-BE
+
+| 구분 | AS-IS | TO-BE |
+|---|---|---|
+| 계획된 페일오버 | `normalCutoverReady` 필수 | 기존 조건을 그대로 유지한다. |
+| 재해 페일오버 | 정상 전환 조건 미충족 시 UI/API 공통 차단 | 차단 사유가 `DR_ACTION_CUTOVER_NOT_READY` 하나인 경우에만 재해 모드 진입을 허용한다. |
+| 사용자 확인 | 비활성 메뉴라 확인 불가 | 재해 모드를 고정하고 원본 격리 확인과 근거 입력을 필수로 한다. |
+| 체크포인트 | 최신 checkpoint 안내만 제공 | 기존 latest target-ready durable checkpoint 자동 선택 계약을 유지한다. |
+| UI 정보 | RPO 상태와 내부 판정 혼재 | 확인 가능한 상태와 마지막 durable checkpoint 사용 사실만 표시한다. 추정 데이터 손실량은 표시하지 않는다. |
+| 보호 그룹 | 단일 Plan과 같은 우회 가능성 | 기존 정상 전환 자격을 유지하며 이번 예외를 적용하지 않는다. |
+
+### 코드 경계
+
+이 계약은 저장 형식이 아니라 `FTCTL_DR` 제어 계약에 적용한다. 따라서
+`VMWARE_TO_KVM`의 VMDK→RBD, `KVM_TO_KVM`의 RBD→RBD와 qcow2→qcow2가 동일한
+판정 경로를 사용하며 provider pair나 디스크 형식으로 예외를 분기하지 않는다.
+
+1. Backend의 일반 `failover` eligibility와 계획된 페일오버 검증은 변경하지 않는다.
+2. `StartDrFailoverCmd`는 `disaster=true`, 기존 차단 사유가 정확히
+   `DR_ACTION_CUTOVER_NOT_READY`, 전용 `disasterFailover=true`인 경우에만 Action
+   Availability 차단을 제한적으로 해제한다. 전용 적격성에는 활성 Run 없음, Source
+   권한, FTCTL 제어 준비, target-ready durable checkpoint가 모두 포함된다.
+3. UI도 같은 typed reason, `normalcutoverready=false`, `disasterFailover=true`를 모두
+   확인한 경우에만 메뉴를 활성화하고 재해 모드를 자동 선택·고정한다.
+4. 재해 모드는 기존 계약대로 `finalsync=false`이며, 원본 격리 체크와 근거가 없으면
+   UI와 API 모두 제출을 거부한다.
+5. `force`는 체크포인트 또는 대상 준비 검증을 우회하는 수단으로 사용하지 않는다.
+
+### 회귀 판정
+
+- 정상 READY 계획의 계획된 페일오버는 기존과 동일하게 활성화된다.
+- RPO 초과 계획의 계획된 페일오버는 계속 차단된다.
+- RPO 초과 계획은 재해 모드와 원본 격리 확인을 통해서만 제출할 수 있다.
+- `DR_ACTION_TARGET_NOT_READY` 등 다른 차단 사유는 재해 모드에서도 차단된다.
+- 보호 그룹 페일오버는 기존 정상 전환 조건을 유지한다.
+
+## 8. 2026-09-01 구현·빌드·배포 검증
+
+### 테스트와 빌드
+
+| 항목 | 결과 |
+|---|---|
+| Cloud Checkstyle | PASS, 위반 0건 |
+| Cloud 핵심 단위 테스트 | PASS, 11건 성공 |
+| 경로·Action Availability 확장 회귀 | PASS, 27건 성공 |
+| UI action availability 테스트 | PASS, 8건 성공 |
+| UI locale JSON | PASS, 영어·한국어 파싱 성공 |
+| Cloud DR plugin package | PASS, SHA-256 `e41517a5f4cd3cbf9ab65f8ec810a23220e96ddf0bf1d45ce99454bcb3fa4a81` |
+| UI production build | PASS, `index.html` SHA-256 `196a92ed8f68d411cbe460c9268d6bbdcfc5922e817c9583cdaa95c7e96f4ec5` |
+
+UI 테스트 runner는 PASS 결과를 출력한 뒤 기존 프로젝트의 열린 handle 때문에 자동 종료하지
+않아 종료했으며, 같은 소스의 production build는 정상 종료했다. 이는 테스트 assertion 실패가
+아니며 UI 판정 8건은 모두 성공했다.
+
+### 테스트 관리 서버 배포
+
+| 관리 서버 | 클래스 일치 | UI marker | 서비스 |
+|---|---|---|---|
+| `10.10.13.10` | PASS | PASS | `mold=active`, `/client/=200`, `WEB-INF=present` |
+| `10.10.31.10` | PASS | PASS | `mold=active`, `/client/=200`, `WEB-INF=present` |
+| `10.10.32.10` | PASS | PASS | `mold=active`, `/client/=200`, `WEB-INF=present` |
+
+배포는 active aggregate Cloud JAR 안의 변경 클래스 네 개만 갱신하고 UI 정적 자산을
+overlay했다. 각 서버의 기존 aggregate JAR과 UI 정적 자산은 각각
+`/root/dr-disaster-failover-v2-20260901-135413`,
+`/root/dr-disaster-failover-v2-20260901-135507`,
+`/root/dr-disaster-failover-v2-20260901-135547`에 백업했으며 `WEB-INF`는 교체하지 않았다.
+31번 계획 조회에서 정상 `READY / WITHIN_RPO / normalcutoverready=true` 계획의
+기존 페일오버 eligibility가 계속 `enabled=true`이고, 전용
+`actioneligibility.disasterFailover=true`가 API에 투영됨을 확인했다.

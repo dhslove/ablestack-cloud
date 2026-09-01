@@ -334,6 +334,8 @@ public class DrPlanServiceImpl extends ManagerBase implements DrPlanService {
         eligibility.put("failover", enabled && !activeRun && hasEngine
                 && sourceAuthority
                 && (legacyFtctlPlan || (ftctlDrPlan && ftctlDrControlReady && targetReady && normalCutoverReady)));
+        eligibility.put("disasterFailover", enabled && !activeRun && hasEngine
+                && sourceAuthority && ftctlDrPlan && ftctlDrControlReady && targetReady);
         eligibility.put("confirmFenceClear", enabled && !activeRun && hasEngine && legacyFtctlPlan && failedOver);
         eligibility.put("failback", enabled && !activeRun && hasEngine
                 && (legacyFtctlPlan || (ftctlDrPlan && ftctlDrControlReady && (failedOver || targetActive))));
@@ -350,6 +352,9 @@ public class DrPlanServiceImpl extends ManagerBase implements DrPlanService {
                     "releaseProtection"}) {
                 if (capabilitySnapshot.getBlockingReason(action) != null) {
                     eligibility.put(action, false);
+                    if ("failover".equals(action)) {
+                        eligibility.put("disasterFailover", false);
+                    }
                 }
             }
         }

@@ -5,8 +5,10 @@
 // to you under the Apache License, Version 2.0.
 
 import {
+  DR_ACTION_CUTOVER_NOT_READY,
   drActionReasonMessageKey,
   normalizeActionAvailability,
+  requiresDisasterFailover,
   resolveDrActionAvailability
 } from '@/utils/dr/actionAvailability'
 
@@ -62,6 +64,61 @@ describe('DR action availability', () => {
     })
     expect(drActionReasonMessageKey(state.reasonCode))
       .toBe('message.dr.action.reprotect.contract.unsupported')
+  })
+
+  it('opens failover as disaster-only when normal cutover is not ready', () => {
+    const resource = {
+      normalcutoverready: false,
+      actioneligibility: { disasterFailover: true },
+      actionavailability: {
+        failover: {
+          applicable: true,
+          enabled: false,
+          reasoncode: DR_ACTION_CUTOVER_NOT_READY
+        }
+      }
+    }
+
+    expect(requiresDisasterFailover(resource)).toBe(true)
+    expect(resolveDrActionAvailability({ key: 'failover' }, resource)).toEqual({
+      applicable: true,
+      enabled: true,
+      reasonCode: DR_ACTION_CUTOVER_NOT_READY,
+      reasonArgs: {}
+    })
+  })
+
+  it('does not bypass target readiness or other failover blockers', () => {
+    const resource = {
+      normalcutoverready: false,
+      actionavailability: {
+        failover: {
+          applicable: true,
+          enabled: false,
+          reasoncode: 'DR_ACTION_TARGET_NOT_READY'
+        }
+      }
+    }
+
+    expect(requiresDisasterFailover(resource)).toBe(false)
+    expect(resolveDrActionAvailability({ key: 'failover' }, resource).enabled).toBe(false)
+  })
+
+  it('does not bypass FTCTL control readiness', () => {
+    const resource = {
+      normalcutoverready: false,
+      actioneligibility: { disasterFailover: false },
+      actionavailability: {
+        failover: {
+          applicable: true,
+          enabled: false,
+          reasoncode: DR_ACTION_CUTOVER_NOT_READY
+        }
+      }
+    }
+
+    expect(requiresDisasterFailover(resource)).toBe(false)
+    expect(resolveDrActionAvailability({ key: 'failover' }, resource).enabled).toBe(false)
   })
 
   it('never exposes cancel after the live run has reached terminal state', () => {

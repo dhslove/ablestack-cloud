@@ -189,6 +189,12 @@ public class DrPlanServiceImplTest {
     }
 
     @Test
+    public void ftctlDrDisasterFailoverEligibilityIsProviderAgnostic() {
+        assertDisasterFailoverEligibility(DrConstants.DIRECTION_VMWARE_TO_KVM);
+        assertDisasterFailoverEligibility(DrConstants.DIRECTION_KVM_TO_KVM);
+    }
+
+    @Test
     public void ftctlDrEligibilityAllowsFailbackAfterReprotectKeepsTargetActive() {
         DrPlanVO plan = new DrPlanVO("ftctl-dr", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
         plan.setAdminState(DrConstants.ADMIN_STATE_ENABLED);
@@ -480,6 +486,28 @@ public class DrPlanServiceImplTest {
         Assert.assertEquals(DrConstants.ENGINE_TYPE_FTCTL_DR, created.getEngineType());
         Assert.assertEquals(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR, created.getEngineBindingType());
         Assert.assertEquals("SOURCE", created.getActiveSide());
+    }
+
+    private void assertDisasterFailoverEligibility(String direction) {
+        DrPlanVO plan = new DrPlanVO("ftctl-dr-disaster-" + direction, 1L, 2L, direction);
+        plan.setAdminState(DrConstants.ADMIN_STATE_ENABLED);
+        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
+        plan.setState(DrConstants.PLAN_STATE_READY);
+        plan.setTargetReadyAt(new Date());
+        Mockito.when(drPlanDao.findById(plan.getId())).thenReturn(plan);
+        Mockito.when(drAdapterRegistry.getReplicationEngine(DrConstants.ENGINE_TYPE_FTCTL_DR,
+                DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR)).thenReturn(replicationEngine);
+        Mockito.when(drRunDao.findLatestByPlanId(plan.getId())).thenReturn(controlReadyRun(plan));
+        Mockito.when(drProtectionAuthorityService.getAuthority(plan.getId()))
+                .thenReturn(new DrProtectionAuthoritySnapshot(new DrPlanRuntimeVO(plan.getId()), false));
+
+        Map<String, Boolean> eligibility = service.getActionEligibility(plan.getId());
+
+        Assert.assertFalse(eligibility.get("failover"));
+        Assert.assertTrue(eligibility.get("disasterFailover"));
+        Assert.assertEquals(DrConstants.ACTION_REASON_CUTOVER_NOT_READY,
+                service.getActionAvailability(plan.getId()).get("failover").getReasonCode());
     }
 
     private DrRunVO controlReadyRun(DrPlanVO plan) {

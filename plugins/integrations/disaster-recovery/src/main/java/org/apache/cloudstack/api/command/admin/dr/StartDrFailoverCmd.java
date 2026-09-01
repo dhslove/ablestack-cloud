@@ -16,6 +16,8 @@
 // under the License.
 package org.apache.cloudstack.api.command.admin.dr;
 
+import java.util.Map;
+
 import javax.inject.Inject;
 
 import org.apache.cloudstack.acl.RoleType;
@@ -27,6 +29,8 @@ import org.apache.cloudstack.api.ServerApiException;
 import org.apache.cloudstack.api.response.dr.DrRunResponse;
 import org.apache.commons.lang3.StringUtils;
 
+import com.cloud.dr.DrActionAvailability;
+import com.cloud.dr.DrConstants;
 import com.cloud.dr.DrRestorePointVO;
 import com.cloud.dr.cluster.DisasterRecoveryClusterEventTypes;
 import com.cloud.dr.dao.DrRestorePointDao;
@@ -76,6 +80,20 @@ public class StartDrFailoverCmd extends AbstractDrPlanActionCmd {
 
     public String getSourceIsolationReason() {
         return sourceIsolationReason;
+    }
+
+    @Override
+    protected void validateActionAllowed() {
+        if (Boolean.TRUE.equals(disaster)) {
+            Map<String, DrActionAvailability> availability = drPlanService.getActionAvailability(getPlanId());
+            DrActionAvailability failover = availability != null ? availability.get(getActionEligibilityKey()) : null;
+            if (failover != null && failover.isApplicable() && !failover.isEnabled()
+                    && DrConstants.ACTION_REASON_CUTOVER_NOT_READY.equals(failover.getReasonCode())
+                    && Boolean.TRUE.equals(drPlanService.getActionEligibility(getPlanId()).get("disasterFailover"))) {
+                return;
+            }
+        }
+        super.validateActionAllowed();
     }
 
     @Override
