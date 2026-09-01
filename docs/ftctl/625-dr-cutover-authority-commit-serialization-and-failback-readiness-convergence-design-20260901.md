@@ -123,3 +123,55 @@ Failback preflight ready=true
   기존 Failback 데이터 경로의 정상 초기 시드 판정이다.
 
 실제 Failback 실행과 완료 판정은 사용자 UI 재검증으로 남긴다.
+
+## 8. 교차 사이트 빌드 계약 정렬 및 재테스트 준비
+
+첫 UI 재검증에서 Failback Run `db90c2d4-5369-4d08-b0b2-d754153ec518`은
+FTCTL 작업을 시작하기 전에 `Mold API returned HTTP 401`로 실패했다. 원본 13번
+Mold 로그의 실제 판정은 API 키 오류가 아니라 다음 원격 명령이 런타임에 등록되지
+않았다는 것이었다.
+
+```text
+executeFtctlDrSiteAgentCommand
+The given command ... either does not exist, is not available for user,
+or not available from ip address
+```
+
+일반 `listCapabilities`와 VM 조회는 같은 자격 증명으로 성공했으므로 사이트 연결
+상태만으로는 이 계약 불일치를 검출할 수 없다. Failback은 계획 소유 Mold, 원본
+Mold, 원본 Agent가 같은 원격 DR 명령 계약을 제공해야 한다. 따라서 재테스트 전
+양 클러스터의 역할별 Cloud 패키지를 Actions run `33449271367`의 동일 산출물로
+정렬했다.
+
+- 공통 빌드: `4.23.0.0-Mold.Europa.202608312307.1`
+- 관리 서버: `10.10.13.10`, `10.10.31.10`
+  - `cloudstack-common`, `cloudstack-management`
+- Agent: `10.10.13.1`, `10.10.13.2:10022`, `10.10.13.3`,
+  `10.10.31.1`, `10.10.31.2`, `10.10.31.3`
+  - `cloudstack-common`, `cloudstack-agent`
+- FTCTL은 양측 모두 기존 `ablestack_vm_ftctl-0.9.5-1`을 유지했다.
+- RPM SHA-256:
+  - common: `ec540781ae71a0e868a124ea4d84eb7c445022bca3a4a301c0af959d61a250d2`
+  - management: `1ffb1f2bbc2a25dfbd71ea6f3047c25df37e2589dab68f0e16875b4379a40d61`
+  - agent: `038d14981bdb525ee82c5d032d498bebbaa508d4d709a471b66dfb733bbbb0b3`
+
+배포 후 13번 Mold는 `/client/` HTTP 200, `WEB-INF` 보존, `mold=active`를
+충족했다. 모든 Agent는 재시작 후 `active`이고 배포 전후 실행 VM 목록에 차이가
+없었다. 원본 Mold 로그에서 `executeFtctlDrSiteAgentCommand`가 API 키 인증 후
+정상 처리되며 기존 command-unavailable 판정이 재발하지 않는 것을 확인했다.
+
+31번 UI에서 계획 `80966d9e-5224-4b8d-bf93-42f94261d058`을 직접 열어 확인한
+재테스트 준비 상태는 다음과 같다.
+
+```text
+Plan status       FAILED_OVER_UNPROTECTED
+Readiness         TARGET_READY / 사용 가능
+Source site       CONNECTED / CONFIGURED
+Target site       CONNECTED / CONFIGURED
+Failback dialog   준비 완료
+Confirm button    enabled
+```
+
+실패한 과거 Run과 세션은 증거 보존을 위해 DB에서 수동 변경하지 않았다. 새
+Failback 실행은 새 Run으로 시작하며, 실제 완료 판정은 사용자의 UI 재테스트에서
+검증한다.
