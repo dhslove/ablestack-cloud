@@ -32,6 +32,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.cloud.dr.DrConstants;
 import com.cloud.dr.DrEventVO;
+import com.cloud.dr.DrFailbackSessionVO;
 import com.cloud.dr.DrPlanVO;
 import com.cloud.dr.DrProjectionService;
 import com.cloud.dr.DrRunStepVO;
@@ -44,6 +45,7 @@ import com.cloud.dr.adapter.DrAdapterResult;
 import com.cloud.dr.adapter.DrExecutionContext;
 import com.cloud.dr.adapter.DrReplicationEngine;
 import com.cloud.dr.dao.DrEventDao;
+import com.cloud.dr.dao.DrFailbackSessionDao;
 import com.cloud.dr.dao.DrPlanDao;
 import com.cloud.dr.dao.DrRunDao;
 import com.cloud.dr.dao.DrRunStepDao;
@@ -71,6 +73,8 @@ public class DrRunExecutorImplTest {
     private DrTargetMaterializationService drTargetMaterializationService;
     @Mock
     private DrTestSessionDao drTestSessionDao;
+    @Mock
+    private DrFailbackSessionDao drFailbackSessionDao;
 
     @InjectMocks
     private DrRunExecutorImpl executor;
@@ -275,6 +279,62 @@ public class DrRunExecutorImplTest {
         Assert.assertEquals("DR_TEST_ARTIFACT_SPEC_INVALID", session.getErrorCode());
         Assert.assertNotNull(session.getRemoved());
         Mockito.verify(drTestSessionDao).update(session.getId(), session);
+    }
+
+    @Test
+    public void failedFailbackClosesArtifactFreeRequestedSession() {
+        DrPlanVO plan = ftctlDrPlan();
+        plan.setState(DrConstants.PLAN_STATE_FAILED_OVER);
+        plan.setActiveSide("TARGET");
+        DrRunVO run = run(DrConstants.RUN_TYPE_FAILBACK);
+        DrFailbackSessionVO session = new DrFailbackSessionVO(plan.getId(), run.getId(),
+                plan.getUuid() + ":" + run.getUuid(), "REQUESTED");
+        session.setAcceptanceState("SUBMITTED");
+        session.setEngineAckState("PENDING");
+        session.setCommitOutcome("PENDING");
+        session.setRollbackState("NONE");
+        Mockito.when(drRunDao.findById(run.getId())).thenReturn(run);
+        Mockito.when(drPlanDao.findById(plan.getId())).thenReturn(plan);
+        Mockito.when(drFailbackSessionDao.findActiveByRunId(run.getId())).thenReturn(session);
+        Mockito.when(drAdapterRegistry.getReplicationEngine(DrConstants.ENGINE_TYPE_FTCTL_DR,
+                DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR)).thenReturn(replicationEngine);
+        Mockito.when(replicationEngine.validatePlan(plan)).thenReturn(DrAdapterResult.success("valid", null));
+        Mockito.when(replicationEngine.execute(Mockito.any(DrExecutionContext.class)))
+                .thenThrow(new IllegalStateException("Mold API returned HTTP 401"));
+
+        executor.queueRun(run);
+
+        Assert.assertEquals(DrConstants.RUN_STATE_FAILED, run.getState());
+        Assert.assertEquals("FAILED", session.getState());
+        Assert.assertEquals("REJECTED", session.getAcceptanceState());
+        Assert.assertEquals("PRE_DISPATCH", session.getFailurePhase());
+        Assert.assertNotNull(session.getCompletedAt());
+        Assert.assertNotNull(session.getRemoved());
+        Mockito.verify(drFailbackSessionDao).update(session.getId(), session);
+    }
+
+    @Test
+    public void failedFailbackPreservesSessionAfterEngineAcceptance() {
+        DrPlanVO plan = ftctlDrPlan();
+        DrRunVO run = run(DrConstants.RUN_TYPE_FAILBACK);
+        DrFailbackSessionVO session = new DrFailbackSessionVO(plan.getId(), run.getId(),
+                plan.getUuid() + ":" + run.getUuid(), "ENGINE_ACCEPTED");
+        session.setAcceptanceState("ACCEPTED");
+        session.setEngineAckState("ACKNOWLEDGED");
+        Mockito.when(drRunDao.findById(run.getId())).thenReturn(run);
+        Mockito.when(drPlanDao.findById(plan.getId())).thenReturn(plan);
+        Mockito.when(drFailbackSessionDao.findActiveByRunId(run.getId())).thenReturn(session);
+        Mockito.when(drAdapterRegistry.getReplicationEngine(DrConstants.ENGINE_TYPE_FTCTL_DR,
+                DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR)).thenReturn(replicationEngine);
+        Mockito.when(replicationEngine.validatePlan(plan)).thenReturn(DrAdapterResult.success("valid", null));
+        Mockito.when(replicationEngine.execute(Mockito.any(DrExecutionContext.class)))
+                .thenReturn(DrAdapterResult.failure("DR_ENGINE_ACTION_FAILED", "engine rejected", null));
+
+        executor.queueRun(run);
+
+        Assert.assertEquals("ENGINE_ACCEPTED", session.getState());
+        Assert.assertNull(session.getRemoved());
+        Mockito.verify(drFailbackSessionDao, Mockito.never()).update(session.getId(), session);
     }
 
     @Test

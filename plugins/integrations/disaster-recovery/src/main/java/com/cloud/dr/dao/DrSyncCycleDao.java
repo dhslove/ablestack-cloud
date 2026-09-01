@@ -14,6 +14,7 @@ import com.cloud.utils.db.GenericDao;
 public interface DrSyncCycleDao extends GenericDao<DrSyncCycleVO, Long> {
     DrSyncCycleVO findByPlanRunSequence(long planId, String runUuid, long sequence);
     DrSyncCycleVO findByPlanSequence(long planId, long sequence);
+    DrSyncCycleVO findByPlanCycleToken(long planId, String cycleToken);
     DrSyncCycleVO findByPlanSchedulerCycle(long planId, String schedulerSessionUuid,
             long schedulerLeaseEpoch, String cycleToken);
     DrSyncCycleVO findActiveByPlanId(long planId);

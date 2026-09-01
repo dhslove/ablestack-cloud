@@ -167,15 +167,24 @@ public class DrReprotectPreflightServiceImpl extends ManagerBase implements DrRe
         }
 
         Long planCycleSequence = canonicalCutoverSequence(cutover);
-        if (planCycleSequence == null || planCycleSequence <= 0L) {
-            return false;
+        DrSyncCycleVO cutoverCycle = planCycleSequence != null && planCycleSequence > 0L
+                ? drSyncCycleDao.findByPlanSequence(plan.getId(), planCycleSequence) : null;
+        String cloudCycleToken = planCycleSequence != null && planCycleSequence > 0L
+                ? plan.getUuid() + ":" + planCycleSequence : null;
+        if (isDurableCycle(cutoverCycle, cloudCycleToken)) {
+            return true;
         }
-        DrSyncCycleVO cutoverCycle = drSyncCycleDao.findByPlanSequence(plan.getId(), planCycleSequence);
-        return cutoverCycle != null
-                && StringUtils.equalsIgnoreCase(cutoverCycle.getState(), "READY")
-                && StringUtils.equalsIgnoreCase(cutoverCycle.getCommitState(), "LOCAL_DURABLE")
-                && cutoverCycle.getTargetDurableAt() != null
-                && StringUtils.equals(cutoverCycle.getCycleToken(), plan.getUuid() + ":" + planCycleSequence);
+        String engineCycleToken = plan.getUuid() + ":" + cutover.getCheckpointSequence();
+        cutoverCycle = drSyncCycleDao.findByPlanCycleToken(plan.getId(), engineCycleToken);
+        return isDurableCycle(cutoverCycle, engineCycleToken);
+    }
+
+    private boolean isDurableCycle(DrSyncCycleVO cycle, String expectedCycleToken) {
+        return cycle != null && StringUtils.isNotBlank(expectedCycleToken)
+                && StringUtils.equalsIgnoreCase(cycle.getState(), "READY")
+                && StringUtils.equalsIgnoreCase(cycle.getCommitState(), "LOCAL_DURABLE")
+                && cycle.getTargetDurableAt() != null
+                && StringUtils.equals(cycle.getCycleToken(), expectedCycleToken);
     }
 
     private long resolveAuthoritySequenceFloor(DrPlanVO plan, long authorityGeneration) {

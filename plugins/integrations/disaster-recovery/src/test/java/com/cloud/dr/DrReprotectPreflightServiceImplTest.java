@@ -128,6 +128,26 @@ public class DrReprotectPreflightServiceImplTest {
     }
 
     @Test
+    public void acceptsDurableCycleByEngineCheckpointTokenWhenCloudSequenceDiffers() {
+        Fixture fixture = fixture(DrConstants.DIRECTION_KVM_TO_KVM);
+        fixture.cutover.setCheckpointSequence(546L);
+        fixture.cutover.setDetailsJson("{\"checkpoint_sequence\":112,\"plan_cycle_sequence\":546}");
+        DrSyncCycleVO cycle = new DrSyncCycleVO(fixture.plan.getId(), "cutover-run", 1163L);
+        cycle.setCycleToken(fixture.plan.getUuid() + ":546");
+        cycle.setState("READY");
+        cycle.setCommitState("LOCAL_DURABLE");
+        cycle.setTargetDurableAt(new java.util.Date());
+        Mockito.when(drSyncCycleDao.findByPlanCycleToken(fixture.plan.getId(),
+                fixture.plan.getUuid() + ":546")).thenReturn(cycle);
+        allowReprotect(fixture);
+
+        DrReprotectPreflightResult result = service.validate(fixture.plan, fixture.run);
+
+        Assert.assertTrue(result.isReady());
+        Assert.assertEquals(546L, result.getAuthoritySpec().getCheckpointSequence());
+    }
+
+    @Test
     public void rejectsMissingCanonicalDurableCutoverCycle() {
         Fixture fixture = fixture(DrConstants.DIRECTION_KVM_TO_KVM);
         fixture.cutover.setCheckpointSequence(112L);

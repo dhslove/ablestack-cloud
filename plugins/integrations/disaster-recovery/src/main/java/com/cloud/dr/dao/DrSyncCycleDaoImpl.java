@@ -20,6 +20,7 @@ import com.cloud.utils.db.UpdateBuilder;
 public class DrSyncCycleDaoImpl extends GenericDaoBase<DrSyncCycleVO, Long> implements DrSyncCycleDao {
     private final SearchBuilder<DrSyncCycleVO> byIdentitySearch;
     private final SearchBuilder<DrSyncCycleVO> byPlanSequenceSearch;
+    private final SearchBuilder<DrSyncCycleVO> byPlanCycleTokenSearch;
     private final SearchBuilder<DrSyncCycleVO> byPlanSchedulerCycleSearch;
     private final SearchBuilder<DrSyncCycleVO> byPlanSearch;
     private final SearchBuilder<DrSyncCycleVO> activeByPlanSearch;
@@ -44,6 +45,12 @@ public class DrSyncCycleDaoImpl extends GenericDaoBase<DrSyncCycleVO, Long> impl
         byPlanSequenceSearch.and("sequence", byPlanSequenceSearch.entity().getSequence(), SearchCriteria.Op.EQ);
         byPlanSequenceSearch.and("removed", byPlanSequenceSearch.entity().getRemoved(), SearchCriteria.Op.NULL);
         byPlanSequenceSearch.done();
+
+        byPlanCycleTokenSearch = createSearchBuilder();
+        byPlanCycleTokenSearch.and("planId", byPlanCycleTokenSearch.entity().getPlanId(), SearchCriteria.Op.EQ);
+        byPlanCycleTokenSearch.and("cycleToken", byPlanCycleTokenSearch.entity().getCycleToken(), SearchCriteria.Op.EQ);
+        byPlanCycleTokenSearch.and("removed", byPlanCycleTokenSearch.entity().getRemoved(), SearchCriteria.Op.NULL);
+        byPlanCycleTokenSearch.done();
 
         byPlanSchedulerCycleSearch = createSearchBuilder();
         byPlanSchedulerCycleSearch.and("planId", byPlanSchedulerCycleSearch.entity().getPlanId(), SearchCriteria.Op.EQ);
@@ -107,6 +114,16 @@ public class DrSyncCycleDaoImpl extends GenericDaoBase<DrSyncCycleVO, Long> impl
         sc.setParameters("planId", planId);
         sc.setParameters("sequence", sequence);
         List<DrSyncCycleVO> rows = listBy(sc, new Filter(DrSyncCycleVO.class, "completed", false, 0L, 1L));
+        return rows != null && !rows.isEmpty() ? rows.get(0) : null;
+    }
+
+    @Override
+    public DrSyncCycleVO findByPlanCycleToken(long planId, String cycleToken) {
+        SearchCriteria<DrSyncCycleVO> sc = byPlanCycleTokenSearch.create();
+        sc.setParameters("planId", planId);
+        sc.setParameters("cycleToken", cycleToken);
+        List<DrSyncCycleVO> rows = listBy(sc,
+                new Filter(DrSyncCycleVO.class, "completed", false, 0L, 1L));
         return rows != null && !rows.isEmpty() ? rows.get(0) : null;
     }
 

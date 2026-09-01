@@ -27,6 +27,7 @@ import org.apache.commons.lang3.StringUtils;
 import com.cloud.dr.DrConstants;
 import com.cloud.dr.DrEventVO;
 import com.cloud.dr.DrFailbackSessionVO;
+import com.cloud.dr.DrFailbackSessionState;
 import com.cloud.dr.DrFailbackRouteContract;
 import com.cloud.dr.DrPlanVO;
 import com.cloud.dr.DrRunStepVO;
@@ -231,7 +232,12 @@ public class DrOrchestratorImpl extends ManagerBase implements DrOrchestrator {
         DrFailbackSessionVO previous = drFailbackSessionDao.findLatestActiveByPlanId(plan.getId());
         if (previous != null && previous.getRunId() != run.getId()
                 && !StringUtils.equalsAnyIgnoreCase(previous.getState(), "COMPLETED", "FAILED", "ABORTED")) {
-            throw new InvalidParameterValueException("DR_FAILBACK_CLEANUP_PENDING: previous Failback cleanup must finish before another Failback starts");
+            DrRunVO previousRun = drRunDao.findById(previous.getRunId());
+            if (DrFailbackSessionState.isTerminalRunFailureWithoutEngineArtifacts(previous, previousRun)) {
+                closeArtifactFreeFailedFailbackSession(previous, previousRun);
+            } else {
+                throw new InvalidParameterValueException("DR_FAILBACK_CLEANUP_PENDING: previous Failback cleanup must finish before another Failback starts");
+            }
         }
         String engineSessionId = plan.getUuid() + ":" + run.getUuid();
         DrFailbackSessionVO session = new DrFailbackSessionVO(plan.getId(), run.getId(),
@@ -249,6 +255,20 @@ public class DrOrchestratorImpl extends ManagerBase implements DrOrchestrator {
         session.setProviderPair(route.getProviderPair());
         session.setDetailsJson(requestJson);
         drFailbackSessionDao.persist(session);
+    }
+
+    private void closeArtifactFreeFailedFailbackSession(DrFailbackSessionVO session, DrRunVO run) {
+        session.setState(StringUtils.equals(run.getState(), DrConstants.RUN_STATE_CANCELED)
+                ? "ABORTED" : "FAILED");
+        session.setAcceptanceState("REJECTED");
+        session.setFailurePhase("PRE_DISPATCH");
+        session.setFailedComponent("cloud-dr-run-executor");
+        session.setErrorCode(run.getErrorCode());
+        session.setErrorMessage(run.getErrorMessage());
+        session.setCompletedAt(run.getCompleted());
+        session.setRemoved(new Date());
+        session.markUpdated();
+        drFailbackSessionDao.update(session.getId(), session);
     }
 
     private JsonObject parseRequest(String requestJson) {

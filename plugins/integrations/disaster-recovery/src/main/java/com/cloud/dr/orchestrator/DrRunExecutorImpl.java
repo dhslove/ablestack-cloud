@@ -36,6 +36,8 @@ import org.apache.logging.log4j.Logger;
 import com.cloud.dr.DrConstants;
 import com.cloud.dr.DrAdmissionController;
 import com.cloud.dr.DrEventVO;
+import com.cloud.dr.DrFailbackSessionState;
+import com.cloud.dr.DrFailbackSessionVO;
 import com.cloud.dr.DrPlanVO;
 import com.cloud.dr.DrProjectionService;
 import com.cloud.dr.DrRunStepVO;
@@ -49,6 +51,7 @@ import com.cloud.dr.adapter.DrExecutionContext;
 import com.cloud.dr.adapter.DrFencingAdapter;
 import com.cloud.dr.adapter.DrReplicationEngine;
 import com.cloud.dr.dao.DrEventDao;
+import com.cloud.dr.dao.DrFailbackSessionDao;
 import com.cloud.dr.dao.DrPlanDao;
 import com.cloud.dr.dao.DrRunDao;
 import com.cloud.dr.dao.DrRunStepDao;
@@ -94,6 +97,8 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
     private DrAdmissionController drAdmissionController;
     @Inject
     private DrTestSessionDao drTestSessionDao;
+    @Inject
+    private DrFailbackSessionDao drFailbackSessionDao;
 
     private ExecutorService dispatchExecutor;
     private ScheduledExecutorService retryExecutor;
@@ -604,6 +609,7 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
         run.markUpdated();
         drRunDao.update(run.getId(), run);
         closeArtifactFreeFailedTestSession(run, errorCode, message);
+        closeArtifactFreeFailedFailbackSession(run, errorCode, message);
         if (isPlanTerminalFailure(run)) {
             markPlanFailed(run.getPlanId(), errorCode, message);
         } else {
@@ -628,6 +634,7 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
         run.markUpdated();
         drRunDao.update(run.getId(), run);
         closeArtifactFreeFailedTestSession(run, null, message);
+        closeArtifactFreeFailedFailbackSession(run, null, message);
         recordEvent(run.getPlanId(), run.getId(), DrConstants.EVENT_RUN_CANCELED, DrConstants.EVENT_SEVERITY_WARN,
                 StringUtils.defaultIfBlank(message, "DR run canceled"), null);
     }
@@ -647,6 +654,28 @@ public class DrRunExecutorImpl extends ManagerBase implements DrRunExecutor {
         session.setRemoved(new Date());
         session.markUpdated();
         drTestSessionDao.update(session.getId(), session);
+    }
+
+    private void closeArtifactFreeFailedFailbackSession(DrRunVO run, String errorCode, String message) {
+        if (!StringUtils.equals(run.getRunType(), DrConstants.RUN_TYPE_FAILBACK)
+                || drFailbackSessionDao == null) {
+            return;
+        }
+        DrFailbackSessionVO session = drFailbackSessionDao.findActiveByRunId(run.getId());
+        if (!DrFailbackSessionState.isTerminalRunFailureWithoutEngineArtifacts(session, run)) {
+            return;
+        }
+        session.setState(StringUtils.equals(run.getState(), DrConstants.RUN_STATE_CANCELED)
+                ? "ABORTED" : "FAILED");
+        session.setAcceptanceState("REJECTED");
+        session.setFailurePhase("PRE_DISPATCH");
+        session.setFailedComponent("cloud-dr-run-executor");
+        session.setErrorCode(errorCode);
+        session.setErrorMessage(message);
+        session.setCompletedAt(run.getCompleted());
+        session.setRemoved(new Date());
+        session.markUpdated();
+        drFailbackSessionDao.update(session.getId(), session);
     }
 
     private void recordStep(long runId, String stepName, int stepOrder, String state, Integer progress, String detailsJson,
