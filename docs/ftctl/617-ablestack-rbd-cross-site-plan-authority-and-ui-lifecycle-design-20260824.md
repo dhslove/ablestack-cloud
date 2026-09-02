@@ -1847,3 +1847,37 @@ existing engine checkpoint equality contract.
 | KVM cutover verification | Compare forward Cloud sequence with reverse engine sequence | Resolve the exact canonical Cloud Cycle and verify its durability |
 | Reprotect retry | A healthy reverse scheduler can be rejected after its sequence restarts | Independent reverse sequence is accepted when the cutover Cycle is durable |
 | VMware path | Engine checkpoint equality | Unchanged |
+
+## Disaster failover source-independence and immutable Plan mapping (2026-09-02)
+
+Cloud resolves Failover mode before capability checks, command construction,
+dispatch, polling, commit, and compensation. Every stage consumes the same
+execution policy.
+
+| Direction | Planned | Disaster |
+| --- | --- | --- |
+| VMware to KVM | target coordinator, final VDDK delta, source required | target coordinator, latest durable checkpoint, no source call |
+| KVM to KVM, RBD | remote source Agent, final delta, source required | target Agent, latest durable checkpoint, no source call |
+| KVM to KVM, SharedMountPoint qcow2 | remote source Agent, QMP quiesce and final delta | target Agent, sealed durable file checkpoint, no source call |
+
+The disaster request remains subject to explicit source-isolation
+acknowledgement. It does not require source reachability, source host UUID,
+fresh source inventory, source power control, or source scheduler status.
+Cloud stops the Plan-owned target export at the selected checkpoint and sends a
+`TARGET_DISASTER` command to the target Agent. Promotion is committed only
+after FTCTL checkpoint/manifest validation and Cloud target boot validation.
+
+`dr_plan.mapping_json` is immutable after Plan creation. Source hardware
+inventory used by Sync, Test Failover, and planned Failover is validation-only;
+it must not be persisted back into the Plan during action execution. Any source
+topology change is handled by protection release and Plan recreation/full seed,
+not by merging fresh VM details into an existing protected replica contract.
+
+| Area | AS-IS | TO-BE |
+| --- | --- | --- |
+| Mode routing | All KVM Failover Runs used remote source | Planned and disaster use distinct immutable policies |
+| Disaster preflight | Source host and inventory could block recovery | Target and durable checkpoint are the only infrastructure gates |
+| Runtime status | Disaster Run polled the failed source | Target Agent owns status through commit/abort |
+| Mapping lifecycle | Action refresh rewrote hardware JSON | Action cannot mutate mapping or VM details |
+| UI | Source-fence bypass remained visible in disaster mode | Disaster shows isolation acknowledgement only |
+| Regression | Shared predicates could change proven paths | Matrix tests cover VMware to RBD, RBD to RBD, and qcow2 to qcow2 |

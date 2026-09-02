@@ -61,7 +61,6 @@ import com.cloud.dr.adapter.DrAdapterResult;
 import com.cloud.dr.adapter.DrExecutionContext;
 import com.cloud.dr.adapter.DrReplicationEngine;
 import com.cloud.dr.dao.DrSiteDao;
-import com.cloud.dr.dao.DrPlanDao;
 import com.cloud.dr.dao.DrRestorePointDao;
 import com.cloud.dr.dao.DrReplicaDao;
 import com.cloud.dr.dao.DrPlanRuntimeDao;
@@ -121,8 +120,6 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
     private DrRemoteAgentClient drRemoteAgentClient;
     @Inject
     private DrPlanOwnedTransportService drPlanOwnedTransportService;
-    @Inject
-    private DrPlanDao drPlanDao;
     @Inject
     private DrSourceHardwareInventoryService drSourceHardwareInventoryService;
 
@@ -247,7 +244,8 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
             return DrAdapterResult.failure(DrConstants.ERROR_TARGET_MAPPING_INVALID, message, GSON.toJson(buildExecutionDetails(context, action, null)));
         }
 
-        DrAdapterResult sourceHardwareResult = refreshSourceHardwareSnapshotBeforeAction(context, action);
+        DrSourceVmHardware sourceHardware = resolveSourceHardwareSnapshot(context, action);
+        DrAdapterResult sourceHardwareResult = validateSourceHardwareSnapshot(context, action, sourceHardware);
         if (sourceHardwareResult != null) {
             return sourceHardwareResult;
         }
@@ -284,7 +282,7 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         }
         FtctlDrActionCommand command;
         try {
-            command = buildActionCommand(context, action);
+            command = buildActionCommand(context, action, sourceHardware);
             applyPlannedFileSourceQuiesceContract(context, action, command);
             preparePlanOwnedTransport(context, action, command);
             if (plannedRemoteKvmIsolationRequired) {
@@ -444,18 +442,37 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         }
     }
 
-    private DrAdapterResult refreshSourceHardwareSnapshotBeforeAction(DrExecutionContext context,
+    private DrSourceVmHardware resolveSourceHardwareSnapshot(DrExecutionContext context,
             FtctlDrActionCommand.Action action) {
         DrPlanVO plan = context != null ? context.getPlan() : null;
         if (plan == null || !StringUtils.equalsIgnoreCase(plan.getDirection(), DrConstants.DIRECTION_KVM_TO_KVM)
                 || !StringUtils.equalsIgnoreCase(plan.getActiveSide(), "SOURCE")
+                || (action == FtctlDrActionCommand.Action.FAILOVER
+                        && DrFailoverExecutionPolicy.isDisaster(context.getRun()))
                 || (action != FtctlDrActionCommand.Action.SYNC
                         && action != FtctlDrActionCommand.Action.RECOVER_SYNC
                         && action != FtctlDrActionCommand.Action.TEST_PREPARE
                         && action != FtctlDrActionCommand.Action.FAILOVER)) {
             return null;
         }
-        DrSourceVmHardware hardware = drSourceHardwareInventoryService.resolve(plan);
+        return drSourceHardwareInventoryService.resolve(plan);
+    }
+
+    private DrAdapterResult validateSourceHardwareSnapshot(DrExecutionContext context,
+            FtctlDrActionCommand.Action action, DrSourceVmHardware hardware) {
+        DrPlanVO plan = context != null ? context.getPlan() : null;
+        if (plan == null || hardware == null && (action == FtctlDrActionCommand.Action.FAILOVER
+                && DrFailoverExecutionPolicy.isDisaster(context.getRun()))) {
+            return null;
+        }
+        if (hardware == null && !(StringUtils.equalsIgnoreCase(plan.getDirection(), DrConstants.DIRECTION_KVM_TO_KVM)
+                && StringUtils.equalsIgnoreCase(plan.getActiveSide(), "SOURCE")
+                && (action == FtctlDrActionCommand.Action.SYNC
+                        || action == FtctlDrActionCommand.Action.RECOVER_SYNC
+                        || action == FtctlDrActionCommand.Action.TEST_PREPARE
+                        || action == FtctlDrActionCommand.Action.FAILOVER))) {
+            return null;
+        }
         if (hardware == null || !hardware.isComplete()) {
             String message = StringUtils.defaultIfBlank(hardware != null ? hardware.getMessage() : null,
                     "ABLESTACK source VM details could not be read before DR action dispatch");
@@ -468,13 +485,6 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
                             "ABLESTACK source VM has an active operation that blocks DR cutover"),
                     GSON.toJson(buildExecutionDetails(context, action, resolveCoordinatorHostId(plan))));
         }
-        JsonObject mapping = parseObject(plan.getMappingJson());
-        JsonObject source = objectAt(mapping, "source");
-        source.add("hardware", hardware.toJsonObject());
-        mapping.add("source", source);
-        plan.setMappingJson(GSON.toJson(mapping));
-        plan.markUpdated();
-        drPlanDao.update(plan.getId(), plan);
         return null;
     }
 
@@ -522,7 +532,7 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
 
     private Answer sendActionCommand(DrExecutionContext context, FtctlDrActionCommand.Action action,
             Long localHostId, FtctlDrActionCommand command) throws AgentUnavailableException, OperationTimedoutException {
-        if (dispatchesOnRemoteSource(context.getPlan(), action)) {
+        if (dispatchesOnRemoteSource(context.getPlan(), context.getRun(), action)) {
             return drRemoteAgentClient.execute(context.getPlan(), "ACTION", command,
                     remoteSourceWorkerUuid(context.getPlan()), FtctlDrActionAnswer.class);
         }
@@ -542,13 +552,21 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
             return;
         }
         if (isRemoteKvmToKvmPlan(plan)
+                && action == FtctlDrActionCommand.Action.FAILOVER
+                && DrFailoverExecutionPolicy.isDisaster(context.getRun())) {
+            DrRestorePointVO checkpoint = drRestorePointDao.findLatestTargetReadyByPlanId(plan.getId());
+            drPlanOwnedTransportService.stopForwardTargetExport(plan, context.getRun(),
+                    sourceCommand.getProfileJson(), checkpoint != null ? checkpoint.getCheckpointSequence() : null);
+            return;
+        }
+        if (isRemoteKvmToKvmPlan(plan)
                 && (action == FtctlDrActionCommand.Action.FAILBACK
                         || action == FtctlDrActionCommand.Action.REPROTECT)
                 && StringUtils.equalsIgnoreCase(plan.getActiveSide(), "TARGET")) {
             prepareReversePlanOwnedTransport(context, sourceCommand);
             return;
         }
-        if (!dispatchesOnRemoteSource(plan, action)
+        if (!dispatchesOnRemoteSource(plan, context.getRun(), action)
                 || (action != FtctlDrActionCommand.Action.SYNC
                         && action != FtctlDrActionCommand.Action.RECOVER_SYNC
                         && action != FtctlDrActionCommand.Action.FAILOVER
@@ -676,17 +694,11 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         return drPlanOwnedTransportService != null && drPlanOwnedTransportService.supports(plan);
     }
 
-    private boolean dispatchesOnRemoteSource(DrPlanVO plan, FtctlDrActionCommand.Action action) {
-        if (drRemoteAgentClient == null || !drRemoteAgentClient.isRemoteKvmSource(plan)
-                || !StringUtils.equalsIgnoreCase(plan.getActiveSide(), "SOURCE")) {
-            return false;
-        }
-        return action == FtctlDrActionCommand.Action.SYNC
-                || action == FtctlDrActionCommand.Action.RECOVER_SYNC
-                || action == FtctlDrActionCommand.Action.FAILOVER
-                || action == FtctlDrActionCommand.Action.PAUSE_SYNC
-                || action == FtctlDrActionCommand.Action.RESUME_SYNC
-                || action == FtctlDrActionCommand.Action.RELEASE;
+    private boolean dispatchesOnRemoteSource(DrPlanVO plan, DrRunVO run,
+            FtctlDrActionCommand.Action action) {
+        return DrFailoverExecutionPolicy.usesRemoteSource(plan, run,
+                action != null ? action.name() : null,
+                drRemoteAgentClient != null && drRemoteAgentClient.isRemoteKvmSource(plan));
     }
 
     private String remoteSourceWorkerUuid(DrPlanVO plan) {
@@ -694,6 +706,11 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
     }
 
     private FtctlDrActionCommand buildActionCommand(DrExecutionContext context, FtctlDrActionCommand.Action action) {
+        return buildActionCommand(context, action, null);
+    }
+
+    private FtctlDrActionCommand buildActionCommand(DrExecutionContext context,
+            FtctlDrActionCommand.Action action, DrSourceVmHardware sourceHardware) {
         DrPlanVO plan = context.getPlan();
         DrRunVO run = context.getRun();
         JsonObject request = requestJson(run);
@@ -701,8 +718,10 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         DrRestorePointVO latestCheckpoint = requiresLatestCheckpoint(action)
                 ? drRestorePointDao.findLatestTargetReadyByPlanId(plan.getId()) : null;
         redactedRequest.remove("restorePointId");
-        if (isRemoteKvmToKvmPlan(plan)) {
-            redactedRequest.addProperty("schedulerTransitionScope", "REMOTE_SOURCE");
+        String transitionScope = DrFailoverExecutionPolicy.schedulerTransitionScope(plan, run,
+                isRemoteKvmToKvmPlan(plan));
+        if (StringUtils.isNotBlank(transitionScope)) {
+            redactedRequest.addProperty("schedulerTransitionScope", transitionScope);
         }
         if (latestCheckpoint != null) {
             addControllerCheckpointEvidence(redactedRequest, plan, latestCheckpoint);
@@ -714,11 +733,11 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         command.setActionIntent(requestString(request, "actionIntent"));
         command.setDirection(plan.getDirection());
         command.setRole("coordinator");
-        command.setSourceWorkerUuid(drRemoteAgentClient != null && drRemoteAgentClient.isRemoteKvmSource(plan)
+        command.setSourceWorkerUuid(dispatchesOnRemoteSource(plan, run, action)
                 ? remoteSourceWorkerUuid(plan) : resolveHostUuid(plan.getSourceWorkerHostId()));
         command.setTargetWorkerUuid(resolveHostUuid(plan.getTargetWorkerHostId()));
         command.setCoordinatorWorkerUuid(resolveHostUuid(resolveCoordinatorHostId(plan)));
-        command.setProfileJson(buildProfileJson(plan, run, redactedRequest));
+        command.setProfileJson(buildProfileJson(plan, run, redactedRequest, sourceHardware));
         command.setRequestJson(GSON.toJson(redactedRequest));
         if (action == FtctlDrActionCommand.Action.TEST_PREPARE) {
             command.setArtifactContractVersion(TEST_ARTIFACT_CONTRACT_VERSION);
@@ -969,7 +988,12 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
                 && StringUtils.equalsIgnoreCase(requestString(requestJson(context.getRun()), "mode"), "planned")) {
             requiredFeatures.add("dr-file-planned-failover-qmp-quiesce-v1");
         }
-        if (drRemoteAgentClient != null && drRemoteAgentClient.isRemoteKvmSource(context.getPlan())
+        if (action == FtctlDrActionCommand.Action.FAILOVER
+                && isRemoteKvmToKvmPlan(context.getPlan())
+                && DrFailoverExecutionPolicy.isDisaster(context.getRun())) {
+            requiredFeatures.add("dr-target-disaster-promote-v1");
+        }
+        if (dispatchesOnRemoteSource(context.getPlan(), context.getRun(), action)
                 && (action == FtctlDrActionCommand.Action.SYNC
                         || action == FtctlDrActionCommand.Action.RECOVER_SYNC
                         || action == FtctlDrActionCommand.Action.FAILOVER)) {
@@ -977,7 +1001,7 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         }
         command.setRequiredFeatures(requiredFeatures);
         try {
-            Answer answer = dispatchesOnRemoteSource(context.getPlan(), action)
+            Answer answer = dispatchesOnRemoteSource(context.getPlan(), context.getRun(), action)
                     ? drRemoteAgentClient.execute(context.getPlan(), "CAPABILITIES", command,
                             remoteSourceWorkerUuid(context.getPlan()), FtctlDrCapabilitiesAnswer.class)
                     : agentManager.send(hostId, command);
@@ -1074,7 +1098,7 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         try {
             FtctlDrStatusCommand statusCommand = new FtctlDrStatusCommand(context.getPlan().getUuid(), context.getRun().getUuid());
             statusCommand.setWait(10);
-            Answer answer = dispatchesOnRemoteSource(context.getPlan(), action)
+            Answer answer = dispatchesOnRemoteSource(context.getPlan(), context.getRun(), action)
                     ? drRemoteAgentClient.execute(context.getPlan(), "STATUS", statusCommand,
                             remoteSourceWorkerUuid(context.getPlan()), FtctlDrStatusAnswer.class)
                     : agentManager.easySend(hostId, statusCommand);
@@ -1252,6 +1276,11 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
     }
 
     private String buildProfileJson(DrPlanVO plan, DrRunVO run, JsonObject request) {
+        return buildProfileJson(plan, run, request, null);
+    }
+
+    private String buildProfileJson(DrPlanVO plan, DrRunVO run, JsonObject request,
+            DrSourceVmHardware sourceHardware) {
         JsonObject profile = new JsonObject();
         profile.addProperty("version", 1);
         profile.addProperty("engine", DrConstants.ENGINE_TYPE_FTCTL_DR);
@@ -1267,10 +1296,15 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         DrSiteVO sourceSite = drSiteDao != null ? drSiteDao.findById(plan.getSourceSiteId()) : null;
         DrSiteVO targetSite = drSiteDao != null ? drSiteDao.findById(plan.getTargetSiteId()) : null;
         JsonObject mapping = parseObject(plan.getMappingJson());
+        if (sourceHardware != null) {
+            JsonObject source = objectAt(mapping, "source");
+            source.add("hardware", sourceHardware.toJsonObject());
+            mapping.add("source", source);
+        }
         profile.add("source", buildSourceEndpoint(plan, sourceSite, mapping));
         profile.add("target", buildTargetEndpoint(plan, targetSite, mapping));
         profile.add("credentials", buildCredentials(plan, sourceSite, targetSite));
-        profile.add("workers", buildWorkers(plan));
+        profile.add("workers", buildWorkers(plan, run));
         profile.add("transport", buildTransport(plan));
         profile.add("policy", parseObject(plan.getPolicyJson()));
         profile.add("mapping", mapping);
@@ -1476,10 +1510,11 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         return detail != null ? StringUtils.trimToNull(detail.getValue()) : null;
     }
 
-    private JsonObject buildWorkers(DrPlanVO plan) {
+    private JsonObject buildWorkers(DrPlanVO plan, DrRunVO run) {
         JsonObject workers = new JsonObject();
         workers.addProperty("coordinator", resolveHostUuid(resolveCoordinatorHostId(plan)));
         workers.addProperty("source", drRemoteAgentClient != null && drRemoteAgentClient.isRemoteKvmSource(plan)
+                && !DrFailoverExecutionPolicy.isDisaster(run)
                 ? remoteSourceWorkerUuid(plan) : resolveHostUuid(plan.getSourceWorkerHostId()));
         workers.addProperty("target", resolveHostUuid(plan.getTargetWorkerHostId()));
         return workers;

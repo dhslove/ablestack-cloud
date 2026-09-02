@@ -253,7 +253,7 @@ public class FtctlDrUnifiedActionAdapterTest {
         Assert.assertTrue(command.getRequestJson().contains("\"schedulerTransitionScope\":\"REMOTE_SOURCE\""));
         Assert.assertTrue(command.getProfileJson().contains("\"UEFI\":\"LEGACY\""));
         Assert.assertTrue(command.getProfileJson().contains("\"tpmversion\":\"NONE\""));
-        Mockito.verify(drPlanDao).update(plan.getId(), plan);
+        Mockito.verify(drPlanDao, Mockito.never()).update(Mockito.anyLong(), Mockito.any(DrPlanVO.class));
         Assert.assertFalse(command.getProfileJson().contains("sshUser"));
         Assert.assertFalse(command.getProfileJson().contains("moldSecretKey"));
     }
@@ -463,6 +463,49 @@ public class FtctlDrUnifiedActionAdapterTest {
         order.verify(drRemoteAgentClient).execute(Mockito.eq(plan), Mockito.eq("ACTION"),
                 Mockito.isA(FtctlDrActionCommand.class), Mockito.eq("source-host-uuid"),
                 Mockito.eq(FtctlDrActionAnswer.class));
+    }
+
+    @Test
+    public void crossSiteKvmDisasterFailoverUsesDurableTargetWithoutSourceAccess() throws Exception {
+        DrPlanVO plan = crossSiteKvmPlan();
+        String immutableMapping = plan.getMappingJson();
+        DrRunVO run = run(DrConstants.RUN_TYPE_FAILOVER,
+                "{\"mode\":\"disaster\",\"finalSync\":false,"
+                        + "\"sourceIsolationAcknowledged\":true,\"sourceIsolationReason\":\"site unavailable\"}");
+        DrRestorePointVO checkpoint = checkpoint(plan, "ftctl:" + plan.getUuid() + ":source-run:22");
+        Mockito.when(drRestorePointDao.findLatestTargetReadyByPlanId(plan.getId())).thenReturn(checkpoint);
+        Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        Mockito.when(drPlanOwnedTransportService.supports(plan)).thenReturn(true);
+        Mockito.when(agentManager.send(Mockito.eq(103L), Mockito.isA(FtctlDrCapabilitiesCommand.class)))
+                .thenAnswer(invocation -> {
+                    FtctlDrCapabilitiesAnswer answer = new FtctlDrCapabilitiesAnswer(invocation.getArgument(1), true, "ok");
+                    answer.setSupportedFeatures(java.util.Arrays.asList(
+                            "control-protocol-v2", "dr-target-disaster-promote-v1"));
+                    return answer;
+                });
+        ArgumentCaptor<FtctlDrActionCommand> commandCaptor = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
+        Mockito.when(agentManager.send(Mockito.eq(103L), commandCaptor.capture())).thenAnswer(invocation -> {
+            FtctlDrActionCommand command = invocation.getArgument(1);
+            return new FtctlDrActionAnswer(command, true, "accepted", FtctlDrActionCommand.Action.FAILOVER,
+                    plan.getUuid(), run.getUuid(), "accepted", true, "RUNNING", "target-disaster",
+                    1, run.getUuid(), 0L, null, 0, "{\"result\":\"accepted\"}", "{\"state\":\"RUNNING\"}");
+        });
+
+        DrAdapterResult result = adapter.execute(new DrExecutionContext(plan, run));
+
+        Assert.assertTrue(result.isSuccess());
+        Assert.assertEquals(immutableMapping, plan.getMappingJson());
+        Assert.assertNull(commandCaptor.getValue().getSourceWorkerUuid());
+        Assert.assertTrue(commandCaptor.getValue().getRequestJson()
+                .contains("\"schedulerTransitionScope\":\"TARGET_DISASTER\""));
+        Mockito.verify(drPlanOwnedTransportService).stopForwardTargetExport(
+                Mockito.eq(plan), Mockito.eq(run), Mockito.anyString(), Mockito.eq(2L));
+        Mockito.verify(drPlanOwnedTransportService, Mockito.never()).startForwardTargetExport(
+                Mockito.any(DrPlanVO.class), Mockito.any(DrRunVO.class), Mockito.anyString());
+        Mockito.verifyNoInteractions(drSourceHardwareInventoryService);
+        Mockito.verify(drRemoteAgentClient, Mockito.never()).sourceWorkerUuid(plan);
+        Mockito.verify(drRemoteAgentClient, Mockito.never()).execute(Mockito.eq(plan), Mockito.anyString(),
+                Mockito.any(), Mockito.anyString(), Mockito.any());
     }
 
     @Test

@@ -380,6 +380,9 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         if (run == null) {
             return true;
         }
+        if (DrFailoverExecutionPolicy.isDisaster(run)) {
+            return false;
+        }
         return StringUtils.equalsAnyIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_SYNC,
                 DrConstants.RUN_TYPE_RECOVER_SYNC, DrConstants.RUN_TYPE_PAUSE_SYNC,
                 DrConstants.RUN_TYPE_RESUME_SYNC, DrConstants.RUN_TYPE_FAILOVER,
@@ -1816,7 +1819,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         }
         DrCutoverSessionVO session = drCutoverSessionDao.findActiveByRunId(run.getId());
         if (session == null) {
-            session = new DrCutoverSessionVO(plan.getId(), run.getId(), run.getRunType(),
+            session = new DrCutoverSessionVO(plan.getId(), run.getId(), DrFailoverExecutionPolicy.mode(run),
                     StringUtils.defaultIfBlank(status.getState(), "PREPARING"));
             session = drCutoverSessionDao.persist(session);
         }
@@ -2137,12 +2140,19 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         if (command == null) {
             return null;
         }
-        if (isRemoteKvmToKvmPlan(plan)) {
+        if (isRemoteKvmToKvmPlan(plan) && !DrFailoverExecutionPolicy.isDisaster(run)) {
             Answer sourceAnswer = drRemoteAgentClient.execute(plan, "ACTION", command,
                     remoteSourceWorkerUuid(plan), FtctlDrActionAnswer.class);
             if (sourceAnswer == null || !sourceAnswer.getResult()) {
                 return sourceAnswer;
             }
+            FtctlDrActionCommand targetCommand = buildCutoverCommitCommand(plan, run, session,
+                    powerOnResult, generation, "target");
+            return plan.getTargetWorkerHostId() != null
+                    ? agentManager.easySend(plan.getTargetWorkerHostId(), targetCommand)
+                    : new Answer(targetCommand, false, "DR_CUTOVER_TARGET_HOST_MISSING: target worker is not configured");
+        }
+        if (isRemoteKvmToKvmPlan(plan) && DrFailoverExecutionPolicy.isDisaster(run)) {
             FtctlDrActionCommand targetCommand = buildCutoverCommitCommand(plan, run, session,
                     powerOnResult, generation, "target");
             return plan.getTargetWorkerHostId() != null
@@ -3532,7 +3542,9 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             return false;
         }
 
-        Long hostId = resolveCoordinatorHostId(plan);
+        boolean disasterFailover = DrFailoverExecutionPolicy.isDisaster(run);
+        Long hostId = disasterFailover && plan.getTargetWorkerHostId() != null
+                ? plan.getTargetWorkerHostId() : resolveCoordinatorHostId(plan);
         if (hostId == null) {
             session.setState("ABORT_FAILED");
             session.setErrorCode("DR_FAILOVER_ABORT_HOST_UNRESOLVED");
@@ -3548,7 +3560,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         if (StringUtils.isNotBlank(engineSessionId)) {
             command.setContextParam("cutoverSessionId", engineSessionId);
         }
-        Answer answer = isRemoteKvmToKvmPlan(plan)
+        Answer answer = isRemoteKvmToKvmPlan(plan) && !disasterFailover
                 ? drRemoteAgentClient.execute(plan, "ACTION", command,
                         remoteSourceWorkerUuid(plan), FtctlDrActionAnswer.class)
                 : agentManager.easySend(hostId, command);
@@ -3573,7 +3585,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             return false;
         }
 
-        if (isRemoteKvmToKvmPlan(plan)) {
+        if (isRemoteKvmToKvmPlan(plan) && !disasterFailover) {
             try {
                 restorePlanOwnedTargetExportAfterAbort(plan, run);
                 String sourcePowerState = drRemoteAgentClient.ensureSourceVmPowerState(plan, true);

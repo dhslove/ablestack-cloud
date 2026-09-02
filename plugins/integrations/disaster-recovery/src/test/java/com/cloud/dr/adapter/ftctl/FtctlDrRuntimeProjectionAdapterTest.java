@@ -148,6 +148,34 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     }
 
     @Test
+    public void disasterFailoverStatusNeverPollsRemoteSource() {
+        DrPlanVO plan = new DrPlanVO("target-disaster-status", 1L, 2L,
+                DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setActiveSide(DrConstants.AUTHORITY_SIDE_SOURCE);
+        DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_FAILOVER);
+        run.setRequestJson("{\"mode\":\"disaster\",\"finalSync\":false}");
+        Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+
+        Boolean pollsRemote = ReflectionTestUtils.invokeMethod(adapter, "pollsRemoteSource", plan, run);
+
+        Assert.assertFalse(Boolean.TRUE.equals(pollsRemote));
+    }
+
+    @Test
+    public void plannedFailoverStatusRetainsRemoteSourceOwnership() {
+        DrPlanVO plan = new DrPlanVO("planned-status", 1L, 2L,
+                DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setActiveSide(DrConstants.AUTHORITY_SIDE_SOURCE);
+        DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_FAILOVER);
+        run.setRequestJson("{\"mode\":\"planned\",\"finalSync\":true}");
+        Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+
+        Boolean pollsRemote = ReflectionTestUtils.invokeMethod(adapter, "pollsRemoteSource", plan, run);
+
+        Assert.assertTrue(Boolean.TRUE.equals(pollsRemote));
+    }
+
+    @Test
     public void powerOnValidatedCutoverRetryDoesNotDrainRunningTargetAgain() {
         DrPlanVO plan = new DrPlanVO("remote-kvm-cutover-retry", 1L, 2L,
                 DrConstants.DIRECTION_KVM_TO_KVM);

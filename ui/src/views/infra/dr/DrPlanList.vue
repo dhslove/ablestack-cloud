@@ -1009,7 +1009,7 @@
           <a-switch v-model:checked="actionForm.finalsync" />
         </a-form-item>
         <a-form-item
-          v-if="isFailoverAction"
+          v-if="isFailoverAction && !actionForm.disaster"
           :label="$t('label.dr.action.skip.source.fence')">
           <a-switch v-model:checked="actionForm.skipsourcefencerequest" />
         </a-form-item>
