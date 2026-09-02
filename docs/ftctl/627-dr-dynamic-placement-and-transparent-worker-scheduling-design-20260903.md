@@ -222,6 +222,12 @@ checks remain only inside an explicit cutover transaction when they are the
 requested transition outcome, and destination boot validation remains a
 post-materialization success criterion.
 
+Preflight contracts must report `targetPowerState=NOT_REQUIRED` when they do
+not perform a power probe. They must never manufacture `POWERED_ON` merely to
+satisfy an older response shape. An observed power state may be exposed as
+non-blocking evidence, while the execution transaction records actual stop,
+start, and boot-validation outcomes separately.
+
 ## 8. Existing Plan Migration
 
 No DB repair or Plan recreation is required.

@@ -56,6 +56,7 @@ public class DrReprotectPreflightServiceImplTest {
         Assert.assertEquals(153L, result.getAuthoritySpec().getAuthoritySequenceFloor());
         Assert.assertEquals(17L, result.getAuthoritySpec().getCheckpointSequence());
         Assert.assertEquals(256L, result.getAuthoritySpec().getTargetVmId());
+        Assert.assertEquals("POWERED_ON", result.getAuthoritySpec().getTargetPowerState());
         Mockito.verify(drRunStepDao).persist(Mockito.argThat(step ->
                 DrConstants.STEP_STATE_SUCCEEDED.equals(step.getState())
                         && step.getDetailsJson().contains("\"targetInstanceName\":\"i-2-256-VM\"")));
@@ -77,6 +78,7 @@ public class DrReprotectPreflightServiceImplTest {
         DrReprotectPreflightResult result = service.validate(fixture.plan, fixture.run);
 
         Assert.assertTrue(result.isReady());
+        Assert.assertEquals("NOT_REQUIRED", result.getAuthoritySpec().getTargetPowerState());
         Mockito.verify(drRunStepDao).persist(Mockito.argThat(step ->
                 DrConstants.STEP_STATE_SUCCEEDED.equals(step.getState())));
     }

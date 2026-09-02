@@ -107,7 +107,7 @@ public class DrReprotectPreflightServiceImpl extends ManagerBase implements DrRe
         spec.setTargetVmId(targetVm.getId());
         spec.setTargetExternalRef(StringUtils.defaultIfBlank(replica.getTargetExternalRef(), targetVm.getUuid()));
         spec.setTargetInstanceName(targetVm.getInstanceName());
-        spec.setTargetPowerState("POWERED_ON");
+        spec.setTargetPowerState(transitionPreflight.getTargetPowerState());
         spec.setTargetMaterialized(true);
         spec.setTargetPromotionState(cutover.getCloudPromotionState());
         spec.setBootValidationState(cutover.getBootValidationState());
