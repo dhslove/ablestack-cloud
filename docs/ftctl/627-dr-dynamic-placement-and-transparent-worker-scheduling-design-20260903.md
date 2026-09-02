@@ -215,6 +215,13 @@ The UI consumes backend `actionavailability`. It must not allow submission when
 the same snapshot reports a blocking capability reason, and it must never show
 the Plan as generally `READY` while all actions are globally unavailable.
 
+VM power state is not a protection, synchronization, reprotection, or
+failback-preflight prerequisite. Those paths are authorized by the committed
+authority generation and a durable checkpoint set. Power-off and power-on
+checks remain only inside an explicit cutover transaction when they are the
+requested transition outcome, and destination boot validation remains a
+post-materialization success criterion.
+
 ## 8. Existing Plan Migration
 
 No DB repair or Plan recreation is required.
@@ -328,6 +335,7 @@ UI state helpers.
 | Phase | Required assertions |
 | --- | --- |
 | Plan/readiness | stopped source accepted; no worker field required; automatic candidate present |
+| Reprotect/failback preflight | stopped or unassigned serving VM accepted when target authority and durable checkpoint are valid |
 | Full sync | accepted, durable terminal, Plan READY |
 | Incremental sync | accepted or NO_CHANGE, durable terminal, RPO projection consistent |
 | Pause/resume | terminal state and scheduler intent agree |

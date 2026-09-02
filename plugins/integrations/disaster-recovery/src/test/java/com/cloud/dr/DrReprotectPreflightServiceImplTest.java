@@ -15,16 +15,12 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnitRunner;
 
-import com.cloud.agent.AgentManager;
-import com.cloud.agent.api.CheckVirtualMachineAnswer;
-import com.cloud.agent.api.CheckVirtualMachineCommand;
 import com.cloud.dr.dao.DrCutoverSessionDao;
 import com.cloud.dr.dao.DrPlanRuntimeDao;
 import com.cloud.dr.dao.DrReplicaDao;
 import com.cloud.dr.dao.DrRestorePointDao;
 import com.cloud.dr.dao.DrRunStepDao;
 import com.cloud.dr.dao.DrSyncCycleDao;
-import com.cloud.vm.VirtualMachine.PowerState;
 import com.cloud.vm.UserVmVO;
 import com.cloud.vm.dao.UserVmDao;
 
@@ -37,7 +33,6 @@ public class DrReprotectPreflightServiceImplTest {
     @Mock private DrRunStepDao drRunStepDao;
     @Mock private DrSyncCycleDao drSyncCycleDao;
     @Mock private UserVmDao userVmDao;
-    @Mock private AgentManager agentManager;
     @Mock private DrSourceIsolationPreflightService drSourceIsolationPreflightService;
     @Mock private DrCurrentAuthorityResolver drCurrentAuthorityResolver;
 
@@ -45,11 +40,8 @@ public class DrReprotectPreflightServiceImplTest {
     private DrReprotectPreflightServiceImpl service;
 
     @Test
-    public void validatesCommittedTargetAuthorityAndAgentPowerState() {
+    public void validatesCommittedTargetAuthorityWithoutPowerStateGate() {
         Fixture fixture = fixture();
-        Mockito.when(agentManager.easySend(Mockito.eq(102L), Mockito.any(CheckVirtualMachineCommand.class)))
-                .thenAnswer(invocation -> new CheckVirtualMachineAnswer(
-                        invocation.getArgument(1), PowerState.PowerOn, null));
         Mockito.when(drSourceIsolationPreflightService.validate(fixture.plan, fixture.run,
                 DrConstants.RUN_TYPE_REPROTECT))
                 .thenReturn(DrSourceIsolationPreflightResult.success(
@@ -70,19 +62,23 @@ public class DrReprotectPreflightServiceImplTest {
     }
 
     @Test
-    public void rejectsDbRunningTargetWhenAgentReportsPowerOff() {
+    public void acceptsTargetWithoutHostAssignmentWhenCheckpointAuthorityIsDurable() {
         Fixture fixture = fixture();
-        Mockito.when(agentManager.easySend(Mockito.eq(102L), Mockito.any(CheckVirtualMachineCommand.class)))
-                .thenAnswer(invocation -> new CheckVirtualMachineAnswer(
-                        invocation.getArgument(1), PowerState.PowerOff, null));
+        UserVmVO stoppedTarget = Mockito.mock(UserVmVO.class);
+        Mockito.when(stoppedTarget.getId()).thenReturn(256L);
+        Mockito.when(stoppedTarget.getInstanceName()).thenReturn("i-2-256-VM");
+        Mockito.when(userVmDao.findById(256L)).thenReturn(stoppedTarget);
+        Mockito.when(drSourceIsolationPreflightService.validate(fixture.plan, fixture.run,
+                DrConstants.RUN_TYPE_REPROTECT))
+                .thenReturn(DrSourceIsolationPreflightResult.success(
+                        DrConstants.RUN_TYPE_REPROTECT, 3L, "ACKNOWLEDGED",
+                        "POWERED_OFF", "NOT_REQUIRED", "{\"ready\":true}"));
 
         DrReprotectPreflightResult result = service.validate(fixture.plan, fixture.run);
 
-        Assert.assertFalse(result.isReady());
-        Assert.assertEquals(DrConstants.ERROR_REPROTECT_TARGET_RUNTIME_NOT_RUNNING, result.getErrorCode());
+        Assert.assertTrue(result.isReady());
         Mockito.verify(drRunStepDao).persist(Mockito.argThat(step ->
-                DrConstants.STEP_STATE_FAILED.equals(step.getState())
-                        && DrConstants.ERROR_REPROTECT_TARGET_RUNTIME_NOT_RUNNING.equals(step.getErrorCode())));
+                DrConstants.STEP_STATE_SUCCEEDED.equals(step.getState())));
     }
 
     @Test
@@ -184,9 +180,6 @@ public class DrReprotectPreflightServiceImplTest {
     }
 
     private void allowReprotect(Fixture fixture) {
-        Mockito.when(agentManager.easySend(Mockito.eq(102L), Mockito.any(CheckVirtualMachineCommand.class)))
-                .thenAnswer(invocation -> new CheckVirtualMachineAnswer(
-                        invocation.getArgument(1), PowerState.PowerOn, null));
         Mockito.when(drSourceIsolationPreflightService.validate(fixture.plan, fixture.run,
                 DrConstants.RUN_TYPE_REPROTECT))
                 .thenReturn(DrSourceIsolationPreflightResult.success(
@@ -218,7 +211,6 @@ public class DrReprotectPreflightServiceImplTest {
         Mockito.when(targetVm.getId()).thenReturn(256L);
         Mockito.when(targetVm.getUuid()).thenReturn("target-vm-uuid");
         Mockito.when(targetVm.getInstanceName()).thenReturn("i-2-256-VM");
-        Mockito.when(targetVm.getHostId()).thenReturn(102L);
 
         Mockito.when(drCutoverSessionDao.findLatestActiveByPlanId(plan.getId())).thenReturn(cutover);
         Mockito.when(drReplicaDao.listActiveByPlanId(plan.getId())).thenReturn(Collections.singletonList(replica));

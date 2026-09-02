@@ -16,8 +16,6 @@ import org.apache.commons.lang3.StringUtils;
 
 import com.cloud.agent.AgentManager;
 import com.cloud.agent.api.Answer;
-import com.cloud.agent.api.CheckVirtualMachineAnswer;
-import com.cloud.agent.api.CheckVirtualMachineCommand;
 import com.cloud.agent.api.FtctlDrStatusAnswer;
 import com.cloud.agent.api.FtctlDrStatusCommand;
 import com.cloud.dr.dao.DrCutoverSessionDao;
@@ -25,7 +23,6 @@ import com.cloud.dr.dao.DrReplicaDao;
 import com.cloud.dr.dao.DrRunStepDao;
 import com.cloud.utils.component.ManagerBase;
 import com.cloud.vm.UserVmVO;
-import com.cloud.vm.VirtualMachine.PowerState;
 import com.cloud.vm.dao.UserVmDao;
 import com.google.gson.Gson;
 
@@ -99,47 +96,18 @@ public class DrSourceIsolationPreflightServiceImpl extends ManagerBase
         DrReplicaVO replica = servingTargetReplica(plan.getId());
         UserVmVO targetVm = replica != null && replica.getTargetVmId() != null
                 ? userVmDao.findById(replica.getTargetVmId()) : null;
-        if (targetVm == null || targetVm.getRemoved() != null || targetVm.getHostId() == null) {
+        if (targetVm == null || targetVm.getRemoved() != null) {
             return blocked(stages, "TARGET_RUNTIME", DrConstants.ERROR_TRANSITION_TARGET_NOT_SERVING,
-                    "Serving target VM identity or host assignment is missing", normalizedOperation,
+                    "Serving target VM identity is missing", normalizedOperation,
                     cutover.getCloudAuthorityGeneration(), sourceFenceState, sourcePowerState,
                     null, null, targetVm != null ? targetVm.getState().toString() : null,
                     "NOT_FOUND", targetVm != null ? targetVm.getId() : null,
                     targetVm != null ? targetVm.getHostId() : null);
         }
-        Answer powerProbe = agentManager.easySend(targetVm.getHostId(),
-                new CheckVirtualMachineCommand(targetVm.getInstanceName()));
-        CheckVirtualMachineAnswer vmAnswer = powerProbe instanceof CheckVirtualMachineAnswer
-                ? (CheckVirtualMachineAnswer) powerProbe : null;
         String targetDbState = targetVm.getState() != null ? targetVm.getState().toString() : null;
-        String targetAgentState = normalizeAgentState(vmAnswer);
-        if (vmAnswer == null || !powerProbe.getResult()) {
-            String details = powerProbe != null ? powerProbe.getDetails() : null;
-            boolean domainMissing = StringUtils.containsIgnoreCase(details, "domain not found")
-                    || StringUtils.containsIgnoreCase(details, "no domain")
-                    || StringUtils.containsIgnoreCase(details, "not found");
-            String errorCode = domainMissing ? DrConstants.ERROR_TRANSITION_TARGET_DOMAIN_NOT_FOUND
-                    : DrConstants.ERROR_TRANSITION_TARGET_HOST_UNREACHABLE;
-            String drift = domainMissing && StringUtils.equalsIgnoreCase(targetDbState, "Running")
-                    ? "DB_RUNNING_AGENT_NOT_FOUND" : "HOST_UNREACHABLE";
-            return blocked(stages, "TARGET_RUNTIME", errorCode,
-                    domainMissing ? "Cloud records the serving target VM as running, but its assigned Agent cannot find the domain"
-                            : "The assigned Agent could not confirm the serving target VM runtime",
-                    normalizedOperation, cutover.getCloudAuthorityGeneration(), sourceFenceState,
-                    sourcePowerState, targetAgentState, null, targetDbState, targetAgentState,
-                    targetVm.getId(), targetVm.getHostId(), drift);
-        }
-        if (vmAnswer.getState() != PowerState.PowerOn) {
-            String drift = StringUtils.equalsIgnoreCase(targetDbState, "Running")
-                    ? "DB_RUNNING_AGENT_POWERED_OFF" : "CONSISTENT";
-            return blocked(stages, "TARGET_RUNTIME", DrConstants.ERROR_TRANSITION_TARGET_NOT_SERVING,
-                    "Serving target VM is not powered on according to its assigned Agent",
-                    normalizedOperation, cutover.getCloudAuthorityGeneration(), sourceFenceState,
-                    sourcePowerState, targetAgentState, null, targetDbState, targetAgentState,
-                    targetVm.getId(), targetVm.getHostId(), drift);
-        }
-        stages.add(DrFailbackPreflightStage.ready("TARGET_RUNTIME", "MOLD_AGENT",
-                "Serving target VM domain is powered on"));
+        String targetRuntimeState = "NOT_REQUIRED";
+        stages.add(DrFailbackPreflightStage.ready("TARGET_RUNTIME", "CHECKPOINT_AUTHORITY",
+                "Serving target replica identity is available; VM power state is not an action prerequisite"));
 
         Long coordinatorHostId = drWorkerPlacementService != null
                 ? drWorkerPlacementService.resolveWorkerHostId(plan, DrWorkerRole.TARGET) : null;
@@ -147,7 +115,7 @@ public class DrSourceIsolationPreflightServiceImpl extends ManagerBase
             return blocked(stages, "FTCTL_TRANSITION", DrConstants.ERROR_TRANSITION_ENGINE_PREFLIGHT_FAILED,
                     "FTCTL_DR coordinator host is not configured", normalizedOperation,
                     cutover.getCloudAuthorityGeneration(), sourceFenceState, sourcePowerState,
-                    "POWERED_ON", null, targetDbState, targetAgentState,
+                    targetRuntimeState, null, targetDbState, targetRuntimeState,
                     targetVm.getId(), targetVm.getHostId());
         }
         FtctlDrStatusCommand command = new FtctlDrStatusCommand(plan.getUuid(), null,
@@ -166,8 +134,8 @@ public class DrSourceIsolationPreflightServiceImpl extends ManagerBase
                     engineProbe != null ? engineProbe.getDetails()
                             : "FTCTL_DR transition preflight returned no typed answer",
                     normalizedOperation, cutover.getCloudAuthorityGeneration(), sourceFenceState,
-                    sourcePowerState, "POWERED_ON", evidenceJson, targetDbState,
-                    targetAgentState, targetVm.getId(), targetVm.getHostId());
+                    sourcePowerState, targetRuntimeState, evidenceJson, targetDbState,
+                    targetRuntimeState, targetVm.getId(), targetVm.getHostId());
         }
         if (!engineProbe.getResult() || !Boolean.TRUE.equals(engineAnswer.getTransitionReady())
                 || !StringUtils.equalsIgnoreCase(engineAnswer.getTransitionActiveSide(),
@@ -178,30 +146,16 @@ public class DrSourceIsolationPreflightServiceImpl extends ManagerBase
                     engineProbe != null ? engineProbe.getDetails()
                             : "FTCTL_DR transition preflight returned no answer",
                     normalizedOperation, cutover.getCloudAuthorityGeneration(), sourceFenceState,
-                    sourcePowerState, "POWERED_ON", evidenceJson, targetDbState,
-                    targetAgentState, targetVm.getId(), targetVm.getHostId());
+                    sourcePowerState, targetRuntimeState, evidenceJson, targetDbState,
+                    targetRuntimeState, targetVm.getId(), targetVm.getHostId());
         }
         stages.add(DrFailbackPreflightStage.ready("FTCTL_TRANSITION", "FTCTL",
                 "FTCTL transition contract is ready"));
         return DrSourceIsolationPreflightResult.of(true, null, null, normalizedOperation,
                 cutover.getCloudAuthorityGeneration(), sourceFenceState, sourcePowerState,
-                "POWERED_ON", evidenceJson, stages, null,
+                targetRuntimeState, evidenceJson, stages, null,
                 DrFailbackPreflightStage.STATE_READY, "CONSISTENT", targetDbState,
-                targetAgentState, targetVm.getId(), targetVm.getHostId());
-    }
-
-    private String normalizeAgentState(CheckVirtualMachineAnswer answer) {
-        if (answer == null || !answer.getResult()) {
-            String details = answer != null ? answer.getDetails() : null;
-            return StringUtils.containsIgnoreCase(details, "not found") ? "NOT_FOUND" : "UNREACHABLE";
-        }
-        if (answer.getState() == PowerState.PowerOn) {
-            return "POWERED_ON";
-        }
-        if (answer.getState() == PowerState.PowerOff) {
-            return "POWERED_OFF";
-        }
-        return "UNKNOWN";
+                targetRuntimeState, targetVm.getId(), targetVm.getHostId());
     }
 
     private DrSourceIsolationPreflightResult blocked(List<DrFailbackPreflightStage> stages,

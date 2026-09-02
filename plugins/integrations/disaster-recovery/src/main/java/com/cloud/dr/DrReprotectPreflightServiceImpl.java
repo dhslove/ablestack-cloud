@@ -12,10 +12,6 @@ import javax.inject.Inject;
 
 import org.apache.commons.lang3.StringUtils;
 
-import com.cloud.agent.AgentManager;
-import com.cloud.agent.api.Answer;
-import com.cloud.agent.api.CheckVirtualMachineAnswer;
-import com.cloud.agent.api.CheckVirtualMachineCommand;
 import com.cloud.dr.dao.DrCutoverSessionDao;
 import com.cloud.dr.dao.DrPlanRuntimeDao;
 import com.cloud.dr.dao.DrReplicaDao;
@@ -23,7 +19,6 @@ import com.cloud.dr.dao.DrRestorePointDao;
 import com.cloud.dr.dao.DrRunStepDao;
 import com.cloud.dr.dao.DrSyncCycleDao;
 import com.cloud.utils.component.ManagerBase;
-import com.cloud.vm.VirtualMachine.PowerState;
 import com.cloud.vm.UserVmVO;
 import com.cloud.vm.dao.UserVmDao;
 import com.google.gson.Gson;
@@ -41,7 +36,6 @@ public class DrReprotectPreflightServiceImpl extends ManagerBase implements DrRe
     @Inject private DrRunStepDao drRunStepDao;
     @Inject private DrSyncCycleDao drSyncCycleDao;
     @Inject private UserVmDao userVmDao;
-    @Inject private AgentManager agentManager;
     @Inject private DrSourceIsolationPreflightService drSourceIsolationPreflightService;
     @Inject private DrCurrentAuthorityResolver drCurrentAuthorityResolver;
 
@@ -84,27 +78,15 @@ public class DrReprotectPreflightServiceImpl extends ManagerBase implements DrRe
                     "Serving target replica identity is missing or does not own TARGET authority");
         }
         UserVmVO targetVm = userVmDao.findById(replica.getTargetVmId());
-        if (targetVm == null || targetVm.getRemoved() != null || targetVm.getHostId() == null) {
-            return failure(DrConstants.ERROR_REPROTECT_TARGET_RUNTIME_NOT_RUNNING,
-                    "Serving target VM is missing or is not assigned to a host");
+        if (targetVm == null || targetVm.getRemoved() != null) {
+            return failure(DrConstants.ERROR_REPROTECT_TARGET_IDENTITY_INVALID,
+                    "Serving target VM identity is missing");
         }
 
         DrRestorePointVO checkpoint = drRestorePointDao.findLatestTargetReadyByPlanId(plan.getId());
         if (!hasDurableCutoverCheckpoint(plan, cutover, checkpoint)) {
             return failure(DrConstants.ERROR_REPROTECT_CHECKPOINT_MISMATCH,
                     "Committed cutover checkpoint is not durable in its canonical sequence domain");
-        }
-
-        Answer answer = agentManager.easySend(targetVm.getHostId(),
-                new CheckVirtualMachineCommand(targetVm.getInstanceName()));
-        if (!(answer instanceof CheckVirtualMachineAnswer) || !answer.getResult()) {
-            return failure(DrConstants.ERROR_REPROTECT_TARGET_RUNTIME_UNKNOWN,
-                    "Target VM power state could not be verified through its host Agent");
-        }
-        CheckVirtualMachineAnswer powerAnswer = (CheckVirtualMachineAnswer) answer;
-        if (powerAnswer.getState() != PowerState.PowerOn) {
-            return failure(DrConstants.ERROR_REPROTECT_TARGET_RUNTIME_NOT_RUNNING,
-                    "Target VM is not powered on according to its host Agent");
         }
 
         DrSourceIsolationPreflightResult transitionPreflight =
