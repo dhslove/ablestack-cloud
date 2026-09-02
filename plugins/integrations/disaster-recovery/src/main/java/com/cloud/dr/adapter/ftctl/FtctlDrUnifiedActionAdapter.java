@@ -230,10 +230,10 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
     @Override
     public DrAdapterResult execute(DrExecutionContext context) {
         FtctlDrActionCommand.Action action = resolveAction(context.getRun());
-        boolean immutableFileTestTransition = action == FtctlDrActionCommand.Action.TEST_PREPARE
-                && isSharedMountPointFilePlan(context.getPlan());
-        boolean immutableFileTestCleanup = action == FtctlDrActionCommand.Action.TEST_ARTIFACT_CLEANUP
-                && isSharedMountPointFilePlan(context.getPlan());
+        boolean testCheckpointBarrier = action == FtctlDrActionCommand.Action.TEST_PREPARE
+                && requiresTestCheckpointBarrier(context.getPlan());
+        boolean testCheckpointCleanup = action == FtctlDrActionCommand.Action.TEST_ARTIFACT_CLEANUP
+                && requiresTestCheckpointBarrier(context.getPlan());
         boolean plannedRemoteKvmIsolationRequired = requiresPlannedRemoteKvmIsolation(context, action);
         boolean plannedRemoteKvmIsolated = false;
         if (action == null) {
@@ -299,11 +299,11 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
                 command.setAuthoritySpecJson(GSON.toJson(reprotectPreflight.getAuthoritySpec()));
             }
         } catch (IllegalArgumentException e) {
-            compensateImmutableFileTestTransition(context, immutableFileTestTransition);
+            compensateTestCheckpointBarrier(context, testCheckpointBarrier);
             return DrAdapterResult.failure("DR_TEST_ARTIFACT_SPEC_INVALID", e.getMessage(),
                     GSON.toJson(buildExecutionDetails(context, action, coordinatorHostId)));
         } catch (CloudRuntimeException e) {
-            compensateImmutableFileTestTransition(context, immutableFileTestTransition);
+            compensateTestCheckpointBarrier(context, testCheckpointBarrier);
             return DrAdapterResult.retryable(DrConstants.ERROR_ENGINE_UNAVAILABLE,
                     "Unable to prepare remote DR transport: " + e.getMessage(),
                     GSON.toJson(buildExecutionDetails(context, action, coordinatorHostId)), 10);
@@ -318,11 +318,11 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         try {
             Answer answer = sendActionCommand(context, action, coordinatorHostId, command);
             DrAdapterResult result = toAdapterResult(context, action, coordinatorHostId, answer);
-            if (immutableFileTestTransition && !result.isSuccess()) {
-                compensateImmutableFileTestTransition(context, true);
+            if (testCheckpointBarrier && !result.isSuccess()) {
+                compensateTestCheckpointBarrier(context, true);
             } else if (plannedRemoteKvmIsolated && !result.isSuccess()) {
                 compensatePlannedRemoteKvmIsolation(context);
-            } else if (immutableFileTestCleanup && result.isSuccess()) {
+            } else if (testCheckpointCleanup && result.isSuccess()) {
                 resumeRemoteSourceProtection(context.getPlan(), context.getRun());
             }
             return result;
@@ -332,7 +332,7 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
             if (acceptedFromStatus != null) {
                 return acceptedFromStatus;
             }
-            compensateImmutableFileTestTransition(context, immutableFileTestTransition);
+            compensateTestCheckpointBarrier(context, testCheckpointBarrier);
             if (plannedRemoteKvmIsolated) {
                 compensatePlannedRemoteKvmIsolation(context);
             }
@@ -340,7 +340,7 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
                     "Unable to dispatch FTCTL_DR run to Agent: " + e.getMessage(), GSON.toJson(buildExecutionDetails(context, action, coordinatorHostId)));
         } catch (AgentUnavailableException e) {
             LOGGER.warn("FTCTL_DR coordinator Agent is unavailable for run {} on host {}: {}", context.getRun().getId(), coordinatorHostId, e.getMessage());
-            compensateImmutableFileTestTransition(context, immutableFileTestTransition);
+            compensateTestCheckpointBarrier(context, testCheckpointBarrier);
             if (plannedRemoteKvmIsolated) {
                 compensatePlannedRemoteKvmIsolation(context);
             }
@@ -348,7 +348,7 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
                     "FTCTL_DR coordinator Agent is unavailable: " + e.getMessage(), GSON.toJson(buildExecutionDetails(context, action, coordinatorHostId)));
         } catch (CloudRuntimeException e) {
             LOGGER.warn("FTCTL_DR remote site dispatch failed for run {}: {}", context.getRun().getId(), e.getMessage());
-            compensateImmutableFileTestTransition(context, immutableFileTestTransition);
+            compensateTestCheckpointBarrier(context, testCheckpointBarrier);
             if (plannedRemoteKvmIsolated) {
                 compensatePlannedRemoteKvmIsolation(context);
             }
@@ -532,8 +532,8 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
     private void preparePlanOwnedTransport(DrExecutionContext context, FtctlDrActionCommand.Action action,
             FtctlDrActionCommand sourceCommand) {
         DrPlanVO plan = context.getPlan();
-        if (action == FtctlDrActionCommand.Action.TEST_PREPARE && isSharedMountPointFilePlan(plan)) {
-            prepareImmutableFileTestCheckpoint(context, sourceCommand);
+        if (action == FtctlDrActionCommand.Action.TEST_PREPARE && requiresTestCheckpointBarrier(plan)) {
+            prepareTestCheckpointBarrier(context, sourceCommand);
             return;
         }
         if (action == FtctlDrActionCommand.Action.RELEASE) {
@@ -559,9 +559,10 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
                 plan, context.getRun(), sourceCommand.getProfileJson()));
     }
 
-    private void prepareImmutableFileTestCheckpoint(DrExecutionContext context,
+    private void prepareTestCheckpointBarrier(DrExecutionContext context,
             FtctlDrActionCommand command) {
         DrPlanVO plan = context.getPlan();
+        boolean immutableFileCheckpoint = isSharedMountPointFilePlan(plan);
         FtctlDrActionAnswer pause = drRemoteAgentClient.transitionSourceScheduler(plan,
                 FtctlDrActionCommand.Action.PAUSE_SYNC, context.getRun().getUuid(), command.getProfileJson());
         if (pause == null || !pause.getResult()) {
@@ -575,16 +576,16 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         drPlanOwnedTransportService.stopForwardTargetExport(plan, context.getRun(),
                 command.getProfileJson(), checkpointSequence);
         request.addProperty("checkpointWriterState", "DRAINED");
-        request.addProperty("checkpointImmutableRequired", true);
+        request.addProperty("checkpointImmutableRequired", immutableFileCheckpoint);
         command.setRequestJson(GSON.toJson(request));
         JsonObject profile = parseObject(command.getProfileJson());
         JsonObject profileRequest = objectAt(profile, "request");
         profileRequest.addProperty("checkpointWriterState", "DRAINED");
-        profileRequest.addProperty("checkpointImmutableRequired", true);
+        profileRequest.addProperty("checkpointImmutableRequired", immutableFileCheckpoint);
         command.setProfileJson(GSON.toJson(profile));
     }
 
-    private void compensateImmutableFileTestTransition(DrExecutionContext context, boolean required) {
+    private void compensateTestCheckpointBarrier(DrExecutionContext context, boolean required) {
         if (!required) {
             return;
         }
@@ -594,6 +595,10 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
             LOGGER.error("Unable to restore FILE DR protection after Test Failover preparation failed for Plan {}: {}",
                     context.getPlan().getUuid(), compensationFailure.getMessage(), compensationFailure);
         }
+    }
+
+    private boolean requiresTestCheckpointBarrier(DrPlanVO plan) {
+        return isSharedMountPointFilePlan(plan) || isRemoteKvmToKvmPlan(plan);
     }
 
     private boolean isSharedMountPointFilePlan(DrPlanVO plan) {

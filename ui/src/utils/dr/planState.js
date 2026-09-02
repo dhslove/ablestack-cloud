@@ -72,7 +72,12 @@ export function resolveDrPlanState (plan = {}, currentRun = null) {
     return 'UNPROTECTED'
   }
   const latestRun = currentRun || plan.lastrun || {}
-  const runtimeError = String(plan.runtimeerrorcode || latestRun.runtimeerrorcode || '').toUpperCase()
+  const latestRunState = String(latestRun.state || '').toUpperCase()
+  const latestRunType = String(latestRun.runtype || latestRun.runType || '').toUpperCase()
+  const finiteOperationFailed = latestRunState === 'FAILED' &&
+    ['TEST_FAILOVER', 'TEST_CLEANUP'].includes(latestRunType)
+  const runtimeError = String(plan.runtimeerrorcode ||
+    (finiteOperationFailed ? '' : latestRun.runtimeerrorcode) || '').toUpperCase()
   const schedulerHealth = String(plan.schedulerhealth || '').toUpperCase()
   if (runtimeError === 'DR_SOURCE_SITE_UNAVAILABLE' || schedulerHealth === 'WAITING_SOURCE') {
     return 'WAITING_SOURCE_RECOVERY'
@@ -111,8 +116,10 @@ export function resolveDrPlanState (plan = {}, currentRun = null) {
   }
   const runtime = String(plan.runtimestate || latestRun.runtimestate || '').toUpperCase()
   const worker = String(latestRun.workerstate || '').toUpperCase()
-  const runState = String(latestRun.state || '').toUpperCase()
-  const runError = runState === 'FAILED' ? latestRun.errorcode : null
+  const runError = latestRunState === 'FAILED' && !finiteOperationFailed ? latestRun.errorcode : null
+  if (finiteOperationFailed && state) {
+    return state
+  }
   if (['ERROR', 'FAILED'].includes(runtime) || worker === 'FAILED' || runtimeError || runError) {
     return 'ERROR'
   }

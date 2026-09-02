@@ -833,6 +833,63 @@ public class FtctlDrUnifiedActionAdapterTest {
     }
 
     @Test
+    public void remoteRbdTestFailoverDrainsAllWritersBeforeCloningDiskSet() throws Exception {
+        DrPlanVO plan = new DrPlanVO("remote-rbd-test", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
+        plan.setSourceExternalRef("source-vm-uuid");
+        plan.setActiveSide("SOURCE");
+        plan.setTargetWorkerHostId(102L);
+        plan.setCoordinatorWorkerHostId(103L);
+        plan.setMappingJson("{\"source\":{\"hardware\":{\"sourceHostUuid\":\"source-host-uuid\","
+                + "\"instanceName\":\"i-2-13-VM\"}},\"target\":{\"storagePoolType\":\"RBD\","
+                + "\"storagePath\":\"rbd\"},\"disks\":[{\"device\":\"sda\","
+                + "\"targetStorageRef\":\"target-pool-uuid\",\"target\":{"
+                + "\"storageRef\":\"target-pool-uuid\",\"path\":\"target-root\","
+                + "\"storagePoolType\":\"RBD\",\"storagePath\":\"rbd\",\"format\":\"raw\"}},"
+                + "{\"device\":\"sdb\",\"targetStorageRef\":\"target-pool-uuid\",\"target\":{"
+                + "\"storageRef\":\"target-pool-uuid\",\"path\":\"target-data\","
+                + "\"storagePoolType\":\"RBD\",\"storagePath\":\"rbd\",\"format\":\"raw\"}}]}");
+        DrRunVO run = run(DrConstants.RUN_TYPE_TEST_FAILOVER, "{}");
+        Mockito.when(drRestorePointDao.findLatestTargetReadyByPlanId(plan.getId()))
+                .thenReturn(checkpoint(plan, "ftctl:" + plan.getUuid() + ":run-sync:2"));
+        Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        Mockito.when(drSourceHardwareInventoryService.resolve(plan)).thenReturn(sourceHardware());
+        Mockito.when(drPlanOwnedTransportService.supports(plan)).thenReturn(true);
+        mockCapabilities();
+        Mockito.when(drRemoteAgentClient.transitionSourceScheduler(Mockito.eq(plan),
+                Mockito.eq(FtctlDrActionCommand.Action.PAUSE_SYNC), Mockito.eq(run.getUuid()),
+                Mockito.anyString())).thenAnswer(invocation -> {
+                    FtctlDrActionCommand command = new FtctlDrActionCommand(
+                            FtctlDrActionCommand.Action.PAUSE_SYNC, plan.getUuid(), run.getUuid());
+                    return new FtctlDrActionAnswer(command, true, "paused");
+                });
+        ArgumentCaptor<FtctlDrActionCommand> actionCaptor = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
+        Mockito.when(agentManager.send(Mockito.eq(103L), actionCaptor.capture())).thenAnswer(invocation -> {
+            FtctlDrActionCommand command = invocation.getArgument(1);
+            return new FtctlDrActionAnswer(command, true, "accepted", FtctlDrActionCommand.Action.TEST_PREPARE,
+                    plan.getUuid(), run.getUuid(), "accepted", true, "TESTING", "test-artifact-prepare-accepted",
+                    70, run.getUuid(), 0L, null, 0, "{\"result\":\"accepted\"}",
+                    "{\"state\":\"TESTING\"}");
+        });
+
+        DrAdapterResult result = adapter.execute(new DrExecutionContext(plan, run));
+
+        Assert.assertTrue(result.isSuccess());
+        FtctlDrActionCommand action = actionCaptor.getValue();
+        Assert.assertTrue(action.getRequestJson().contains("\"checkpointWriterState\":\"DRAINED\""));
+        Assert.assertTrue(action.getRequestJson().contains("\"checkpointImmutableRequired\":false"));
+        Assert.assertTrue(action.getArtifactSpecJson().contains("\"canonicalLocator\":\"rbd:rbd/target-root\""));
+        Assert.assertTrue(action.getArtifactSpecJson().contains("\"canonicalLocator\":\"rbd:rbd/target-data\""));
+        org.mockito.InOrder order = Mockito.inOrder(drRemoteAgentClient, drPlanOwnedTransportService, agentManager);
+        order.verify(drRemoteAgentClient).transitionSourceScheduler(Mockito.eq(plan),
+                Mockito.eq(FtctlDrActionCommand.Action.PAUSE_SYNC), Mockito.eq(run.getUuid()), Mockito.anyString());
+        order.verify(drPlanOwnedTransportService).stopForwardTargetExport(Mockito.eq(plan), Mockito.eq(run),
+                Mockito.anyString(), Mockito.eq(2L));
+        order.verify(agentManager).send(Mockito.eq(103L), Mockito.isA(FtctlDrActionCommand.class));
+    }
+
+    @Test
     public void testFailoverRejectsSharedMountPointTraversal() throws Exception {
         DrPlanVO plan = ftctlDrPlan();
         plan.setMappingJson("{\"target\":{\"storagePoolType\":\"SharedMountPoint\",\"storagePath\":\"/mnt/glue-gfs\"},"

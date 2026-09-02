@@ -759,6 +759,48 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     }
 
     @Test
+    public void terminalCheckpointSetFailureClosesSessionWithoutChangingProtectionState() {
+        DrPlanVO plan = new DrPlanVO("plan-checkpoint-set-failure", 1L, 2L,
+                DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setState(DrConstants.PLAN_STATE_READY);
+        DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_TEST_FAILOVER);
+        DrTestSessionVO session = new DrTestSessionVO(plan.getId(), run.getId(), "REQUESTED");
+        ReflectionTestUtils.setField(run, "id", 316L);
+        ReflectionTestUtils.setField(session, "id", 21L);
+        Mockito.when(drTestSessionDao.findActiveByRunId(run.getId())).thenReturn(session);
+
+        String message = "required local mount /DATA was not resolved from the checkpoint disk set";
+        FtctlDrStatusCommand command = new FtctlDrStatusCommand(plan.getUuid(), run.getUuid());
+        FtctlDrStatusAnswer status = new FtctlDrStatusAnswer(command, true, "ok", plan.getUuid(), run.getUuid(),
+                "error", "ERROR", "test-materialization-failed", 100,
+                null, null, null, null, DrConstants.ERROR_TEST_CHECKPOINT_GUEST_FS_INCONSISTENT,
+                0, message, "{}");
+        status.setTestSessionState("CLEANED");
+        status.setTestArtifactsState("CLEANED");
+        status.setTestCleanupState("CLEANED");
+        status.setCheckpointLeaseState("RELEASED");
+        status.setCleanupRequired(false);
+        JsonObject runtime = JsonParser.parseString("{\"state\":\"ERROR\",\"worker_state\":\"FAILED\","
+                + "\"terminal_source\":\"ENGINE_TERMINAL\",\"terminal_authoritative\":true,"
+                + "\"error_code\":\"DR_TEST_CHECKPOINT_GUEST_FS_INCONSISTENT\","
+                + "\"test_session_state\":\"CLEANED\",\"test_artifacts_state\":\"CLEANED\","
+                + "\"test_cleanup_state\":\"CLEANED\",\"cleanup_required\":false,"
+                + "\"checkpoint_lease_state\":\"RELEASED\"}").getAsJsonObject();
+
+        ReflectionTestUtils.invokeMethod(adapter, "reconcileCloudManagedTestTarget", plan, run, status, runtime);
+        ReflectionTestUtils.invokeMethod(adapter, "failRunFromProjection", plan, run, status, runtime);
+
+        Assert.assertEquals(DrConstants.RUN_STATE_FAILED, run.getState());
+        Assert.assertEquals(DrConstants.ERROR_TEST_CHECKPOINT_GUEST_FS_INCONSISTENT, run.getErrorCode());
+        Assert.assertEquals(message, run.getErrorMessage());
+        Assert.assertEquals(DrTestSessionState.FAILED, session.getState());
+        Assert.assertFalse(session.isCleanupRequired());
+        Assert.assertNotNull(session.getRemoved());
+        Assert.assertEquals(DrConstants.PLAN_STATE_READY, plan.getState());
+        Mockito.verify(drPlanDao, Mockito.never()).update(Mockito.eq(plan.getId()), Mockito.any(DrPlanVO.class));
+    }
+
+    @Test
     public void refreshPlanProjectionSeparatesAuthorityAndOperationWithoutErasingLastGoodVerification() {
         DrPlanVO plan = new DrPlanVO("ftctl-dr-plan", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
         plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);

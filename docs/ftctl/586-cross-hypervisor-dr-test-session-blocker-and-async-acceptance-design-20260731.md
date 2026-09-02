@@ -803,3 +803,32 @@ Agent/FTCTL 소스 변경은 status 계약 검증에서 결함이 발견될 때�
 추가 검증에서 removed 포함 DAO가 `findOneBy()`를 사용해 자동
 `removed IS NULL` 조건을 다시 적용하는 결함을 발견했다. 이를
 `findOneIncludingRemovedBy()`로 교정하고 재배포했다.
+
+## 19. 전체 디스크 체크포인트와 terminal 투영 보강 (2026-09-02)
+
+Ubuntu 다중 디스크 테스트에서 각 qcow2 파일은 정상이었지만 루트 디스크만
+검사한 `virt-inspector`가 다른 디스크의 LVM `/DATA`를 찾지 못해 테스트
+페일오버가 실패했다. 실패 뒤 FTCTL 상태가 대용량 XML을 포함하면서 상태
+경계를 넘었고, Cloud는 원본 오류 대신 `DR_STATUS_JSON_INVALID`를 받아 Run을
+진행 중으로 남겼다.
+
+| 계층 | AS-IS | TO-BE |
+|---|---|---|
+| 체크포인트 | 디스크별 seal 및 개별 guest 검사 | 계획에 매핑된 전체 디스크를 하나의 순서 보존 세트로 seal 및 공동 검사 |
+| 공개 조건 | 개별 디스크 성공 시 즉시 사용 가능 | 전체 세트 성공 후에만 manifest와 모든 test overlay 공개 |
+| 실패 원자성 | 앞 디스크 산출물이 남을 수 있음 | 한 디스크 실패 시 해당 요청에서 만든 세트 전체 폐기 |
+| Linux 판정 | 루트 디스크만으로 모든 mount 판정 | 전체 디스크 연결 후 필수 로컬 fstab mount 판정 |
+| 상태 오류 | 대용량 출력이 원본 오류를 덮음 | 4 KiB 요약과 별도 evidence, 최소 authoritative terminal 응답 |
+| Cloud 세션 | Run이 stale 상태로 남고 cleanup blocker 유지 | 실제 오류로 FAILED 종결하고 CLEANED/RELEASED 증거로 soft close |
+| 계획 상태 | 최근 테스트 실패가 보호 실패처럼 보일 수 있음 | 보호 상태는 유지하고 최근 유한 작업 실패를 별도로 표시 |
+
+디스크 수에 대한 상수 제한은 두지 않는다. Cloud의 전체 `artifactSpec.disks`
+배열, FTCTL checkpoint-set manifest, Cloud가 import하는 디스크 목록의 순서와
+개수가 모두 일치해야 한다. 1, 2, 4, 8개 디스크 및 중간 디스크 실패를
+회귀 테스트로 고정한다.
+
+RBD 경로도 동일한 cross-disk 시점 위험을 점검했다. VMware to RBD는 기존
+로컬 scheduler transition을 유지한다. 원격 RBD to RBD는 기존 RBD
+snapshot/clone 구현을 변경하지 않고, 실행 전에 원격 source scheduler pause와
+모든 target export drain을 완료한다. FILE, RBD 모두 동일 durable Cycle과 lease를
+사용하며, provider별 artifact 구현은 분리한다.

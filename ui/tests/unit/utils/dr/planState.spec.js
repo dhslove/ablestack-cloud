@@ -24,6 +24,20 @@ describe('DR protection state helpers', () => {
     expect(resolveDrPlanState({ protectionstate: 'READY' }, null)).toBe('READY')
   })
 
+  it('keeps a healthy plan state separate from a failed finite test operation', () => {
+    const plan = {
+      state: 'READY',
+      lastrun: {
+        state: 'FAILED',
+        runtype: 'TEST_FAILOVER',
+        runtimeerrorcode: 'DR_TEST_CHECKPOINT_GUEST_FS_INCONSISTENT',
+        errorcode: 'DR_TEST_CHECKPOINT_GUEST_FS_INCONSISTENT'
+      }
+    }
+
+    expect(resolveDrPlanState(plan)).toBe('READY')
+  })
+
   it('keeps execution readiness independent from transient protection state', () => {
     const plan = {
       protectionstate: 'SYNCING',

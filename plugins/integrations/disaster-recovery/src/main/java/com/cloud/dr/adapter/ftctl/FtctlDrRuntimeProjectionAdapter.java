@@ -3477,8 +3477,13 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                 || StringUtils.equalsIgnoreCase(run.getTerminalSource(), "ENGINE_TERMINAL"));
         run.markUpdated();
         drRunDao.update(run.getId(), run);
-        boolean failoverPreparationAborted = abortFailedFailoverPreparation(plan, run, runtime, errorCode, message);
-        if (failoverPreparationAborted
+        boolean finiteOperationFailed = isFiniteOperationRun(run);
+        boolean failoverPreparationAborted = !finiteOperationFailed
+                && abortFailedFailoverPreparation(plan, run, runtime, errorCode, message);
+        if (finiteOperationFailed) {
+            LOGGER.info("DR finite operation {} failed without changing protection state for Plan {}",
+                    run.getRunType(), plan.getUuid());
+        } else if (failoverPreparationAborted
                 || isRolledBackFailback(plan, run, runtime)
                 || isReprotectOperationOnlyFailure(plan, run, errorCode)) {
             if (!failoverPreparationAborted) {
@@ -3920,6 +3925,10 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         }
         if (StringUtils.equalsIgnoreCase(errorCode, DrConstants.ERROR_GUEST_PREPARATION_FAILED)) {
             return "Guest preparation failed after cutover manifest validation";
+        }
+        if (StringUtils.equalsIgnoreCase(errorCode,
+                DrConstants.ERROR_TEST_CHECKPOINT_GUEST_FS_INCONSISTENT)) {
+            return "The complete checkpoint disk set could not be validated as a boot-consistent guest";
         }
         if (StringUtils.equalsIgnoreCase(errorCode, DrConstants.ERROR_VMWARE_MOVER_UNAVAILABLE)) {
             return "VMware data mover is not available on the selected FTCTL worker";
