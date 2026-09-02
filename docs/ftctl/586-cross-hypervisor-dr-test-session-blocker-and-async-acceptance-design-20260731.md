@@ -832,3 +832,15 @@ RBD 경로도 동일한 cross-disk 시점 위험을 점검했다. VMware to RBD�
 snapshot/clone 구현을 변경하지 않고, 실행 전에 원격 source scheduler pause와
 모든 target export drain을 완료한다. FILE, RBD 모두 동일 durable Cycle과 lease를
 사용하며, provider별 artifact 구현은 분리한다.
+
+### 19.1 실행 이력 API의 evidence 경계
+
+과거 실패 Run의 `details_json`에 shell-escaped XML이 남아 있더라도 실행 이력
+목록 전체가 파싱 불가능해져서는 안 된다. `errormessage`는 XML 시작 전의 사용자
+요약만 반환하고, 파싱 불가능한 원시 `details_json`은 API에 재삽입하지 않는다.
+대신 `rawDetailsRedacted=true`, `parseError=true`인 작은 JSON 표지만 반환한다.
+전체 `virt-inspector` XML과 디스크별 검사 출력은 FTCTL evidence 파일에만 보관한다.
+
+이 규칙은 신규 Run뿐 아니라 기존 DB 이력 조회에도 적용한다. 따라서 과거의
+잘못된 상세 데이터가 남아 있어도 `listDrRuns` 응답은 유효한 JSON이어야 하며,
+UI의 작업 이력은 최신 성공 Run과 과거 실패 Run을 함께 표시해야 한다.

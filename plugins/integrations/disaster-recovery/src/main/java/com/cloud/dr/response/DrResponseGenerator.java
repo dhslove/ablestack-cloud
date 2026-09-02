@@ -1261,7 +1261,7 @@ public class DrResponseGenerator extends ManagerBase {
             return GSON.toJson(sanitizeJsonElement(parsed, null));
         } catch (RuntimeException e) {
             JsonObject fallback = new JsonObject();
-            fallback.addProperty("message", sanitizeApiString(json, MAX_DETAILS_STRING_LENGTH));
+            fallback.addProperty("message", "Runtime evidence could not be rendered safely and was omitted from the API response.");
             fallback.addProperty("rawDetailsRedacted", true);
             fallback.addProperty("parseError", true);
             return GSON.toJson(fallback);
@@ -1316,9 +1316,20 @@ public class DrResponseGenerator extends ManagerBase {
         if (value == null) {
             return null;
         }
-        String sanitized = value
+        String sanitized = stripVerboseEvidence(value)
                 .replaceAll("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]", " ");
         return StringUtils.abbreviate(StringUtils.trimToNull(sanitized), Math.max(4, maxLength));
+    }
+
+    private String stripVerboseEvidence(String value) {
+        int boundary = value.length();
+        for (String marker : new String[] { "<?xml", "\\<?xml", "<operatingsystems", "\\<operatingsystems" }) {
+            int index = value.indexOf(marker);
+            if (index >= 0) {
+                boundary = Math.min(boundary, index);
+            }
+        }
+        return value.substring(0, boundary);
     }
 
     private String resolveSiteUuid(long siteId) {

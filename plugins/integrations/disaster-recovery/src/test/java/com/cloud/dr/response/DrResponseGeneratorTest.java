@@ -227,6 +227,32 @@ public class DrResponseGeneratorTest {
     }
 
     @Test
+    public void malformedVerboseRuntimeEvidenceCannotInvalidateRunListJson() {
+        DrRunVO run = new DrRunVO(42L, DrConstants.RUN_TYPE_TEST_FAILOVER);
+        run.setState(DrConstants.RUN_STATE_FAILED);
+        run.setErrorCode(DrConstants.ERROR_TEST_CHECKPOINT_GUEST_FS_INCONSISTENT);
+        run.setErrorMessage("All checkpoint disks could not be inspected together <?xml version=\\\"1.0\\\"?> <operatingsystems>");
+        DrRunStepVO runtimeStep = new DrRunStepVO(run.getId(), "runtime-projection", 30);
+        runtimeStep.setState(DrConstants.STEP_STATE_FAILED);
+        runtimeStep.setErrorCode(DrConstants.ERROR_TEST_CHECKPOINT_GUEST_FS_INCONSISTENT);
+        runtimeStep.setErrorMessage(run.getErrorMessage());
+        runtimeStep.setDetailsJson("{\\\"error_message\\\":\\\"mount failed \\\\<?xml version=\\\\\\\"1.0\\\\\\\"?>\\\"}");
+
+        DrRunResponse response = generator.createRunResponse(run, Collections.singletonList(runtimeStep), false);
+        JsonObject json = JsonParser.parseString(GSON.toJson(response)).getAsJsonObject();
+        JsonObject step = json.getAsJsonArray("steps").get(0).getAsJsonObject();
+        JsonObject safeDetails = JsonParser.parseString(step.get("details").getAsString()).getAsJsonObject();
+
+        Assert.assertEquals("All checkpoint disks could not be inspected together",
+                json.get("errormessage").getAsString());
+        Assert.assertEquals("All checkpoint disks could not be inspected together",
+                step.get("errormessage").getAsString());
+        Assert.assertTrue(safeDetails.get("rawDetailsRedacted").getAsBoolean());
+        Assert.assertTrue(safeDetails.get("parseError").getAsBoolean());
+        Assert.assertFalse(step.get("details").getAsString().contains("operatingsystems"));
+    }
+
+    @Test
     public void idlePlanListUsesMatchingLatestCompletedCycleInsteadOfStaleRuntimeSample() {
         DrPlanVO plan = new DrPlanVO("plan", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM);
         plan.setState(DrConstants.PLAN_STATE_READY);
