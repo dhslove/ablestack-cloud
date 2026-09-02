@@ -156,6 +156,31 @@ describe('DR protection state helpers', () => {
     expect(projection.actionavailability.resumesync.enabled).toBe(true)
   })
 
+  it('lets a later live detail record supersede stale snapshot state and action gates', () => {
+    const projection = reconcileDrPlanProjection({
+      state: 'PAUSED',
+      protectionstate: 'PAUSED',
+      actionavailability: {
+        resumesync: { applicable: true, enabled: true },
+        testfailover: { applicable: true, enabled: false }
+      }
+    }, {
+      state: 'READY',
+      protectionState: 'READY',
+      actionAvailability: {
+        resumesync: { applicable: false, enabled: false },
+        testfailover: { applicable: true, enabled: true }
+      },
+      readinessState: 'TARGET_READY'
+    })
+
+    expect(projection.state).toBe('READY')
+    expect(projection.protectionstate).toBe('READY')
+    expect(projection.readinessstate).toBe('TARGET_READY')
+    expect(projection.actionavailability.testfailover.enabled).toBe(true)
+    expect(projection.actionavailability.resumesync.applicable).toBe(false)
+  })
+
   it('does not classify an acknowledged target authority as an error', () => {
     const plan = {
       currentseverity: 'INFO',

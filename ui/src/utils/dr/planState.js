@@ -44,15 +44,17 @@ export function reconcileDrRunProjection (snapshot = {}, liveRuns = [], options 
 
 export function reconcileDrPlanProjection (cachedPlan = {}, livePlan = {}, options = {}) {
   const projection = Object.assign({}, cachedPlan)
-  const liveFields = [['lastrun', 'lastRun']]
   if (options.authoritativeActions !== true) {
-    liveFields.unshift(
-      ['actionavailability', 'actionAvailability'],
-      ['actioneligibility', 'actionEligibility']
-    )
+    // The detail record is fetched after the cached protection snapshot. Let
+    // every live field win so a completed resume/reconcile cannot remain
+    // visually PAUSED or keep stale action gates in the UI.
+    Object.keys(livePlan || {}).forEach(key => {
+      projection[String(key).toLowerCase()] = livePlan[key]
+    })
+    return projection
   }
 
-  liveFields.forEach(([normalizedKey, alternateKey]) => {
+  [['lastrun', 'lastRun']].forEach(([normalizedKey, alternateKey]) => {
     const value = livePlan[normalizedKey] !== undefined
       ? livePlan[normalizedKey]
       : livePlan[alternateKey]
