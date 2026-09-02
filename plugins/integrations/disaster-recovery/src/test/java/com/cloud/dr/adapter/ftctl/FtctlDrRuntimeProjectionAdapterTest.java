@@ -792,7 +792,8 @@ public class FtctlDrRuntimeProjectionAdapterTest {
 
         Assert.assertEquals(DrConstants.RUN_STATE_FAILED, run.getState());
         Assert.assertEquals(DrConstants.ERROR_TEST_CHECKPOINT_GUEST_FS_INCONSISTENT, run.getErrorCode());
-        Assert.assertEquals(message, run.getErrorMessage());
+        Assert.assertEquals("The complete checkpoint disk set could not be validated as a boot-consistent guest",
+                run.getErrorMessage());
         Assert.assertEquals(DrTestSessionState.FAILED, session.getState());
         Assert.assertFalse(session.isCleanupRequired());
         Assert.assertNotNull(session.getRemoved());
