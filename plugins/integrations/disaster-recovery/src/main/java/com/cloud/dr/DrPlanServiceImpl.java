@@ -80,6 +80,9 @@ public class DrPlanServiceImpl extends ManagerBase implements DrPlanService {
     @Override
     public DrPlanVO createPlan(DrPlanVO plan) {
         normalizePlanEngine(plan);
+        plan.setSourceWorkerHostId(null);
+        plan.setTargetWorkerHostId(null);
+        plan.setCoordinatorWorkerHostId(null);
         validatePlan(plan);
         DrSiteVO[] sites = ensureSitesExist(plan);
         validatePlanTopology(plan, sites[0], sites[1]);
@@ -161,15 +164,6 @@ public class DrPlanServiceImpl extends ManagerBase implements DrPlanService {
         }
         if (update.getQuiescePolicyJson() != null) {
             plan.setQuiescePolicyJson(update.getQuiescePolicyJson());
-        }
-        if (update.getSourceWorkerHostId() != null) {
-            plan.setSourceWorkerHostId(update.getSourceWorkerHostId());
-        }
-        if (update.getTargetWorkerHostId() != null) {
-            plan.setTargetWorkerHostId(update.getTargetWorkerHostId());
-        }
-        if (update.getCoordinatorWorkerHostId() != null) {
-            plan.setCoordinatorWorkerHostId(update.getCoordinatorWorkerHostId());
         }
         normalizePlanEngine(plan);
         validatePlan(plan);
@@ -313,8 +307,6 @@ public class DrPlanServiceImpl extends ManagerBase implements DrPlanService {
                 && !targetProtected;
         DrFtctlActionCapabilitySnapshot capabilitySnapshot = ftctlDrPlan
                 && drFtctlActionCapabilityService != null
-                && (plan.getCoordinatorWorkerHostId() != null || plan.getSourceWorkerHostId() != null
-                        || plan.getTargetWorkerHostId() != null)
                 ? drFtctlActionCapabilityService.evaluate(plan) : null;
 
         Map<String, Boolean> eligibility = new LinkedHashMap<String, Boolean>();
@@ -538,9 +530,6 @@ public class DrPlanServiceImpl extends ManagerBase implements DrPlanService {
                 || (StringUtils.isNotBlank(update.getEngineType()) && !StringUtils.equalsIgnoreCase(update.getEngineType(), plan.getEngineType()))
                 || (StringUtils.isNotBlank(update.getEngineBindingType()) && !StringUtils.equalsIgnoreCase(update.getEngineBindingType(), plan.getEngineBindingType()))
                 || (update.getEngineBindingId() != null && !Objects.equals(update.getEngineBindingId(), plan.getEngineBindingId()))
-                || (update.getSourceWorkerHostId() != null && !Objects.equals(update.getSourceWorkerHostId(), plan.getSourceWorkerHostId()))
-                || (update.getTargetWorkerHostId() != null && !Objects.equals(update.getTargetWorkerHostId(), plan.getTargetWorkerHostId()))
-                || (update.getCoordinatorWorkerHostId() != null && !Objects.equals(update.getCoordinatorWorkerHostId(), plan.getCoordinatorWorkerHostId()))
                 || (update.getMappingJson() != null && !StringUtils.equals(update.getMappingJson(), plan.getMappingJson()));
     }
 

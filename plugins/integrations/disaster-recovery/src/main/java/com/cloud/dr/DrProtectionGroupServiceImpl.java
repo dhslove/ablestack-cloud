@@ -56,6 +56,7 @@ public class DrProtectionGroupServiceImpl extends ManagerBase implements DrProte
     @Inject private DrSyncCycleDao drSyncCycleDao;
     @Inject private DrAdmissionController drAdmissionController;
     @Inject private AgentManager agentManager;
+    @Inject private DrWorkerPlacementService drWorkerPlacementService;
 
     private ExecutorService groupExecutor;
 
@@ -455,8 +456,8 @@ public class DrProtectionGroupServiceImpl extends ManagerBase implements DrProte
     }
 
     private JsonObject readNbdCapacity(DrPlanVO plan) {
-        Long hostId = plan.getCoordinatorWorkerHostId() != null ? plan.getCoordinatorWorkerHostId()
-                : (plan.getTargetWorkerHostId() != null ? plan.getTargetWorkerHostId() : plan.getSourceWorkerHostId());
+        Long hostId = drWorkerPlacementService != null
+                ? drWorkerPlacementService.resolveWorkerHostId(plan, DrWorkerRole.COORDINATOR) : null;
         if (hostId == null) {
             return unavailableCapacity("DR_NBD_CAPACITY_HOST_UNRESOLVED");
         }

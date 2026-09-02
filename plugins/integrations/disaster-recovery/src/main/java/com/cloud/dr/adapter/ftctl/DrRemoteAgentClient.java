@@ -76,9 +76,6 @@ public class DrRemoteAgentClient {
 
     public <T extends Answer> T execute(DrPlanVO plan, String commandType, Command command,
             String workerHostUuid, Class<T> answerType) {
-        if (StringUtils.isBlank(workerHostUuid)) {
-            throw new CloudRuntimeException("Remote DR source worker host UUID is required");
-        }
         DrSiteVO sourceSite = drSiteDao.findById(plan.getSourceSiteId());
         DrResolvedSiteCredential credential = drSiteCredentialService.resolveCredential(sourceSite);
         if (credential == null || !credential.hasSecrets()) {
@@ -151,7 +148,7 @@ public class DrRemoteAgentClient {
                 && action != FtctlDrActionCommand.Action.RESUME_SYNC) {
             throw new CloudRuntimeException("Remote source scheduler transition must be PAUSE_SYNC or RESUME_SYNC");
         }
-        String workerHostUuid = sourceWorkerUuid(plan);
+        String workerHostUuid = null;
         String runType = action == FtctlDrActionCommand.Action.PAUSE_SYNC
                 ? DrConstants.RUN_TYPE_PAUSE_SYNC : DrConstants.RUN_TYPE_RESUME_SYNC;
         FtctlDrActionCommand command = new FtctlDrActionCommand(action, plan.getUuid(),
@@ -184,14 +181,14 @@ public class DrRemoteAgentClient {
 
     public FtctlDrStatusAnswer fetchSourceStatus(DrPlanVO plan, String runUuid,
             FtctlDrStatusCommand.StatusScope scope) {
-        String workerHostUuid = sourceWorkerUuid(plan);
+        String workerHostUuid = null;
         FtctlDrStatusCommand command = new FtctlDrStatusCommand(plan.getUuid(), runUuid, scope);
         command.setWait(5);
         return execute(plan, "STATUS", command, workerHostUuid, FtctlDrStatusAnswer.class);
     }
 
     public FtctlDrCancelAnswer cancelSourceRun(DrPlanVO plan, String runUuid) {
-        String workerHostUuid = sourceWorkerUuid(plan);
+        String workerHostUuid = null;
         FtctlDrCancelCommand command = new FtctlDrCancelCommand(plan.getUuid(), runUuid);
         command.setWait(30);
         return execute(plan, "CANCEL", command, workerHostUuid, FtctlDrCancelAnswer.class);
@@ -215,19 +212,7 @@ public class DrRemoteAgentClient {
     }
 
     public String sourceWorkerUuid(DrPlanVO plan) {
-        JsonObject mapping = parseObject(plan != null ? plan.getMappingJson() : null);
-        String mappedWorkerUuid = mappedSourceWorkerUuid(mapping);
-        String currentWorkerUuid = resolveCurrentSourceWorkerUuid(plan);
-        if (StringUtils.isNotBlank(currentWorkerUuid)) {
-            if (!StringUtils.equals(currentWorkerUuid, mappedWorkerUuid)) {
-                persistSourceWorkerUuid(plan, mapping, currentWorkerUuid);
-            }
-            return currentWorkerUuid;
-        }
-        if (StringUtils.isNotBlank(mappedWorkerUuid)) {
-            return mappedWorkerUuid;
-        }
-        throw new CloudRuntimeException("Remote DR source worker host UUID is required");
+        return null;
     }
 
     private String mappedSourceWorkerUuid(JsonObject mapping) {

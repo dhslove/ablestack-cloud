@@ -29,6 +29,7 @@ public class DrPlanOwnedTransportServiceImpl extends ManagerBase implements DrPl
     @Inject private AgentManager agentManager;
     @Inject private HostDao hostDao;
     @Inject private DrRemoteAgentClient drRemoteAgentClient;
+    @Inject private DrWorkerPlacementService drWorkerPlacementService;
 
     @Override
     public boolean supports(DrPlanVO plan) {
@@ -54,7 +55,7 @@ public class DrPlanOwnedTransportServiceImpl extends ManagerBase implements DrPl
         if (!supports(plan)) {
             return new JsonArray();
         }
-        String workerUuid = sourceWorkerUuid(plan);
+        String workerUuid = null;
         JsonObject profile = parseObject(profileJson);
         objectAt(profile, "request").addProperty("reverseTargetExport", true);
         FtctlDrActionCommand command = command(plan, run, FtctlDrActionCommand.Action.TARGET_EXPORT_START,
@@ -88,7 +89,7 @@ public class DrPlanOwnedTransportServiceImpl extends ManagerBase implements DrPl
         if (!supports(plan)) {
             return;
         }
-        String workerUuid = sourceWorkerUuid(plan);
+        String workerUuid = null;
         FtctlDrActionCommand command = command(plan, run, FtctlDrActionCommand.Action.TARGET_EXPORT_STOP,
                 "reverse-target", workerUuid, null);
         requireSuccess(drRemoteAgentClient.execute(plan, "ACTION", command,
@@ -118,20 +119,13 @@ public class DrPlanOwnedTransportServiceImpl extends ManagerBase implements DrPl
     }
 
     private HostVO targetHost(DrPlanVO plan) {
-        HostVO host = plan.getTargetWorkerHostId() != null
-                ? hostDao.findById(plan.getTargetWorkerHostId()) : null;
+        Long hostId = drWorkerPlacementService != null
+                ? drWorkerPlacementService.resolveWorkerHostId(plan, DrWorkerRole.TARGET) : null;
+        HostVO host = hostId != null ? hostDao.findById(hostId) : null;
         if (host == null || StringUtils.isBlank(host.getUuid())) {
             throw new CloudRuntimeException("DR target worker host is required for Plan-owned transport");
         }
         return host;
-    }
-
-    private String sourceWorkerUuid(DrPlanVO plan) {
-        String workerUuid = drRemoteAgentClient.sourceWorkerUuid(plan);
-        if (StringUtils.isBlank(workerUuid)) {
-            throw new CloudRuntimeException("DR original-site worker UUID is required for reverse RBD export");
-        }
-        return workerUuid;
     }
 
     private JsonArray requireExports(Answer answer, String fallback) {

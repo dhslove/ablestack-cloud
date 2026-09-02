@@ -66,6 +66,7 @@
     <bean id="drSiteInventoryServiceImpl" class="com.cloud.dr.inventory.DrSiteInventoryServiceImpl"/>
     <bean id="drPlanInventoryServiceImpl" class="com.cloud.dr.inventory.DrPlanInventoryServiceImpl"/>
     <bean id="drPlanTargetPlacementResolver" class="com.cloud.dr.DrPlanTargetPlacementResolverImpl"/>
+    <bean id="drWorkerPlacementServiceImpl" class="com.cloud.dr.DrWorkerPlacementServiceImpl"/>
     <bean id="drPlanGuidedSpecBuilder" class="com.cloud.dr.DrPlanGuidedSpecBuilder"/>
     <bean id="drPlanReadinessValidator" class="com.cloud.dr.DrPlanReadinessValidator"/>
     <bean id="drFtctlActionCapabilityServiceImpl" class="com.cloud.dr.DrFtctlActionCapabilityServiceImpl"/>

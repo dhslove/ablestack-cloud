@@ -102,9 +102,6 @@ public class DrPlanGuidedSpecBuilder extends ManagerBase {
             if (StringUtils.isNotBlank(plan.getSourceExternalRef())) {
                 mapping.addProperty("sourceExternalRef", plan.getSourceExternalRef());
             }
-            addLong(mapping, "sourceWorkerHostId", plan.getSourceWorkerHostId());
-            addLong(mapping, "targetWorkerHostId", plan.getTargetWorkerHostId());
-            addLong(mapping, "coordinatorWorkerHostId", plan.getCoordinatorWorkerHostId());
         }
         JsonObject source = buildSource(plan, sourceHardware);
         if (!source.entrySet().isEmpty()) {
@@ -174,7 +171,6 @@ public class DrPlanGuidedSpecBuilder extends ManagerBase {
         if (plan != null) {
             addString(target, "hypervisor", targetHypervisor(plan.getDirection()));
             addLong(target, "siteId", plan.getTargetSiteId());
-            addLong(target, "workerHostId", plan.getTargetWorkerHostId());
         }
         addString(target, "zoneId", spec.getTargetZoneId());
         addString(target, "vmName", StringUtils.defaultIfBlank(spec.getTargetVmName(), defaultTargetVmName(plan)));

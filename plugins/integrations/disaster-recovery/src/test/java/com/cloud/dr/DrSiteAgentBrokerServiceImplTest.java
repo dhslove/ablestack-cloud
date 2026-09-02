@@ -13,6 +13,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 import com.cloud.agent.AgentManager;
 import com.cloud.agent.api.FtctlDrCancelAnswer;
 import com.cloud.agent.api.FtctlDrCancelCommand;
+import com.cloud.dc.DataCenterVO;
+import com.cloud.dc.dao.DataCenterDao;
 import com.cloud.host.HostVO;
 import com.cloud.host.Status;
 import com.cloud.host.dao.HostDao;
@@ -27,12 +29,17 @@ public class DrSiteAgentBrokerServiceImplTest {
     public void remoteBrokerAllowsTypedCancelCommand() throws Exception {
         AgentManager agentManager = Mockito.mock(AgentManager.class);
         HostDao hostDao = Mockito.mock(HostDao.class);
+        DataCenterDao dataCenterDao = Mockito.mock(DataCenterDao.class);
+        DataCenterVO zone = Mockito.mock(DataCenterVO.class);
         HostVO host = Mockito.mock(HostVO.class);
         Mockito.when(host.getId()).thenReturn(22L);
         Mockito.when(host.getUuid()).thenReturn("source-host-uuid");
         Mockito.when(host.getStatus()).thenReturn(Status.Up);
         Mockito.when(host.getHypervisorType()).thenReturn(Hypervisor.HypervisorType.KVM);
-        Mockito.when(hostDao.findByUuid("source-host-uuid")).thenReturn(host);
+        Mockito.when(zone.getId()).thenReturn(1L);
+        Mockito.when(dataCenterDao.listEnabledZones()).thenReturn(java.util.Collections.singletonList(zone));
+        Mockito.when(hostDao.listAllHostsUpByZoneAndHypervisor(1L, Hypervisor.HypervisorType.KVM))
+                .thenReturn(java.util.Collections.singletonList(host));
         FtctlDrCancelCommand command = new FtctlDrCancelCommand("plan-uuid", "run-uuid");
         Mockito.when(agentManager.send(Mockito.eq(22L), Mockito.any(FtctlDrCancelCommand.class)))
                 .thenReturn(new FtctlDrCancelAnswer(command, true, "canceled", "plan-uuid", "run-uuid",
@@ -40,11 +47,13 @@ public class DrSiteAgentBrokerServiceImplTest {
         DrSiteAgentBrokerServiceImpl service = new DrSiteAgentBrokerServiceImpl();
         ReflectionTestUtils.setField(service, "agentManager", agentManager);
         ReflectionTestUtils.setField(service, "hostDao", hostDao);
+        ReflectionTestUtils.setField(service, "dataCenterDao", dataCenterDao);
 
         DrSiteAgentCommandResponse response = service.execute("CANCEL", new Gson().toJson(command), "source-host-uuid");
 
         Assert.assertEquals(Boolean.TRUE, ReflectionTestUtils.getField(response, "result"));
         Assert.assertEquals("CANCEL", ReflectionTestUtils.getField(response, "commandType"));
         Mockito.verify(agentManager).send(Mockito.eq(22L), Mockito.any(FtctlDrCancelCommand.class));
+        Mockito.verify(hostDao, Mockito.never()).findByUuid(Mockito.anyString());
     }
 }

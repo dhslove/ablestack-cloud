@@ -337,7 +337,9 @@ public class DrMoldInventoryClient {
         Map<String, String> params = new LinkedHashMap<String, String>();
         params.put("commandtype", StringUtils.trim(commandType));
         params.put("commandjson", commandJson);
-        params.put("workerhostuuid", StringUtils.trim(workerHostUuid));
+        if (StringUtils.isNotBlank(workerHostUuid)) {
+            params.put("workerhostuuid", StringUtils.trim(workerHostUuid));
+        }
         JsonObject response = execute(credential, COMMAND_EXECUTE_DR_SITE_AGENT, params, true);
         return extractSiteAgentCommandResponse(response);
     }

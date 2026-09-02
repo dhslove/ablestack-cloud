@@ -2,6 +2,14 @@
 
 작성일: 2026-07-06
 
+> 2026-09-03 clarification: the `POWERED_ON` value below is evidence captured
+> from that incident, not a VMware DR eligibility prerequisite. VMware source
+> power and placement follow
+> `627-dr-dynamic-placement-and-transparent-worker-scheduling-design-20260903.md`.
+> A powered-off source remains eligible for Full Seed and, with a valid CBT
+> baseline, incremental or `NO_CHANGE`; disaster Failover uses the last durable
+> checkpoint without requiring source reachability.
+
 ## 1. 목적
 
 DR Plan 동기화 화면에서 `SYNCING` 또는 `SUCCEEDED`처럼 보이지만 DR 대상 가상머신이 실제로 생성되지 않은 상태를 정상으로 오판하지 않도록 UI/API/Backend/Agent/ftctl/DB 전 계층의 상태 계약을 재정의한다.

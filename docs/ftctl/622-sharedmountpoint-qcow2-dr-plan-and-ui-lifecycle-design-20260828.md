@@ -2,6 +2,15 @@
 
 > 2026-09-01 cutover authority serialization and Failback readiness convergence:
 > `625-dr-cutover-authority-commit-serialization-and-failback-readiness-convergence-design-20260901.md`
+>
+> 2026-09-03 dynamic placement and transparent worker scheduling:
+> `627-dr-dynamic-placement-and-transparent-worker-scheduling-design-20260903.md`
+
+The Plan never pins a VM host, coordinator, or transfer worker. SharedMountPoint
+workers are selected from the current eligible site pool for each Run/Cycle;
+VM-local control resolves live placement only at command time. Any older clause
+that describes `sourceHostUuid` as durable authority is superseded by design
+627.
 
 ## 1. Authority and Test Object
 
@@ -175,13 +184,16 @@ The corrected contract is intentionally narrow:
 | Scheduler | Failed sequence 1 is followed by incremental sequence 2 | No durable baseline means full seed retry only |
 | Observability | Native replication failure is attributed to `vmware-mover` | Failure component follows the selected provider |
 
-## 10. Remote KVM source authority
+## 10. Remote KVM source observation
 
 The controller-local `dr_plan.source_worker_host_id` remains a foreign key for
 hosts owned by the controller Mold only. It must not contain a host ID from a
-remote source Mold. For a remote ABLESTACK source, the signed Mold inventory is
-authoritative and the guided mapping stores `sourceHostUuid` and
-`sourceHostName` under `source.hardware`.
+remote source Mold. For a remote ABLESTACK source, signed Mold inventory is
+authoritative for the VM's current placement observation. That observation is
+not worker authority and must not be required in the guided mapping. A host
+UUID/name may be displayed with its observation time, but Cloud must resolve
+placement again for an actual VM-local command and schedule SharedMountPoint
+work independently.
 
 KVM virtual machines without an explicit UEFI detail use the existing Cloud
 contract: no UEFI detail means BIOS/legacy firmware and Secure Boot is false.
@@ -193,12 +205,12 @@ name/UUID as appropriate.
 | Layer | AS-IS | TO-BE |
 | --- | --- | --- |
 | Source inventory | Missing optional UEFI data replaces valid host data with an inventory error | Remote KVM defaults to BIOS and preserves host UUID/name |
-| Plan persistence | Remote host cannot be represented by the local host foreign key | Remote host authority remains in `mapping_json.source.hardware` |
-| API | Only controller-local `sourceworkerhostid` is exposed | Remote `sourceworkerhostuuid` and `sourceworkerhostname` are also exposed |
-| UI | Remote source worker is shown as `-` | Remote source worker name and UUID are shown consistently |
-| Existing-plan edit | An unchanged form omits the guided fields, so persisted source inventory errors survive a successful edit | A KVM source mapping with an inventory error or missing remote host UUID resubmits the full guided payload and refreshes source authority |
+| Plan persistence | Remote host cannot be represented by the local host foreign key | Do not persist remote placement as routing authority; retain only optional timestamped observation |
+| API | Only controller-local `sourceworkerhostid` is exposed | Runtime response exposes current observation and independently selected worker lease |
+| UI | Remote source worker is shown as `-` | Show automatic placement readiness and read-only current runtime assignment |
+| Existing-plan edit | Missing host evidence can invalidate a valid Plan | Host presence is not Plan completeness; refresh placement only when a VM-local command needs it |
 | Direction vocabulary | Refresh gating recognizes only the internal `KVM_TO_KVM` value | Refresh gating accepts the API/UI `ABLESTACK_TO_ABLESTACK` value and the mapping's internal `KVM_TO_KVM` value while excluding VMware sources |
-| Detail authority display | The source worker row depends on API convenience fields and can show `-` even after mapping repair | The detail view falls back to `mappingjson.source.hardware.sourceHostName/sourceHostUuid` so the remote authority remains visible |
+| Detail placement display | The source worker row implies durable authority | Separate last-observed VM placement from the current coordinator/transfer lease |
 
 ## 11. Existing-plan-only validation and completed transfer telemetry
 

@@ -98,6 +98,7 @@ public class DrFailbackLifecycleServiceImpl extends ManagerBase implements DrFai
     @Inject private DrRemoteAgentClient drRemoteAgentClient;
     @Inject private DrPlanOwnedTransportService drPlanOwnedTransportService;
     @Inject private Provider<FtctlDrUnifiedActionAdapter> ftctlDrUnifiedActionAdapterProvider;
+    @Inject private DrWorkerPlacementService drWorkerPlacementService;
 
     private final Set<Long> inFlightRuns = ConcurrentHashMap.newKeySet();
     private ExecutorService executor;
@@ -553,7 +554,7 @@ public class DrFailbackLifecycleServiceImpl extends ManagerBase implements DrFai
         }
         UserVmVO localVm = replica.getTargetVmId() != null ? userVmDao.findById(replica.getTargetVmId()) : null;
         if (localVm != null && localVm.getRemoved() == null) {
-            return ensureLocalPowerState(localVm, plan.getTargetWorkerHostId(), poweredOn);
+            return ensureLocalPowerState(localVm, null, poweredOn);
         }
         DrSiteVO site = drSiteDao.findById(plan.getTargetSiteId());
         return ensureRemotePowerState(site, replica.getTargetExternalRef(), poweredOn);
@@ -562,7 +563,7 @@ public class DrFailbackLifecycleServiceImpl extends ManagerBase implements DrFai
     private String ensureSourcePowerState(DrPlanVO plan, boolean poweredOn) throws Exception {
         UserVmVO localVm = plan.getSourceVmId() != null ? userVmDao.findById(plan.getSourceVmId()) : null;
         if (localVm != null && localVm.getRemoved() == null) {
-            return ensureLocalPowerState(localVm, plan.getSourceWorkerHostId(), poweredOn);
+            return ensureLocalPowerState(localVm, null, poweredOn);
         }
         DrSiteVO site = drSiteDao.findById(plan.getSourceSiteId());
         return ensureRemotePowerState(site, plan.getSourceExternalRef(), poweredOn);
@@ -705,8 +706,8 @@ public class DrFailbackLifecycleServiceImpl extends ManagerBase implements DrFai
 
     private Answer sendEngineCommand(DrPlanVO plan, DrRunVO run, DrFailbackSessionVO session,
             FtctlDrActionCommand.Action action, String rollbackPhase) {
-        Long hostId = firstNonNull(plan.getCoordinatorWorkerHostId(), plan.getTargetWorkerHostId(),
-                plan.getSourceWorkerHostId());
+        Long hostId = drWorkerPlacementService != null
+                ? drWorkerPlacementService.resolveWorkerHostId(plan, run, DrWorkerRole.COORDINATOR) : null;
         if (hostId == null) {
             throw new CloudRuntimeException("DR coordinator host is not configured");
         }
@@ -782,8 +783,8 @@ public class DrFailbackLifecycleServiceImpl extends ManagerBase implements DrFai
                     ? parseObject(remoteAnswer.getStatusJson()) : null;
             return remotePayload != null ? remotePayload : new JsonObject();
         }
-        Long hostId = firstNonNull(plan.getCoordinatorWorkerHostId(), plan.getTargetWorkerHostId(),
-                plan.getSourceWorkerHostId());
+        Long hostId = drWorkerPlacementService != null
+                ? drWorkerPlacementService.resolveWorkerHostId(plan, run, DrWorkerRole.COORDINATOR) : null;
         if (hostId == null) {
             return new JsonObject();
         }

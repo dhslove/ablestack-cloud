@@ -77,6 +77,8 @@ public class DrPlanReadinessValidator extends ManagerBase {
     @Inject
     private HostDao hostDao;
     @Inject
+    private DrWorkerPlacementService drWorkerPlacementService;
+    @Inject
     private HostDetailsDao hostDetailsDao;
     @Inject
     private DrSiteDao drSiteDao;
@@ -222,14 +224,13 @@ public class DrPlanReadinessValidator extends ManagerBase {
     }
 
     private void validateWorkers(DrPlanVO plan, DrPlanReadiness readiness) {
-        Long coordinator = firstNonNull(plan.getCoordinatorWorkerHostId(), plan.getSourceWorkerHostId(), plan.getTargetWorkerHostId());
+        Long coordinator = drWorkerPlacementService != null
+                ? drWorkerPlacementService.resolveWorkerHostId(plan, DrWorkerRole.COORDINATOR) : null;
         if (coordinator == null) {
             readiness.addBlockingReason(REASON_COORDINATOR_WORKER_REQUIRED);
             return;
         }
         validateHost(coordinator, "coordinator", readiness);
-        validateHost(plan.getSourceWorkerHostId(), "source", readiness);
-        validateHost(plan.getTargetWorkerHostId(), "target", readiness);
     }
 
     private void validateHost(Long hostId, String role, DrPlanReadiness readiness) {
@@ -271,13 +272,8 @@ public class DrPlanReadinessValidator extends ManagerBase {
     }
 
     private Long resolveVmwareDataPlaneHostId(DrPlanVO plan) {
-        if (plan == null) {
-            return null;
-        }
-        if (StringUtils.endsWithIgnoreCase(plan.getDirection(), "_KVM") && plan.getTargetWorkerHostId() != null) {
-            return plan.getTargetWorkerHostId();
-        }
-        return firstNonNull(plan.getCoordinatorWorkerHostId(), plan.getSourceWorkerHostId(), plan.getTargetWorkerHostId());
+        return plan != null && drWorkerPlacementService != null
+                ? drWorkerPlacementService.resolveWorkerHostId(plan, DrWorkerRole.VDDK_DATA_PLANE) : null;
     }
 
     private String hostDetailValue(Long hostId, String name) {
@@ -299,7 +295,8 @@ public class DrPlanReadinessValidator extends ManagerBase {
                 && StringUtils.isBlank(firstString(target, "zoneId", "zone", "targetZoneId"))) {
             readiness.addBlockingReason(REASON_TARGET_SITE_ZONE_REQUIRED);
         }
-        if (plan.getTargetWorkerHostId() == null && firstLong(target, "workerHostId", "targetWorkerHostId") == null) {
+        if (drWorkerPlacementService == null
+                || drWorkerPlacementService.resolveWorkerHostId(plan, DrWorkerRole.TARGET) == null) {
             readiness.addBlockingReason(REASON_TARGET_WORKER_REQUIRED);
         }
         JsonArray disks = firstArray(mapping, "disks", "diskMappings", "volumes", "volumeMappings");

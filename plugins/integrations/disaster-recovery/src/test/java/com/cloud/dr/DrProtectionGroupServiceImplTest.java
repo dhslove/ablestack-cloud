@@ -45,6 +45,7 @@ public class DrProtectionGroupServiceImplTest {
     @Mock private DrSyncCycleDao drSyncCycleDao;
     @Mock private DrAdmissionController drAdmissionController;
     @Mock private AgentManager agentManager;
+    @Mock private DrWorkerPlacementService drWorkerPlacementService;
 
     @InjectMocks private DrProtectionGroupServiceImpl service;
 
@@ -64,6 +65,8 @@ public class DrProtectionGroupServiceImplTest {
         when(drPlanService.getActionAvailability(37L)).thenReturn(availability(true, null));
         when(agentManager.easySend(anyLong(), any(FtctlDrStatusCommand.class)))
                 .thenAnswer(invocation -> nbdStatus(invocation.getArgument(1), true, true, 16));
+        when(drWorkerPlacementService.resolveWorkerHostId(any(DrPlanVO.class),
+                org.mockito.ArgumentMatchers.eq(DrWorkerRole.COORDINATOR))).thenReturn(103L);
     }
 
     @Test

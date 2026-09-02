@@ -32,6 +32,8 @@ import com.cloud.dr.DrEventVO;
 import com.cloud.dr.DrPlanVO;
 import com.cloud.dr.DrReplicaDiskVO;
 import com.cloud.dr.DrReplicaVO;
+import com.cloud.dr.DrWorkerPlacementService;
+import com.cloud.dr.DrWorkerRole;
 import com.cloud.dr.DrRunVO;
 import com.cloud.dr.dao.DrEventDao;
 import com.cloud.dr.dao.DrPlanDao;
@@ -53,6 +55,8 @@ public class DrProtectionOrchestratorImplTest {
     private DrEventDao drEventDao;
     @Mock
     private HostDao hostDao;
+    @Mock
+    private DrWorkerPlacementService drWorkerPlacementService;
 
     @InjectMocks
     private DrProtectionOrchestratorImpl orchestrator;
@@ -65,6 +69,8 @@ public class DrProtectionOrchestratorImplTest {
         plan.setMappingJson("{\"targetVmName\":\"replica-01\",\"disks\":[{\"device\":\"sda\",\"sourceVolumeId\":101,\"targetVolumeId\":201,\"format\":\"qcow2\",\"sizeBytes\":1024}]}");
         DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_SYNC);
         Mockito.when(drPlanDao.findById(plan.getId())).thenReturn(plan);
+        Mockito.when(drWorkerPlacementService.resolveWorkerHostId(plan, DrWorkerRole.COORDINATOR))
+                .thenReturn(11L);
         Mockito.when(hostDao.findById(11L)).thenReturn(Mockito.mock(HostVO.class));
         Mockito.when(drReplicaDao.listActiveByPlanId(plan.getId())).thenReturn(Collections.<DrReplicaVO>emptyList());
         Mockito.when(drReplicaDao.persist(Mockito.any(DrReplicaVO.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -76,8 +82,8 @@ public class DrProtectionOrchestratorImplTest {
 
         Assert.assertSame(plan, prepared);
         Assert.assertEquals(DrConstants.PLAN_STATE_READY, plan.getState());
-        Assert.assertEquals(Long.valueOf(11L), plan.getSourceWorkerHostId());
-        Assert.assertEquals(Long.valueOf(11L), plan.getTargetWorkerHostId());
+        Assert.assertNull(plan.getSourceWorkerHostId());
+        Assert.assertNull(plan.getTargetWorkerHostId());
         Mockito.verify(drPlanDao).update(plan.getId(), plan);
 
         ArgumentCaptor<DrReplicaVO> replicaCaptor = ArgumentCaptor.forClass(DrReplicaVO.class);
@@ -105,6 +111,8 @@ public class DrProtectionOrchestratorImplTest {
         plan.setMappingJson("{}");
         DrReplicaVO replica = new DrReplicaVO(plan.getId(), plan.getTargetSiteId());
         Mockito.when(drPlanDao.findById(plan.getId())).thenReturn(plan);
+        Mockito.when(drWorkerPlacementService.resolveWorkerHostId(plan, DrWorkerRole.COORDINATOR))
+                .thenReturn(11L);
         Mockito.when(hostDao.findById(11L)).thenReturn(Mockito.mock(HostVO.class));
         Mockito.when(drReplicaDao.listActiveByPlanId(plan.getId())).thenReturn(Collections.singletonList(replica));
         Mockito.when(drEventDao.persist(Mockito.any(DrEventVO.class))).thenAnswer(invocation -> invocation.getArgument(0));

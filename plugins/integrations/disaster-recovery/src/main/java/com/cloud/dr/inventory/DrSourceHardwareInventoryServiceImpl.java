@@ -34,6 +34,8 @@ import com.cloud.dr.DrResolvedSiteCredential;
 import com.cloud.dr.DrSiteCredentialService;
 import com.cloud.dr.DrSiteVO;
 import com.cloud.dr.DrVmDetailReplicationPolicy;
+import com.cloud.dr.DrWorkerPlacementService;
+import com.cloud.dr.DrWorkerRole;
 import com.cloud.dr.dao.DrSiteDao;
 import com.cloud.exception.AgentUnavailableException;
 import com.cloud.exception.OperationTimedoutException;
@@ -62,6 +64,8 @@ public class DrSourceHardwareInventoryServiceImpl extends ManagerBase implements
     private UserVmDao userVmDao;
     @Inject
     private VMInstanceDetailsDao vmInstanceDetailsDao;
+    @Inject
+    private DrWorkerPlacementService drWorkerPlacementService;
 
     @Override
     public DrSourceVmHardware resolve(DrPlanVO plan) {
@@ -92,7 +96,8 @@ public class DrSourceHardwareInventoryServiceImpl extends ManagerBase implements
             return DrSourceVmHardware.unavailable(plan.getSourceExternalRef(), DrConstants.ERROR_SITE_NOT_FOUND,
                     "VMware source site was not found");
         }
-        Long workerHostId = firstNonNull(plan.getTargetWorkerHostId(), plan.getCoordinatorWorkerHostId(), plan.getSourceWorkerHostId());
+        Long workerHostId = drWorkerPlacementService != null
+                ? drWorkerPlacementService.resolveWorkerHostId(plan, DrWorkerRole.VDDK_DATA_PLANE) : null;
         return resolve(site, plan.getSourceExternalRef(), workerHostId);
     }
 

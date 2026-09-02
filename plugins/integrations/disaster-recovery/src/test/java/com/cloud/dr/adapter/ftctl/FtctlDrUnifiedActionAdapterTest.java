@@ -46,6 +46,8 @@ import com.cloud.dr.DrReprotectPreflightService;
 import com.cloud.dr.DrRestorePointVO;
 import com.cloud.dr.DrRunVO;
 import com.cloud.dr.DrSyncCycleVO;
+import com.cloud.dr.DrWorkerPlacementService;
+import com.cloud.dr.DrWorkerRole;
 import com.cloud.dr.adapter.DrAdapterResult;
 import com.cloud.dr.adapter.DrExecutionContext;
 import com.cloud.dr.dao.DrRestorePointDao;
@@ -95,6 +97,8 @@ public class FtctlDrUnifiedActionAdapterTest {
     private DrPlanDao drPlanDao;
     @Mock
     private DrSourceHardwareInventoryService drSourceHardwareInventoryService;
+    @Mock
+    private DrWorkerPlacementService drWorkerPlacementService;
 
     @InjectMocks
     private FtctlDrUnifiedActionAdapter adapter;
@@ -103,6 +107,22 @@ public class FtctlDrUnifiedActionAdapterTest {
     public void resolveRemoteSourceWorkerThroughSharedResolver() {
         Mockito.lenient().when(drRemoteAgentClient.sourceWorkerUuid(Mockito.any(DrPlanVO.class)))
                 .thenReturn("source-host-uuid");
+        Mockito.lenient().when(drWorkerPlacementService.resolveWorkerHostId(Mockito.any(DrPlanVO.class),
+                Mockito.nullable(DrRunVO.class), Mockito.any(DrWorkerRole.class)))
+                .thenAnswer(invocation -> workerFor(invocation.getArgument(0), invocation.getArgument(2)));
+        Mockito.lenient().when(drWorkerPlacementService.resolveWorkerHostId(Mockito.any(DrPlanVO.class),
+                Mockito.any(DrWorkerRole.class)))
+                .thenAnswer(invocation -> workerFor(invocation.getArgument(0), invocation.getArgument(1)));
+    }
+
+    private Long workerFor(DrPlanVO plan, DrWorkerRole role) {
+        if (role == DrWorkerRole.SOURCE) {
+            return plan.getSourceWorkerHostId() != null ? plan.getSourceWorkerHostId() : 101L;
+        }
+        if (role == DrWorkerRole.TARGET) {
+            return plan.getTargetWorkerHostId() != null ? plan.getTargetWorkerHostId() : 102L;
+        }
+        return plan.getCoordinatorWorkerHostId() != null ? plan.getCoordinatorWorkerHostId() : 103L;
     }
 
     @Test
@@ -218,7 +238,7 @@ public class FtctlDrUnifiedActionAdapterTest {
                 Mockito.eq(plan), Mockito.eq(run), Mockito.anyString()))
                 .thenReturn(exports("10.10.32.2", 12032, "dr-export-sda"));
         Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("CAPABILITIES"),
-                Mockito.isA(FtctlDrCapabilitiesCommand.class), Mockito.eq("source-host-uuid"),
+                Mockito.isA(FtctlDrCapabilitiesCommand.class), Mockito.isNull(),
                 Mockito.eq(FtctlDrCapabilitiesAnswer.class))).thenAnswer(invocation -> {
                     FtctlDrCapabilitiesAnswer answer = new FtctlDrCapabilitiesAnswer(invocation.getArgument(2), true, "ok");
                     answer.setSupportedFeatures(java.util.Arrays.asList(
@@ -226,7 +246,7 @@ public class FtctlDrUnifiedActionAdapterTest {
                     return answer;
                 });
         Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("ACTION"),
-                Mockito.isA(FtctlDrActionCommand.class), Mockito.eq("source-host-uuid"),
+                Mockito.isA(FtctlDrActionCommand.class), Mockito.isNull(),
                 Mockito.eq(FtctlDrActionAnswer.class))).thenAnswer(invocation -> {
                     FtctlDrActionCommand command = invocation.getArgument(2);
                     return new FtctlDrActionAnswer(command, true, "accepted", FtctlDrActionCommand.Action.SYNC,
@@ -244,9 +264,9 @@ public class FtctlDrUnifiedActionAdapterTest {
         Mockito.verify(agentManager, Mockito.never()).send(Mockito.anyLong(), Mockito.isA(FtctlDrActionCommand.class));
         ArgumentCaptor<FtctlDrActionCommand> actionCaptor = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
         Mockito.verify(drRemoteAgentClient).execute(Mockito.eq(plan), Mockito.eq("ACTION"), actionCaptor.capture(),
-                Mockito.eq("source-host-uuid"), Mockito.eq(FtctlDrActionAnswer.class));
+                Mockito.isNull(), Mockito.eq(FtctlDrActionAnswer.class));
         FtctlDrActionCommand command = actionCaptor.getValue();
-        Assert.assertEquals("source-host-uuid", command.getSourceWorkerUuid());
+        Assert.assertNull(command.getSourceWorkerUuid());
         Assert.assertTrue(command.getProfileJson().contains("\"mode\":\"site-agent-nbd\""));
         Assert.assertTrue(command.getProfileJson().contains("\"targetHostAddress\":\"10.10.32.2\""));
         Assert.assertTrue(command.getProfileJson().contains("\"name\":\"dr-export-sda\""));
@@ -308,7 +328,7 @@ public class FtctlDrUnifiedActionAdapterTest {
                 Mockito.eq(plan), Mockito.eq(run), Mockito.anyString()))
                 .thenReturn(exports("10.10.32.2", 12032, "dr-resume-sda"));
         Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("CAPABILITIES"),
-                Mockito.isA(FtctlDrCapabilitiesCommand.class), Mockito.eq("source-host-uuid"),
+                Mockito.isA(FtctlDrCapabilitiesCommand.class), Mockito.isNull(),
                 Mockito.eq(FtctlDrCapabilitiesAnswer.class))).thenAnswer(invocation -> {
                     FtctlDrCapabilitiesAnswer answer = new FtctlDrCapabilitiesAnswer(invocation.getArgument(2), true, "ok");
                     answer.setSupportedFeatures(java.util.Arrays.asList(
@@ -317,7 +337,7 @@ public class FtctlDrUnifiedActionAdapterTest {
                 });
         ArgumentCaptor<FtctlDrActionCommand> actionCaptor = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
         Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("ACTION"), actionCaptor.capture(),
-                Mockito.eq("source-host-uuid"), Mockito.eq(FtctlDrActionAnswer.class))).thenAnswer(invocation -> {
+                Mockito.isNull(), Mockito.eq(FtctlDrActionAnswer.class))).thenAnswer(invocation -> {
                     FtctlDrActionCommand command = invocation.getArgument(2);
                     return new FtctlDrActionAnswer(command, true, "resumed", FtctlDrActionCommand.Action.RESUME_SYNC,
                             plan.getUuid(), run.getUuid(), "accepted", true, "READY", "resume",
@@ -429,7 +449,7 @@ public class FtctlDrUnifiedActionAdapterTest {
                                 plan.getUuid(), run.getUuid()), true, "paused"));
         Mockito.when(drRemoteAgentClient.ensureSourceVmPowerState(plan, false)).thenReturn("POWERED_OFF");
         Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("CAPABILITIES"),
-                Mockito.isA(FtctlDrCapabilitiesCommand.class), Mockito.eq("source-host-uuid"),
+                Mockito.isA(FtctlDrCapabilitiesCommand.class), Mockito.isNull(),
                 Mockito.eq(FtctlDrCapabilitiesAnswer.class))).thenAnswer(invocation -> {
                     FtctlDrCapabilitiesAnswer answer = new FtctlDrCapabilitiesAnswer(invocation.getArgument(2), true, "ok");
                     answer.setSupportedFeatures(java.util.Arrays.asList(
@@ -438,7 +458,7 @@ public class FtctlDrUnifiedActionAdapterTest {
                 });
         ArgumentCaptor<FtctlDrActionCommand> sourceCommandCaptor = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
         Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("ACTION"), sourceCommandCaptor.capture(),
-                Mockito.eq("source-host-uuid"), Mockito.eq(FtctlDrActionAnswer.class))).thenAnswer(invocation -> {
+                Mockito.isNull(), Mockito.eq(FtctlDrActionAnswer.class))).thenAnswer(invocation -> {
                     FtctlDrActionCommand command = invocation.getArgument(2);
                     return new FtctlDrActionAnswer(command, true, "accepted", FtctlDrActionCommand.Action.FAILOVER,
                             plan.getUuid(), run.getUuid(), "accepted", true, "RUNNING", "final-delta",
@@ -461,7 +481,7 @@ public class FtctlDrUnifiedActionAdapterTest {
                 Mockito.anyString());
         order.verify(drRemoteAgentClient).ensureSourceVmPowerState(plan, false);
         order.verify(drRemoteAgentClient).execute(Mockito.eq(plan), Mockito.eq("ACTION"),
-                Mockito.isA(FtctlDrActionCommand.class), Mockito.eq("source-host-uuid"),
+                Mockito.isA(FtctlDrActionCommand.class), Mockito.isNull(),
                 Mockito.eq(FtctlDrActionAnswer.class));
     }
 
@@ -545,7 +565,7 @@ public class FtctlDrUnifiedActionAdapterTest {
                         new FtctlDrActionCommand(FtctlDrActionCommand.Action.PAUSE_SYNC,
                                 plan.getUuid(), run.getUuid()), true, "paused"));
         Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("CAPABILITIES"),
-                Mockito.isA(FtctlDrCapabilitiesCommand.class), Mockito.eq("source-host-uuid"),
+                Mockito.isA(FtctlDrCapabilitiesCommand.class), Mockito.isNull(),
                 Mockito.eq(FtctlDrCapabilitiesAnswer.class))).thenAnswer(invocation -> {
                     FtctlDrCapabilitiesAnswer answer = new FtctlDrCapabilitiesAnswer(
                             invocation.getArgument(2), true, "ok");
@@ -557,7 +577,7 @@ public class FtctlDrUnifiedActionAdapterTest {
                 });
         ArgumentCaptor<FtctlDrActionCommand> commandCaptor = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
         Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("ACTION"),
-                commandCaptor.capture(), Mockito.eq("source-host-uuid"),
+                commandCaptor.capture(), Mockito.isNull(),
                 Mockito.eq(FtctlDrActionAnswer.class))).thenAnswer(invocation -> {
                     FtctlDrActionCommand command = invocation.getArgument(2);
                     return new FtctlDrActionAnswer(command, true, "accepted",
@@ -588,7 +608,7 @@ public class FtctlDrUnifiedActionAdapterTest {
                 Mockito.eq(FtctlDrActionCommand.Action.PAUSE_SYNC), Mockito.eq(run.getUuid()),
                 Mockito.anyString());
         order.verify(drRemoteAgentClient).execute(Mockito.eq(plan), Mockito.eq("ACTION"),
-                Mockito.isA(FtctlDrActionCommand.class), Mockito.eq("source-host-uuid"),
+                Mockito.isA(FtctlDrActionCommand.class), Mockito.isNull(),
                 Mockito.eq(FtctlDrActionAnswer.class));
     }
 
@@ -1097,11 +1117,13 @@ public class FtctlDrUnifiedActionAdapterTest {
     }
 
     @Test
-    public void missingWorkerHostFailsBeforeAgentDispatch() throws Exception {
-        DrPlanVO plan = new DrPlanVO("ftctl-dr-plan", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
-        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
-        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
-        DrRunVO run = run(DrConstants.RUN_TYPE_FAILOVER, "{\"mode\":\"disaster\"}");
+    public void unavailableAutomaticWorkerFailsBeforeAgentDispatch() throws Exception {
+        DrPlanVO plan = ftctlDrPlan();
+        plan.setSourceWorkerHostId(null);
+        plan.setTargetWorkerHostId(null);
+        plan.setCoordinatorWorkerHostId(null);
+        DrRunVO run = run(DrConstants.RUN_TYPE_SYNC, "{\"mode\":\"FULL_RESEED\"}");
+        Mockito.reset(drWorkerPlacementService);
 
         DrAdapterResult result = adapter.execute(new DrExecutionContext(plan, run));
 
@@ -1148,9 +1170,8 @@ public class FtctlDrUnifiedActionAdapterTest {
     }
 
     private void mockRemoteKvmCapabilities(DrPlanVO plan) {
-        Mockito.when(drRemoteAgentClient.sourceWorkerUuid(plan)).thenReturn("source-host-uuid");
         Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("CAPABILITIES"),
-                Mockito.isA(FtctlDrCapabilitiesCommand.class), Mockito.eq("source-host-uuid"),
+                Mockito.isA(FtctlDrCapabilitiesCommand.class), Mockito.isNull(),
                 Mockito.eq(FtctlDrCapabilitiesAnswer.class))).thenAnswer(invocation -> {
                     FtctlDrCapabilitiesAnswer answer = new FtctlDrCapabilitiesAnswer(
                             invocation.getArgument(2), true, "ok");

@@ -138,9 +138,7 @@ export default {
           value: sourceVm,
           route: this.plan.sourcevmid ? { path: '/vm/' + this.plan.sourcevmid } : null
         },
-        { key: 'sourceWorkerHost', label: this.$t('label.dr.source.worker.host'), value: this.sourceWorkerHostLabel },
-        { key: 'targetWorkerHost', label: this.$t('label.dr.target.worker.host'), value: this.plan.targetworkerhostid },
-        { key: 'coordinatorWorkerHost', label: this.$t('label.dr.coordinator.worker.host'), value: this.plan.coordinatorworkerhostid },
+        { key: 'workerPlacement', label: this.$t('label.dr.worker.placement'), value: this.$t('label.dr.worker.placement.automatic') },
         { key: 'targetMaterializationState', label: this.$t('label.dr.target.materialization.state'), value: this.plan.targetmaterializationstate },
         { key: 'targetMaterializationMessage', label: this.$t('label.dr.target.materialization.message'), value: this.plan.targetmaterializationmessage },
         { key: 'targetMaterialized', label: this.$t('label.dr.target.materialized'), value: this.booleanLabel(this.plan.targetmaterialized) },
@@ -184,26 +182,6 @@ export default {
       const values = [this.plan.currentcyclesequence, this.plan.currentcyclemode, this.plan.currentcyclestate]
         .filter(value => value !== undefined && value !== null && String(value).length > 0)
       return values.length ? values.join(' / ') : '-'
-    },
-    sourceWorkerHostLabel () {
-      if (this.plan.sourceworkerhostid) {
-        return this.plan.sourceworkerhostid
-      }
-      let sourceHardware = {}
-      try {
-        const mapping = typeof this.plan.mappingjson === 'string'
-          ? JSON.parse(this.plan.mappingjson || '{}')
-          : (this.plan.mappingjson || {})
-        sourceHardware = mapping?.source?.hardware || {}
-      } catch (error) {
-        sourceHardware = {}
-      }
-      const name = this.plan.sourceworkerhostname || sourceHardware.sourceHostName || sourceHardware.sourcehostname
-      const uuid = this.plan.sourceworkerhostuuid || sourceHardware.sourceHostUuid || sourceHardware.sourcehostuuid
-      if (name && uuid) {
-        return `${name} (${uuid})`
-      }
-      return name || uuid || '-'
     },
     currentRunFailed () {
       return String(this.currentRun.state || '').toUpperCase() === 'FAILED'

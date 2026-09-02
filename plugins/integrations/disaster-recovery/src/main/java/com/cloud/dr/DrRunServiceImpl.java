@@ -54,6 +54,8 @@ public class DrRunServiceImpl extends ManagerBase implements DrRunService {
     private DrProjectionService drProjectionService;
     @Inject
     private DrRemoteAgentClient drRemoteAgentClient;
+    @Inject
+    private DrWorkerPlacementService drWorkerPlacementService;
 
     private enum CancelDispatchOutcome {
         CANCELED,
@@ -144,9 +146,8 @@ public class DrRunServiceImpl extends ManagerBase implements DrRunService {
                 plan.getEngineType(), plan.getEngineBindingType())) {
             return CancelDispatchOutcome.CANCELED;
         }
-        Long coordinatorHostId = plan.getCoordinatorWorkerHostId() != null
-                ? plan.getCoordinatorWorkerHostId()
-                : plan.getSourceWorkerHostId() != null ? plan.getSourceWorkerHostId() : plan.getTargetWorkerHostId();
+        Long coordinatorHostId = drWorkerPlacementService != null
+                ? drWorkerPlacementService.resolveWorkerHostId(plan, run, DrWorkerRole.COORDINATOR) : null;
         boolean remoteSourceDispatch = dispatchesCancelOnRemoteSource(plan, run);
         if (remoteSourceDispatch && drRemoteAgentClient == null) {
             recordCancelDispatchPending(run, "FTCTL_DR cancel requires the remote source Agent client");

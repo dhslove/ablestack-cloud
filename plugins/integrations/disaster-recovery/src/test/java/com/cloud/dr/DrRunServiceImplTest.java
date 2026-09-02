@@ -32,7 +32,15 @@ public class DrRunServiceImplTest {
     @Mock private DrFailbackLifecycleService drFailbackLifecycleService;
     @Mock private DrProjectionService drProjectionService;
     @Mock private DrRemoteAgentClient drRemoteAgentClient;
+    @Mock private DrWorkerPlacementService drWorkerPlacementService;
     @InjectMocks private DrRunServiceImpl service;
+
+    @org.junit.Before
+    public void selectCoordinatorAutomatically() {
+        Mockito.lenient().when(drWorkerPlacementService.resolveWorkerHostId(
+                Mockito.any(DrPlanVO.class), Mockito.nullable(DrRunVO.class),
+                Mockito.eq(DrWorkerRole.COORDINATOR))).thenReturn(22L);
+    }
 
     @Test
     public void activeRunCancellationIsRequeuedForTerminalization() {
@@ -66,7 +74,6 @@ public class DrRunServiceImplTest {
         DrPlanVO plan = Mockito.mock(DrPlanVO.class);
         Mockito.when(plan.getUuid()).thenReturn("plan-uuid");
         Mockito.when(plan.getEngineType()).thenReturn(DrConstants.ENGINE_TYPE_FTCTL_DR);
-        Mockito.when(plan.getCoordinatorWorkerHostId()).thenReturn(22L);
         Mockito.when(drRunDao.findById(active.getId())).thenReturn(active);
         Mockito.when(drPlanDao.findById(10L)).thenReturn(plan);
         Mockito.when(agentManager.easySend(Mockito.eq(22L), Mockito.any(FtctlDrCancelCommand.class)))
@@ -91,7 +98,6 @@ public class DrRunServiceImplTest {
         DrPlanVO plan = Mockito.mock(DrPlanVO.class);
         Mockito.when(plan.getUuid()).thenReturn("plan-uuid");
         Mockito.when(plan.getEngineType()).thenReturn(DrConstants.ENGINE_TYPE_FTCTL_DR);
-        Mockito.when(plan.getCoordinatorWorkerHostId()).thenReturn(22L);
         Mockito.when(drRunDao.findById(active.getId())).thenReturn(active);
         Mockito.when(drPlanDao.findById(10L)).thenReturn(plan);
         Mockito.when(drFailbackLifecycleService.cancelAndRestoreTargetAuthority(plan, active)).thenReturn(true);
@@ -117,7 +123,6 @@ public class DrRunServiceImplTest {
         DrPlanVO plan = Mockito.mock(DrPlanVO.class);
         Mockito.when(plan.getUuid()).thenReturn("plan-uuid");
         Mockito.when(plan.getEngineType()).thenReturn(DrConstants.ENGINE_TYPE_FTCTL_DR);
-        Mockito.when(plan.getCoordinatorWorkerHostId()).thenReturn(22L);
         Mockito.when(drRunDao.findById(active.getId())).thenReturn(active);
         Mockito.when(drPlanDao.findById(10L)).thenReturn(plan);
         Mockito.when(agentManager.easySend(Mockito.eq(22L), Mockito.any(FtctlDrCancelCommand.class)))
@@ -140,7 +145,6 @@ public class DrRunServiceImplTest {
         DrPlanVO plan = Mockito.mock(DrPlanVO.class);
         Mockito.when(plan.getUuid()).thenReturn("plan-uuid");
         Mockito.when(plan.getEngineType()).thenReturn(DrConstants.ENGINE_TYPE_FTCTL_DR);
-        Mockito.when(plan.getCoordinatorWorkerHostId()).thenReturn(22L);
         Mockito.when(drRunDao.findById(active.getId())).thenReturn(active);
         Mockito.when(drPlanDao.findById(10L)).thenReturn(plan);
         Mockito.when(agentManager.easySend(Mockito.eq(22L), Mockito.any(FtctlDrCancelCommand.class)))
@@ -163,7 +167,6 @@ public class DrRunServiceImplTest {
         DrPlanVO plan = Mockito.mock(DrPlanVO.class);
         Mockito.when(plan.getUuid()).thenReturn("plan-uuid");
         Mockito.when(plan.getEngineType()).thenReturn(DrConstants.ENGINE_TYPE_FTCTL_DR);
-        Mockito.when(plan.getCoordinatorWorkerHostId()).thenReturn(22L);
         Mockito.when(plan.getActiveSide()).thenReturn("SOURCE");
         Mockito.when(drRunDao.findById(active.getId())).thenReturn(active);
         Mockito.when(drPlanDao.findById(10L)).thenReturn(plan);
@@ -188,7 +191,6 @@ public class DrRunServiceImplTest {
         DrPlanVO plan = Mockito.mock(DrPlanVO.class);
         Mockito.when(plan.getUuid()).thenReturn("plan-uuid");
         Mockito.when(plan.getEngineType()).thenReturn(DrConstants.ENGINE_TYPE_FTCTL_DR);
-        Mockito.when(plan.getCoordinatorWorkerHostId()).thenReturn(22L);
         Mockito.when(drRunDao.findById(active.getId())).thenReturn(active);
         Mockito.when(drPlanDao.findById(10L)).thenReturn(plan);
         Mockito.when(agentManager.easySend(Mockito.eq(22L), Mockito.any(FtctlDrCancelCommand.class)))

@@ -40,6 +40,7 @@ public class DrSourceIsolationPreflightServiceImpl extends ManagerBase
     @Inject private UserVmDao userVmDao;
     @Inject private AgentManager agentManager;
     @Inject private DrCurrentAuthorityResolver drCurrentAuthorityResolver;
+    @Inject private DrWorkerPlacementService drWorkerPlacementService;
 
     @Override
     public DrSourceIsolationPreflightResult validate(DrPlanVO plan, DrRunVO run, String operation) {
@@ -140,8 +141,8 @@ public class DrSourceIsolationPreflightServiceImpl extends ManagerBase
         stages.add(DrFailbackPreflightStage.ready("TARGET_RUNTIME", "MOLD_AGENT",
                 "Serving target VM domain is powered on"));
 
-        Long coordinatorHostId = firstNonNull(plan.getCoordinatorWorkerHostId(),
-                plan.getSourceWorkerHostId(), plan.getTargetWorkerHostId());
+        Long coordinatorHostId = drWorkerPlacementService != null
+                ? drWorkerPlacementService.resolveWorkerHostId(plan, DrWorkerRole.TARGET) : null;
         if (coordinatorHostId == null) {
             return blocked(stages, "FTCTL_TRANSITION", DrConstants.ERROR_TRANSITION_ENGINE_PREFLIGHT_FAILED,
                     "FTCTL_DR coordinator host is not configured", normalizedOperation,

@@ -43,8 +43,8 @@ public class ExecuteDrSiteAgentCommandCmd extends BaseCmd {
     @Parameter(name = "commandjson", type = CommandType.STRING, required = true, length = 65535,
             description = "the serialized allow-listed FTCTL Agent command")
     private String commandJson;
-    @Parameter(name = "workerhostuuid", type = CommandType.STRING, required = true,
-            description = "the site-local worker host UUID")
+    @Parameter(name = "workerhostuuid", type = CommandType.STRING,
+            description = "deprecated worker hint; the site broker selects an eligible Agent automatically")
     private String workerHostUuid;
 
     @Override

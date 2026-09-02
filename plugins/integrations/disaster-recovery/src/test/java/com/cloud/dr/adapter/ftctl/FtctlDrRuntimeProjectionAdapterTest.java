@@ -60,6 +60,8 @@ import com.cloud.dr.DrSiteCredentialService;
 import com.cloud.dr.DrSiteVO;
 import com.cloud.dr.DrTestSessionVO;
 import com.cloud.dr.DrTestSessionState;
+import com.cloud.dr.DrWorkerPlacementService;
+import com.cloud.dr.DrWorkerRole;
 import com.cloud.dr.adapter.DrAdapterResult;
 import com.cloud.dr.dao.DrCutoverDiskDao;
 import com.cloud.dr.dao.DrCutoverSessionDao;
@@ -262,6 +264,8 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     private DrRemoteAgentClient drRemoteAgentClient;
     @Mock
     private DrPlanOwnedTransportService drPlanOwnedTransportService;
+    @Mock
+    private DrWorkerPlacementService drWorkerPlacementService;
 
     @InjectMocks
     private FtctlDrRuntimeProjectionAdapter adapter;
@@ -270,6 +274,22 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     public void allowCycleProjectionLock() {
         Mockito.lenient().when(drPlanDao.acquireInLockTable(Mockito.anyLong(), Mockito.anyInt()))
                 .thenReturn(new DrPlanVO("projection-lock", 1L, 2L, DrConstants.DIRECTION_VMWARE_TO_KVM));
+        Mockito.lenient().when(drWorkerPlacementService.resolveWorkerHostId(Mockito.any(DrPlanVO.class),
+                Mockito.nullable(DrRunVO.class), Mockito.any(DrWorkerRole.class)))
+                .thenAnswer(invocation -> workerFor(invocation.getArgument(0), invocation.getArgument(2)));
+        Mockito.lenient().when(drWorkerPlacementService.resolveWorkerHostId(Mockito.any(DrPlanVO.class),
+                Mockito.any(DrWorkerRole.class)))
+                .thenAnswer(invocation -> workerFor(invocation.getArgument(0), invocation.getArgument(1)));
+    }
+
+    private Long workerFor(DrPlanVO plan, DrWorkerRole role) {
+        if (role == DrWorkerRole.SOURCE) {
+            return plan.getSourceWorkerHostId() != null ? plan.getSourceWorkerHostId() : 101L;
+        }
+        if (role == DrWorkerRole.TARGET) {
+            return plan.getTargetWorkerHostId() != null ? plan.getTargetWorkerHostId() : 102L;
+        }
+        return plan.getCoordinatorWorkerHostId() != null ? plan.getCoordinatorWorkerHostId() : 103L;
     }
 
     @Test
@@ -1510,7 +1530,6 @@ public class FtctlDrRuntimeProjectionAdapterTest {
                 + "\"target_external_ref\":\"target-vm-uuid\",\"failover_mode\":\"planned\"}";
 
         Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
-        Mockito.when(drRemoteAgentClient.sourceWorkerUuid(plan)).thenReturn("source-worker-uuid");
         Mockito.when(drRemoteAgentClient.transitionSourceScheduler(Mockito.eq(plan),
                 Mockito.eq(FtctlDrActionCommand.Action.PAUSE_SYNC), Mockito.eq(run.getUuid())))
                 .thenAnswer(invocation -> {
@@ -1520,7 +1539,7 @@ public class FtctlDrRuntimeProjectionAdapterTest {
                 });
         Mockito.when(drRemoteAgentClient.ensureSourceVmPowerState(plan, false)).thenReturn("POWERED_OFF");
         Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("STATUS"),
-                Mockito.any(FtctlDrStatusCommand.class), Mockito.eq("source-worker-uuid"),
+                Mockito.any(FtctlDrStatusCommand.class), Mockito.isNull(),
                 Mockito.eq(FtctlDrStatusAnswer.class)))
                 .thenAnswer(invocation -> {
                     FtctlDrStatusCommand command = invocation.getArgument(2);
@@ -1532,7 +1551,7 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         Mockito.when(agentManager.easySend(Mockito.eq(102L), Mockito.any(FtctlDrActionCommand.class)))
                 .thenAnswer(invocation -> new Answer(invocation.getArgument(1), true, "target commit acknowledged"));
         Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("ACTION"),
-                Mockito.any(FtctlDrActionCommand.class), Mockito.eq("source-worker-uuid"),
+                Mockito.any(FtctlDrActionCommand.class), Mockito.isNull(),
                 Mockito.eq(FtctlDrActionAnswer.class)))
                 .thenAnswer(invocation -> new FtctlDrActionAnswer(invocation.getArgument(2), true, "acknowledged"));
         Mockito.when(drRunDao.findActiveByPlanId(plan.getId())).thenReturn(run);
@@ -1564,7 +1583,7 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         ArgumentCaptor<FtctlDrActionCommand> sourceCommandCaptor = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
         cutoverOrder.verify(drRemoteAgentClient).execute(Mockito.eq(plan), Mockito.eq("ACTION"),
                 sourceCommandCaptor.capture(),
-                Mockito.eq("source-worker-uuid"), Mockito.eq(FtctlDrActionAnswer.class));
+                Mockito.isNull(), Mockito.eq(FtctlDrActionAnswer.class));
         ArgumentCaptor<FtctlDrActionCommand> targetCommandCaptor = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
         cutoverOrder.verify(agentManager).easySend(Mockito.eq(102L), Mockito.argThat(command ->
                 command instanceof FtctlDrActionCommand
@@ -2081,9 +2100,8 @@ public class FtctlDrRuntimeProjectionAdapterTest {
                 + "\"target_power_state\":\"POWERED_ON\",\"failover_session_id\":\""
                 + plan.getUuid() + ":" + run.getUuid() + "\"}";
         Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
-        Mockito.when(drRemoteAgentClient.sourceWorkerUuid(plan)).thenReturn("source-worker-uuid");
         Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("STATUS"),
-                Mockito.any(FtctlDrStatusCommand.class), Mockito.eq("source-worker-uuid"),
+                Mockito.any(FtctlDrStatusCommand.class), Mockito.isNull(),
                 Mockito.eq(FtctlDrStatusAnswer.class)))
                 .thenAnswer(invocation -> {
                     FtctlDrStatusCommand command = invocation.getArgument(2);
@@ -2092,7 +2110,7 @@ public class FtctlDrRuntimeProjectionAdapterTest {
                             null, null, null, null, "DR_REPLICATION_CYCLE_FAILED", 0, null, statusJson);
                 });
         Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("ACTION"),
-                Mockito.any(FtctlDrActionCommand.class), Mockito.eq("source-worker-uuid"),
+                Mockito.any(FtctlDrActionCommand.class), Mockito.isNull(),
                 Mockito.eq(FtctlDrActionAnswer.class)))
                 .thenAnswer(invocation -> new FtctlDrActionAnswer(invocation.getArgument(2), true, "aborted"));
         Mockito.when(drRemoteAgentClient.ensureSourceVmPowerState(plan, true)).thenReturn("POWERED_ON");
@@ -2125,7 +2143,7 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         compensationOrder.verify(drRemoteAgentClient).execute(Mockito.eq(plan), Mockito.eq("ACTION"),
                 Mockito.argThat(command -> command instanceof FtctlDrActionCommand
                         && ((FtctlDrActionCommand) command).getAction() == FtctlDrActionCommand.Action.FAILOVER_ABORT),
-                Mockito.eq("source-worker-uuid"), Mockito.eq(FtctlDrActionAnswer.class));
+                Mockito.isNull(), Mockito.eq(FtctlDrActionAnswer.class));
         compensationOrder.verify(drPlanOwnedTransportService).startForwardTargetExport(plan, run, null);
         compensationOrder.verify(drRemoteAgentClient).ensureSourceVmPowerState(plan, true);
         compensationOrder.verify(drRemoteAgentClient).transitionSourceScheduler(plan,

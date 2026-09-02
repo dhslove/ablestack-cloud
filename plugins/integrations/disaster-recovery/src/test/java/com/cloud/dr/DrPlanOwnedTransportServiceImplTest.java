@@ -26,6 +26,7 @@ public class DrPlanOwnedTransportServiceImplTest {
     @Mock private AgentManager agentManager;
     @Mock private HostDao hostDao;
     @Mock private DrRemoteAgentClient drRemoteAgentClient;
+    @Mock private DrWorkerPlacementService drWorkerPlacementService;
 
     @InjectMocks
     private DrPlanOwnedTransportServiceImpl service;
@@ -45,6 +46,8 @@ public class DrPlanOwnedTransportServiceImplTest {
         Mockito.when(targetHost.getUuid()).thenReturn("target-worker-uuid");
         Mockito.when(hostDao.findById(22L)).thenReturn(targetHost);
         Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        Mockito.lenient().when(drWorkerPlacementService.resolveWorkerHostId(
+                Mockito.any(DrPlanVO.class), Mockito.eq(DrWorkerRole.TARGET))).thenReturn(22L);
     }
 
     @Test
@@ -65,11 +68,10 @@ public class DrPlanOwnedTransportServiceImplTest {
 
     @Test
     public void reverseExportUsesOriginalSiteWorkerAndAuxiliaryRole() {
-        Mockito.when(drRemoteAgentClient.sourceWorkerUuid(plan)).thenReturn("source-worker-uuid");
         FtctlDrActionAnswer answer = answer(
                 "{\"result\":\"ok\",\"exports\":[{\"device\":\"sda\",\"port\":11834}]}");
         Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("ACTION"),
-                Mockito.any(FtctlDrActionCommand.class), Mockito.eq("source-worker-uuid"),
+                Mockito.any(FtctlDrActionCommand.class), Mockito.isNull(),
                 Mockito.eq(FtctlDrActionAnswer.class)))
                 .thenReturn(answer);
 
@@ -79,7 +81,7 @@ public class DrPlanOwnedTransportServiceImplTest {
         Mockito.verify(drRemoteAgentClient).execute(Mockito.eq(plan), Mockito.eq("ACTION"),
                 Mockito.argThat((FtctlDrActionCommand command) -> "reverse-target".equals(command.getRole())
                         && command.getProfileJson().contains("reverseTargetExport")),
-                Mockito.eq("source-worker-uuid"), Mockito.eq(FtctlDrActionAnswer.class));
+                Mockito.isNull(), Mockito.eq(FtctlDrActionAnswer.class));
     }
 
     @Test

@@ -23,6 +23,7 @@ public class DrAdmissionControllerImpl extends ManagerBase implements DrAdmissio
     private static final int LEASE_SECONDS = 120;
 
     @Inject private DrResourceLeaseDao drResourceLeaseDao;
+    @Inject private DrWorkerPlacementService drWorkerPlacementService;
 
     @Override
     public boolean acquire(DrPlanVO plan, DrRunVO run) {
@@ -35,8 +36,13 @@ public class DrAdmissionControllerImpl extends ManagerBase implements DrAdmissio
             return true;
         }
         String operationClass = operationClass(run);
-        Long workerHostId = plan.getCoordinatorWorkerHostId() != null
-                ? plan.getCoordinatorWorkerHostId() : plan.getTargetWorkerHostId();
+        DrWorkerRole role = StringUtils.startsWithIgnoreCase(plan.getDirection(), "VMWARE_")
+                ? DrWorkerRole.VDDK_DATA_PLANE : DrWorkerRole.COORDINATOR;
+        Long workerHostId = drWorkerPlacementService != null
+                ? drWorkerPlacementService.resolveWorkerHostId(plan, run, role) : null;
+        if (workerHostId == null) {
+            return false;
+        }
         String resourceKey = "HOST:" + (workerHostId != null ? workerHostId : 0L) + ":" + operationClass;
         GlobalLock lock = GlobalLock.getInternLock("DrAdmission:" + resourceKey);
         boolean acquired = false;

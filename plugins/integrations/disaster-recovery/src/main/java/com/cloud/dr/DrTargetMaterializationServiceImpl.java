@@ -158,6 +158,8 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
     private HostDao hostDao;
     @Inject
     private AgentManager agentManager;
+    @Inject
+    private DrWorkerPlacementService drWorkerPlacementService;
 
     @Override
     public DrTargetPowerOnResult ensureTargetPoweredOn(long planId) {
@@ -188,7 +190,9 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
             throw new CloudRuntimeException("DR target VM is not startable from state " + targetVm.getState());
         }
         try {
-            userVmManager.startVirtualMachine(targetVm.getId(), plan.getTargetWorkerHostId(),
+            Long targetHostId = drWorkerPlacementService != null
+                    ? drWorkerPlacementService.resolveWorkerHostId(plan, DrWorkerRole.TARGET) : null;
+            userVmManager.startVirtualMachine(targetVm.getId(), targetHostId,
                     new HashMap<VirtualMachineProfile.Param, Object>(), null);
         } catch (ConcurrentOperationException | InsufficientCapacityException | ResourceAllocationException | ResourceUnavailableException e) {
             throw new CloudRuntimeException("Failed to start the prepared DR target VM: " + e.getMessage(), e);
@@ -1771,7 +1775,8 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
     }
 
     private void notifyFtctlTargetMaterialized(DrPlanVO plan, DrRunVO run, MaterializationResult result) {
-        Long hostId = firstNonNull(plan.getCoordinatorWorkerHostId(), plan.getSourceWorkerHostId(), plan.getTargetWorkerHostId());
+        Long hostId = drWorkerPlacementService != null
+                ? drWorkerPlacementService.resolveWorkerHostId(plan, run, DrWorkerRole.TARGET) : null;
         if (hostId == null) {
             throw new CloudRuntimeException("Unable to notify FTCTL_DR because no worker host is bound");
         }

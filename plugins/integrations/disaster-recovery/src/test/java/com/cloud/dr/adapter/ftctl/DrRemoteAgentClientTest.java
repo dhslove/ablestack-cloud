@@ -16,8 +16,6 @@
 // under the License.
 package com.cloud.dr.adapter.ftctl;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.UUID;
 
 import org.junit.Assert;
@@ -41,7 +39,7 @@ import com.cloud.dr.inventory.DrMoldInventoryClient;
 public class DrRemoteAgentClientTest {
 
     @Test
-    public void sourceWorkerUuidRefreshesAndPersistsCurrentRemoteWorker() {
+    public void sourceWorkerUuidDoesNotPersistObservedVmPlacement() {
         DrRemoteAgentClient client = new DrRemoteAgentClient();
         DrSiteDao siteDao = Mockito.mock(DrSiteDao.class);
         DrPlanDao planDao = Mockito.mock(DrPlanDao.class);
@@ -58,24 +56,13 @@ public class DrRemoteAgentClientTest {
         ReflectionTestUtils.setField(plan, "id", 42L);
         plan.setSourceExternalRef("source-vm-uuid");
         plan.setMappingJson("{\"source\":{\"hardware\":{}}}");
-        Map<String, String> hardware = new LinkedHashMap<String, String>();
-        hardware.put("sourceHostUuid", "current-source-host-uuid");
-        Mockito.when(siteDao.findById(1L)).thenReturn(site);
-        Mockito.when(credentialService.resolveCredential(site)).thenReturn(credential);
-        Mockito.when(credential.hasSecrets()).thenReturn(true);
-        Mockito.when(inventoryClient.getVirtualMachineHardware(credential, "source-vm-uuid"))
-                .thenReturn(hardware);
-        Mockito.when(planDao.update(42L, plan)).thenReturn(true);
-
-        Assert.assertEquals("current-source-host-uuid", client.sourceWorkerUuid(plan));
-        Assert.assertTrue(plan.getMappingJson().contains("\"sourceWorkerHostUuid\":\"current-source-host-uuid\""));
-        Assert.assertTrue(plan.getMappingJson().contains("\"sourceHostUuid\":\"current-source-host-uuid\""));
-        Mockito.verify(planDao).update(42L, plan);
-        Mockito.verify(credential).close();
+        Assert.assertNull(client.sourceWorkerUuid(plan));
+        Assert.assertFalse(plan.getMappingJson().contains("sourceWorkerHostUuid"));
+        Mockito.verifyNoInteractions(planDao, inventoryClient);
     }
 
     @Test
-    public void sourceWorkerUuidUsesDurableMappingWhenCurrentInventoryIsUnavailable() {
+    public void sourceWorkerUuidDoesNotUseDurableMappingAsRoutingAuthority() {
         DrRemoteAgentClient client = new DrRemoteAgentClient();
         DrSiteDao siteDao = Mockito.mock(DrSiteDao.class);
         DrPlanDao planDao = Mockito.mock(DrPlanDao.class);
@@ -89,11 +76,7 @@ public class DrRemoteAgentClientTest {
         DrPlanVO plan = new DrPlanVO("remote-source", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
         plan.setSourceExternalRef("source-vm-uuid");
         plan.setMappingJson("{\"sourceWorkerHostUuid\":\"durable-source-host-uuid\"}");
-        Mockito.when(siteDao.findById(1L)).thenReturn(Mockito.mock(DrSiteVO.class));
-        Mockito.when(credentialService.resolveCredential(Mockito.any(DrSiteVO.class)))
-                .thenThrow(new IllegalStateException("source site temporarily unavailable"));
-
-        Assert.assertEquals("durable-source-host-uuid", client.sourceWorkerUuid(plan));
+        Assert.assertNull(client.sourceWorkerUuid(plan));
         Mockito.verifyNoInteractions(planDao);
     }
 
@@ -127,7 +110,7 @@ public class DrRemoteAgentClientTest {
             captured[0] = invocation.getArgument(2);
             return new FtctlDrActionAnswer(captured[0], true, "resumed");
         }).when(client).execute(Mockito.eq(plan), Mockito.eq("ACTION"),
-                Mockito.isA(FtctlDrActionCommand.class), Mockito.eq("source-host-uuid"),
+                Mockito.isA(FtctlDrActionCommand.class), Mockito.isNull(),
                 Mockito.eq(FtctlDrActionAnswer.class));
 
         FtctlDrActionAnswer answer = client.transitionSourceScheduler(plan,
@@ -136,7 +119,7 @@ public class DrRemoteAgentClientTest {
         Assert.assertTrue(answer.getResult());
         Assert.assertNotNull(captured[0]);
         Assert.assertEquals(profileJson, captured[0].getProfileJson());
-        Assert.assertEquals("source-host-uuid", captured[0].getSourceWorkerUuid());
+        Assert.assertNull(captured[0].getSourceWorkerUuid());
         Assert.assertEquals(DrConstants.RUN_TYPE_RESUME_SYNC, captured[0].getRunType());
         Assert.assertEquals(Long.valueOf(9), captured[0].getResumeBaselineCheckpointSequence());
         Assert.assertEquals(Long.valueOf(10), captured[0].getMinimumCompletedCheckpointSequence());
@@ -154,7 +137,7 @@ public class DrRemoteAgentClientTest {
             return new FtctlDrCancelAnswer(captured[0], true, "canceled", plan.getUuid(), "run-uuid",
                     "canceled", true, null, 0, "{\"state\":\"CANCELED\"}");
         }).when(client).execute(Mockito.eq(plan), Mockito.eq("CANCEL"),
-                Mockito.isA(FtctlDrCancelCommand.class), Mockito.eq("source-host-uuid"),
+                Mockito.isA(FtctlDrCancelCommand.class), Mockito.isNull(),
                 Mockito.eq(FtctlDrCancelAnswer.class));
 
         FtctlDrCancelAnswer answer = client.cancelSourceRun(plan, "run-uuid");

@@ -34,6 +34,7 @@ public class DrFtctlActionCapabilityServiceImpl extends ManagerBase implements D
 
     @Inject private AgentManager agentManager;
     @Inject private DrRemoteAgentClient drRemoteAgentClient;
+    @Inject private DrWorkerPlacementService drWorkerPlacementService;
 
     private final Map<String, CachedCapabilities> cache = new ConcurrentHashMap<String, CachedCapabilities>();
 
@@ -76,10 +77,11 @@ public class DrFtctlActionCapabilityServiceImpl extends ManagerBase implements D
 
     private FtctlDrCapabilitiesAnswer capabilities(DrPlanVO plan) {
         boolean remoteSource = usesRemoteSource(plan);
-        Long hostId = firstNonNull(plan.getCoordinatorWorkerHostId(), plan.getSourceWorkerHostId(),
-                plan.getTargetWorkerHostId());
-        String remoteWorkerUuid = remoteSource ? remoteSourceWorkerUuid(plan) : null;
-        String cacheKey = remoteSource ? "remote:" + plan.getSourceSiteId() + ":" + remoteWorkerUuid
+        DrWorkerRole role = StringUtils.startsWithIgnoreCase(plan.getDirection(), "VMWARE_")
+                ? DrWorkerRole.VDDK_DATA_PLANE : DrWorkerRole.COORDINATOR;
+        Long hostId = drWorkerPlacementService != null
+                ? drWorkerPlacementService.resolveWorkerHostId(plan, role) : null;
+        String cacheKey = remoteSource ? "remote:" + plan.getSourceSiteId()
                 : "host:" + hostId;
         CachedCapabilities cached = cache.get(cacheKey);
         long now = System.currentTimeMillis();
@@ -88,7 +90,7 @@ public class DrFtctlActionCapabilityServiceImpl extends ManagerBase implements D
         }
         FtctlDrCapabilitiesCommand command = new FtctlDrCapabilitiesCommand(plan.getUuid(), "availability");
         Answer answer = remoteSource
-                ? drRemoteAgentClient.execute(plan, "CAPABILITIES", command, remoteWorkerUuid,
+                ? drRemoteAgentClient.execute(plan, "CAPABILITIES", command, null,
                         FtctlDrCapabilitiesAnswer.class)
                 : hostId == null ? null : agentManager.easySend(hostId, command);
         if (!(answer instanceof FtctlDrCapabilitiesAnswer)) {
@@ -104,10 +106,6 @@ public class DrFtctlActionCapabilityServiceImpl extends ManagerBase implements D
                 && StringUtils.equalsIgnoreCase(plan.getDirection(), DrConstants.DIRECTION_KVM_TO_KVM)
                 && plan.getSourceVmId() == null && StringUtils.isNotBlank(plan.getSourceExternalRef())
                 && !StringUtils.equalsIgnoreCase(plan.getActiveSide(), "TARGET");
-    }
-
-    private String remoteSourceWorkerUuid(DrPlanVO plan) {
-        return drRemoteAgentClient.sourceWorkerUuid(plan);
     }
 
     private DrFtctlActionCapabilitySnapshot unavailableSnapshot(String detail) {

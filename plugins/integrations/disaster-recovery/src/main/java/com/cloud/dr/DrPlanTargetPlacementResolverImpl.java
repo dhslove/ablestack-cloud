@@ -54,6 +54,8 @@ public class DrPlanTargetPlacementResolverImpl extends ManagerBase implements Dr
     @Inject
     private HostDao hostDao;
     @Inject
+    private DrWorkerPlacementService drWorkerPlacementService;
+    @Inject
     private PrimaryDataStoreDao primaryDataStoreDao;
     @Inject
     private ServiceOfferingDao serviceOfferingDao;
@@ -136,9 +138,10 @@ public class DrPlanTargetPlacementResolverImpl extends ManagerBase implements Dr
     }
 
     private void resolveTargetWorker(DrPlanVO plan, Long zoneId, DrResolvedTargetPlacement placement) {
-        Long workerHostId = plan.getTargetWorkerHostId();
+        Long workerHostId = drWorkerPlacementService != null
+                ? drWorkerPlacementService.resolveWorkerHostId(plan, DrWorkerRole.TARGET) : null;
         if (workerHostId == null) {
-            placement.addBlockingReason(DrPlanReadinessValidator.REASON_TARGET_WORKER_REQUIRED);
+            placement.addBlockingReason(DrPlanReadinessValidator.REASON_TARGET_WORKER_REQUIRED + ":NO_ELIGIBLE_WORKER");
             return;
         }
         placement.setWorkerHostId(workerHostId);

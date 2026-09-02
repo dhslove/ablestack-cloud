@@ -714,100 +714,13 @@
             :message="$t('message.dr.plan.source.disk.empty')" />
           </a-collapse-panel>
           <a-collapse-panel key="workers" :header="$t('label.dr.worker.assignment')">
-            <a-row :gutter="16">
-              <a-col :xs="24" :md="12">
-          <a-form-item>
-            <template #label>
-              <tooltip-label :title="$t('label.dr.coordinator.worker.host')" :tooltip="$t('message.dr.plan.coordinator.worker.host.help')" />
-            </template>
-            <a-select
-              v-if="coordinatorWorkerHostOptions.length > 0"
-              v-model:value="createForm.coordinatorworkerhostid"
-              showSearch
-              allowClear
-              optionFilterProp="label"
-              :placeholder="$t('message.dr.plan.worker.host.placeholder')">
-              <a-select-option
-                v-for="host in coordinatorWorkerHostOptions"
-                :key="host.optionKey"
-                :value="host.value"
-                :label="host.name">
-                <span>{{ host.name || host.value }}</span>
-                <span v-if="host.description" class="cross-dr-select-meta">{{ host.description }}</span>
-              </a-select-option>
-            </a-select>
             <a-alert
-              v-else
-              type="warning"
+              :type="coordinatorWorkerHostOptions.length > 0 || targetWorkerHostOptions.length > 0 ? 'success' : 'warning'"
               showIcon
-              :message="$t('message.dr.plan.worker.host.empty')" />
-          </a-form-item>
-              </a-col>
-              <a-col v-if="directionUsesKvmSource || sourceWorkerHostOptions.length > 0" :xs="24" :md="12">
-          <a-form-item v-if="directionUsesKvmSource || sourceWorkerHostOptions.length > 0">
-            <template #label>
-              <tooltip-label :title="$t('label.dr.source.worker.host')" :tooltip="$t('message.dr.plan.source.worker.host.help')" />
-            </template>
-            <a-select
-              v-if="sourceWorkerHostOptions.length > 0"
-              v-model:value="createForm.sourceworkerhostid"
-              showSearch
-              allowClear
-              optionFilterProp="label"
-              :placeholder="$t('message.dr.plan.worker.host.placeholder')">
-              <a-select-option
-                v-for="host in sourceWorkerHostOptions"
-                :key="host.optionKey"
-                :value="host.value"
-                :label="host.name">
-                <span>{{ host.name || host.value }}</span>
-                <span v-if="host.description" class="cross-dr-select-meta">{{ host.description }}</span>
-              </a-select-option>
-            </a-select>
-            <a-input
-              v-else-if="remoteSourceWorkerLabel"
-              :value="remoteSourceWorkerLabel"
-              disabled />
-            <div v-if="remoteSourceWorkerLabel" class="cross-dr-form-help">
-              {{ $t('message.dr.plan.source.worker.host.remote.help') }}
-            </div>
-            <a-alert
-              v-else-if="!remoteSourceWorkerLabel"
-              type="warning"
-              showIcon
-              :message="$t('message.dr.plan.source.worker.host.remote.pending')" />
-          </a-form-item>
-              </a-col>
-              <a-col v-if="directionUsesKvmTarget || targetWorkerHostOptions.length > 0" :xs="24" :md="12">
-          <a-form-item v-if="directionUsesKvmTarget || targetWorkerHostOptions.length > 0">
-            <template #label>
-              <tooltip-label :title="$t('label.dr.target.worker.host')" :tooltip="$t('message.dr.plan.target.worker.host.help')" />
-            </template>
-            <a-select
-              v-if="targetWorkerHostOptions.length > 0"
-              v-model:value="createForm.targetworkerhostid"
-              showSearch
-              allowClear
-              optionFilterProp="label"
-              :placeholder="$t('message.dr.plan.worker.host.placeholder')"
-              @change="changeTargetWorker">
-              <a-select-option
-                v-for="host in targetWorkerHostOptions"
-                :key="host.optionKey"
-                :value="host.value"
-                :label="host.name">
-                <span>{{ host.name || host.value }}</span>
-                <span v-if="host.description" class="cross-dr-select-meta">{{ host.description }}</span>
-              </a-select-option>
-            </a-select>
-            <a-alert
-              v-else
-              type="warning"
-              showIcon
-              :message="$t('message.dr.plan.worker.host.empty')" />
-          </a-form-item>
-              </a-col>
-            </a-row>
+              class="cross-dr-form-alert"
+              :message="$t(coordinatorWorkerHostOptions.length > 0 || targetWorkerHostOptions.length > 0
+                ? 'message.dr.plan.worker.automatic.ready'
+                : 'message.dr.plan.worker.automatic.unavailable')" />
           </a-collapse-panel>
           <a-collapse-panel key="policy" :header="$t('label.dr.sync.policy')">
             <a-row :gutter="16">
@@ -2344,9 +2257,6 @@ export default {
       return sourceName ? `${sourceName}-dr` : ''
     },
     applyDefaultGuidedSelections () {
-      this.autoSelectSingleOption('coordinatorworkerhostid', this.coordinatorWorkerHostOptions)
-      this.autoSelectSingleOption('sourceworkerhostid', this.sourceWorkerHostOptions)
-      this.autoSelectSingleOption('targetworkerhostid', this.targetWorkerHostOptions)
       this.autoSelectSingleOption('targetstorageref', this.targetStorageOptions)
       this.autoSelectSingleOption('targetcomputeref', this.targetComputeOptions)
       this.autoSelectSingleOption('targetnetworkref', this.targetNetworkOptions)
@@ -2369,9 +2279,6 @@ export default {
     changeTargetCompute () {
       this.applyDefaultTargetComputeSizing(this.selectedSourceWorkload(), false)
     },
-    changeTargetWorker () {
-      this.applyDefaultTargetComputeSizing(this.selectedSourceWorkload(), false)
-    },
     selectedSourceWorkload () {
       return this.sourceWorkloadOptions.find(item => item.optionKey === this.createForm.sourceworkloadvalue) || {}
     },
@@ -2385,8 +2292,6 @@ export default {
       const compute = this.findOptionByValue(this.targetComputeOptions, this.createForm.targetcomputeref) || {}
       const details = compute.detailsObject || {}
       const sourceDetails = (workload && workload.detailsObject) || {}
-      const targetHost = this.findOptionByValue(this.targetWorkerHostOptions, this.createForm.targetworkerhostid) || {}
-      const hostDetails = targetHost.detailsObject || {}
       const targetCpuNumber = this.resolveTargetComputeInteger(
         details.cpu,
         details.requiresCpuNumber,
@@ -2402,7 +2307,7 @@ export default {
       const targetCpuSpeed = this.resolveTargetComputeInteger(
         details.speed,
         details.requiresCpuSpeed,
-        hostDetails.speed,
+        sourceDetails.cpuSpeed || sourceDetails.speed,
         undefined,
         undefined)
       this.createForm.targetcpunumber = resolveTargetComputeSizingValue(
@@ -3129,6 +3034,9 @@ export default {
         this.createForm.diskmappingsjson = this.buildDiskMappingsJson()
       }
       const payload = Object.assign({}, this.createForm)
+      delete payload.sourceworkerhostid
+      delete payload.targetworkerhostid
+      delete payload.coordinatorworkerhostid
       payload.guidedplan = !payload.expertjson
       payload.allowdraft = this.planFormMode === 'edit' ? true : !payload.startsync
       delete payload.sourceworkloadvalue
@@ -3216,9 +3124,6 @@ export default {
       if (this.directionUsesKvmTarget) {
         if (this.inventoryBlockingReasons.length > 0) {
           return this.planValidationMessage(this.inventoryBlockingReasons[0], this.inventoryBlockingReasons.join(', '))
-        }
-        if (!this.createForm.targetworkerhostid) {
-          return this.planValidationMessage('targetworkerhostid', this.$t('message.dr.plan.validation.target.worker'))
         }
         if (!this.hasDiskLevelStorageAuthority && !this.createForm.targetstorageref) {
           return this.planValidationMessage('targetstorageref', this.$t('message.dr.plan.validation.target.storage'))
