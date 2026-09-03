@@ -36,7 +36,6 @@ import com.cloud.dr.DrPlanVO;
 import com.cloud.dr.DrResolvedSiteCredential;
 import com.cloud.dr.DrSiteCredentialService;
 import com.cloud.dr.DrSiteVO;
-import com.cloud.dr.dao.DrPlanDao;
 import com.cloud.dr.dao.DrSiteDao;
 import com.cloud.dr.inventory.DrMoldInventoryClient;
 import com.cloud.host.HostVO;
@@ -49,7 +48,6 @@ public class DrRemoteAgentClient {
     private static final Gson GSON = new Gson();
 
     @Inject private DrSiteDao drSiteDao;
-    @Inject private DrPlanDao drPlanDao;
     @Inject private DrSiteCredentialService drSiteCredentialService;
     @Inject private DrMoldInventoryClient drMoldInventoryClient;
 
@@ -213,82 +211,6 @@ public class DrRemoteAgentClient {
 
     public String sourceWorkerUuid(DrPlanVO plan) {
         return null;
-    }
-
-    private String mappedSourceWorkerUuid(JsonObject mapping) {
-        JsonObject source = objectAt(mapping, "source");
-        JsonObject hardware = objectAt(source, "hardware");
-        return firstNonBlank(firstNonBlank(firstString(hardware, "sourceHostUuid"),
-                        firstString(hardware, "hostUuid")),
-                firstNonBlank(firstNonBlank(firstString(source, "sourceHostUuid"), firstString(source, "hostUuid")),
-                        firstString(mapping, "sourceWorkerHostUuid")));
-    }
-
-    private String resolveCurrentSourceWorkerUuid(DrPlanVO plan) {
-        if (plan == null || StringUtils.isBlank(plan.getSourceExternalRef())) {
-            return null;
-        }
-        DrSiteVO sourceSite = drSiteDao.findById(plan.getSourceSiteId());
-        DrResolvedSiteCredential credential = null;
-        try {
-            credential = drSiteCredentialService.resolveCredential(sourceSite);
-            if (credential == null || !credential.hasSecrets()) {
-                return null;
-            }
-            return drMoldInventoryClient.getVirtualMachineHardware(credential,
-                    plan.getSourceExternalRef()).get("sourceHostUuid");
-        } catch (RuntimeException e) {
-            return null;
-        } finally {
-            if (credential != null) {
-                credential.close();
-            }
-        }
-    }
-
-    private void persistSourceWorkerUuid(DrPlanVO plan, JsonObject mapping, String workerUuid) {
-        if (plan == null || plan.getId() <= 0 || drPlanDao == null || StringUtils.isBlank(workerUuid)) {
-            return;
-        }
-        JsonObject source = ensureObject(mapping, "source");
-        JsonObject hardware = ensureObject(source, "hardware");
-        mapping.addProperty("sourceWorkerHostUuid", workerUuid);
-        source.addProperty("sourceHostUuid", workerUuid);
-        hardware.addProperty("sourceHostUuid", workerUuid);
-        plan.setMappingJson(GSON.toJson(mapping));
-        plan.markUpdated();
-        if (!drPlanDao.update(plan.getId(), plan)) {
-            throw new CloudRuntimeException("Unable to persist remote DR source worker host UUID");
-        }
-    }
-
-    private JsonObject parseObject(String json) {
-        if (StringUtils.isBlank(json)) {
-            return new JsonObject();
-        }
-        try {
-            JsonElement parsed = GSON.fromJson(json, JsonElement.class);
-            return parsed != null && parsed.isJsonObject() ? parsed.getAsJsonObject() : new JsonObject();
-        } catch (RuntimeException e) {
-            return new JsonObject();
-        }
-    }
-
-    private JsonObject objectAt(JsonObject object, String key) {
-        JsonElement value = object != null ? object.get(key) : null;
-        return value != null && value.isJsonObject() ? value.getAsJsonObject() : new JsonObject();
-    }
-
-    private JsonObject ensureObject(JsonObject object, String key) {
-        JsonObject child = objectAt(object, key);
-        if (!object.has(key) || !object.get(key).isJsonObject()) {
-            object.add(key, child);
-        }
-        return child;
-    }
-
-    private String firstNonBlank(String first, String second) {
-        return StringUtils.isNotBlank(first) ? first : second;
     }
 
     private String firstString(JsonObject object, String key) {

@@ -32,7 +32,6 @@ import com.cloud.dr.DrPlanVO;
 import com.cloud.dr.DrResolvedSiteCredential;
 import com.cloud.dr.DrSiteCredentialService;
 import com.cloud.dr.DrSiteVO;
-import com.cloud.dr.dao.DrPlanDao;
 import com.cloud.dr.dao.DrSiteDao;
 import com.cloud.dr.inventory.DrMoldInventoryClient;
 
@@ -42,13 +41,11 @@ public class DrRemoteAgentClientTest {
     public void sourceWorkerUuidDoesNotPersistObservedVmPlacement() {
         DrRemoteAgentClient client = new DrRemoteAgentClient();
         DrSiteDao siteDao = Mockito.mock(DrSiteDao.class);
-        DrPlanDao planDao = Mockito.mock(DrPlanDao.class);
         DrSiteCredentialService credentialService = Mockito.mock(DrSiteCredentialService.class);
         DrMoldInventoryClient inventoryClient = Mockito.mock(DrMoldInventoryClient.class);
         DrResolvedSiteCredential credential = Mockito.mock(DrResolvedSiteCredential.class);
         DrSiteVO site = Mockito.mock(DrSiteVO.class);
         ReflectionTestUtils.setField(client, "drSiteDao", siteDao);
-        ReflectionTestUtils.setField(client, "drPlanDao", planDao);
         ReflectionTestUtils.setField(client, "drSiteCredentialService", credentialService);
         ReflectionTestUtils.setField(client, "drMoldInventoryClient", inventoryClient);
 
@@ -58,18 +55,16 @@ public class DrRemoteAgentClientTest {
         plan.setMappingJson("{\"source\":{\"hardware\":{}}}");
         Assert.assertNull(client.sourceWorkerUuid(plan));
         Assert.assertFalse(plan.getMappingJson().contains("sourceWorkerHostUuid"));
-        Mockito.verifyNoInteractions(planDao, inventoryClient);
+        Mockito.verifyNoInteractions(inventoryClient);
     }
 
     @Test
     public void sourceWorkerUuidDoesNotUseDurableMappingAsRoutingAuthority() {
         DrRemoteAgentClient client = new DrRemoteAgentClient();
         DrSiteDao siteDao = Mockito.mock(DrSiteDao.class);
-        DrPlanDao planDao = Mockito.mock(DrPlanDao.class);
         DrSiteCredentialService credentialService = Mockito.mock(DrSiteCredentialService.class);
         DrMoldInventoryClient inventoryClient = Mockito.mock(DrMoldInventoryClient.class);
         ReflectionTestUtils.setField(client, "drSiteDao", siteDao);
-        ReflectionTestUtils.setField(client, "drPlanDao", planDao);
         ReflectionTestUtils.setField(client, "drSiteCredentialService", credentialService);
         ReflectionTestUtils.setField(client, "drMoldInventoryClient", inventoryClient);
 
@@ -77,7 +72,7 @@ public class DrRemoteAgentClientTest {
         plan.setSourceExternalRef("source-vm-uuid");
         plan.setMappingJson("{\"sourceWorkerHostUuid\":\"durable-source-host-uuid\"}");
         Assert.assertNull(client.sourceWorkerUuid(plan));
-        Mockito.verifyNoInteractions(planDao);
+        Mockito.verifyNoInteractions(inventoryClient);
     }
 
     @Test

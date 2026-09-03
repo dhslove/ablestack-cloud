@@ -443,3 +443,9 @@ two endpoint names from acquiring different fixed-worker contracts in a later
 merge. A regression test verifies facade delegation, while the canonical
 broker suite owns host discovery, current-VM preference, read-only evidence
 search, mutation single-dispatch, and optional-parameter coverage.
+
+Remote client code must not persist `sourceWorkerHostUuid` or reconstruct a
+worker from historical Plan mapping. The source VM location may be observed by
+the receiving site's broker for the duration of one request only. Dead helper
+code that writes host UUIDs into `mapping_json` is prohibited because making it
+callable later would silently restore fixed-host behavior.
