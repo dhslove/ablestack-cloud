@@ -449,3 +449,44 @@ worker from historical Plan mapping. The source VM location may be observed by
 the receiving site's broker for the duration of one request only. Dead helper
 code that writes host UUIDs into `mapping_json` is prohibited because making it
 callable later would silently restore fixed-host behavior.
+
+## 16. Test Release Deployment And UI Verification
+
+The final implementation was built from Cloud commit
+`f6fe269538c3d8981457908f3bb64c36f6990783` by GitHub Actions run
+`33710658000`. The release metadata and all four deployed RPM checksums matched
+the published `SHA256SUMS`. The resulting package version is
+`4.23.0.0-Mold.Europa.202609030315.1`.
+
+The same `cloudstack-common`, `cloudstack-management`, `cloudstack-ui`, and
+`cloudstack-usage` packages were installed on the 13 and 31 management sites.
+Deployment preserved `/usr/share/cloudstack-management/webapp/WEB-INF`; the
+active `/client/` endpoint returned HTTP 200, the service PID owned the 8080
+listener, and all three KVM Agents returned to `Up` on both sites. Installed
+bytecode was checked for both `INITIAL_SYNC_PENDING` and the dynamic site Agent
+broker. This change contains no qemu/FTCTL host package modification.
+
+The 31-site UI was then opened in a cache-disabled browser session and logged
+in through the normal portal form. Plan
+`79154e02-0089-411e-8fd9-660ff01b2cf4` rendered as:
+
+- Plan state `NEW`, readiness `EXECUTION_READY`, and target readiness pending;
+- an informational initial-sync message instead of
+  `DR_TARGET_MAPPING_INVALID` or stale protection data;
+- Full Resync enabled;
+- Test Failover and Failover disabled until the first durable checkpoint;
+- dark-mode action menu and protection view without untranslated or stale
+  capability errors.
+
+The Plan remained clean during verification: no Run, resource lease, error
+code, or persisted source/target/coordinator worker existed. Both associated
+`dr_site.zone_id` values remained `NULL`, proving that readiness came from the
+Plan mapping and dynamic placement contract rather than manual DB repair. The
+13- and 31-site management logs contained no new
+`DR_TARGET_MAPPING_INVALID`, fixed-worker requirement, engine busy timeout, or
+Cloud class-loading error after the UI refresh.
+
+The next UI test action is Full Resync. Later actions must become available
+only as their independent durability, authority, and lifecycle gates are
+satisfied; this deployment deliberately did not manufacture those states or
+invoke a destructive action during readiness verification.
