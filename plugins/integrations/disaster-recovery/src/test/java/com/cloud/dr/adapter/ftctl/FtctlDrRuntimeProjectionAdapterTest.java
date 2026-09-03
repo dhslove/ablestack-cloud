@@ -293,6 +293,49 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     }
 
     @Test
+    public void pristineNewPlanDoesNotRequireAWorkerForRuntimeProjection() {
+        DrPlanVO plan = new DrPlanVO("new-plan", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setState(DrConstants.PLAN_STATE_NEW);
+
+        DrAdapterResult result = adapter.refreshPlanProjection(plan);
+
+        Assert.assertTrue(result.isSuccess());
+        Assert.assertTrue(result.getDetailsJson().contains("INITIAL_SYNC_PENDING"));
+        Mockito.verifyNoInteractions(agentManager);
+    }
+
+    @Test
+    public void activeNewPlanStillRequiresRuntimeWorkerPlacement() {
+        DrPlanVO plan = new DrPlanVO("active-new-plan", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setState(DrConstants.PLAN_STATE_NEW);
+        DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_SYNC);
+        Mockito.when(drRunDao.findActiveByPlanId(plan.getId())).thenReturn(run);
+        Mockito.when(drWorkerPlacementService.resolveWorkerHostId(plan, DrWorkerRole.COORDINATOR))
+                .thenReturn(null);
+
+        DrAdapterResult result = adapter.refreshPlanProjection(plan);
+
+        Assert.assertFalse(result.isSuccess());
+        Assert.assertEquals(DrConstants.ERROR_TARGET_MAPPING_INVALID, result.getErrorCode());
+    }
+
+    @Test
+    public void newPlanWithTerminalHistoryStillRequiresRuntimeWorkerPlacement() {
+        DrPlanVO plan = new DrPlanVO("terminal-new-plan", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setState(DrConstants.PLAN_STATE_NEW);
+        DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_SYNC);
+        run.setState(DrConstants.RUN_STATE_FAILED);
+        Mockito.when(drRunDao.findLatestByPlanId(plan.getId())).thenReturn(run);
+        Mockito.when(drWorkerPlacementService.resolveWorkerHostId(plan, DrWorkerRole.COORDINATOR))
+                .thenReturn(null);
+
+        DrAdapterResult result = adapter.refreshPlanProjection(plan);
+
+        Assert.assertFalse(result.isSuccess());
+        Assert.assertEquals(DrConstants.ERROR_TARGET_MAPPING_INVALID, result.getErrorCode());
+    }
+
+    @Test
     public void terminalTestCleanupProofRequiresArtifactsAndOwnedLeaseRelease() {
         FtctlDrStatusCommand command = new FtctlDrStatusCommand("plan-1", "run-1");
         FtctlDrStatusAnswer status = new FtctlDrStatusAnswer(command, true, "ok");

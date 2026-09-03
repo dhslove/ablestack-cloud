@@ -16,6 +16,8 @@ import org.mockito.junit.MockitoJUnitRunner;
 
 import com.cloud.dr.dao.DrResourceLeaseDao;
 import com.cloud.dr.dao.DrSiteDao;
+import com.cloud.dc.DataCenterVO;
+import com.cloud.dc.dao.DataCenterDao;
 import com.cloud.host.DetailVO;
 import com.cloud.host.Host;
 import com.cloud.host.HostVO;
@@ -27,6 +29,7 @@ import com.cloud.hypervisor.Hypervisor.HypervisorType;
 @RunWith(MockitoJUnitRunner.class)
 public class DrWorkerPlacementServiceImplTest {
     @Mock private DrSiteDao drSiteDao;
+    @Mock private DataCenterDao dataCenterDao;
     @Mock private HostDao hostDao;
     @Mock private HostDetailsDao hostDetailsDao;
     @Mock private DrResourceLeaseDao drResourceLeaseDao;
@@ -45,6 +48,8 @@ public class DrWorkerPlacementServiceImplTest {
         plan.setTargetWorkerHostId(997L);
         targetSite = new DrSiteVO("target", "ABLESTACK", "KVM");
         targetSite.setZoneId(20L);
+        DataCenterVO targetZone = zone(20L, "target-zone-uuid");
+        Mockito.lenient().when(dataCenterDao.findById(20L)).thenReturn(targetZone);
         first = host(11L, 20L);
         second = host(12L, 20L);
         Mockito.when(drSiteDao.findById(2L)).thenReturn(targetSite);
@@ -88,6 +93,57 @@ public class DrWorkerPlacementServiceImplTest {
         Assert.assertEquals(Long.valueOf(12L), service.resolveWorkerHostId(plan, DrWorkerRole.VDDK_DATA_PLANE));
     }
 
+    @Test
+    public void resolvesTargetWorkerFromPlanMappingWhenSiteZoneIsMissing() {
+        targetSite.setZoneId(null);
+        plan.setMappingJson("{\"target\":{\"zoneId\":20}}");
+
+        Long selected = service.resolveWorkerHostId(plan, DrWorkerRole.TARGET);
+
+        Assert.assertTrue(selected == 11L || selected == 12L);
+        Mockito.verify(hostDao).listAllHostsUpByZoneAndHypervisor(20L, HypervisorType.KVM);
+    }
+
+    @Test
+    public void resolvesTargetWorkerFromPlanZoneUuid() {
+        targetSite.setZoneId(null);
+        plan.setMappingJson("{\"targetZoneId\":\"target-zone-uuid\"}");
+        DataCenterVO targetZone = zone(20L, "target-zone-uuid");
+        DataCenterVO otherZone = zone(30L, "other-zone");
+        Mockito.when(dataCenterDao.listEnabledZones())
+                .thenReturn(Arrays.asList(targetZone, otherZone));
+
+        Long selected = service.resolveWorkerHostId(plan, DrWorkerRole.COORDINATOR);
+
+        Assert.assertTrue(selected == 11L || selected == 12L);
+    }
+
+    @Test
+    public void infersOnlyEnabledZoneWithoutPersistingAHostBinding() {
+        targetSite.setZoneId(null);
+        DataCenterVO targetZone = zone(20L, "target-zone-uuid");
+        Mockito.when(dataCenterDao.listEnabledZones())
+                .thenReturn(Arrays.asList(targetZone));
+
+        Long selected = service.resolveWorkerHostId(plan, DrWorkerRole.TARGET);
+
+        Assert.assertTrue(selected == 11L || selected == 12L);
+        Assert.assertEquals(Long.valueOf(997L), plan.getTargetWorkerHostId());
+    }
+
+    @Test
+    public void rejectsAmbiguousZonesWithoutAnExplicitMapping() {
+        targetSite.setZoneId(null);
+        DataCenterVO targetZone = zone(20L, "target-zone-uuid");
+        DataCenterVO otherZone = zone(30L, "other-zone");
+        Mockito.when(dataCenterDao.listEnabledZones())
+                .thenReturn(Arrays.asList(targetZone, otherZone));
+
+        Assert.assertNull(service.resolveWorkerHostId(plan, DrWorkerRole.TARGET));
+        Mockito.verify(hostDao, Mockito.never())
+                .listAllHostsUpByZoneAndHypervisor(Mockito.anyLong(), Mockito.any(HypervisorType.class));
+    }
+
     private HostVO host(long id, long zoneId) {
         HostVO host = Mockito.mock(HostVO.class);
         Mockito.when(host.getId()).thenReturn(id);
@@ -95,5 +151,12 @@ public class DrWorkerPlacementServiceImplTest {
         Mockito.when(host.getStatus()).thenReturn(Status.Up);
         Mockito.when(host.getHypervisorType()).thenReturn(HypervisorType.KVM);
         return host;
+    }
+
+    private DataCenterVO zone(long id, String uuid) {
+        DataCenterVO zone = Mockito.mock(DataCenterVO.class);
+        Mockito.when(zone.getId()).thenReturn(id);
+        Mockito.lenient().when(zone.getUuid()).thenReturn(uuid);
+        return zone;
     }
 }

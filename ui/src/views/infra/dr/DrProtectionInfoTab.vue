@@ -26,6 +26,13 @@
     </div>
 
     <a-alert
+      v-if="initialSyncPending"
+      type="info"
+      show-icon
+      :message="$t('message.dr.initial.sync.pending')"
+      :description="$t('message.dr.initial.sync.pending.detail')" />
+
+    <a-alert
       v-if="lastError"
       type="warning"
       show-icon
@@ -455,6 +462,13 @@ export default {
     }
   },
   computed: {
+    initialSyncPending () {
+      return String(this.plan.state || '').toUpperCase() === 'NEW' &&
+        !this.currentRun.id &&
+        !this.currentSyncCycle.id &&
+        !this.latestCompletedCheckpoint.id &&
+        this.replicas.length === 0
+    },
     hasTestCheckpointEvidence () {
       return Boolean(this.currentProtectionRuntime.testcheckpointsequence ||
         this.currentProtectionRuntime.testcheckpointsealstate ||

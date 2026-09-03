@@ -358,3 +358,46 @@ qcow2-to-qcow2. Release tombstone, multi-disk checkpoint, terminal/Cycle
 projection, group run, and action-capability regression suites are included.
 Only after this gate, changed-module build, UI production build, and package
 artifact checks pass may the same artifact set be deployed to the test sites.
+
+## 14. Initial Plan Zone Resolution And Projection Contract
+
+The Plan wizard already persists the selected target Zone in the normalized
+mapping contract. Runtime worker placement must consume that value even when a
+legacy or remotely registered `dr_site` row has no local `zone_id`. A missing
+site-local foreign key must not turn a valid Plan into a fixed-host requirement.
+
+The common worker placement service resolves the execution Zone in this order:
+
+1. the selected site's local `zone_id`, when it is present and valid;
+2. the normalized Plan mapping (`target.zoneId` / `targetZoneId`, or the source
+   equivalent for a local source worker), resolved as a local numeric ID or UUID;
+3. the only enabled local Zone, when the controller has exactly one Zone.
+
+If none of these rules produces one unambiguous local Zone, placement returns a
+typed no-eligible-worker result. It never persists a guessed worker or reuses a
+VM's current host as Plan authority. This single resolution path applies to
+readiness, action capability, admission, sync, pause/resume, Test Failover,
+Test Cleanup, Failover, Failback, Reprotect, release, group actions, target
+materialization, and runtime reconciliation.
+
+A newly created Plan with no Run and no FTCTL runtime has no runtime state to
+project. Projection must return a successful `INITIAL_SYNC_PENDING` observation
+without dispatching an Agent status command. The protection view clears stale
+refresh errors and presents this state as an informational initial-sync wait.
+Once the first Run is accepted, normal FTCTL projection and all strict
+checkpoint/terminal checks apply unchanged.
+
+Regression requirements:
+
+- a target site with `zone_id=NULL` and `target.zoneId` in the Plan selects an
+  `Up` KVM worker from that Zone;
+- a Zone UUID in the Plan resolves identically to its numeric ID;
+- a single enabled local Zone is inferred only when neither site nor Plan names
+  a Zone;
+- multiple enabled Zones without an explicit mapping remain blocked;
+- a pristine `NEW` Plan performs no Agent call and does not create a stale
+  protection-view warning;
+- after the first Run starts, missing placement remains a blocking error rather
+  than being hidden by the initial-state rule;
+- the complete action-contract matrix in this document remains green for
+  VMware-to-RBD, RBD-to-RBD, and SharedMountPoint qcow2-to-qcow2.

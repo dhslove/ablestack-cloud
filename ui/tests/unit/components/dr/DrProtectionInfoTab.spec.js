@@ -77,4 +77,28 @@ describe('DrProtectionInfoTab terminal projection', () => {
     expect(succeeded).toBe(true)
     expect(visible).toBe(false)
   })
+
+  it('identifies a pristine new plan as waiting for initial synchronization', () => {
+    const pending = DrProtectionInfoTab.computed.initialSyncPending.call({
+      plan: { state: 'NEW' },
+      currentRun: {},
+      currentSyncCycle: {},
+      latestCompletedCheckpoint: {},
+      replicas: []
+    })
+
+    expect(pending).toBe(true)
+  })
+
+  it('does not call an active or previously materialized plan initial', () => {
+    const pending = DrProtectionInfoTab.computed.initialSyncPending.call({
+      plan: { state: 'NEW' },
+      currentRun: { id: 'run-1' },
+      currentSyncCycle: {},
+      latestCompletedCheckpoint: {},
+      replicas: []
+    })
+
+    expect(pending).toBe(false)
+  })
 })

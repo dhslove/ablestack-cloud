@@ -7329,6 +7329,8 @@
   "message.dr.confirm.failover": "이 DR 계획의 페일오버를 시작하시겠습니까?",
   "message.dr.no.events": "DR 이벤트가 없습니다.",
   "message.dr.protection.view.stale": "보호 정보가 최신 상태가 아닐 수 있습니다.",
+  "message.dr.initial.sync.pending": "초기 동기화 대기 중",
+  "message.dr.initial.sync.pending.detail": "DR 계획 구성이 완료되었습니다. 전체 재동기화를 실행하여 첫 번째 내구성 복구 지점을 생성하십시오.",
   "message.dr.protection.view.invalid": "캐시된 보호 정보를 읽을 수 없습니다.",
   "message.dr.reprotect.required": "복구 사이트에서 서비스를 제공 중입니다. 지속적인 보호를 복원하려면 재보호를 실행하십시오.",
   "message.dr.protection.degraded": "보호 상태가 저하되었습니다. 계속하기 전에 현재 상태를 확인하십시오.",

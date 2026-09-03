@@ -214,13 +214,20 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
 
     @Override
     public DrAdapterResult refreshPlanProjection(DrPlanVO plan) {
+        DrRunVO projectionRun = resolveRefreshProjectionRun(plan);
+        if (isInitialRuntimePending(plan, projectionRun)) {
+            JsonObject details = buildDetails(plan, null, null);
+            details.addProperty("runtimeState", "INITIAL_SYNC_PENDING");
+            details.addProperty("projectionSkipped", true);
+            return DrAdapterResult.success("FTCTL_DR runtime is pending the initial synchronization",
+                    GSON.toJson(details));
+        }
         Long hostId = resolveCoordinatorHostId(plan);
         if (hostId == null) {
             String message = "FTCTL_DR projection requires a coordinator, source, or target worker host";
             return DrAdapterResult.failure(DrConstants.ERROR_TARGET_MAPPING_INVALID, message, GSON.toJson(buildDetails(plan, null, null)));
         }
 
-        DrRunVO projectionRun = resolveRefreshProjectionRun(plan);
         FtctlDrStatusCommand authorityCommand = new FtctlDrStatusCommand(plan.getUuid(), null,
                 FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY);
         authorityCommand.setWait(STATUS_REFRESH_WAIT_SECONDS);
@@ -363,6 +370,18 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                 ? DrWorkerRole.VDDK_DATA_PLANE : DrWorkerRole.COORDINATOR;
         return drWorkerPlacementService != null
                 ? drWorkerPlacementService.resolveWorkerHostId(plan, role) : null;
+    }
+
+    private boolean isInitialRuntimePending(DrPlanVO plan, DrRunVO projectionRun) {
+        if (plan == null || projectionRun != null
+                || !StringUtils.equalsIgnoreCase(plan.getState(), DrConstants.PLAN_STATE_NEW)) {
+            return false;
+        }
+        if (drRunDao != null && drRunDao.findLatestByPlanId(plan.getId()) != null) {
+            return false;
+        }
+        DrPlanRuntimeVO runtime = drPlanRuntimeDao != null ? drPlanRuntimeDao.findByPlanId(plan.getId()) : null;
+        return runtime == null;
     }
 
     private Answer sendStatusCommand(DrPlanVO plan, DrRunVO run, FtctlDrStatusCommand command, Long localHostId) {
