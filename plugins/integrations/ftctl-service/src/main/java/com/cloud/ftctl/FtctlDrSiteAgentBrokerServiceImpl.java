@@ -16,6 +16,9 @@
 // under the License.
 package com.cloud.ftctl;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
 
 import javax.inject.Inject;
@@ -31,6 +34,8 @@ import com.cloud.agent.api.FtctlDrCapabilitiesCommand;
 import com.cloud.agent.api.FtctlDrCancelCommand;
 import com.cloud.agent.api.FtctlDrReversePreflightCommand;
 import com.cloud.agent.api.FtctlDrStatusCommand;
+import com.cloud.dc.DataCenterVO;
+import com.cloud.dc.dao.DataCenterDao;
 import com.cloud.exception.AgentUnavailableException;
 import com.cloud.exception.OperationTimedoutException;
 import com.cloud.host.HostVO;
@@ -39,6 +44,8 @@ import com.cloud.host.dao.HostDao;
 import com.cloud.hypervisor.Hypervisor;
 import com.cloud.utils.component.ManagerBase;
 import com.cloud.utils.exception.CloudRuntimeException;
+import com.cloud.vm.UserVmVO;
+import com.cloud.vm.dao.UserVmDao;
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -53,29 +60,23 @@ public class FtctlDrSiteAgentBrokerServiceImpl extends ManagerBase implements Ft
 
     @Inject private AgentManager agentManager;
     @Inject private HostDao hostDao;
+    @Inject private DataCenterDao dataCenterDao;
+    @Inject private UserVmDao userVmDao;
 
     @Override
     public FtctlDrSiteAgentCommandResponse execute(String commandType, String commandJson, String workerHostUuid) {
         String normalizedType = StringUtils.upperCase(StringUtils.trim(commandType), Locale.ROOT);
-        HostVO host = hostDao.findByUuid(StringUtils.trim(workerHostUuid));
-        if (host == null || host.getRemoved() != null) {
-            throw new CloudRuntimeException("FTCTL DR site worker host was not found: " + workerHostUuid);
-        }
-        if (!Status.Up.equals(host.getStatus()) || !Hypervisor.HypervisorType.KVM.equals(host.getHypervisorType())) {
-            throw new CloudRuntimeException("FTCTL DR site worker must be an Up KVM host: " + workerHostUuid);
-        }
         Command command = deserialize(normalizedType, commandJson);
-        prepareSiteLocalCommand(command, host);
-        Answer answer;
-        try {
-            answer = agentManager.send(host.getId(), command);
-        } catch (AgentUnavailableException e) {
-            throw new CloudRuntimeException("FTCTL DR site worker is unavailable: " + workerHostUuid, e);
-        } catch (OperationTimedoutException e) {
-            throw new CloudRuntimeException("FTCTL DR site command timed out: " + normalizedType, e);
+        List<HostVO> candidates = eligibleWorkers();
+        preferCurrentVmHost(command, candidates);
+        if (candidates.isEmpty()) {
+            throw new CloudRuntimeException("No eligible FTCTL DR site Agent worker is available");
         }
+        DispatchResult dispatched = dispatch(normalizedType, command, candidates);
+        HostVO host = dispatched.host;
+        Answer answer = dispatched.answer;
         if (answer == null) {
-            throw new CloudRuntimeException("FTCTL DR site worker returned no answer for " + normalizedType);
+            throw new CloudRuntimeException("FTCTL DR site Agent returned no answer for " + normalizedType);
         }
         FtctlDrSiteAgentCommandResponse response = new FtctlDrSiteAgentCommandResponse();
         response.setObjectName("ftctldrsiteagentcommand");
@@ -86,6 +87,109 @@ public class FtctlDrSiteAgentBrokerServiceImpl extends ManagerBase implements Ft
         response.setAnswerClass(answer.getClass().getName());
         response.setAnswerJson(GSON.toJson(answer));
         return response;
+    }
+
+    private DispatchResult dispatch(String commandType, Command command, List<HostVO> candidates) {
+        RuntimeException lastError = null;
+        for (HostVO host : candidates) {
+            try {
+                prepareSiteLocalCommand(command, host);
+                Answer answer = agentManager.send(host.getId(), command);
+                if (answer != null && (isReadOnlyOrCancel(commandType) ? meaningful(answer) : true)) {
+                    return new DispatchResult(host, answer);
+                }
+            } catch (AgentUnavailableException e) {
+                lastError = new CloudRuntimeException("FTCTL DR site Agent worker is unavailable: "
+                        + host.getUuid(), e);
+            } catch (OperationTimedoutException e) {
+                lastError = new CloudRuntimeException("FTCTL DR site command timed out: " + commandType, e);
+            }
+            if ("ACTION".equals(commandType) || "REVERSE_PREFLIGHT".equals(commandType)) {
+                break;
+            }
+        }
+        if (lastError != null) {
+            throw lastError;
+        }
+        throw new CloudRuntimeException("No FTCTL DR site Agent returned matching evidence for " + commandType);
+    }
+
+    private boolean isReadOnlyOrCancel(String commandType) {
+        return StringUtils.equalsAny(commandType, "STATUS", "CAPABILITIES", "CANCEL");
+    }
+
+    private boolean meaningful(Answer answer) {
+        if (!answer.getResult()) {
+            return false;
+        }
+        if (answer instanceof com.cloud.agent.api.FtctlDrStatusAnswer) {
+            com.cloud.agent.api.FtctlDrStatusAnswer status = (com.cloud.agent.api.FtctlDrStatusAnswer) answer;
+            return StringUtils.isNotBlank(status.getState())
+                    && !StringUtils.equalsAnyIgnoreCase(status.getState(), "NOT_FOUND", "UNKNOWN");
+        }
+        if (answer instanceof com.cloud.agent.api.FtctlDrCancelAnswer) {
+            return Boolean.TRUE.equals(((com.cloud.agent.api.FtctlDrCancelAnswer) answer).getAccepted());
+        }
+        return true;
+    }
+
+    private List<HostVO> eligibleWorkers() {
+        List<HostVO> result = new ArrayList<HostVO>();
+        List<DataCenterVO> zones = dataCenterDao != null ? dataCenterDao.listEnabledZones() : null;
+        if (zones != null) {
+            for (DataCenterVO zone : zones) {
+                List<HostVO> hosts = hostDao.listAllHostsUpByZoneAndHypervisor(zone.getId(),
+                        Hypervisor.HypervisorType.KVM);
+                if (hosts != null) {
+                    for (HostVO host : hosts) {
+                        if (host != null && host.getRemoved() == null && Status.Up.equals(host.getStatus())) {
+                            result.add(host);
+                        }
+                    }
+                }
+            }
+        }
+        result.sort(Comparator.comparingLong(HostVO::getId));
+        return result;
+    }
+
+    private void preferCurrentVmHost(Command command, List<HostVO> candidates) {
+        if (!(command instanceof FtctlDrActionCommand) || userVmDao == null || candidates.isEmpty()) {
+            return;
+        }
+        String sourceVmUuid = sourceVmUuid((FtctlDrActionCommand) command);
+        UserVmVO vm = StringUtils.isNotBlank(sourceVmUuid) ? userVmDao.findByUuid(sourceVmUuid) : null;
+        Long hostId = vm != null ? vm.getHostId() : null;
+        if (hostId == null) {
+            return;
+        }
+        for (int index = 0; index < candidates.size(); index++) {
+            if (candidates.get(index).getId() == hostId.longValue()) {
+                HostVO current = candidates.remove(index);
+                candidates.add(0, current);
+                return;
+            }
+        }
+    }
+
+    private String sourceVmUuid(FtctlDrActionCommand command) {
+        String contextSourceVmUuid = command.getContext() != null
+                ? StringUtils.trimToNull(command.getContext().get("sourceVmUuid")) : null;
+        if (contextSourceVmUuid != null) {
+            return contextSourceVmUuid;
+        }
+        if (StringUtils.isBlank(command.getProfileJson())) {
+            return null;
+        }
+        try {
+            JsonObject profile = GSON.fromJson(command.getProfileJson(), JsonObject.class);
+            JsonObject source = objectAt(profile, "source");
+            JsonObject vm = objectAt(source, "vm");
+            String sourceRef = firstString(source, "externalRef", "vmUuid", "sourceVmUuid", "uuid");
+            return StringUtils.defaultIfBlank(sourceRef, firstString(vm, "uuid", "id", "externalRef"));
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     private void prepareSiteLocalCommand(Command command, HostVO host) {
@@ -128,6 +232,32 @@ public class FtctlDrSiteAgentBrokerServiceImpl extends ManagerBase implements Ft
         JsonObject child = new JsonObject();
         object.add(key, child);
         return child;
+    }
+
+    private String firstString(JsonObject object, String... keys) {
+        if (object == null) {
+            return null;
+        }
+        for (String key : keys) {
+            JsonElement value = object.get(key);
+            if (value != null && !value.isJsonNull() && value.isJsonPrimitive()) {
+                String text = StringUtils.trimToNull(value.getAsString());
+                if (text != null) {
+                    return text;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static class DispatchResult {
+        private final HostVO host;
+        private final Answer answer;
+
+        DispatchResult(HostVO host, Answer answer) {
+            this.host = host;
+            this.answer = answer;
+        }
     }
 
     private Command deserialize(String commandType, String commandJson) {

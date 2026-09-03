@@ -187,12 +187,21 @@ idempotent.
 The Plan Owner projects source and target evidence into one canonical Run.
 
 The concrete signed API command is `executeFtctlDrSiteAgentCommand`. Its
-parameters are limited to `commandtype`, `commandjson`, and `workerhostuuid`.
-The local FTCTL service accepts only `ACTION`, `STATUS`, `CAPABILITIES`, and
-`REVERSE_PREFLIGHT`, resolves the host by UUID, requires an Up KVM host, and
-returns the typed Agent answer. The legacy DR-plugin-owned broker command is not
-used for cross-site execution because a worker site is not required to enable
-the DR Plan service.
+required parameters are limited to `commandtype` and `commandjson`.
+`workerhostuuid` is an optional deprecated compatibility hint and never binds
+the operation to a host. The site-local broker discovers all `Up` KVM Agents in
+enabled Zones for every request, prefers the source VM's current host for a
+source action when that live placement is available, and otherwise selects an
+eligible worker deterministically. Read-only capability, status, and cancel
+requests may try the next eligible Agent when the first answer is unavailable
+or non-authoritative. Mutating actions are dispatched once to preserve
+idempotency. The local FTCTL service accepts only `ACTION`, `STATUS`,
+`CAPABILITIES`, `CANCEL`, and `REVERSE_PREFLIGHT` and returns the selected
+worker UUID with the typed Agent answer. The legacy DR-plugin-owned API name is
+kept only for compatibility and delegates to this canonical broker. It must
+not own another worker-discovery or dispatch implementation. Cross-site Cloud
+clients use the FTCTL API because a worker site is not required to enable the
+DR Plan service.
 
 Cloud API serialization may expose the broker fields either directly below
 `executeftctldrsiteagentcommandresponse` or below its

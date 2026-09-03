@@ -401,3 +401,45 @@ Regression requirements:
   than being hidden by the initial-state rule;
 - the complete action-contract matrix in this document remains green for
   VMware-to-RBD, RBD-to-RBD, and SharedMountPoint qcow2-to-qcow2.
+
+## 15. Cross-Site Broker Contract And All-Menu Convergence
+
+The site-local FTCTL API is the canonical cross-site execution endpoint. It
+must follow the same transparent placement rule as the Plan Owner. Requiring
+`workerhostuuid` at this boundary recreates a fixed-host dependency after the
+Plan Owner has already selected a valid Zone and therefore blocks every menu
+whose availability evaluates remote capabilities.
+
+`executeFtctlDrSiteAgentCommand` now treats `workerhostuuid` as a deprecated,
+ignored compatibility hint. The receiving site resolves current candidates on
+each request from enabled Zones and `Up` KVM Agents. For source actions it may
+prefer the source VM's current host discovered at execution time, but that
+observation is not persisted as Plan authority. Capability, status, and cancel
+may continue across candidates until an authoritative answer is found;
+mutating actions and reverse preflight remain single-dispatch operations.
+
+This is one shared availability gate for all affected menus:
+
+| Menu or projection | Required convergence |
+| --- | --- |
+| Full resync and scheduled incremental sync | remote capability succeeds without a worker parameter |
+| Pause, resume, and recovery sync | current source worker is resolved at request time |
+| Test Failover and Test Cleanup | capability and checkpoint gates are evaluated independently of host history |
+| Failover | disaster recovery remains executable without a reachable or fixed source host when policy permits |
+| Failback and Reprotect | each active site resolves its current workers and preserves committed authority |
+| Release and delete disposition | cleanup reaches the site-local worker without reusing a stale host binding |
+| Group action and protection-view projection | member availability uses the same broker result and does not retain a stale capability error |
+
+Both controller and worker-site Cloud packages must contain this contract.
+Deployment is incomplete when the Plan Owner omits `workerhostuuid` but the
+remote site API metadata still declares it required. Preflight therefore calls
+the canonical API without the parameter and requires a typed capability answer
+before UI action availability may be marked ready.
+
+The compatibility endpoint `executeDrSiteAgentCommand` is a response-adapting
+facade over `FtctlDrSiteAgentBrokerService`; it must contain no host DAO, Agent
+dispatch, or command parsing logic. This single-owner constraint prevents the
+two endpoint names from acquiring different fixed-worker contracts in a later
+merge. A regression test verifies facade delegation, while the canonical
+broker suite owns host discovery, current-VM preference, read-only evidence
+search, mutation single-dispatch, and optional-parameter coverage.
