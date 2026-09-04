@@ -615,3 +615,19 @@ teardown evidence. A stale former-worker Run must not appear as active transfer
 or overwrite durable `DRAINED` evidence. Acceptance requires the affected Plan
 to recover without a DB update, retain Cycle 803, and publish the next Cycle as
 `CBT_INCREMENTAL` or `NO_CHANGE` rather than Full Seed.
+
+## 19. Serialized Recovery State Presentation
+
+Protection-view payloads can expose the same runtime evidence through
+`runtimeErrorCode`, `errorCode`, `schedulerHealth`, or
+`schedulerHealthState`, depending on whether the value came from the Plan or
+the cached runtime projection. The UI normalizes these aliases before deriving
+state. `DR_QCOW2_SOURCE_RUNTIME_UNAVAILABLE`, `DR_SOURCE_SITE_UNAVAILABLE`, or
+`WAITING_SOURCE` therefore always renders as `WAITING_SOURCE_RECOVERY`.
+
+During that state, a superseded Plan-level `SOURCE_HARDWARE_CHANGED` message
+must not replace the current retryable relocation diagnosis. The current
+failed Cycle and its NBD error are not active evidence; transfer bytes,
+effective mode, and NBD teardown come from the latest durable completed Cycle.
+After recovery succeeds, normal Plan and runtime errors are shown again under
+their ordinary precedence rules.

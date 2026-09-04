@@ -33,11 +33,11 @@
       :description="$t('message.dr.initial.sync.pending.detail')" />
 
     <a-alert
-      v-if="lastError"
+      v-if="displayLastError"
       type="warning"
       show-icon
       :message="$t('message.dr.protection.view.stale')"
-      :description="lastError" />
+      :description="displayLastError" />
 
     <a-alert
       v-if="plan.projectionintegritystate === 'INCONSISTENT'"
@@ -306,7 +306,7 @@
           {{ latestCompletedSyncCycle.nbdteardowncompletedat || '-' }}
         </a-descriptions-item>
         <a-descriptions-item :label="$t('label.dr.nbd.teardown.error')">
-          {{ latestCompletedSyncCycle.nbdteardownerrorcode || currentProtectionRuntime.nbdteardownerrorcode || '-' }}
+          {{ latestCompletedSyncCycle.nbdteardownerrorcode || (!placementRecoveryActive && currentProtectionRuntime.nbdteardownerrorcode) || '-' }}
         </a-descriptions-item>
       </a-descriptions>
     </section>
@@ -646,8 +646,22 @@ export default {
       return ['RECONCILING', 'DEAD_CONFIRMING'].includes(state) || this.currentRun.reconciliationrequired === true
     },
     placementRecoveryActive () {
-      return ['WAITING_SOURCE_RECOVERY', 'RECOVERY_PENDING', 'RECOVERING'].includes(
-        resolveDrPlanState(this.protectionPlan, this.currentRun))
+      const resolved = resolveDrPlanState(this.protectionPlan, this.currentRun)
+      const schedulerHealth = String(this.currentProtectionRuntime.schedulerhealthstate ||
+        this.currentProtectionRuntime.schedulerhealth || this.protectionPlan.schedulerhealth || '').toUpperCase()
+      const runtimeError = String(this.currentProtectionRuntime.runtimeerrorcode ||
+        this.currentProtectionRuntime.errorcode || this.protectionPlan.runtimeerrorcode ||
+        this.protectionPlan.errorcode || '').toUpperCase()
+      return ['WAITING_SOURCE_RECOVERY', 'RECOVERY_PENDING', 'RECOVERING'].includes(resolved) ||
+        schedulerHealth === 'WAITING_SOURCE' ||
+        ['DR_SOURCE_SITE_UNAVAILABLE', 'DR_QCOW2_SOURCE_RUNTIME_UNAVAILABLE',
+          'DR_QCOW2_OFFLINE_SOURCE_BUSY'].includes(runtimeError)
+    },
+    displayLastError () {
+      if (this.placementRecoveryActive && String(this.lastError).includes('SOURCE_HARDWARE_CHANGED')) {
+        return ''
+      }
+      return this.lastError
     },
     hasNbdTeardownEvidence () {
       return Boolean(this.currentProtectionRuntime.nbdteardownstate ||

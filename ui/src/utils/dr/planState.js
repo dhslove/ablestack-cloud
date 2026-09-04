@@ -78,9 +78,11 @@ export function resolveDrPlanState (plan = {}, currentRun = null) {
   const latestRunType = String(latestRun.runtype || latestRun.runType || '').toUpperCase()
   const finiteOperationFailed = latestRunState === 'FAILED' &&
     ['TEST_FAILOVER', 'TEST_CLEANUP'].includes(latestRunType)
-  const runtimeError = String(plan.runtimeerrorcode ||
+  const runtimeError = String(plan.runtimeerrorcode || plan.runtimeErrorCode ||
+    plan.errorcode || plan.errorCode ||
     (finiteOperationFailed ? '' : latestRun.runtimeerrorcode) || '').toUpperCase()
-  const schedulerHealth = String(plan.schedulerhealth || '').toUpperCase()
+  const schedulerHealth = String(plan.schedulerhealth || plan.schedulerHealth ||
+    plan.schedulerhealthstate || plan.schedulerHealthState || '').toUpperCase()
   if (['DR_SOURCE_SITE_UNAVAILABLE', 'DR_QCOW2_SOURCE_RUNTIME_UNAVAILABLE',
     'DR_QCOW2_OFFLINE_SOURCE_BUSY'].includes(runtimeError) || schedulerHealth === 'WAITING_SOURCE') {
     return 'WAITING_SOURCE_RECOVERY'

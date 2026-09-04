@@ -99,6 +99,25 @@ describe('DrProtectionInfoTab terminal projection', () => {
     expect(nbd).toBe('DRAINED')
   })
 
+  it('normalizes serialized recovery fields and hides a superseded hardware error', () => {
+    const context = {
+      protectionPlan: { state: 'ERROR' },
+      currentRun: { state: 'FAILED', runtype: 'RECOVER_SYNC' },
+      currentProtectionRuntime: {
+        errorcode: 'DR_QCOW2_SOURCE_RUNTIME_UNAVAILABLE',
+        schedulerhealthstate: 'WAITING_SOURCE'
+      }
+    }
+    const recovering = DrProtectionInfoTab.computed.placementRecoveryActive.call(context)
+    const displayedError = DrProtectionInfoTab.computed.displayLastError.call({
+      placementRecoveryActive: recovering,
+      lastError: 'SOURCE_HARDWARE_CHANGED: stale placement-bound fingerprint'
+    })
+
+    expect(recovering).toBe(true)
+    expect(displayedError).toBe('')
+  })
+
   it('hides stale failure metadata for a completed failback session', () => {
     const succeeded = DrProtectionInfoTab.computed.failbackTerminalSucceeded.call({
       failbackSession: { state: 'COMPLETED', failedcomponent: 'ftctl' }
