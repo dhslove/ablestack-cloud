@@ -105,7 +105,8 @@ public class DrProtectionViewServiceImplTest {
         Mockito.when(drProtectionAuthorityService.getAuthority(PLAN_ID))
                 .thenReturn(new DrProtectionAuthoritySnapshot(runtime, true));
 
-        DrSyncCycleVO completedCycle = new DrSyncCycleVO(PLAN_ID, "producer-run", 189L);
+        DrSyncCycleVO completedCycle = new DrSyncCycleVO(PLAN_ID, "producer-run", 380L);
+        completedCycle.setCycleToken("plan-38:189");
         completedCycle.setState("READY");
         completedCycle.setRequestedMode("CBT_INCREMENTAL");
         completedCycle.setEffectiveMode("NO_CHANGE");
@@ -152,6 +153,10 @@ public class DrProtectionViewServiceImplTest {
                 snapshot.getAsJsonObject("currentProtectionRuntime").get("transferPayloadBytes").getAsLong());
         Assert.assertTrue(snapshot.getAsJsonObject("currentProtectionRuntime")
                 .get("completedCycleProjected").getAsBoolean());
+        Assert.assertEquals(189L,
+                snapshot.getAsJsonObject("latestCompletedSyncCycle").get("sequence").getAsLong());
+        Assert.assertEquals(380L,
+                snapshot.getAsJsonObject("latestCompletedSyncCycle").get("canonicalSequence").getAsLong());
         Assert.assertTrue(snapshot.get("currentSyncCycle").isJsonNull());
         Assert.assertEquals(189L,
                 snapshot.getAsJsonObject("latestCompletedSyncCycle").get("sequence").getAsLong());

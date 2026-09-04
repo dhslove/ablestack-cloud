@@ -364,12 +364,12 @@ public class DrResponseGenerator extends ManagerBase {
             return;
         }
         DrSyncCycleVO cycle = drSyncCycleDao.findLatestCompletedByPlanId(plan.getId());
-        if (cycle == null || cycle.getSequence() != runtime.getLatestCompletedCycleSequence().longValue()) {
+        if (cycle == null || cycle.getCheckpointSequence() != runtime.getLatestCompletedCycleSequence().longValue()) {
             return;
         }
         response.setTransferActivityState("IDLE");
-        response.setTransferCycleSequence(cycle.getSequence());
-        response.setTransferSampleSequence(cycle.getSequence());
+        response.setTransferCycleSequence(cycle.getCheckpointSequence());
+        response.setTransferSampleSequence(cycle.getCheckpointSequence());
         response.setTransferPhase("COMPLETED");
         response.setTransferMode(cycle.getEffectiveMode());
         response.setTransferBytesTotal(cycle.getVirtualBytes());

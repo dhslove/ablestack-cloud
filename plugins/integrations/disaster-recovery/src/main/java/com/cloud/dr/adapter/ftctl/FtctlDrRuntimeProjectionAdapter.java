@@ -1261,12 +1261,14 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                 && StringUtils.isBlank(sequenceCycle.getSchedulerSessionUuid())
                 && sequenceCycle.getSchedulerLeaseEpoch() == null
                 && StringUtils.isBlank(sequenceCycle.getCycleToken());
-        if (sequenceCycle == null || legacySequenceOnlyIdentity || sameSchedulerCycle(sequenceCycle,
+        if (legacySequenceOnlyIdentity || sameSchedulerCycle(sequenceCycle,
                 schedulerSessionUuid, schedulerLeaseEpoch, cycleToken)) {
-            return sequenceCycle != null ? sequenceCycle
-                    : new DrSyncCycleVO(plan.getId(), engineRunUuid, engineSequence);
+            return sequenceCycle;
         }
         DrSyncCycleVO latest = drSyncCycleDao.findLatestByPlanId(plan.getId());
+        if (sequenceCycle == null && (latest == null || latest.getSequence() < engineSequence)) {
+            return newProjectionCycle(plan.getId(), engineRunUuid, engineSequence, cycleToken);
+        }
         long canonicalSequence = engineSequence;
         if (latest != null && latest.getSequence() >= canonicalSequence && latest.getSequence() < Long.MAX_VALUE) {
             canonicalSequence = latest.getSequence() + 1L;
@@ -1276,7 +1278,14 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         if (authoritySequence != null) {
             canonicalSequence = Math.max(canonicalSequence, authoritySequence);
         }
-        return new DrSyncCycleVO(plan.getId(), engineRunUuid, canonicalSequence);
+        return newProjectionCycle(plan.getId(), engineRunUuid, canonicalSequence, cycleToken);
+    }
+
+    private DrSyncCycleVO newProjectionCycle(long planId, String engineRunUuid, long canonicalSequence,
+            String cycleToken) {
+        DrSyncCycleVO cycle = new DrSyncCycleVO(planId, engineRunUuid, canonicalSequence);
+        cycle.setCycleToken(cycleToken);
+        return cycle;
     }
 
     boolean sameSchedulerCycle(DrSyncCycleVO cycle, String schedulerSessionUuid, Long schedulerLeaseEpoch,

@@ -3448,4 +3448,31 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         Mockito.when(drSyncCycleDao.findByPlanSequence(plan.getId(), 1189L)).thenReturn(recovered);
         Assert.assertTrue(adapter.isAcceptedFullReseedCycleSatisfied(run, status, runtime));
     }
+
+    @Test
+    public void newCycleUsesMonotonicCanonicalSequenceWhenHistoricalFloorIsAhead() {
+        DrPlanVO plan = new DrPlanVO("plan-canonical-floor", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        ReflectionTestUtils.setField(plan, "id", 52L);
+        DrSyncCycleVO latest = new DrSyncCycleVO(plan.getId(), "historical-run", 685L);
+        latest.setCycleToken(plan.getUuid() + ":244");
+        latest.setCompleted(new Date());
+
+        FtctlDrStatusAnswer status = new FtctlDrStatusAnswer(
+                new FtctlDrStatusCommand(plan.getUuid(), null, FtctlDrStatusCommand.StatusScope.PLAN),
+                true, "ok");
+        status.setSchedulerSessionUuid(plan.getUuid());
+        status.setSchedulerLeaseEpoch(195L);
+        status.setAuthoritySequence(686L);
+
+        Mockito.when(drSyncCycleDao.findByPlanSchedulerCycle(plan.getId(), plan.getUuid(), 195L,
+                plan.getUuid() + ":246")).thenReturn(null);
+        Mockito.when(drSyncCycleDao.findByPlanSequence(plan.getId(), 246L)).thenReturn(null);
+        Mockito.when(drSyncCycleDao.findLatestByPlanId(plan.getId())).thenReturn(latest);
+
+        DrSyncCycleVO cycle = adapter.resolveCycleForProjection(plan, status, "current-run", 246L,
+                plan.getUuid() + ":246");
+
+        Assert.assertEquals(686L, cycle.getSequence());
+        Assert.assertEquals(246L, cycle.getCheckpointSequence());
+    }
 }

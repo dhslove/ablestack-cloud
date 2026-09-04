@@ -267,7 +267,8 @@ public class DrResponseGeneratorTest {
         runtime.setSchedulerExecutionBudgetSeconds(40);
         runtime.setSchedulerCycleWallDurationSeconds(32);
 
-        DrSyncCycleVO cycle = new DrSyncCycleVO(plan.getId(), "run-477", 477L);
+        DrSyncCycleVO cycle = new DrSyncCycleVO(plan.getId(), "run-477", 688L);
+        cycle.setCycleToken(plan.getUuid() + ":477");
         cycle.setEffectiveMode("CBT_INCREMENTAL");
         cycle.setVirtualBytes(107374182400L);
         cycle.setSourceReadBytes(8949399552L);

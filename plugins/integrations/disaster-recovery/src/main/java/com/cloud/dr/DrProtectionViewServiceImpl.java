@@ -209,7 +209,9 @@ public class DrProtectionViewServiceImpl extends ManagerBase implements DrProtec
         }
         JsonObject json = new JsonObject();
         json.addProperty("id", cycle.getUuid());
-        json.addProperty("sequence", cycle.getSequence());
+        json.addProperty("sequence", cycle.getCheckpointSequence());
+        json.addProperty("canonicalSequence", cycle.getSequence());
+        json.addProperty("cycleToken", cycle.getCycleToken());
         json.addProperty("state", cycle.getState());
         json.addProperty("requestedMode", cycle.getRequestedMode());
         json.addProperty("effectiveMode", cycle.getEffectiveMode());
@@ -244,7 +246,7 @@ public class DrProtectionViewServiceImpl extends ManagerBase implements DrProtec
         }
         DrPlanRuntimeVO runtime = authority.getRuntime();
         if (runtime.getCurrentCycleSequence() == null
-                || runtime.getCurrentCycleSequence().longValue() != candidate.getSequence()) {
+                || runtime.getCurrentCycleSequence().longValue() != candidate.getCheckpointSequence()) {
             return null;
         }
         if (StringUtils.isBlank(runtime.getCurrentCycleState()) || StringUtils.isBlank(candidate.getState())
@@ -333,13 +335,13 @@ public class DrProtectionViewServiceImpl extends ManagerBase implements DrProtec
         return currentSyncCycle == null
                 && latestCompletedSyncCycle != null
                 && runtime.getLatestCompletedCycleSequence() != null
-                && runtime.getLatestCompletedCycleSequence().longValue() == latestCompletedSyncCycle.getSequence()
+                && runtime.getLatestCompletedCycleSequence().longValue() == latestCompletedSyncCycle.getCheckpointSequence()
                 && StringUtils.equalsIgnoreCase(runtime.getReplicationActivityState(), "IDLE");
     }
 
     private void projectLatestCompletedCycle(JsonObject json, DrSyncCycleVO cycle) {
         json.addProperty("transferActivityState", "IDLE");
-        json.addProperty("transferCycleSequence", cycle.getSequence());
+        json.addProperty("transferCycleSequence", cycle.getCheckpointSequence());
         json.addProperty("transferMode", cycle.getEffectiveMode());
         json.addProperty("transferBytesTotal", cycle.getVirtualBytes());
         json.addProperty("transferBytesProcessed", cycle.getTransferPayloadBytes());

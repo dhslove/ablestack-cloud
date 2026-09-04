@@ -123,7 +123,42 @@ the execution-readiness value.
 | UI execution readiness | Reuses the protection status | Displays `readinessstate` independently |
 | Regression proof | No combined projection/UI assertion | Java projection and UI state-resolution tests cover the split contract |
 
-## 7. Verification Gate
+## 7. Checkpoint And Canonical Sequence Separation (2026-09-04)
+
+The scheduler checkpoint sequence and the Cloud row sequence are different
+domains after a scheduler lease collision. The checkpoint sequence identifies
+the FTCTL data generation and remains encoded in `cycle_token`. The Cloud row
+sequence is a monotonically increasing persistence key used to satisfy the
+existing `(plan_id, sequence)` uniqueness contract.
+
+Cloud must therefore apply these rules consistently:
+
+1. A new row uses the engine checkpoint sequence only when it is greater than
+   the current Cloud sequence floor.
+2. If the Cloud floor is already equal to or greater than the engine sequence,
+   Cloud allocates a new canonical row sequence even when there is no row at
+   that exact engine sequence.
+3. Runtime-to-Cycle matching uses the checkpoint sequence parsed from
+   `cycle_token`, never the canonical row sequence.
+4. API and UI transfer sequence fields expose the checkpoint sequence. The
+   protection-view cache may include `canonicalSequence` for diagnostics, but
+   it must not use that value as the data generation shown to users.
+5. `authority_sequence` remains projection ordering metadata and must never be
+   interpreted as a checkpoint sequence or transfer generation.
+
+This closes the observed interval where an older synthetic Cloud sequence with
+`FULL_SEED/source_runtime_unavailable` masked a newer durable `NO_CHANGE`
+checkpoint. It does not change provider selection, transfer, bitmap, VMware
+CBT, RBD diff, failover, or failback behavior.
+
+| Area | AS-IS | TO-BE |
+|---|---|---|
+| New Cycle allocation | Uses the lower engine sequence when no exact collision exists | Applies the Cloud sequence floor before every insert |
+| Runtime matching | Compares checkpoint sequence to canonical row sequence | Compares checkpoint sequence to `cycle_token` generation |
+| API/UI | Can suppress current completed metrics after a lease collision | Shows the latest durable checkpoint and its actual transfer mode |
+| Provider paths | Projection error can look like a Full Seed regression | VMware CBT, RBD diff, and qcow2 bitmap decisions remain isolated and unchanged |
+
+## 8. Verification Gate
 
 1. Unit test a reused engine sequence under a new scheduler lease.
 2. Run the disaster-recovery plugin test suite and changed-module Maven build.

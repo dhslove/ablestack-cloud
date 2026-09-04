@@ -140,6 +140,22 @@ public class DrSyncCycleVO implements InternalIdentity {
     public Long getSchedulerLeaseEpoch() { return schedulerLeaseEpoch; }
     public Long getAuthoritySequence() { return authoritySequence; }
     public long getSequence() { return sequence; }
+    public long getCheckpointSequence() {
+        if (cycleToken != null) {
+            int separator = cycleToken.lastIndexOf(':');
+            if (separator >= 0 && separator + 1 < cycleToken.length()) {
+                try {
+                    long checkpointSequence = Long.parseLong(cycleToken.substring(separator + 1));
+                    if (checkpointSequence > 0) {
+                        return checkpointSequence;
+                    }
+                } catch (NumberFormatException ignored) {
+                    // Legacy tokens fall back to the canonical Cloud sequence.
+                }
+            }
+        }
+        return sequence;
+    }
     public String getCycleToken() { return cycleToken; }
     public String getRequestedMode() { return requestedMode; }
     public String getEffectiveMode() { return effectiveMode; }
