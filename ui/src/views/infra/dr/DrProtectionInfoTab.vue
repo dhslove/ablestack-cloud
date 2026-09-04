@@ -429,6 +429,7 @@
 import DrPlanOverview from '@/views/infra/dr/DrPlanOverview.vue'
 import DrStatusPill from '@/components/dr/DrStatusPill.vue'
 import DrTopology from '@/components/dr/DrTopology.vue'
+import { resolveDrPlanState } from '@/utils/dr/planState'
 
 export default {
   name: 'DrProtectionInfoTab',
@@ -544,6 +545,7 @@ export default {
           this.protectionPlan.activeside || '').toUpperCase() === 'TARGET')
     },
     replicationActivityState () {
+      if (this.placementRecoveryActive) return 'WAITING_SOURCE'
       if (this.currentRun && this.currentRun.id) {
         return this.currentRun.state || 'RUNNING'
       }
@@ -559,7 +561,7 @@ export default {
       return `#${this.currentSyncCycle.sequence || '-'} / ${this.currentSyncCycle.state || 'UNKNOWN'}`
     },
     hasActiveSyncCycle () {
-      return Boolean(this.currentSyncCycle && this.currentSyncCycle.id)
+      return !this.placementRecoveryActive && Boolean(this.currentSyncCycle && this.currentSyncCycle.id)
     },
     displaySyncCycle () {
       return this.hasActiveSyncCycle ? this.currentSyncCycle : (this.latestCompletedSyncCycle || {})
@@ -577,6 +579,7 @@ export default {
         this.currentProtectionRuntime.transferpayloadbytes
     },
     displayWorkerLiveness () {
+      if (this.placementRecoveryActive) return 'WAITING_SOURCE'
       if (!this.hasActiveSyncCycle && !this.currentRun.id) return 'IDLE'
       return this.currentProtectionRuntime.workerlivenessstate ||
         this.currentRun.workerlivenessstate || 'UNKNOWN'
@@ -621,6 +624,9 @@ export default {
         ['LOCAL_DURABLE', 'TARGET_DURABLE', 'DURABLE', 'COMMITTED'].includes(commitState)
     },
     currentNbdTeardownState () {
+      if (this.placementRecoveryActive && this.latestCompletedSyncCycle.nbdteardownstate) {
+        return this.latestCompletedSyncCycle.nbdteardownstate
+      }
       return this.currentProtectionRuntime.nbdteardownstate ||
         this.currentSyncCycle.nbdteardownstate ||
         this.latestCompletedSyncCycle.nbdteardownstate ||
@@ -638,6 +644,10 @@ export default {
     runtimeReconciling () {
       const state = String(this.currentProtectionRuntime.reconciliationstate || this.plan.reconciliationstate || '').toUpperCase()
       return ['RECONCILING', 'DEAD_CONFIRMING'].includes(state) || this.currentRun.reconciliationrequired === true
+    },
+    placementRecoveryActive () {
+      return ['WAITING_SOURCE_RECOVERY', 'RECOVERY_PENDING', 'RECOVERING'].includes(
+        resolveDrPlanState(this.protectionPlan, this.currentRun))
     },
     hasNbdTeardownEvidence () {
       return Boolean(this.currentProtectionRuntime.nbdteardownstate ||

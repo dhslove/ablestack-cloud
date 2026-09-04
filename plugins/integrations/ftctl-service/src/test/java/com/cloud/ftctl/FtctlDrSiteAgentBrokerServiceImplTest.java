@@ -197,7 +197,7 @@ public class FtctlDrSiteAgentBrokerServiceImplTest {
     }
 
     @Test
-    public void statusPrefersCurrentVmHostWithoutPersistingPlacement() throws Exception {
+    public void statusUsesCurrentVmHostOnlyAsAuthorityTieBreaker() throws Exception {
         HostVO stale = host(41L, "stale-host");
         HostVO current = host(42L, "current-host");
         eligible(stale, current);
@@ -209,14 +209,48 @@ public class FtctlDrSiteAgentBrokerServiceImplTest {
         command.setSourceVmUuid("source-vm-uuid");
         com.cloud.agent.api.FtctlDrStatusAnswer ready = statusAnswer(command, "READY", "ready");
         ready.setSchedulerPidAlive(true);
+        ready.setAuthoritySequence(804L);
+        com.cloud.agent.api.FtctlDrStatusAnswer old = statusAnswer(command, "READY", "old");
+        old.setSchedulerPidAlive(true);
+        old.setAuthoritySequence(803L);
         Mockito.when(agentManager.send(Mockito.eq(42L), Mockito.any(Command.class))).thenReturn(ready);
+        Mockito.when(agentManager.send(Mockito.eq(41L), Mockito.any(Command.class))).thenReturn(old);
 
         FtctlDrSiteAgentCommandResponse response = brokerService.execute(
                 "STATUS", new Gson().toJson(command), null);
 
         Assert.assertEquals("current-host", response.getWorkerHostUuid());
         Mockito.verify(agentManager).send(Mockito.eq(42L), Mockito.any(Command.class));
-        Mockito.verify(agentManager, Mockito.never()).send(Mockito.eq(41L), Mockito.any(Command.class));
+        Mockito.verify(agentManager).send(Mockito.eq(41L), Mockito.any(Command.class));
+    }
+
+    @Test
+    public void statusSelectsHighestAuthorityAfterVmLiveMigration() throws Exception {
+        HostVO oldHost = host(41L, "old-host");
+        HostVO current = host(42L, "current-host");
+        eligible(oldHost, current);
+        UserVmVO vm = Mockito.mock(UserVmVO.class);
+        Mockito.when(vm.getHostId()).thenReturn(42L);
+        Mockito.when(userVmDao.findByUuid("source-vm-uuid")).thenReturn(vm);
+        FtctlDrStatusCommand command = new FtctlDrStatusCommand("plan-uuid", null,
+                FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY);
+        command.setSourceVmUuid("source-vm-uuid");
+        com.cloud.agent.api.FtctlDrStatusAnswer staleCurrent = statusAnswer(command, "ERROR", "stale current");
+        staleCurrent.setSchedulerPidAlive(false);
+        staleCurrent.setAuthoritySequence(724L);
+        com.cloud.agent.api.FtctlDrStatusAnswer durableAuthority = statusAnswer(command, "READY", "authority");
+        durableAuthority.setSchedulerPidAlive(false);
+        durableAuthority.setAuthoritySequence(803L);
+        durableAuthority.setLatestCompletedCycleSequence(803L);
+        Mockito.when(agentManager.send(Mockito.eq(42L), Mockito.any(Command.class))).thenReturn(staleCurrent);
+        Mockito.when(agentManager.send(Mockito.eq(41L), Mockito.any(Command.class))).thenReturn(durableAuthority);
+
+        FtctlDrSiteAgentCommandResponse response = brokerService.execute(
+                "STATUS", new Gson().toJson(command), null);
+
+        Assert.assertEquals("old-host", response.getWorkerHostUuid());
+        Mockito.verify(agentManager).send(Mockito.eq(42L), Mockito.any(Command.class));
+        Mockito.verify(agentManager).send(Mockito.eq(41L), Mockito.any(Command.class));
     }
 
     @Test

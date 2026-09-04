@@ -2672,12 +2672,14 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         JsonObject hardware = firstObject(objectValue(mapping, "source"), "hardware", "sourceHardware");
         String expected = stringValue(hardware, "fingerprint");
         String actual = stringValue(runtime, "source_hardware_fingerprint");
-        String fingerprintVersion = stringValue(runtime, "source_hardware_fingerprint_version");
-        if (StringUtils.equals(DrSourceVmHardware.FINGERPRINT_CONTRACT_VERSION, fingerprintVersion)
-                && !hardware.entrySet().isEmpty() && StringUtils.isNotBlank(actual)) {
-            return StringUtils.equals(DrSourceVmHardware.stableFingerprint(hardware), actual);
+        if (StringUtils.isBlank(expected) || StringUtils.isBlank(actual) || StringUtils.equals(expected, actual)) {
+            return true;
         }
-        return StringUtils.isBlank(expected) || StringUtils.isBlank(actual) || StringUtils.equals(expected, actual);
+        if (!hardware.entrySet().isEmpty()
+                && StringUtils.equals(DrSourceVmHardware.stableFingerprint(hardware), actual)) {
+            return true;
+        }
+        return false;
     }
 
     private boolean canRecoverTerminalMaterializationFailure(DrPlanVO plan, FtctlDrStatusAnswer status, JsonObject runtime) {

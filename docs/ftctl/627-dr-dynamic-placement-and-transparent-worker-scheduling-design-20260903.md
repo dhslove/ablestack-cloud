@@ -591,3 +591,27 @@ The protection view labels the Cloud canonical value as the completed
 replication cycle. A worker-local checkpoint sequence remains visible only as
 engine checkpoint provenance under the durable recovery checkpoint section;
 it is not presented as another replication-cycle sequence.
+
+## 18. Authority-ranked Status And Legacy Fingerprint Convergence
+
+The current VM host is a dispatch preference, not read authority. A Plan-level
+STATUS request queries every eligible site worker and ranks meaningful answers
+by requested Run correlation, monotonic authority sequence, runtime generation,
+latest completed canonical sequence, scheduler liveness, and health. Current
+placement is only the final tie-break because its candidate is queried first.
+ACTION and reverse-preflight commands remain single-dispatch and continue to
+resolve current placement immediately before execution.
+
+Existing Plans and FTCTL profiles may contain the host-bound, unversioned
+hardware fingerprint. FTCTL status derives fingerprint contract v2 from the
+profile hardware without modifying the profile or Plan. Cloud accepts either
+the exact persisted fingerprint or the stable fingerprint calculated from the
+same hardware object. A mismatch after both checks remains
+`SOURCE_HARDWARE_CHANGED`; migration alone can no longer produce that error.
+
+While relocation recovery is pending, the protection UI displays
+`WAITING_SOURCE`, the latest durable completed Cycle, and that Cycle's NBD
+teardown evidence. A stale former-worker Run must not appear as active transfer
+or overwrite durable `DRAINED` evidence. Acceptance requires the affected Plan
+to recover without a DB update, retain Cycle 803, and publish the next Cycle as
+`CBT_INCREMENTAL` or `NO_CHANGE` rather than Full Seed.

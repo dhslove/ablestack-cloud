@@ -33,6 +33,7 @@ import com.cloud.agent.api.FtctlDrActionCommand;
 import com.cloud.agent.api.FtctlDrCapabilitiesCommand;
 import com.cloud.agent.api.FtctlDrCancelCommand;
 import com.cloud.agent.api.FtctlDrReversePreflightCommand;
+import com.cloud.agent.api.FtctlDrStatusAnswer;
 import com.cloud.agent.api.FtctlDrStatusCommand;
 import com.cloud.dc.DataCenterVO;
 import com.cloud.dc.dao.DataCenterDao;
@@ -102,10 +103,13 @@ public class FtctlDrSiteAgentBrokerServiceImpl extends ManagerBase implements Ft
                         return result;
                     }
                     if (meaningful(answer)) {
-                        if (preferredReadOnlyAnswer(answer)) {
+                        if (!(answer instanceof FtctlDrStatusAnswer)) {
                             return result;
                         }
-                        if (readOnlyFallback == null) {
+                        if (readOnlyFallback == null
+                                || compareStatusAuthority((FtctlDrStatusAnswer) answer,
+                                        (FtctlDrStatusAnswer) readOnlyFallback.answer,
+                                        command) > 0) {
                             readOnlyFallback = result;
                         }
                     }
@@ -148,17 +152,58 @@ public class FtctlDrSiteAgentBrokerServiceImpl extends ManagerBase implements Ft
         return true;
     }
 
-    private boolean preferredReadOnlyAnswer(Answer answer) {
-        if (!(answer instanceof com.cloud.agent.api.FtctlDrStatusAnswer)) {
-            return true;
+    private int compareStatusAuthority(FtctlDrStatusAnswer candidate, FtctlDrStatusAnswer selected,
+            Command command) {
+        String requestedRunUuid = command instanceof FtctlDrStatusCommand
+                ? ((FtctlDrStatusCommand) command).getRunUuid() : null;
+        int compared = Boolean.compare(runMatches(candidate, requestedRunUuid), runMatches(selected, requestedRunUuid));
+        if (compared != 0) {
+            return compared;
         }
-        com.cloud.agent.api.FtctlDrStatusAnswer status = (com.cloud.agent.api.FtctlDrStatusAnswer) answer;
-        if (StringUtils.isNotBlank(status.getRunUuid())) {
-            return true;
+        compared = Long.compare(statusSequence(candidate), statusSequence(selected));
+        if (compared != 0) {
+            return compared;
         }
-        return Boolean.TRUE.equals(status.getSchedulerPidAlive())
-                || StringUtils.equalsAnyIgnoreCase(status.getSchedulerHealth(), "HEALTHY", "DEGRADED")
-                || StringUtils.equalsAnyIgnoreCase(status.getState(), "READY", "TARGET_READY", "SYNCING", "PAUSED");
+        compared = Boolean.compare(Boolean.TRUE.equals(candidate.getSchedulerPidAlive()),
+                Boolean.TRUE.equals(selected.getSchedulerPidAlive()));
+        if (compared != 0) {
+            return compared;
+        }
+        compared = Integer.compare(schedulerHealthRank(candidate.getSchedulerHealth()),
+                schedulerHealthRank(selected.getSchedulerHealth()));
+        if (compared != 0) {
+            return compared;
+        }
+        return Integer.compare(stateRank(candidate.getState()), stateRank(selected.getState()));
+    }
+
+    private boolean runMatches(FtctlDrStatusAnswer status, String requestedRunUuid) {
+        return StringUtils.isNotBlank(requestedRunUuid) && StringUtils.equals(requestedRunUuid, status.getRunUuid());
+    }
+
+    private long statusSequence(FtctlDrStatusAnswer status) {
+        long authority = status.getAuthoritySequence() != null ? status.getAuthoritySequence() : 0L;
+        long generation = status.getRuntimeGeneration() != null ? status.getRuntimeGeneration() : 0L;
+        long completed = status.getLatestCompletedCycleSequence() != null
+                ? status.getLatestCompletedCycleSequence() : 0L;
+        return Math.max(authority, Math.max(generation, completed));
+    }
+
+    private int schedulerHealthRank(String health) {
+        if (StringUtils.equalsIgnoreCase(health, "HEALTHY")) {
+            return 2;
+        }
+        if (StringUtils.equalsIgnoreCase(health, "DEGRADED")) {
+            return 1;
+        }
+        return 0;
+    }
+
+    private int stateRank(String state) {
+        if (StringUtils.equalsAnyIgnoreCase(state, "READY", "TARGET_READY", "SYNCING", "PAUSED")) {
+            return 2;
+        }
+        return StringUtils.equalsAnyIgnoreCase(state, "ERROR", "FAILED") ? 0 : 1;
     }
 
     private List<HostVO> eligibleWorkers() {

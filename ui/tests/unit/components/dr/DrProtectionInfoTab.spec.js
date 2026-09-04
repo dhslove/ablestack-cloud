@@ -73,6 +73,32 @@ describe('DrProtectionInfoTab terminal projection', () => {
     expect(sequence).toBe(758)
   })
 
+  it('shows the latest durable cycle while source placement is recovering', () => {
+    const context = {
+      plan: { runtimeerrorcode: 'DR_QCOW2_SOURCE_RUNTIME_UNAVAILABLE' },
+      protectionPlan: { runtimeerrorcode: 'DR_QCOW2_SOURCE_RUNTIME_UNAVAILABLE' },
+      currentRun: { id: 'stale-run', state: 'RUNNING' },
+      currentSyncCycle: { id: 'stale-cycle', state: 'TRANSFERRING' },
+      latestCompletedSyncCycle: { id: 'cycle-803', nbdteardownstate: 'DRAINED' },
+      currentProtectionRuntime: { nbdteardownstate: 'FAILED' }
+    }
+    const recovering = DrProtectionInfoTab.computed.placementRecoveryActive.call(context)
+    const active = DrProtectionInfoTab.computed.hasActiveSyncCycle.call({
+      placementRecoveryActive: recovering,
+      currentSyncCycle: context.currentSyncCycle
+    })
+    const nbd = DrProtectionInfoTab.computed.currentNbdTeardownState.call({
+      placementRecoveryActive: recovering,
+      latestCompletedSyncCycle: context.latestCompletedSyncCycle,
+      currentProtectionRuntime: context.currentProtectionRuntime,
+      currentSyncCycle: context.currentSyncCycle
+    })
+
+    expect(recovering).toBe(true)
+    expect(active).toBe(false)
+    expect(nbd).toBe('DRAINED')
+  })
+
   it('hides stale failure metadata for a completed failback session', () => {
     const succeeded = DrProtectionInfoTab.computed.failbackTerminalSucceeded.call({
       failbackSession: { state: 'COMPLETED', failedcomponent: 'ftctl' }
