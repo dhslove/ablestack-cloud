@@ -215,6 +215,12 @@ The UI consumes backend `actionavailability`. It must not allow submission when
 the same snapshot reports a blocking capability reason, and it must never show
 the Plan as generally `READY` while all actions are globally unavailable.
 
+Plan list and detail page reads follow the DB-first read contract defined in
+`628-dr-db-first-read-and-progressive-ui-design-20260904.md`. Page rendering
+must not synchronously probe an Agent or FTCTL. A live capability validation is
+performed only by an explicit action preflight or a background reconciliation
+job, never by `listDrPlans`, `getDrPlan`, or `getDrProtectionView`.
+
 VM power state is not a protection, synchronization, reprotection, or
 failback-preflight prerequisite. Those paths are authorized by the committed
 authority generation and a durable checkpoint set. Power-off and power-on

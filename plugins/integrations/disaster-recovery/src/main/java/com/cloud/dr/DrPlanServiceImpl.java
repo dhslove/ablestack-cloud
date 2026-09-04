@@ -254,6 +254,15 @@ public class DrPlanServiceImpl extends ManagerBase implements DrPlanService {
 
     @Override
     public DrPlanActionEvaluation getActionEvaluation(long planId) {
+        return getActionEvaluation(planId, true);
+    }
+
+    @Override
+    public DrPlanActionEvaluation getDatabaseActionEvaluation(long planId) {
+        return getActionEvaluation(planId, false);
+    }
+
+    private DrPlanActionEvaluation getActionEvaluation(long planId, boolean probeCapabilities) {
         DrPlanVO plan = requirePlan(planId);
         boolean enabled = StringUtils.equals(DrConstants.ADMIN_STATE_ENABLED, plan.getAdminState());
         boolean activeRun = drRunDao.findActiveByPlanId(planId) != null;
@@ -305,7 +314,7 @@ public class DrPlanServiceImpl extends ManagerBase implements DrPlanService {
                 && StringUtils.equalsIgnoreCase(currentAuthority.getAuthorityPhase(), "TARGET_PROTECTED");
         boolean targetNeedsReprotect = ftctlDrPlan && targetActive && committedTargetAuthority
                 && !targetProtected;
-        DrFtctlActionCapabilitySnapshot capabilitySnapshot = ftctlDrPlan
+        DrFtctlActionCapabilitySnapshot capabilitySnapshot = probeCapabilities && ftctlDrPlan
                 && drFtctlActionCapabilityService != null
                 ? drFtctlActionCapabilityService.evaluate(plan) : null;
 

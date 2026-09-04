@@ -2493,10 +2493,10 @@ export default {
     },
     fetchList (options = {}) {
       this.loading = true
-      return Promise.all([
-        this.fetchSites(),
-        listDrPlans(this.listQueryParams())
-      ]).then(([, result]) => {
+      this.fetchSites().catch(error => {
+        this.listLoadWarning = this.errorMessage(error)
+      })
+      return listDrPlans(this.listQueryParams()).then(result => {
         this.plans = this.reconcilePlanList(result.items || [], options.retain || [])
         this.listTotal = Math.max(Number(result.count) || 0, this.plans.length)
         this.listLoadWarning = ''
@@ -2555,24 +2555,21 @@ export default {
         this.loading = true
       }
       this.detailLoadWarning = ''
+      let currentPlan = {}
       const planTask = getDrPlan(this.detailId).then(plan => {
-        this.detailPlan = plan || {}
+        currentPlan = plan || {}
+        this.detailPlan = currentPlan
       }).catch(error => {
         this.detailLoadWarning = this.errorMessage(error)
       })
-      const tasks = [planTask
-        .then(() => this.fetchProtectionView())
-        .then(() => {
-          // A snapshot can be generated while the previous operation is still
-          // active. Apply the live plan last so its terminal action contract wins.
-          return getDrPlan(this.detailId).then(plan => {
-            this.detailPlan = reconcileDrPlanProjection(this.detailPlan, plan || {})
-          })
-        })]
+      const tasks = [planTask, this.fetchProtectionView()]
       if (options.skipSites !== true && !('getDrProtectionView' in this.$store.getters.apis)) {
         tasks.unshift(this.fetchSites())
       }
-      return Promise.all(tasks).finally(() => {
+      return Promise.all(tasks).then(() => {
+        // The database plan is newer than a previously generated protection snapshot.
+        this.detailPlan = reconcileDrPlanProjection(this.detailPlan, currentPlan)
+      }).finally(() => {
         if (!silent) {
           this.loading = false
         }

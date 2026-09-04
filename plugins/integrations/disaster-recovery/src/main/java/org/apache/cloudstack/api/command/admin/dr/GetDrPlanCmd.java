@@ -51,7 +51,8 @@ public class GetDrPlanCmd extends BaseCmd {
     public void execute() throws ServerApiException {
         try {
             DrPlanVO plan = drPlanService.getPlan(id);
-            DrPlanResponse response = drResponseGenerator.createPlanResponse(plan, drPlanService.getActionEvaluation(plan.getId()));
+            DrPlanResponse response = drResponseGenerator.createPlanResponse(plan,
+                    drPlanService.getDatabaseActionEvaluation(plan.getId()));
             response.setResponseName(getCommandName());
             setResponseObject(response);
         } catch (RuntimeException e) {

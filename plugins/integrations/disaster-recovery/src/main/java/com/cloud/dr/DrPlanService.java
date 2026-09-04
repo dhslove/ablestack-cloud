@@ -43,4 +43,6 @@ public interface DrPlanService {
     Map<String, DrActionAvailability> getActionAvailability(long planId);
 
     DrPlanActionEvaluation getActionEvaluation(long planId);
+
+    DrPlanActionEvaluation getDatabaseActionEvaluation(long planId);
 }

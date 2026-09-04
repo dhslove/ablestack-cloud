@@ -65,7 +65,7 @@ public class DrProtectionViewServiceImplTest {
         HashMap<String, DrActionAvailability> availability = new HashMap<>();
         availability.put("testFailover", new DrActionAvailability(true, true, null, Collections.emptyMap()));
         DrPlanActionEvaluation actionEvaluation = new DrPlanActionEvaluation(eligibility, availability);
-        Mockito.when(drPlanService.getActionEvaluation(PLAN_ID)).thenReturn(actionEvaluation);
+        Mockito.when(drPlanService.getDatabaseActionEvaluation(PLAN_ID)).thenReturn(actionEvaluation);
         DrPlanResponse planResponse = new DrPlanResponse();
         planResponse.setId("plan-38");
         planResponse.setActionEligibility(eligibility);

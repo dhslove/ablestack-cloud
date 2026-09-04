@@ -73,9 +73,28 @@ public class DrPlanServiceImplTest {
     private DrTestSessionDao drTestSessionDao;
     @Mock
     private DrCurrentAuthorityResolver drCurrentAuthorityResolver;
+    @Mock
+    private DrFtctlActionCapabilityService drFtctlActionCapabilityService;
 
     @InjectMocks
     private DrPlanServiceImpl service;
+
+    @Test
+    public void databaseActionEvaluationDoesNotProbeAgentCapabilities() {
+        DrPlanVO plan = new DrPlanVO("db-first-read", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setAdminState(DrConstants.ADMIN_STATE_ENABLED);
+        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
+        Mockito.when(drPlanDao.findById(plan.getId())).thenReturn(plan);
+        Mockito.when(drAdapterRegistry.getReplicationEngine(DrConstants.ENGINE_TYPE_FTCTL_DR,
+                DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR)).thenReturn(replicationEngine);
+
+        DrPlanActionEvaluation evaluation = service.getDatabaseActionEvaluation(plan.getId());
+
+        Assert.assertTrue(evaluation.getEligibility().get("sync"));
+        Assert.assertTrue(evaluation.getAvailability().get("sync").isEnabled());
+        Mockito.verifyNoInteractions(drFtctlActionCapabilityService);
+    }
 
     @Test
     public void deletePlanRemovesRuntimeAuthorityAndCycleCache() {

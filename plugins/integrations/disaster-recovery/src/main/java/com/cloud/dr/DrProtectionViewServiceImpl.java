@@ -133,7 +133,7 @@ public class DrProtectionViewServiceImpl extends ManagerBase implements DrProtec
 
         JsonObject snapshot = new JsonObject();
         snapshot.addProperty("version", SNAPSHOT_VERSION);
-        DrPlanActionEvaluation actionEvaluation = drPlanService.getActionEvaluation(planId);
+        DrPlanActionEvaluation actionEvaluation = drPlanService.getDatabaseActionEvaluation(planId);
         DrPlanResponse planProjection = drResponseGenerator.createPlanResponse(plan, actionEvaluation);
         snapshot.add("planProjection", typedJson(planProjection, DrPlanResponse.class));
         // Compatibility alias for one release. Version 7 consumers must use planProjection.
