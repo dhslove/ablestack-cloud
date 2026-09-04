@@ -563,3 +563,20 @@ Required regression cases are: status routes to the current VM host, stale
 `ERROR` authority loses to a live `READY` scheduler, operation-scoped terminal
 failure remains authoritative, stopped VM discovery can scan storage-capable
 workers, and mutating actions are still dispatched exactly once.
+
+## Cross-host authority ordering
+
+`scheduler_lease_epoch` is local to one FTCTL worker and is not comparable after
+the source VM or storage-capable worker moves to another host. For remote KVM
+source protection, Cloud orders Plan-authority observations by the
+Cloud-floored `authority_sequence` first and uses `scheduler_lease_epoch` only
+when the authority sequence is equal. A healthy current-host response with a
+higher authority sequence replaces an older failed projection even when its
+local lease epoch is lower. Conversely, a stale worker cannot replace the
+current projection merely by reporting a larger host-local lease epoch.
+
+This ordering applies only to read-only Plan-authority projection. Operation
+status remains correlated by Plan and Run UUID, and mutating commands remain
+single-dispatch. Engine cycle numbers may restart on a relocated worker; Cloud
+assigns a monotonic canonical `dr_sync_cycle.sequence` while retaining the
+engine cycle token and authority sequence as provenance.

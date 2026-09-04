@@ -445,11 +445,14 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         }
         boolean sourceAuthorityHandoff = isCompletedFailbackSourceAuthorityHandoff(plan, authority, status, runtime);
         if (authority != null && !committedTargetAuthority && !sourceAuthorityHandoff) {
-            if (leaseEpoch < authority.getSchedulerLeaseEpoch()) {
-                return;
-            }
-            if (leaseEpoch == authority.getSchedulerLeaseEpoch()
-                    && authoritySequence < authority.getAuthoritySequence()) {
+            boolean remoteKvmSourceAuthority = drRemoteAgentClient != null
+                    && drRemoteAgentClient.isRemoteKvmSource(plan)
+                    && StringUtils.equalsIgnoreCase(plan.getActiveSide(), DrConstants.AUTHORITY_SIDE_SOURCE);
+            if (remoteKvmSourceAuthority
+                    ? isStaleRemoteSourceAuthority(authority, leaseEpoch, authoritySequence)
+                    : leaseEpoch < authority.getSchedulerLeaseEpoch()
+                            || leaseEpoch == authority.getSchedulerLeaseEpoch()
+                            && authoritySequence < authority.getAuthoritySequence()) {
                 return;
             }
         }
@@ -826,6 +829,13 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
 
         projectSyncCyclesAtomically(plan, protectionProducerRun, status, producerRunUuid, sequence, requestedMode,
                 effectiveMode, cycleState, baselineState, reseedReason, sourceAt, errorCode, errorMessage);
+    }
+
+    boolean isStaleRemoteSourceAuthority(DrPlanRuntimeVO authority, long leaseEpoch, long authoritySequence) {
+        if (authoritySequence != authority.getAuthoritySequence()) {
+            return authoritySequence < authority.getAuthoritySequence();
+        }
+        return leaseEpoch < authority.getSchedulerLeaseEpoch();
     }
 
     static String schemaSafeControlRequestRunUuid(String value) {
