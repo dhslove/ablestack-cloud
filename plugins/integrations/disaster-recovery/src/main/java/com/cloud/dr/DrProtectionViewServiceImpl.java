@@ -335,13 +335,13 @@ public class DrProtectionViewServiceImpl extends ManagerBase implements DrProtec
         return currentSyncCycle == null
                 && latestCompletedSyncCycle != null
                 && runtime.getLatestCompletedCycleSequence() != null
-                && runtime.getLatestCompletedCycleSequence().longValue() == latestCompletedSyncCycle.getCheckpointSequence()
+                && runtime.getLatestCompletedCycleSequence().longValue() == latestCompletedSyncCycle.getSequence()
                 && StringUtils.equalsIgnoreCase(runtime.getReplicationActivityState(), "IDLE");
     }
 
     private void projectLatestCompletedCycle(JsonObject json, DrSyncCycleVO cycle) {
         json.addProperty("transferActivityState", "IDLE");
-        json.addProperty("transferCycleSequence", cycle.getCheckpointSequence());
+        json.addProperty("transferCycleSequence", cycle.getSequence());
         json.addProperty("transferMode", cycle.getEffectiveMode());
         json.addProperty("transferBytesTotal", cycle.getVirtualBytes());
         json.addProperty("transferBytesProcessed", cycle.getTransferPayloadBytes());

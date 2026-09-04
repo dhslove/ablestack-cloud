@@ -99,7 +99,7 @@ public class DrProtectionViewServiceImplTest {
         runtime.setTransferPayloadBytes(1024L);
         runtime.setCurrentCycleSequence(189L);
         runtime.setCurrentCycleState("COMPLETED");
-        runtime.setLatestCompletedCycleSequence(189L);
+        runtime.setLatestCompletedCycleSequence(380L);
         runtime.setStatusJson("{\"control_protocol_version\":2,\"control_generation\":7,"
                 + "\"control_ack_generation\":7,\"control_state\":\"ACKNOWLEDGED\"}");
         Mockito.when(drProtectionAuthorityService.getAuthority(PLAN_ID))
@@ -147,7 +147,7 @@ public class DrProtectionViewServiceImplTest {
                 snapshot.getAsJsonObject("currentProtectionRuntime").get("schedulerState").getAsString());
         Assert.assertEquals(380L,
                 snapshot.getAsJsonObject("currentProtectionRuntime").get("authoritySequence").getAsLong());
-        Assert.assertEquals(189L,
+        Assert.assertEquals(380L,
                 snapshot.getAsJsonObject("currentProtectionRuntime").get("transferCycleSequence").getAsLong());
         Assert.assertEquals(4096L,
                 snapshot.getAsJsonObject("currentProtectionRuntime").get("transferPayloadBytes").getAsLong());

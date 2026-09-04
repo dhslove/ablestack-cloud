@@ -260,8 +260,8 @@
         <a-descriptions-item :label="$t('label.dr.transfer.payload.bytes')">
           {{ formatBytes(displayTransferPayloadBytes) }}
         </a-descriptions-item>
-        <a-descriptions-item :label="$t('label.dr.latest.completed.checkpoint')">
-          {{ latestCompletedSyncCycle.sequence || '-' }}
+        <a-descriptions-item :label="$t('label.dr.latest.completed.cycle')">
+          {{ latestCompletedCycleSequence }}
         </a-descriptions-item>
         <a-descriptions-item :label="$t('label.dr.freshness.state')">
           <dr-status-pill :status="protectionPlan.freshnessstate || 'UNKNOWN'" />
@@ -386,9 +386,9 @@
     </section>
 
     <section class="cross-dr-protection-info__section">
-      <h3>{{ $t('label.dr.latest.completed.checkpoint') }}</h3>
+      <h3>{{ $t('label.dr.latest.durable.checkpoint') }}</h3>
       <a-descriptions v-if="latestCompletedCheckpoint && latestCompletedCheckpoint.id" size="small" :column="2" bordered>
-        <a-descriptions-item :label="$t('label.dr.checkpoint.sequence')">
+        <a-descriptions-item :label="$t('label.dr.engine.checkpoint.sequence')">
           {{ latestCompletedCheckpoint.checkpointsequence || '-' }}
         </a-descriptions-item>
         <a-descriptions-item :label="$t('label.state')">
@@ -563,6 +563,10 @@ export default {
     },
     displaySyncCycle () {
       return this.hasActiveSyncCycle ? this.currentSyncCycle : (this.latestCompletedSyncCycle || {})
+    },
+    latestCompletedCycleSequence () {
+      return this.latestCompletedSyncCycle.canonicalsequence ||
+        this.latestCompletedSyncCycle.sequence || '-'
     },
     displayTransferPayloadBytes () {
       if (this.hasActiveSyncCycle) {

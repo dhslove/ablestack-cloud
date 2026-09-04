@@ -586,3 +586,8 @@ The same canonical completed sequence is written to
 summary before the Runtime row is persisted. Protection-view summary and
 completed-cycle detail must therefore display one sequence even when the
 relocated engine restarts its host-local cycle counter.
+
+The protection view labels the Cloud canonical value as the completed
+replication cycle. A worker-local checkpoint sequence remains visible only as
+engine checkpoint provenance under the durable recovery checkpoint section;
+it is not presented as another replication-cycle sequence.

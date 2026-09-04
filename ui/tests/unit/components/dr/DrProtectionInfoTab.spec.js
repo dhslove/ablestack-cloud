@@ -65,6 +65,14 @@ describe('DrProtectionInfoTab terminal projection', () => {
     expect(durable).toBe(true)
   })
 
+  it('displays the Cloud canonical cycle sequence after worker relocation', () => {
+    const sequence = DrProtectionInfoTab.computed.latestCompletedCycleSequence.call({
+      latestCompletedSyncCycle: { sequence: 16, canonicalsequence: 758 }
+    })
+
+    expect(sequence).toBe(758)
+  })
+
   it('hides stale failure metadata for a completed failback session', () => {
     const succeeded = DrProtectionInfoTab.computed.failbackTerminalSucceeded.call({
       failbackSession: { state: 'COMPLETED', failedcomponent: 'ftctl' }
