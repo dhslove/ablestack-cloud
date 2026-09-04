@@ -3458,7 +3458,7 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         latest.setCompleted(new Date());
 
         FtctlDrStatusAnswer status = new FtctlDrStatusAnswer(
-                new FtctlDrStatusCommand(plan.getUuid(), null, FtctlDrStatusCommand.StatusScope.PLAN),
+                new FtctlDrStatusCommand(plan.getUuid(), null, FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY),
                 true, "ok");
         status.setSchedulerSessionUuid(plan.getUuid());
         status.setSchedulerLeaseEpoch(195L);
