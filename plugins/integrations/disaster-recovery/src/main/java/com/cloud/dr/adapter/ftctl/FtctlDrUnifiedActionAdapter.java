@@ -715,7 +715,7 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         DrRunVO run = context.getRun();
         JsonObject request = requestJson(run);
         JsonObject redactedRequest = redactJson(request).getAsJsonObject();
-        DrRestorePointVO latestCheckpoint = requiresLatestCheckpoint(action)
+        DrRestorePointVO latestCheckpoint = usesLatestCheckpointEvidence(action)
                 ? drRestorePointDao.findLatestTargetReadyByPlanId(plan.getId()) : null;
         redactedRequest.remove("restorePointId");
         String transitionScope = DrFailoverExecutionPolicy.schedulerTransitionScope(plan, run,
@@ -725,6 +725,14 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         }
         if (latestCheckpoint != null) {
             addControllerCheckpointEvidence(redactedRequest, plan, latestCheckpoint);
+        }
+        Long recoveryBaselineSequence = action == FtctlDrActionCommand.Action.RECOVER_SYNC
+                && latestCheckpoint != null ? latestCheckpoint.getCheckpointSequence() : null;
+        Long recoveryMinimumSequence = recoveryBaselineSequence != null
+                ? recoveryBaselineSequence + 1L : null;
+        if (recoveryBaselineSequence != null) {
+            redactedRequest.addProperty("resumeBaselineCheckpointSequence", recoveryBaselineSequence);
+            redactedRequest.addProperty("minimumCompletedCheckpointSequence", recoveryMinimumSequence);
         }
         FtctlDrActionCommand command = new FtctlDrActionCommand(action, plan.getUuid(), run.getUuid());
         command.setActionName(action.name());
@@ -749,6 +757,8 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
         command.setMode(requestString(request, "mode"));
         command.setForceImmediateCycle(requestBoolean(request, "forceImmediateCycle", false));
         command.setAuthoritySequenceFloor(resolveAuthoritySequenceFloor(plan));
+        command.setResumeBaselineCheckpointSequence(recoveryBaselineSequence);
+        command.setMinimumCompletedCheckpointSequence(recoveryMinimumSequence);
         command.setCheckpointRef(latestCheckpoint != null ? latestCheckpoint.getSourceSnapshotRef() : null);
         command.setForce(requestBoolean(request, "force", false));
         command.setDryRun(requestBoolean(request, "dryRun", false));
@@ -942,6 +952,10 @@ public class FtctlDrUnifiedActionAdapter extends ManagerBase implements DrReplic
 
     private boolean requiresLatestCheckpoint(FtctlDrActionCommand.Action action) {
         return action == FtctlDrActionCommand.Action.TEST_PREPARE || action == FtctlDrActionCommand.Action.FAILOVER;
+    }
+
+    private boolean usesLatestCheckpointEvidence(FtctlDrActionCommand.Action action) {
+        return requiresLatestCheckpoint(action) || action == FtctlDrActionCommand.Action.RECOVER_SYNC;
     }
 
     private DrAdapterResult validateFailoverIsolation(DrExecutionContext context, FtctlDrActionCommand.Action action) {

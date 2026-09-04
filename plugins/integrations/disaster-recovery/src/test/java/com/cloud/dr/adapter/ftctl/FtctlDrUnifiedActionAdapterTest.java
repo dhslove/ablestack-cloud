@@ -16,6 +16,7 @@
 // under the License.
 package com.cloud.dr.adapter.ftctl;
 
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -276,6 +277,62 @@ public class FtctlDrUnifiedActionAdapterTest {
         Mockito.verify(drPlanDao, Mockito.never()).update(Mockito.anyLong(), Mockito.any(DrPlanVO.class));
         Assert.assertFalse(command.getProfileJson().contains("sshUser"));
         Assert.assertFalse(command.getProfileJson().contains("moldSecretKey"));
+    }
+
+    @Test
+    public void crossSiteKvmRecoveryCarriesLatestDurableBaselineToRelocatedSourceWorker() throws Exception {
+        DrPlanVO plan = new DrPlanVO("cross-site-kvm-recovery", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
+        plan.setSourceExternalRef("source-vm-uuid");
+        plan.setActiveSide("SOURCE");
+        plan.setTargetWorkerHostId(102L);
+        plan.setCoordinatorWorkerHostId(103L);
+        plan.setMappingJson("{\"source\":{\"hardware\":{\"sourceHostUuid\":\"old-host-uuid\","
+                + "\"instanceName\":\"i-2-100-VM\"}},\"target\":{\"storagePoolType\":\"SharedMountPoint\"},"
+                + "\"disks\":[{\"device\":\"sda\",\"sourcePath\":\"/mnt/glue-gfs/source-image\","
+                + "\"targetPath\":\"/mnt/glue-gfs/target-image\",\"targetStorageRef\":\"target-pool-uuid\","
+                + "\"target\":{\"storageRef\":\"target-pool-uuid\",\"path\":\"target-image\",\"format\":\"qcow2\"}}]}");
+        DrRunVO run = run(DrConstants.RUN_TYPE_RECOVER_SYNC, "{\"trigger\":\"AUTOMATIC\"}");
+        DrRestorePointVO checkpoint = checkpoint(plan, "ftctl:" + plan.getUuid() + ":old-run:259");
+        checkpoint.setCheckpointSequence(259L);
+        checkpoint.setSourceCreated(new Date(1788507962000L));
+        checkpoint.setTargetReadyAt(new Date(1788507965000L));
+        Mockito.when(drRestorePointDao.findLatestTargetReadyByPlanId(plan.getId())).thenReturn(checkpoint);
+        Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        Mockito.when(drSourceHardwareInventoryService.resolve(plan)).thenReturn(sourceHardware());
+        Mockito.when(drPlanOwnedTransportService.supports(plan)).thenReturn(true);
+        Mockito.when(drPlanOwnedTransportService.startForwardTargetExport(
+                Mockito.eq(plan), Mockito.eq(run), Mockito.anyString()))
+                .thenReturn(exports("10.10.31.3", 10850, "dr-export-sda"));
+        Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("CAPABILITIES"),
+                Mockito.isA(FtctlDrCapabilitiesCommand.class), Mockito.isNull(),
+                Mockito.eq(FtctlDrCapabilitiesAnswer.class))).thenAnswer(invocation -> {
+                    FtctlDrCapabilitiesAnswer answer = new FtctlDrCapabilitiesAnswer(invocation.getArgument(2), true, "ok");
+                    answer.setSupportedFeatures(java.util.Arrays.asList(
+                            "control-protocol-v2", "dr-site-agent-rbd-transport-v1"));
+                    return answer;
+                });
+        ArgumentCaptor<FtctlDrActionCommand> actionCaptor = ArgumentCaptor.forClass(FtctlDrActionCommand.class);
+        Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("ACTION"), actionCaptor.capture(),
+                Mockito.isNull(), Mockito.eq(FtctlDrActionAnswer.class))).thenAnswer(invocation -> {
+                    FtctlDrActionCommand command = invocation.getArgument(2);
+                    return new FtctlDrActionAnswer(command, true, "accepted", FtctlDrActionCommand.Action.RECOVER_SYNC,
+                            plan.getUuid(), run.getUuid(), "accepted", true, "SYNCING", "scheduler-recovery-accepted",
+                            1, run.getUuid(), 0L, null, 0, "{\"result\":\"accepted\"}",
+                            "{\"state\":\"SYNCING\"}");
+                });
+
+        DrAdapterResult result = adapter.execute(new DrExecutionContext(plan, run));
+
+        Assert.assertTrue(result.isSuccess());
+        FtctlDrActionCommand command = actionCaptor.getValue();
+        Assert.assertEquals(Long.valueOf(259L), command.getResumeBaselineCheckpointSequence());
+        Assert.assertEquals(Long.valueOf(260L), command.getMinimumCompletedCheckpointSequence());
+        Assert.assertTrue(command.getProfileJson().contains("\"checkpointSequence\":259"));
+        Assert.assertTrue(command.getProfileJson().contains("\"resumeBaselineCheckpointSequence\":259"));
+        Assert.assertTrue(command.getProfileJson().contains("\"minimumCompletedCheckpointSequence\":260"));
+        Assert.assertTrue(command.getProfileJson().contains("\"checkpointTargetReadyAt\""));
     }
 
     @Test

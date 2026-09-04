@@ -526,3 +526,15 @@ DB edit from `WAITING_SOURCE_RECOVERY` to `READY`, retain its last durable
 checkpoint, and complete the next Cycle as incremental or `NO_CHANGE`, never
 as placement-triggered Full Seed. VMware-to-RBD and RBD-to-RBD run their normal
 power-state and migration smoke suites as shared broker regression gates.
+## Durable baseline handoff during source-host relocation
+
+`RECOVER_SYNC` is a scheduler relocation operation, not a new protection
+registration. The Plan Owner therefore resolves the current source VM placement and
+adds its latest target-ready restore-point evidence to the action profile:
+`checkpointSequence`, `checkpointRef`, `checkpointCycleToken`, source/target durable
+timestamps, `resumeBaselineCheckpointSequence`, and the next required sequence.
+The Agent forwards these fields unchanged. FTCTL may seed them only when local state
+does not contain an equal or newer completion, and still validates the embedded
+qcow2 bitmap during the first incremental cycle. This keeps host migration
+transparent while preserving the controlled Full Seed fallback for genuinely lost
+baselines.
