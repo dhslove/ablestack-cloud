@@ -533,8 +533,12 @@ registration. The Plan Owner therefore resolves the current source VM placement 
 adds its latest target-ready restore-point evidence to the action profile:
 `checkpointSequence`, `checkpointRef`, `checkpointCycleToken`, source/target durable
 timestamps, `resumeBaselineCheckpointSequence`, and the next required sequence.
-The Agent forwards these fields unchanged. FTCTL may seed them only when local state
-does not contain an equal or newer completion, and still validates the embedded
+The Agent forwards these fields unchanged. Engine checkpoint sequences are local
+to the producer worker and are not an authority ordering domain. FTCTL always
+projects the controller-accepted checkpoint reference, token, mode, and durable
+timestamps into the new recovery Run and Plan status, even when a former worker's
+cached sequence is numerically larger. The new worker keeps its own Plan Cycle
+counter monotonic in a separate sequence file and still validates the embedded
 qcow2 bitmap during the first incremental cycle. This keeps host migration
 transparent while preserving the controlled Full Seed fallback for genuinely lost
 baselines.
@@ -615,6 +619,13 @@ teardown evidence. A stale former-worker Run must not appear as active transfer
 or overwrite durable `DRAINED` evidence. Acceptance requires the affected Plan
 to recover without a DB update, retain Cycle 803, and publish the next Cycle as
 `CBT_INCREMENTAL` or `NO_CHANGE` rather than Full Seed.
+
+The FTCTL release gate reproduces a relocated worker with a stale local completion
+whose numeric checkpoint sequence is larger than the controller-selected durable
+checkpoint. It passes only when the accepted provenance replaces the stale status,
+the local allocation counter remains monotonic, and the first recovered Cycle is
+classified as incremental. This prevents a later placement change from silently
+transferring the full virtual disk.
 
 ## 19. Serialized Recovery State Presentation
 
