@@ -197,6 +197,52 @@ public class FtctlDrSiteAgentBrokerServiceImplTest {
     }
 
     @Test
+    public void statusPrefersCurrentVmHostWithoutPersistingPlacement() throws Exception {
+        HostVO stale = host(41L, "stale-host");
+        HostVO current = host(42L, "current-host");
+        eligible(stale, current);
+        UserVmVO vm = Mockito.mock(UserVmVO.class);
+        Mockito.when(vm.getHostId()).thenReturn(42L);
+        Mockito.when(userVmDao.findByUuid("source-vm-uuid")).thenReturn(vm);
+        FtctlDrStatusCommand command = new FtctlDrStatusCommand("plan-uuid", null,
+                FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY);
+        command.setSourceVmUuid("source-vm-uuid");
+        com.cloud.agent.api.FtctlDrStatusAnswer ready = statusAnswer(command, "READY", "ready");
+        ready.setSchedulerPidAlive(true);
+        Mockito.when(agentManager.send(Mockito.eq(42L), Mockito.any(Command.class))).thenReturn(ready);
+
+        FtctlDrSiteAgentCommandResponse response = brokerService.execute(
+                "STATUS", new Gson().toJson(command), null);
+
+        Assert.assertEquals("current-host", response.getWorkerHostUuid());
+        Mockito.verify(agentManager).send(Mockito.eq(42L), Mockito.any(Command.class));
+        Mockito.verify(agentManager, Mockito.never()).send(Mockito.eq(41L), Mockito.any(Command.class));
+    }
+
+    @Test
+    public void authorityStatusSkipsStaleErrorWhenAnotherWorkerOwnsHealthyScheduler() throws Exception {
+        HostVO stale = host(41L, "stale-host");
+        HostVO current = host(42L, "current-host");
+        eligible(stale, current);
+        FtctlDrStatusCommand command = new FtctlDrStatusCommand("plan-uuid", null,
+                FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY);
+        com.cloud.agent.api.FtctlDrStatusAnswer staleError = statusAnswer(command, "ERROR", "old error");
+        staleError.setSchedulerPidAlive(false);
+        com.cloud.agent.api.FtctlDrStatusAnswer ready = statusAnswer(command, "READY", "ready");
+        ready.setSchedulerPidAlive(true);
+        Mockito.when(agentManager.send(Mockito.eq(41L), Mockito.any(Command.class))).thenReturn(staleError);
+        Mockito.when(agentManager.send(Mockito.eq(42L), Mockito.any(Command.class))).thenReturn(ready);
+
+        FtctlDrSiteAgentCommandResponse response = brokerService.execute(
+                "STATUS", new Gson().toJson(command), null);
+
+        Assert.assertEquals("current-host", response.getWorkerHostUuid());
+        Assert.assertTrue(response.getResult());
+        Mockito.verify(agentManager).send(Mockito.eq(41L), Mockito.any(Command.class));
+        Mockito.verify(agentManager).send(Mockito.eq(42L), Mockito.any(Command.class));
+    }
+
+    @Test
     public void mutatingActionIsNeverRetriedOnAnotherWorker() throws Exception {
         HostVO first = host(41L, "first-host");
         HostVO second = host(42L, "second-host");
@@ -234,6 +280,14 @@ public class FtctlDrSiteAgentBrokerServiceImplTest {
         Mockito.when(host.getUuid()).thenReturn(uuid);
         Mockito.when(host.getStatus()).thenReturn(Status.Up);
         return host;
+    }
+
+    private com.cloud.agent.api.FtctlDrStatusAnswer statusAnswer(
+            FtctlDrStatusCommand command, String state, String details) {
+        return new com.cloud.agent.api.FtctlDrStatusAnswer(command, true, details,
+                command.getPlanUuid(), command.getRunUuid(), "success", state,
+                "runtime-projection", 100, null, null, null, null, null,
+                null, "{}", "{}");
     }
 
     private void eligible(HostVO... hosts) {

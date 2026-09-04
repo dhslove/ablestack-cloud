@@ -20,6 +20,7 @@ public class FtctlDrCancelCommand extends Command {
 
     private String planUuid;
     private String runUuid;
+    private String sourceVmUuid;
     private boolean force;
 
     public FtctlDrCancelCommand() {
@@ -36,6 +37,14 @@ public class FtctlDrCancelCommand extends Command {
 
     public String getRunUuid() {
         return runUuid;
+    }
+
+    public String getSourceVmUuid() {
+        return sourceVmUuid;
+    }
+
+    public void setSourceVmUuid(String sourceVmUuid) {
+        this.sourceVmUuid = sourceVmUuid;
     }
 
     public boolean isForce() {

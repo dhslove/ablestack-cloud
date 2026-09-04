@@ -29,6 +29,7 @@ public class FtctlDrStatusCommand extends Command {
 
     private String planUuid;
     private String runUuid;
+    private String sourceVmUuid;
     private Long eventsOffset;
     private StatusScope statusScope;
     private String transitionOperation;
@@ -55,6 +56,14 @@ public class FtctlDrStatusCommand extends Command {
 
     public String getRunUuid() {
         return runUuid;
+    }
+
+    public String getSourceVmUuid() {
+        return sourceVmUuid;
+    }
+
+    public void setSourceVmUuid(String sourceVmUuid) {
+        this.sourceVmUuid = sourceVmUuid;
     }
 
     public Long getEventsOffset() {

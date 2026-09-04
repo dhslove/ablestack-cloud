@@ -27,6 +27,8 @@ import com.cloud.agent.api.FtctlDrActionAnswer;
 import com.cloud.agent.api.FtctlDrActionCommand;
 import com.cloud.agent.api.FtctlDrCancelAnswer;
 import com.cloud.agent.api.FtctlDrCancelCommand;
+import com.cloud.agent.api.FtctlDrStatusAnswer;
+import com.cloud.agent.api.FtctlDrStatusCommand;
 import com.cloud.dr.DrConstants;
 import com.cloud.dr.DrPlanVO;
 import com.cloud.dr.DrResolvedSiteCredential;
@@ -127,6 +129,7 @@ public class DrRemoteAgentClientTest {
     public void sourceCancelUsesTypedRemoteAgentContract() {
         DrRemoteAgentClient client = Mockito.spy(new DrRemoteAgentClient());
         DrPlanVO plan = new DrPlanVO("remote-source", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setSourceExternalRef("source-vm-uuid");
         plan.setMappingJson("{\"source\":{\"hardware\":{\"sourceHostUuid\":\"source-host-uuid\"}}}");
         FtctlDrCancelCommand[] captured = new FtctlDrCancelCommand[1];
         Mockito.doAnswer(invocation -> {
@@ -142,5 +145,24 @@ public class DrRemoteAgentClientTest {
         Assert.assertTrue(answer.getResult());
         Assert.assertEquals(plan.getUuid(), captured[0].getPlanUuid());
         Assert.assertEquals("run-uuid", captured[0].getRunUuid());
+        Assert.assertEquals("source-vm-uuid", captured[0].getSourceVmUuid());
+    }
+
+    @Test
+    public void sourceStatusCarriesVmIdentityWithoutWorkerBinding() {
+        DrRemoteAgentClient client = Mockito.spy(new DrRemoteAgentClient());
+        DrPlanVO plan = new DrPlanVO("remote-source", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setSourceExternalRef("source-vm-uuid");
+        FtctlDrStatusCommand[] captured = new FtctlDrStatusCommand[1];
+        Mockito.doAnswer(invocation -> {
+            captured[0] = invocation.getArgument(2);
+            return new FtctlDrStatusAnswer(captured[0], true, "ready");
+        }).when(client).execute(Mockito.eq(plan), Mockito.eq("STATUS"),
+                Mockito.isA(FtctlDrStatusCommand.class), Mockito.isNull(),
+                Mockito.eq(FtctlDrStatusAnswer.class));
+
+        client.fetchSourceStatus(plan, null, FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY);
+
+        Assert.assertEquals("source-vm-uuid", captured[0].getSourceVmUuid());
     }
 }

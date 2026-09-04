@@ -538,3 +538,28 @@ does not contain an equal or newer completion, and still validates the embedded
 qcow2 bitmap during the first incremental cycle. This keeps host migration
 transparent while preserving the controlled Full Seed fallback for genuinely lost
 baselines.
+
+## Runtime authority discovery after source VM relocation
+
+Remote Plan projection must carry the immutable source VM UUID on status and
+cancel commands. The source site's broker resolves that UUID against its local
+VM inventory for every request and prefers the VM's current host only for that
+dispatch. It does not persist the observed host in the Plan, mapping, or runtime
+authority.
+
+A Plan-level status query may encounter historical runtime files on a former
+host. A successful Agent response with Plan state `ERROR` and no live scheduler
+is fallback evidence, not sufficient authority to stop discovery. The broker
+continues across eligible workers and prefers a response with a live scheduler
+or healthy active state. If no healthier response exists, it returns the error
+fallback so a real terminal failure remains visible.
+
+This rule applies to projection, recovery, pause/resume, cancellation, and all
+menu capability refreshes. It prevents a stale host-local runtime from creating
+false `SOURCE_HARDWARE_CHANGED` or `DR_QCOW2_OFFLINE_BASELINE_FAILED` errors
+after start, stop, or live migration while preserving genuine failures.
+
+Required regression cases are: status routes to the current VM host, stale
+`ERROR` authority loses to a live `READY` scheduler, operation-scoped terminal
+failure remains authoritative, stopped VM discovery can scan storage-capable
+workers, and mutating actions are still dispatched exactly once.

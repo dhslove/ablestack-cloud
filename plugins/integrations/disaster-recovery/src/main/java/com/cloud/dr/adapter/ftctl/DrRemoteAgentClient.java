@@ -74,6 +74,7 @@ public class DrRemoteAgentClient {
 
     public <T extends Answer> T execute(DrPlanVO plan, String commandType, Command command,
             String workerHostUuid, Class<T> answerType) {
+        attachSourceVmIdentity(plan, command);
         DrSiteVO sourceSite = drSiteDao.findById(plan.getSourceSiteId());
         DrResolvedSiteCredential credential = drSiteCredentialService.resolveCredential(sourceSite);
         if (credential == null || !credential.hasSecrets()) {
@@ -184,6 +185,7 @@ public class DrRemoteAgentClient {
             FtctlDrStatusCommand.StatusScope scope) {
         String workerHostUuid = null;
         FtctlDrStatusCommand command = new FtctlDrStatusCommand(plan.getUuid(), runUuid, scope);
+        command.setSourceVmUuid(plan.getSourceExternalRef());
         command.setWait(5);
         return execute(plan, "STATUS", command, workerHostUuid, FtctlDrStatusAnswer.class);
     }
@@ -191,6 +193,7 @@ public class DrRemoteAgentClient {
     public FtctlDrCancelAnswer cancelSourceRun(DrPlanVO plan, String runUuid) {
         String workerHostUuid = null;
         FtctlDrCancelCommand command = new FtctlDrCancelCommand(plan.getUuid(), runUuid);
+        command.setSourceVmUuid(plan.getSourceExternalRef());
         command.setWait(30);
         return execute(plan, "CANCEL", command, workerHostUuid, FtctlDrCancelAnswer.class);
     }
@@ -214,6 +217,18 @@ public class DrRemoteAgentClient {
 
     public String sourceWorkerUuid(DrPlanVO plan) {
         return null;
+    }
+
+    private void attachSourceVmIdentity(DrPlanVO plan, Command command) {
+        String sourceVmUuid = plan != null ? StringUtils.trimToNull(plan.getSourceExternalRef()) : null;
+        if (sourceVmUuid == null || command == null) {
+            return;
+        }
+        if (command instanceof FtctlDrStatusCommand) {
+            ((FtctlDrStatusCommand) command).setSourceVmUuid(sourceVmUuid);
+        } else if (command instanceof FtctlDrCancelCommand) {
+            ((FtctlDrCancelCommand) command).setSourceVmUuid(sourceVmUuid);
+        }
     }
 
     private String firstString(JsonObject object, String key) {

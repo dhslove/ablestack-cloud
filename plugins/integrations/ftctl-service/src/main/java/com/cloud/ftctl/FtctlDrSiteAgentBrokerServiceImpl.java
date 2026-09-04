@@ -91,12 +91,24 @@ public class FtctlDrSiteAgentBrokerServiceImpl extends ManagerBase implements Ft
 
     private DispatchResult dispatch(String commandType, Command command, List<HostVO> candidates) {
         RuntimeException lastError = null;
+        DispatchResult readOnlyFallback = null;
         for (HostVO host : candidates) {
             try {
                 prepareSiteLocalCommand(command, host);
                 Answer answer = agentManager.send(host.getId(), command);
-                if (answer != null && (isReadOnlyOrCancel(commandType) ? meaningful(answer) : true)) {
-                    return new DispatchResult(host, answer);
+                if (answer != null) {
+                    DispatchResult result = new DispatchResult(host, answer);
+                    if (!isReadOnlyOrCancel(commandType)) {
+                        return result;
+                    }
+                    if (meaningful(answer)) {
+                        if (preferredReadOnlyAnswer(answer)) {
+                            return result;
+                        }
+                        if (readOnlyFallback == null) {
+                            readOnlyFallback = result;
+                        }
+                    }
                 }
             } catch (AgentUnavailableException e) {
                 lastError = new CloudRuntimeException("FTCTL DR site Agent worker is unavailable: "
@@ -107,6 +119,9 @@ public class FtctlDrSiteAgentBrokerServiceImpl extends ManagerBase implements Ft
             if ("ACTION".equals(commandType) || "REVERSE_PREFLIGHT".equals(commandType)) {
                 break;
             }
+        }
+        if (readOnlyFallback != null) {
+            return readOnlyFallback;
         }
         if (lastError != null) {
             throw lastError;
@@ -133,6 +148,19 @@ public class FtctlDrSiteAgentBrokerServiceImpl extends ManagerBase implements Ft
         return true;
     }
 
+    private boolean preferredReadOnlyAnswer(Answer answer) {
+        if (!(answer instanceof com.cloud.agent.api.FtctlDrStatusAnswer)) {
+            return true;
+        }
+        com.cloud.agent.api.FtctlDrStatusAnswer status = (com.cloud.agent.api.FtctlDrStatusAnswer) answer;
+        if (StringUtils.isNotBlank(status.getRunUuid())) {
+            return true;
+        }
+        return Boolean.TRUE.equals(status.getSchedulerPidAlive())
+                || StringUtils.equalsAnyIgnoreCase(status.getSchedulerHealth(), "HEALTHY", "DEGRADED")
+                || StringUtils.equalsAnyIgnoreCase(status.getState(), "READY", "TARGET_READY", "SYNCING", "PAUSED");
+    }
+
     private List<HostVO> eligibleWorkers() {
         List<HostVO> result = new ArrayList<HostVO>();
         List<DataCenterVO> zones = dataCenterDao != null ? dataCenterDao.listEnabledZones() : null;
@@ -154,10 +182,10 @@ public class FtctlDrSiteAgentBrokerServiceImpl extends ManagerBase implements Ft
     }
 
     private void preferCurrentVmHost(Command command, List<HostVO> candidates) {
-        if (!(command instanceof FtctlDrActionCommand) || userVmDao == null || candidates.isEmpty()) {
+        if (userVmDao == null || candidates.isEmpty()) {
             return;
         }
-        String sourceVmUuid = sourceVmUuid((FtctlDrActionCommand) command);
+        String sourceVmUuid = sourceVmUuid(command);
         UserVmVO vm = StringUtils.isNotBlank(sourceVmUuid) ? userVmDao.findByUuid(sourceVmUuid) : null;
         Long hostId = vm != null ? vm.getHostId() : null;
         if (hostId == null) {
@@ -172,17 +200,27 @@ public class FtctlDrSiteAgentBrokerServiceImpl extends ManagerBase implements Ft
         }
     }
 
-    private String sourceVmUuid(FtctlDrActionCommand command) {
-        String contextSourceVmUuid = command.getContext() != null
-                ? StringUtils.trimToNull(command.getContext().get("sourceVmUuid")) : null;
+    private String sourceVmUuid(Command command) {
+        if (command instanceof FtctlDrStatusCommand) {
+            return StringUtils.trimToNull(((FtctlDrStatusCommand) command).getSourceVmUuid());
+        }
+        if (command instanceof FtctlDrCancelCommand) {
+            return StringUtils.trimToNull(((FtctlDrCancelCommand) command).getSourceVmUuid());
+        }
+        if (!(command instanceof FtctlDrActionCommand)) {
+            return null;
+        }
+        FtctlDrActionCommand action = (FtctlDrActionCommand) command;
+        String contextSourceVmUuid = action.getContext() != null
+                ? StringUtils.trimToNull(action.getContext().get("sourceVmUuid")) : null;
         if (contextSourceVmUuid != null) {
             return contextSourceVmUuid;
         }
-        if (StringUtils.isBlank(command.getProfileJson())) {
+        if (StringUtils.isBlank(action.getProfileJson())) {
             return null;
         }
         try {
-            JsonObject profile = GSON.fromJson(command.getProfileJson(), JsonObject.class);
+            JsonObject profile = GSON.fromJson(action.getProfileJson(), JsonObject.class);
             JsonObject source = objectAt(profile, "source");
             JsonObject vm = objectAt(source, "vm");
             String sourceRef = firstString(source, "externalRef", "vmUuid", "sourceVmUuid", "uuid");
