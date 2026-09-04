@@ -580,3 +580,9 @@ status remains correlated by Plan and Run UUID, and mutating commands remain
 single-dispatch. Engine cycle numbers may restart on a relocated worker; Cloud
 assigns a monotonic canonical `dr_sync_cycle.sequence` while retaining the
 engine cycle token and authority sequence as provenance.
+
+The same canonical completed sequence is written to
+`dr_plan_runtime.latest_completed_cycle_sequence` and the retained transfer
+summary before the Runtime row is persisted. Protection-view summary and
+completed-cycle detail must therefore display one sequence even when the
+relocated engine restarts its host-local cycle counter.

@@ -3236,6 +3236,8 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         DrRunVO cleanupRun = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_TEST_CLEANUP);
         cleanupRun.setState(DrConstants.RUN_STATE_SUCCEEDED);
         DrRunVO syncRun = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_SYNC);
+        DrSyncCycleVO previousCanonicalCycle = new DrSyncCycleVO(plan.getId(), "previous-producer", 723L);
+        previousCanonicalCycle.setCompleted(new Date());
 
         String statusJson = "{\"state\":\"READY\",\"scheduler_state\":\"RUNNING\","
                 + "\"scheduler_session_uuid\":\"" + plan.getUuid() + "\","
@@ -3274,6 +3276,7 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         Mockito.when(drRunDao.findLatestByPlanId(plan.getId())).thenReturn(cleanupRun);
         Mockito.when(drRunDao.findByUuid(syncRun.getUuid())).thenReturn(syncRun);
         Mockito.when(drPlanDao.acquireInLockTable(plan.getId(), 10)).thenReturn(plan);
+        Mockito.when(drSyncCycleDao.findLatestByPlanId(plan.getId())).thenReturn(previousCanonicalCycle);
 
         DrAdapterResult result = adapter.refreshPlanProjection(plan);
 
@@ -3282,7 +3285,8 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         Mockito.verify(drPlanRuntimeDao).persist(authorityCaptor.capture());
         Assert.assertEquals(syncRun.getUuid(), authorityCaptor.getValue().getEngineRunUuid());
         Assert.assertEquals(292L, authorityCaptor.getValue().getAuthoritySequence());
-        Assert.assertEquals(Long.valueOf(145L), authorityCaptor.getValue().getLatestCompletedCycleSequence());
+        Assert.assertEquals(Long.valueOf(724L), authorityCaptor.getValue().getLatestCompletedCycleSequence());
+        Assert.assertEquals(Long.valueOf(724L), authorityCaptor.getValue().getTransferCycleSequence());
         ArgumentCaptor<DrRestorePointVO> restorePointCaptor = ArgumentCaptor.forClass(DrRestorePointVO.class);
         Mockito.verify(drRestorePointDao).persist(restorePointCaptor.capture());
         Assert.assertTrue(restorePointCaptor.getValue().getSourceSnapshotRef().contains(syncRun.getUuid()));

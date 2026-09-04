@@ -817,6 +817,17 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         authority.setErrorCode(errorCode);
         authority.setErrorMessage(errorMessage);
         authority.setStatusJson(compactRuntimeStatusJson(status.getStatusJson()));
+        Long canonicalCompletedSequence = projectSyncCyclesAtomically(plan, protectionProducerRun, status,
+                producerRunUuid, sequence, requestedMode, effectiveMode, cycleState, baselineState, reseedReason,
+                sourceAt, errorCode, errorMessage);
+        if (canonicalCompletedSequence != null) {
+            authority.setLatestCompletedCycleSequence(canonicalCompletedSequence);
+            authority.setProjectionIntegritySequence(canonicalCompletedSequence);
+            if (latestCompletedSummary) {
+                authority.setTransferCycleSequence(canonicalCompletedSequence);
+                authority.setTransferSampleSequence(canonicalCompletedSequence);
+            }
+        }
         authority.markUpdated();
         if (authority.getId() == 0) {
             drPlanRuntimeDao.persist(authority);
@@ -826,9 +837,6 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         if (committedTargetSession != null) {
             upsertCutoverDisks(plan, committedTargetSession, runtime);
         }
-
-        projectSyncCyclesAtomically(plan, protectionProducerRun, status, producerRunUuid, sequence, requestedMode,
-                effectiveMode, cycleState, baselineState, reseedReason, sourceAt, errorCode, errorMessage);
     }
 
     boolean isStaleRemoteSourceAuthority(DrPlanRuntimeVO authority, long leaseEpoch, long authoritySequence) {
@@ -849,19 +857,20 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         return UUID.nameUUIDFromBytes(("ftctl-runtime-run:" + value).getBytes(StandardCharsets.UTF_8)).toString();
     }
 
-    private void projectSyncCyclesAtomically(DrPlanVO plan, DrRunVO protectionProducerRun, FtctlDrStatusAnswer status,
+    private Long projectSyncCyclesAtomically(DrPlanVO plan, DrRunVO protectionProducerRun, FtctlDrStatusAnswer status,
             String producerRunUuid, Long sequence, String requestedMode, String effectiveMode, String cycleState,
             String baselineState, String reseedReason, Date sourceAt, String errorCode, String errorMessage) {
         Long completedSequence = latestCompletedSequence(status);
         if (StringUtils.isBlank(producerRunUuid) || sequence == null && completedSequence == null) {
-            return;
+            return null;
         }
-        Transaction.execute(new TransactionCallback<Void>() {
+        return Transaction.execute(new TransactionCallback<Long>() {
             @Override
-            public Void doInTransaction(TransactionStatus transactionStatus) {
+            public Long doInTransaction(TransactionStatus transactionStatus) {
                 if (drPlanDao.acquireInLockTable(plan.getId(), 10) == null) {
                     return null;
                 }
+                Long canonicalCompletedSequence = null;
                 try {
                     if (sequence != null) {
                         projectCurrentSyncCycle(plan, protectionProducerRun, status, sequence, requestedMode, effectiveMode,
@@ -871,10 +880,11 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                         DrSyncCycleVO completedCycle = projectLatestCompletedSyncCycle(plan, protectionProducerRun, status,
                                 completedSequence, baselineState);
                         if (completedCycle != null) {
+                            canonicalCompletedSequence = completedCycle.getSequence();
                             terminalizeSupersededSyncCycles(plan, completedCycle);
                         }
                     }
-                    return null;
+                    return canonicalCompletedSequence;
                 } finally {
                     drPlanDao.releaseFromLockTable(plan.getId());
                 }
