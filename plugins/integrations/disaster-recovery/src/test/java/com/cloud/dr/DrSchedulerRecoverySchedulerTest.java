@@ -110,6 +110,15 @@ public class DrSchedulerRecoverySchedulerTest {
         Assert.assertTrue(ReflectionTestUtils.invokeMethod(scheduler, "isAutomaticRetryAllowed", runtime, null));
     }
 
+    @Test
+    public void allowsQcow2RuntimeRelocationRecovery() {
+        DrPlanRuntimeVO runtime = new DrPlanRuntimeVO(42L);
+        runtime.setSchedulerRecoveryState(DrConstants.SCHEDULER_RECOVERY_FAILED);
+        runtime.setErrorCode("DR_QCOW2_SOURCE_RUNTIME_UNAVAILABLE");
+
+        Assert.assertTrue(ReflectionTestUtils.invokeMethod(scheduler, "isAutomaticRetryAllowed", runtime, null));
+    }
+
     private DrSiteVO connectedSite(long id) {
         DrSiteVO site = new DrSiteVO("source", "VMWARE_DIRECT", "VMWARE");
         ReflectionTestUtils.setField(site, "id", id);

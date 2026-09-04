@@ -216,6 +216,17 @@ describe('DR protection state helpers', () => {
     expect(resolveDrPlanState(plan)).toBe('WAITING_SOURCE_RECOVERY')
   })
 
+  it('shows qcow2 runtime relocation as a source recovery wait', () => {
+    const plan = {
+      schedulerrecoverystate: 'FAILED',
+      schedulerhealth: 'DEAD',
+      runtimeerrorcode: 'DR_QCOW2_SOURCE_RUNTIME_UNAVAILABLE',
+      protectionstate: 'DEGRADED'
+    }
+
+    expect(resolveDrPlanState(plan)).toBe('WAITING_SOURCE_RECOVERY')
+  })
+
   it('shows a missing target export as a retryable resource wait', () => {
     const plan = {
       schedulerrecoverystate: 'FAILED',

@@ -97,6 +97,7 @@ public class DrRemoteAgentClientTest {
     public void sourceResumeDispatchesRehydratedProfile() {
         DrRemoteAgentClient client = Mockito.spy(new DrRemoteAgentClient());
         DrPlanVO plan = new DrPlanVO("remote-source", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setSourceExternalRef("source-vm-uuid");
         plan.setMappingJson("{\"source\":{\"hardware\":{\"sourceHostUuid\":\"source-host-uuid\"}}}");
         String profileJson = "{\"planUuid\":\"" + plan.getUuid()
                 + "\",\"transport\":{\"mode\":\"site-agent-nbd\",\"exports\":[{\"device\":\"sda\"}]}}";
@@ -119,6 +120,7 @@ public class DrRemoteAgentClientTest {
         Assert.assertEquals(Long.valueOf(9), captured[0].getResumeBaselineCheckpointSequence());
         Assert.assertEquals(Long.valueOf(10), captured[0].getMinimumCompletedCheckpointSequence());
         Assert.assertEquals(Long.valueOf(676), captured[0].getAuthoritySequenceFloor());
+        Assert.assertEquals("source-vm-uuid", captured[0].getContext().get("sourceVmUuid"));
     }
 
     @Test

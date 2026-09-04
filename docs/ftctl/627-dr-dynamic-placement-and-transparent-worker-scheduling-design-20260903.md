@@ -496,3 +496,33 @@ The next UI test action is Full Resync. Later actions must become available
 only as their independent durability, authority, and lifecycle gates are
 satisfied; this deployment deliberately did not manufacture those states or
 invoke a destructive action during readiness verification.
+
+## 17. SharedMountPoint Runtime Relocation And Stable VM Identity
+
+Starting a previously stopped VM or live-migrating it must not invalidate a
+durable SharedMountPoint checkpoint. The scheduler host is a renewable lease,
+while the Cloud VM UUID and stable VM Details define source identity. A local
+QMP miss followed by a qcow2 shared write-lock rejection means another host
+currently owns the runtime; it is not an offline baseline failure.
+
+FTCTL reports this condition as retryable
+`DR_QCOW2_SOURCE_RUNTIME_UNAVAILABLE / WAITING_SOURCE` without modifying the
+source image or bitmap. Cloud's recovery controller accepts that typed state,
+queries current source placement, and dispatches `RECOVER_SYNC` through the
+site broker. Pause and resume commands carry `sourceVmUuid` in their action
+context as well, so the same dynamic preference applies to every scheduler
+transition. No worker UUID is persisted as future execution authority.
+
+Hardware fingerprint contract version 2 hashes only stable source identity:
+VM UUID, firmware, Cloud `UEFI`, Secure Boot, guest type, CPU, memory, disk
+controllers, and stable VM Details. Host UUID/name, instance name, runtime
+messages, clone state, and other transient details are excluded. Projection
+normalizes an existing Plan's hardware object before comparing a v2 runtime
+fingerprint, preserving compatibility without rewriting Plan data.
+
+The UI renders relocation as source recovery waiting rather than terminal
+recovery failure. Acceptance requires the existing Plan to converge without a
+DB edit from `WAITING_SOURCE_RECOVERY` to `READY`, retain its last durable
+checkpoint, and complete the next Cycle as incremental or `NO_CHANGE`, never
+as placement-triggered Full Seed. VMware-to-RBD and RBD-to-RBD run their normal
+power-state and migration smoke suites as shared broker regression gates.

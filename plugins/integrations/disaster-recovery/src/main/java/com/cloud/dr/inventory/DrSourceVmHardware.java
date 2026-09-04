@@ -29,6 +29,8 @@ import org.apache.commons.lang3.StringUtils;
 import com.google.gson.JsonObject;
 
 public class DrSourceVmHardware {
+    public static final String FINGERPRINT_CONTRACT_VERSION = "2";
+
     private String sourceVmRef;
     private String sourceHostUuid;
     private String sourceHostName;
@@ -65,7 +67,7 @@ public class DrSourceVmHardware {
 
     public void seal() {
         observedAt = observedAt != null ? observedAt : new Date();
-        fingerprint = "sha256:" + sha256(canonicalJson().toString());
+        fingerprint = stableFingerprint(canonicalJson());
     }
 
     public JsonObject toJsonObject() {
@@ -78,6 +80,7 @@ public class DrSourceVmHardware {
         }
         if (StringUtils.isNotBlank(fingerprint)) {
             object.addProperty("fingerprint", fingerprint);
+            object.addProperty("fingerprintVersion", FINGERPRINT_CONTRACT_VERSION);
         }
         if (StringUtils.isNotBlank(operationBlockerCode)) {
             object.addProperty("operationBlockerCode", operationBlockerCode);
@@ -137,13 +140,60 @@ public class DrSourceVmHardware {
         return object;
     }
 
+    public static String stableFingerprint(JsonObject hardware) {
+        return "sha256:" + sha256(fingerprintJson(hardware).toString());
+    }
+
+    private static JsonObject fingerprintJson(JsonObject hardware) {
+        JsonObject object = new JsonObject();
+        copy(hardware, object, "sourceVmRef");
+        copy(hardware, object, "firmware");
+        copy(hardware, object, "UEFI");
+        copy(hardware, object, "secureBoot");
+        copy(hardware, object, "guestId");
+        copy(hardware, object, "cpuCount");
+        copy(hardware, object, "memoryMiB");
+        copy(hardware, object, "rootDiskController");
+        copy(hardware, object, "dataDiskController");
+        if (hardware != null && hardware.has("vmDetails") && hardware.get("vmDetails").isJsonObject()) {
+            JsonObject details = new JsonObject();
+            TreeMap<String, com.google.gson.JsonElement> sorted = new TreeMap<String, com.google.gson.JsonElement>();
+            for (Map.Entry<String, com.google.gson.JsonElement> entry
+                    : hardware.getAsJsonObject("vmDetails").entrySet()) {
+                sorted.put(entry.getKey(), entry.getValue());
+            }
+            for (Map.Entry<String, com.google.gson.JsonElement> entry : sorted.entrySet()) {
+                if (isStableFingerprintDetail(entry.getKey()) && entry.getValue() != null) {
+                    details.add(entry.getKey(), entry.getValue().deepCopy());
+                }
+            }
+            object.add("vmDetails", details);
+        }
+        return object;
+    }
+
+    private static void copy(JsonObject source, JsonObject target, String key) {
+        if (source != null && source.has(key) && !source.get(key).isJsonNull()) {
+            target.add(key, source.get(key).deepCopy());
+        }
+    }
+
+    private static boolean isStableFingerprintDetail(String key) {
+        if (StringUtils.isBlank(key)) {
+            return false;
+        }
+        String normalized = StringUtils.lowerCase(key);
+        return !StringUtils.startsWithAny(normalized,
+                "message.", "clone.", "ftctl.", "dr.", "ha.", "host.", "runtime.", "last.");
+    }
+
     private static void add(JsonObject object, String key, String value) {
         if (StringUtils.isNotBlank(value)) {
             object.addProperty(key, value);
         }
     }
 
-    private String sha256(String value) {
+    private static String sha256(String value) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
             StringBuilder hex = new StringBuilder(digest.length * 2);

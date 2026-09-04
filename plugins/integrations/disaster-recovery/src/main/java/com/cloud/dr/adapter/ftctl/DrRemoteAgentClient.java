@@ -158,6 +158,9 @@ public class DrRemoteAgentClient {
         command.setDirection(plan.getDirection());
         command.setRole("source");
         command.setSourceWorkerUuid(workerHostUuid);
+        if (StringUtils.isNotBlank(plan.getSourceExternalRef())) {
+            command.setContextParam("sourceVmUuid", plan.getSourceExternalRef());
+        }
         if (StringUtils.isNotBlank(profileJson)) {
             command.setProfileJson(profileJson);
         }

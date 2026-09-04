@@ -17,6 +17,8 @@
 package com.cloud.dr.inventory;
 
 import java.util.Date;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -36,6 +38,43 @@ public class DrSourceVmHardwareTest {
         DrSourceVmHardware legacy = hardware(false, new Date(1L));
 
         Assert.assertNotEquals(secure.getFingerprint(), legacy.getFingerprint());
+    }
+
+    @Test
+    public void fingerprintIgnoresPlacementAndTransientVmDetails() {
+        DrSourceVmHardware stopped = hardware(false, new Date(1L));
+        Map<String, String> stoppedDetails = new LinkedHashMap<String, String>();
+        stoppedDetails.put("UEFI", "LEGACY");
+        stoppedDetails.put("Message.ReservedCapacityFreed.Flag", "true");
+        stopped.setVmDetails(stoppedDetails);
+        stopped.seal();
+
+        DrSourceVmHardware running = hardware(false, new Date(2L));
+        running.setSourceHostUuid("current-host-uuid");
+        running.setSourceHostName("current-host");
+        running.setInstanceName("renamed-instance");
+        Map<String, String> runningDetails = new LinkedHashMap<String, String>();
+        runningDetails.put("UEFI", "LEGACY");
+        runningDetails.put("Message.ReservedCapacityFreed.Flag", "false");
+        runningDetails.put("clone.fast.status", "running");
+        running.setVmDetails(runningDetails);
+        running.seal();
+
+        Assert.assertEquals(stopped.getFingerprint(), running.getFingerprint());
+        Assert.assertEquals(DrSourceVmHardware.FINGERPRINT_CONTRACT_VERSION,
+                running.toJsonObject().get("fingerprintVersion").getAsString());
+    }
+
+    @Test
+    public void fingerprintChangesWhenStableVmDetailChanges() {
+        DrSourceVmHardware legacy = hardware(false, new Date(1L));
+        legacy.setVmDetails(java.util.Collections.singletonMap("UEFI", "LEGACY"));
+        legacy.seal();
+        DrSourceVmHardware secure = hardware(false, new Date(1L));
+        secure.setVmDetails(java.util.Collections.singletonMap("UEFI", "SECURE"));
+        secure.seal();
+
+        Assert.assertNotEquals(legacy.getFingerprint(), secure.getFingerprint());
     }
 
     private DrSourceVmHardware hardware(boolean secureBoot, Date observedAt) {

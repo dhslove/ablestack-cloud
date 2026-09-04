@@ -78,6 +78,7 @@ import com.cloud.dr.dao.DrSiteDao;
 import com.cloud.dr.dao.DrSyncCycleDao;
 import com.cloud.dr.dao.DrTestSessionDao;
 import com.cloud.dr.inventory.DrVmwareInventoryClient;
+import com.cloud.dr.inventory.DrSourceVmHardware;
 import com.cloud.storage.VolumeVO;
 import com.cloud.storage.dao.VolumeDao;
 import com.cloud.vm.UserVmVO;
@@ -88,6 +89,31 @@ import com.google.gson.JsonParser;
 
 @RunWith(MockitoJUnitRunner.class)
 public class FtctlDrRuntimeProjectionAdapterTest {
+
+    @Test
+    public void versionTwoHardwareContractIgnoresLegacyPlacementFingerprint() {
+        DrPlanVO plan = new DrPlanVO("hardware-placement", 1L, 2L,
+                DrConstants.DIRECTION_KVM_TO_KVM);
+        JsonObject hardware = JsonParser.parseString("{\"sourceVmRef\":\"vm-1\","
+                + "\"sourceHostUuid\":\"old-host\",\"sourceHostName\":\"old-name\","
+                + "\"instanceName\":\"i-2-100-VM\",\"firmware\":\"EFI\","
+                + "\"UEFI\":\"LEGACY\",\"secureBoot\":false,\"cpuCount\":2,"
+                + "\"memoryMiB\":4096,\"fingerprint\":\"sha256:legacy-placement-hash\"}")
+                .getAsJsonObject();
+        JsonObject mapping = new JsonObject();
+        JsonObject source = new JsonObject();
+        source.add("hardware", hardware);
+        mapping.add("source", source);
+        plan.setMappingJson(mapping.toString());
+        JsonObject runtime = new JsonObject();
+        runtime.addProperty("source_hardware_fingerprint_version",
+                DrSourceVmHardware.FINGERPRINT_CONTRACT_VERSION);
+        runtime.addProperty("source_hardware_fingerprint", DrSourceVmHardware.stableFingerprint(hardware));
+
+        Boolean matches = ReflectionTestUtils.invokeMethod(adapter, "hardwareContractMatches", plan, runtime);
+
+        Assert.assertTrue(Boolean.TRUE.equals(matches));
+    }
 
     @Test
     public void testProjectionFailureMessagePreservesSpecificGuestPreparationBlocker() {

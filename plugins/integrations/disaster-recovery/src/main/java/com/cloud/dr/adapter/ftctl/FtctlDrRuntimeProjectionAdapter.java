@@ -85,6 +85,7 @@ import com.cloud.dr.dao.DrRunStepDao;
 import com.cloud.dr.dao.DrSiteDao;
 import com.cloud.dr.dao.DrSyncCycleDao;
 import com.cloud.dr.dao.DrTestSessionDao;
+import com.cloud.dr.inventory.DrSourceVmHardware;
 import com.cloud.dr.inventory.DrVmwareInventoryClient;
 import com.cloud.utils.DateUtil;
 import com.cloud.utils.component.ManagerBase;
@@ -2648,8 +2649,14 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
 
     private boolean hardwareContractMatches(DrPlanVO plan, JsonObject runtime) {
         JsonObject mapping = parseObject(plan != null ? plan.getMappingJson() : null);
-        String expected = stringValue(firstObject(objectValue(mapping, "source"), "hardware", "sourceHardware"), "fingerprint");
+        JsonObject hardware = firstObject(objectValue(mapping, "source"), "hardware", "sourceHardware");
+        String expected = stringValue(hardware, "fingerprint");
         String actual = stringValue(runtime, "source_hardware_fingerprint");
+        String fingerprintVersion = stringValue(runtime, "source_hardware_fingerprint_version");
+        if (StringUtils.equals(DrSourceVmHardware.FINGERPRINT_CONTRACT_VERSION, fingerprintVersion)
+                && !hardware.entrySet().isEmpty() && StringUtils.isNotBlank(actual)) {
+            return StringUtils.equals(DrSourceVmHardware.stableFingerprint(hardware), actual);
+        }
         return StringUtils.isBlank(expected) || StringUtils.isBlank(actual) || StringUtils.equals(expected, actual);
     }
 
@@ -4682,6 +4689,7 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         copyJsonProperty(runtime, compact, "source_firmware");
         copyJsonProperty(runtime, compact, "source_secure_boot");
         copyJsonProperty(runtime, compact, "source_hardware_fingerprint");
+        copyJsonProperty(runtime, compact, "source_hardware_fingerprint_version");
         copyJsonProperty(runtime, compact, "source_runtime_quiesce_state");
         copyJsonProperty(runtime, compact, "source_runtime_quiesce_mode");
         copyJsonProperty(runtime, compact, "source_runtime_quiesce_owner_run");

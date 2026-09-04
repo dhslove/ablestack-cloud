@@ -81,7 +81,8 @@ export function resolveDrPlanState (plan = {}, currentRun = null) {
   const runtimeError = String(plan.runtimeerrorcode ||
     (finiteOperationFailed ? '' : latestRun.runtimeerrorcode) || '').toUpperCase()
   const schedulerHealth = String(plan.schedulerhealth || '').toUpperCase()
-  if (runtimeError === 'DR_SOURCE_SITE_UNAVAILABLE' || schedulerHealth === 'WAITING_SOURCE') {
+  if (['DR_SOURCE_SITE_UNAVAILABLE', 'DR_QCOW2_SOURCE_RUNTIME_UNAVAILABLE',
+    'DR_QCOW2_OFFLINE_SOURCE_BUSY'].includes(runtimeError) || schedulerHealth === 'WAITING_SOURCE') {
     return 'WAITING_SOURCE_RECOVERY'
   }
   if (['DR_RESOURCE_BUSY', 'DR_NBD_CAPACITY_INVALID', 'DR_TARGET_EXPORT_UNAVAILABLE'].includes(runtimeError) ||
