@@ -1022,7 +1022,9 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         Mockito.verify(agentManager, Mockito.times(1))
                 .easySend(Mockito.eq(103L), Mockito.any(FtctlDrStatusCommand.class));
         Mockito.verify(drRemoteAgentClient, Mockito.times(1)).execute(Mockito.eq(plan), Mockito.eq("STATUS"),
-                Mockito.argThat(command -> command.getStatusScope() == FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY),
+                Mockito.argThat(command -> command instanceof FtctlDrStatusCommand
+                        && ((FtctlDrStatusCommand) command).getStatusScope()
+                                == FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY),
                 Mockito.isNull(),
                 Mockito.eq(FtctlDrStatusAnswer.class));
     }
