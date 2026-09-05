@@ -80,6 +80,21 @@ FTCTL이 반환한 locator hash와 Cloud hash를 비교한다.
 
 ## 5. UI 상세 설계
 
+페일백의 전체 진행률은 데이터 전송 완료와 작업 종결을 구분한다. 역방향
+전송이 100%여도 원본 VM 복구 후 정방향 지속 보호의 첫 내구성 체크포인트가
+확인되기 전에는 전체 작업을 95%로 유지한다. 이 구간의 내부 단계명
+`remote-source-protection-resume-pending`은 그대로 노출하지 않고 다음 사용자
+상태로 투영한다.
+
+```text
+원본 가상머신 복구 완료
+지속 보호 재개와 첫 내구성 체크포인트 확인 중
+```
+
+다중 디스크 위치는 FTCTL progress v2의 zero-based `diskIndex`를 1부터 시작하는
+사용자 표기로 변환한다. UI는 과거의 잘못된 샘플을 `1..diskCount` 범위로
+제한하지만, 전송량과 완료 여부의 권위는 FTCTL의 주기 전체 집계 값이다.
+
 ### 5.1 파일
 
 - `ui/src/views/infra/dr/DrProtectionInfoTab.vue`

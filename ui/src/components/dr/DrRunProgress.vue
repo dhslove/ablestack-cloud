@@ -78,6 +78,10 @@
       {{ retryNotice }}
     </div>
 
+    <div v-if="failbackLifecycleNotice" class="cross-dr-run-progress__notice cross-dr-run-progress__notice--info">
+      {{ failbackLifecycleNotice }}
+    </div>
+
     <div v-if="cbtNotice" class="cross-dr-run-progress__notice cross-dr-run-progress__notice--info">
       {{ cbtNotice }}
     </div>
@@ -144,7 +148,7 @@ export default {
     },
     metaFields () {
       return [
-        { label: this.$t('label.dr.current.step'), value: this.run.runtimestep || this.run.currentstep },
+        { label: this.$t('label.dr.current.step'), value: this.currentStepText },
         { label: this.$t('label.dr.runtime.state'), value: this.run.runtimestate },
         { label: this.$t('label.dr.test.session.state'), value: this.run.testsessionstate },
         { label: this.$t('label.dr.worker.state'), value: this.run.workerstate },
@@ -153,6 +157,14 @@ export default {
         { label: this.$t('label.error.code'), value: this.errorCode },
         { label: this.$t('label.details'), value: this.failureText }
       ].filter(item => item.value)
+    },
+    currentStepText () {
+      const step = String(this.run.runtimestep || this.run.currentstep || '')
+      const normalized = step.trim().toUpperCase().replace(/_/g, '-')
+      if (normalized.includes('REMOTE-SOURCE-PROTECTION-RESUME')) {
+        return this.$t('label.dr.failback.protection.resume.verifying')
+      }
+      return step
     },
     retryMeta () {
       if (!this.run.retryable && String(this.run.state || '').toUpperCase() !== 'RETRYING') {
@@ -225,6 +237,17 @@ export default {
       if (sessionState === 'ARTIFACTS_READY') return this.$t('message.dr.test.failover.artifacts.ready')
       return this.$t('message.dr.test.failover.accepted')
     },
+    failbackLifecycleNotice () {
+      const runType = String(this.run.runtype || this.run.runType || '').toUpperCase()
+      const state = String(this.run.state || '').toUpperCase()
+      if (runType !== 'FAILBACK' || ['SUCCEEDED', 'FAILED', 'CANCELED'].includes(state)) return ''
+      const step = String(this.run.runtimestep || this.run.currentstep || '').toUpperCase().replace(/_/g, '-')
+      if (step.includes('REMOTE-SOURCE-PROTECTION-RESUME') ||
+        (this.transferPercent >= 100 && this.progress >= 95)) {
+        return this.$t('message.dr.failback.protection.resume.verifying')
+      }
+      return ''
+    },
     errorText () {
       return this.failureText || this.errorCode
     },
@@ -295,7 +318,13 @@ export default {
     transferBytesProcessed () { return Number(this.transferValue.transferbytesprocessed || this.transferValue.transferpayloadbytes || 0) },
     transferThroughputBps () { return Number(this.transferValue.transferthroughputbps || 0) },
     transferEtaSeconds () { return Number(this.transferValue.transferetaseconds || 0) },
-    transferCurrentDisk () { return Number(this.transferValue.transfercurrentdiskindex || 0) + 1 },
+    transferCurrentDisk () {
+      const count = this.transferDiskCount
+      if (count <= 0) return 0
+      const raw = Number(this.transferValue.transfercurrentdiskindex || 0)
+      if (!Number.isFinite(raw)) return 1
+      return Math.min(count, Math.max(1, Math.trunc(raw) + 1))
+    },
     transferDiskCount () { return Number(this.transferValue.transferdiskcount || 0) },
     transferPhase () { return this.transferValue.transferphase || this.transferValue.transferactivitystate || '' },
     transferMode () { return this.transferValue.transfermode || '' },
@@ -504,5 +533,8 @@ body.dark-mode .cross-dr-run-step {
   --cross-dr-success-bg: rgba(82, 196, 26, 0.12);
   --cross-dr-success-border: rgba(82, 196, 26, 0.42);
   --cross-dr-success-text: #b7eb8f;
+  --cross-dr-info-bg: rgba(24, 144, 255, 0.12);
+  --cross-dr-info-border: rgba(24, 144, 255, 0.42);
+  --cross-dr-info-text: #91d5ff;
 }
 </style>

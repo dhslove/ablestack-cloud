@@ -145,6 +145,40 @@ describe('DrRunProgress transfer authority', () => {
     expect(wrapper.vm.progress).toBe(73)
   })
 
+  it('explains the final failback protection-resume gate and localizes its step', () => {
+    const wrapper = mountProgress({
+      run: {
+        runtype: 'FAILBACK',
+        state: 'RUNNING',
+        currentstep: 'remote-source-protection-resume-pending',
+        progresspercent: 95,
+        transferprogressschemaversion: 2,
+        transferbytestotal: 150,
+        transferbytesprocessed: 150,
+        transferpercent: 100
+      }
+    })
+
+    expect(wrapper.vm.currentStepText).toBe('label.dr.failback.protection.resume.verifying')
+    expect(wrapper.vm.failbackLifecycleNotice).toBe('message.dr.failback.protection.resume.verifying')
+    expect(wrapper.vm.progress).toBe(95)
+  })
+
+  it('clamps a malformed historical disk index to the declared disk count', () => {
+    const wrapper = mountProgress({
+      run: {
+        transferprogressschemaversion: 2,
+        transferbytestotal: 150,
+        transferbytesprocessed: 150,
+        transfercurrentdiskindex: 2,
+        transferdiskcount: 2
+      }
+    })
+
+    expect(wrapper.vm.transferCurrentDisk).toBe(2)
+    expect(wrapper.vm.transferDiskCount).toBe(2)
+  })
+
   it('shows a localized guest preparation blocker for the run and step', () => {
     const wrapper = shallowMount(DrRunProgress, {
       props: {
