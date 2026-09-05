@@ -76,10 +76,12 @@ public final class DrTestSessionState {
     }
 
     public static boolean canRestoreSoftClosedPreMaterializationFailure(DrTestSessionVO session) {
+        boolean resumableState = session != null
+                && (StringUtils.equals(session.getState(), FAILED) && !session.isCleanupRequired()
+                || StringUtils.equals(session.getState(), ARTIFACTS_READY));
         return session != null
                 && session.getRemoved() != null
-                && StringUtils.equals(session.getState(), FAILED)
-                && !session.isCleanupRequired()
+                && resumableState
                 && session.getTargetVmId() == null
                 && StringUtils.isBlank(session.getArtifactManifest());
     }

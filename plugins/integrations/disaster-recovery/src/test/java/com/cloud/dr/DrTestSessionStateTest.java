@@ -5,6 +5,8 @@
 // to you under the Apache License, Version 2.0.
 package com.cloud.dr;
 
+import java.util.Date;
+
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -47,6 +49,18 @@ public class DrTestSessionStateTest {
 
         session.setArtifactManifest("[{\"path\":\"/mnt/glue-gfs/test.qcow2\"}]");
         Assert.assertFalse(DrTestSessionState.canRecoverArtifactFreePreMaterializationFailure(session));
+    }
+
+    @Test
+    public void partiallyRestoredSoftClosedSessionCanResumeMaterialization() {
+        DrTestSessionVO session = new DrTestSessionVO(38L, 104L, DrTestSessionState.ARTIFACTS_READY);
+        session.setCleanupRequired(true);
+        session.setRemoved(new Date());
+
+        Assert.assertTrue(DrTestSessionState.canRestoreSoftClosedPreMaterializationFailure(session));
+
+        session.setTargetVmId(259L);
+        Assert.assertFalse(DrTestSessionState.canRestoreSoftClosedPreMaterializationFailure(session));
     }
 
     @Test

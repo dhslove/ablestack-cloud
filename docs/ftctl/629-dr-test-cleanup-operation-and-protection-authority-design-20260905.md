@@ -97,3 +97,6 @@ The restore uses a DAO update builder that explicitly writes `removed=NULL`
 together with the restored state, cleanup ownership, and cleared error fields.
 A generic entity update is not sufficient because nullable columns may be
 omitted and leave the session logically deleted after a management restart.
+The retry contract accepts both the original `FAILED` state and a partially
+restored `ARTIFACTS_READY` state, provided the session still owns no Cloud
+resource. This makes the explicit restore idempotent across process restarts.
