@@ -2262,12 +2262,22 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         String runtimeState = isRuntimeError(status, runtime) ? DrTestSessionState.FAILED
                 : StringUtils.upperCase(StringUtils.defaultIfBlank(status.getState(), stringValue(runtime, "state")), Locale.ROOT);
         DrTestSessionVO session = drTestSessionDao != null ? drTestSessionDao.findActiveByRunId(run.getId()) : null;
+        boolean restoredSoftClosedSession = false;
+        if (session == null && hasAuthoritativeTestArtifacts(run, status, runtime, runtimeState)) {
+            DrTestSessionVO softClosedSession = drTestSessionDao.findByRunIdIncludingRemoved(run.getId());
+            if (DrTestSessionState.canRestoreSoftClosedPreMaterializationFailure(softClosedSession)) {
+                softClosedSession.setRemoved(null);
+                session = softClosedSession;
+                restoredSoftClosedSession = true;
+            }
+        }
         boolean materializationPending = false;
         if (session != null) {
             boolean recoverablePreMaterializationFailure =
                     StringUtils.equalsAny(runtimeState, "TEST_ARTIFACTS_READY", "ARTIFACTS_READY")
                     && Boolean.TRUE.equals(booleanValue(runtime, "run_exists"))
-                    && DrTestSessionState.canRecoverArtifactFreePreMaterializationFailure(session);
+                    && (restoredSoftClosedSession
+                    || DrTestSessionState.canRecoverArtifactFreePreMaterializationFailure(session));
             String projectedState = recoverablePreMaterializationFailure
                     ? DrTestSessionState.ARTIFACTS_READY
                     : DrTestSessionState.projectEngineState(session.getState(), runtimeState);
@@ -2306,6 +2316,23 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         if (materializationPending && StringUtils.equalsAny(runtimeState, "TEST_ARTIFACTS_READY", "ARTIFACTS_READY")) {
             drTargetMaterializationService.enqueueTestMaterialization(plan.getId(), run.getId(), status.getStatusJson());
         }
+    }
+
+    private boolean hasAuthoritativeTestArtifacts(DrRunVO run, FtctlDrStatusAnswer status, JsonObject runtime,
+            String runtimeState) {
+        if (run == null || run.getCompleted() != null || !isProjectableRunState(run) || !status.getResult()
+                || !StringUtils.equalsAny(runtimeState, "TEST_ARTIFACTS_READY", "ARTIFACTS_READY")
+                || !Boolean.TRUE.equals(booleanValue(runtime, "run_exists"))) {
+            return false;
+        }
+        String workerState = StringUtils.defaultIfBlank(status.getWorkerState(), stringValue(runtime, "worker_state"));
+        String artifactsState = StringUtils.defaultIfBlank(status.getTestArtifactsState(),
+                stringValue(runtime, "test_artifacts_state"));
+        Integer artifactCount = status.getTestArtifactCount() != null ? status.getTestArtifactCount()
+                : integerValue(runtime, "test_artifact_count");
+        return StringUtils.equalsIgnoreCase(workerState, "SUCCEEDED")
+                && StringUtils.equalsIgnoreCase(artifactsState, "CREATED")
+                && artifactCount != null && artifactCount > 0;
     }
 
     boolean hasTerminalTestCleanupProof(FtctlDrStatusAnswer status, JsonObject runtime) {

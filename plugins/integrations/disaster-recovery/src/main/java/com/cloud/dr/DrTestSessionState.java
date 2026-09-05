@@ -75,6 +75,15 @@ public final class DrTestSessionState {
                 && StringUtils.isBlank(session.getArtifactManifest());
     }
 
+    public static boolean canRestoreSoftClosedPreMaterializationFailure(DrTestSessionVO session) {
+        return session != null
+                && session.getRemoved() != null
+                && StringUtils.equals(session.getState(), FAILED)
+                && !session.isCleanupRequired()
+                && session.getTargetVmId() == null
+                && StringUtils.isBlank(session.getArtifactManifest());
+    }
+
     public static boolean isTerminalRunFailureWithoutArtifacts(DrTestSessionVO session, DrRunVO run) {
         return session != null
                 && session.getRemoved() == null

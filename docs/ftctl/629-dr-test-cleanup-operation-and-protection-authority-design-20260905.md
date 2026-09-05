@@ -70,3 +70,25 @@ artifact manifest, and cleanup was not required by the failed projection.
 After the creation grace period, a still-missing Run is terminalized as
 DR_RUNTIME_NOT_CREATED. This prevents an undispatched operation from
 remaining RUNNING indefinitely.
+
+## 7. Restart-safe recovery of a soft-closed test session
+
+An early projection failure may have caused the Run executor to soft-close the
+artifact-free test session before FTCTL published the Run file. If later
+periodic projection proves that the same active Run owns a completed artifact
+set, Cloud restores that exact session instead of requiring database repair.
+
+Restoration is allowed only when all of the following are true:
+
+- the Cloud Run is still non-terminal and projectable;
+- OPERATION plan/run identity already matched the request;
+- FTCTL reports `run_exists=true`, `TEST_ARTIFACTS_READY`, and a successful
+  worker;
+- the test artifact set is `CREATED` and contains at least one artifact;
+- the removed session belongs to the same Run, has no Cloud test VM or
+  artifact manifest, and did not require cleanup when it was closed.
+
+Cloud clears the stale failure, removes the logical deletion marker, restores
+the session to `ARTIFACTS_READY`, and resumes normal target materialization.
+Historical terminal Runs and sessions that ever owned Cloud resources remain
+immutable.
