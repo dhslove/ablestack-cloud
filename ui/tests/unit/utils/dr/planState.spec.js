@@ -13,10 +13,32 @@ import {
   resolveDrPlanState,
   resolveDrReadinessState,
   resolveDrReplicationResumeState,
-  resolveDrRpoPresentation
+  resolveDrRpoPresentation,
+  resolveDrTestCleanupState
 } from '@/utils/dr/planState'
 
 describe('DR protection state helpers', () => {
+  it('reports successful cleanup separately while protection is resuming', () => {
+    const cleanup = { runtype: 'TEST_CLEANUP', state: 'SUCCEEDED' }
+
+    expect(resolveDrTestCleanupState({ schedulerhealth: 'STARTING' }, cleanup))
+      .toBe('CLEANED_PROTECTION_RESUMING')
+  })
+
+  it('reports successful cleanup with resumed protection', () => {
+    const cleanup = { runtype: 'TEST_CLEANUP', state: 'SUCCEEDED' }
+    const plan = { schedulerhealth: 'HEALTHY', schedulerstate: 'RUNNING' }
+
+    expect(resolveDrTestCleanupState(plan, cleanup)).toBe('CLEANED_PROTECTION_READY')
+  })
+
+  it('does not turn successful cleanup into a cleanup failure when protection is degraded', () => {
+    const cleanup = { runtype: 'TEST_CLEANUP', state: 'SUCCEEDED' }
+    const plan = { schedulerhealth: 'DEAD', protectionstate: 'DEGRADED' }
+
+    expect(resolveDrTestCleanupState(plan, cleanup)).toBe('CLEANED_PROTECTION_DEGRADED')
+  })
+
   it('does not treat a completed cleanup run as current activity', () => {
     const cleanup = { id: 'cleanup-run', runtype: 'TEST_CLEANUP', state: 'SUCCEEDED' }
 

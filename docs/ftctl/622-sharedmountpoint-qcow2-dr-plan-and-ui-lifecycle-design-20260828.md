@@ -5,6 +5,9 @@
 >
 > 2026-09-03 dynamic placement and transparent worker scheduling:
 > `627-dr-dynamic-placement-and-transparent-worker-scheduling-design-20260903.md`
+>
+> 2026-09-05 Test Cleanup operation/protection authority separation:
+> `629-dr-test-cleanup-operation-and-protection-authority-design-20260905.md`
 
 The Plan never pins a VM host, coordinator, or transfer worker. SharedMountPoint
 workers are selected from the current eligible site pool for each Run/Cycle;

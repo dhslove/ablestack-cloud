@@ -49,7 +49,15 @@
     </div>
 
     <a-alert
-      v-if="showProtectionSummary && hasCurrentRisk"
+      v-if="showProtectionSummary && testCleanupState"
+      :type="testCleanupAlertType"
+      show-icon
+      class="cross-dr-risk cross-dr-detail-warning"
+      :message="$t('message.dr.test.cleanup.completed')"
+      :description="testCleanupDescription" />
+
+    <a-alert
+      v-if="showProtectionSummary && hasCurrentRisk && !testCleanupState"
       :type="riskAlertType"
       show-icon
       class="cross-dr-risk cross-dr-detail-warning">
@@ -76,7 +84,8 @@ import {
   resolveDrPlanState,
   resolveDrPlanSeverity,
   resolveDrReplicationResumeState,
-  resolveDrRpoPresentation
+  resolveDrRpoPresentation,
+  resolveDrTestCleanupState
 } from '@/utils/dr/planState'
 import { mixinDevice } from '@/utils/mixin.js'
 
@@ -177,6 +186,22 @@ export default {
     },
     replicationResumeState () {
       return resolveDrReplicationResumeState(this.plan)
+    },
+    testCleanupState () {
+      return resolveDrTestCleanupState(this.plan, this.currentRun)
+    },
+    testCleanupAlertType () {
+      return this.testCleanupState === 'CLEANED_PROTECTION_DEGRADED' ? 'warning' : 'success'
+    },
+    testCleanupDescription () {
+      if (this.testCleanupState === 'CLEANED_PROTECTION_READY') {
+        return this.$t('message.dr.test.cleanup.protection.ready')
+      }
+      if (this.testCleanupState === 'CLEANED_PROTECTION_DEGRADED') {
+        const reason = this.visibleErrorMessage || this.translatedVisibleError || this.visibleErrorCode || '-'
+        return this.$t('message.dr.test.cleanup.protection.degraded', { reason })
+      }
+      return this.$t('message.dr.test.cleanup.protection.resuming')
     },
     currentCycleLabel () {
       const values = [this.plan.currentcyclesequence, this.plan.currentcyclemode, this.plan.currentcyclestate]

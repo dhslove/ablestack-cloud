@@ -386,7 +386,9 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
     }
 
     private Answer sendStatusCommand(DrPlanVO plan, DrRunVO run, FtctlDrStatusCommand command, Long localHostId) {
-        if (pollsRemoteSource(plan, run)) {
+        DrRunVO routingRun = command != null
+                && command.getStatusScope() == FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY ? null : run;
+        if (pollsRemoteSource(plan, routingRun)) {
             return drRemoteAgentClient.execute(plan, "STATUS", command,
                     null, FtctlDrStatusAnswer.class);
         }

@@ -985,41 +985,45 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     }
 
     @Test
-    public void remoteKvmTestFailoverProjectsAuthorityAndOperationFromTargetCoordinator() {
-        DrPlanVO plan = new DrPlanVO("remote-kvm-test-failover", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+    public void remoteKvmTestCleanupProjectsSourceAuthorityAndTargetOperation() {
+        DrPlanVO plan = new DrPlanVO("remote-kvm-test-cleanup", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
         plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
         plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
         plan.setCoordinatorWorkerHostId(103L);
         plan.setActiveSide("SOURCE");
-        DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_TEST_FAILOVER);
+        DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_TEST_CLEANUP);
         run.setState(DrConstants.RUN_STATE_ACCEPTED);
 
         Mockito.when(drRunDao.findActiveByPlanId(plan.getId())).thenReturn(run);
         Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("STATUS"),
+                Mockito.any(FtctlDrStatusCommand.class), Mockito.isNull(), Mockito.eq(FtctlDrStatusAnswer.class)))
+                .thenAnswer(invocation -> {
+                    FtctlDrStatusCommand command = invocation.getArgument(2);
+                    FtctlDrStatusAnswer answer = new FtctlDrStatusAnswer(command, true, "ok", plan.getUuid(), null,
+                            "ok", "READY", "source-authority", 100, null, null, null,
+                            null, null, 0, "", "{\"scheduler_state\":\"RUNNING\"}");
+                    answer.setStatusScope(FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY.name());
+                    return answer;
+                });
         Mockito.when(agentManager.easySend(Mockito.eq(103L), Mockito.any(FtctlDrStatusCommand.class)))
                 .thenAnswer(invocation -> {
                     FtctlDrStatusCommand command = invocation.getArgument(1);
-                    String state = command.getStatusScope() == FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY
-                            ? "READY" : "TEST_ARTIFACTS_READY";
-                    String statusJson = command.getStatusScope() == FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY
-                            ? "{\"scheduler_state\":\"RUNNING\"}"
-                            : "{\"state\":\"TEST_ARTIFACTS_READY\",\"worker_state\":\"SUCCEEDED\"}";
                     FtctlDrStatusAnswer answer = new FtctlDrStatusAnswer(command, true, "ok", plan.getUuid(),
-                            command.getStatusScope() == FtctlDrStatusCommand.StatusScope.OPERATION
-                                    ? run.getUuid() : null,
-                            "ok", state, "projected", 100, null, null, null,
-                            null, null, 0, "", statusJson);
-                    answer.setStatusScope(command.getStatusScope().name());
+                            run.getUuid(), "ok", "CLEANED", "target-operation", 100, null, null, null,
+                            null, null, 0, "", "{\"state\":\"CLEANED\",\"worker_state\":\"SUCCEEDED\"}");
+                    answer.setStatusScope(FtctlDrStatusCommand.StatusScope.OPERATION.name());
                     return answer;
                 });
 
         DrAdapterResult result = adapter.refreshPlanProjection(plan);
 
         Assert.assertTrue(result.isSuccess());
-        Mockito.verify(agentManager, Mockito.times(2))
+        Mockito.verify(agentManager, Mockito.times(1))
                 .easySend(Mockito.eq(103L), Mockito.any(FtctlDrStatusCommand.class));
-        Mockito.verify(drRemoteAgentClient, Mockito.never()).execute(Mockito.eq(plan), Mockito.eq("STATUS"),
-                Mockito.any(FtctlDrStatusCommand.class), Mockito.anyString(),
+        Mockito.verify(drRemoteAgentClient, Mockito.times(1)).execute(Mockito.eq(plan), Mockito.eq("STATUS"),
+                Mockito.argThat(command -> command.getStatusScope() == FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY),
+                Mockito.isNull(),
                 Mockito.eq(FtctlDrStatusAnswer.class));
     }
 

@@ -429,7 +429,7 @@
 import DrPlanOverview from '@/views/infra/dr/DrPlanOverview.vue'
 import DrStatusPill from '@/components/dr/DrStatusPill.vue'
 import DrTopology from '@/components/dr/DrTopology.vue'
-import { resolveDrPlanState } from '@/utils/dr/planState'
+import { resolveDrPlanState, resolveDrTestCleanupState } from '@/utils/dr/planState'
 
 export default {
   name: 'DrProtectionInfoTab',
@@ -658,6 +658,9 @@ export default {
           'DR_QCOW2_OFFLINE_SOURCE_BUSY'].includes(runtimeError)
     },
     displayLastError () {
+      if (resolveDrTestCleanupState(this.protectionPlan, this.currentRun)) {
+        return ''
+      }
       if (this.placementRecoveryActive && String(this.lastError).includes('SOURCE_HARDWARE_CHANGED')) {
         return ''
       }

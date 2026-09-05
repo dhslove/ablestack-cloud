@@ -1,0 +1,54 @@
+# DR Test Cleanup operation and protection authority
+
+## 1. Failure cause
+
+Cross-Mold `KVM_TO_KVM` Test Cleanup finished successfully on the target site,
+but the following projection read both statuses from the target coordinator.
+The target profile has no source worker by design, so FTCTL mistakenly resumed
+a local replication scheduler. That scheduler failed to resolve the remote
+source disk and Cloud exposed the unrelated post-cleanup replication error as
+if Test Cleanup had failed.
+
+## 2. AS-IS and TO-BE
+
+| Boundary | AS-IS | TO-BE |
+|---|---|---|
+| Test Cleanup operation | Target removes the test VM, but its result is mixed with Plan health | Target operation status alone determines cleanup success |
+| Plan authority | Active Cleanup Run forces Plan polling to the target coordinator | While active side is `SOURCE`, Plan authority is always read through the source Mold |
+| Scheduler transition | Target requires a source worker UUID before recognizing `REMOTE_SOURCE` | Explicit `schedulerTransitionScope=REMOTE_SOURCE` is sufficient and forbids local resume |
+| UI outcome | A later replication error makes cleanup appear failed | Show cleanup result and continuous-protection resume state separately |
+
+## 3. Status routing contract
+
+- `PLAN_AUTHORITY` describes durable checkpoint ownership and continuous
+  protection. With active side `SOURCE`, it is fetched from the source site.
+- `OPERATION` describes finite Test Failover or Test Cleanup work. It is fetched
+  from the target coordinator that owns the test artifacts.
+- A finite operation can be `SUCCEEDED` while the next protection cycle is
+  `RESUMING` or `DEGRADED`. Those outcomes must not overwrite each other.
+- Worker UUIDs are transient placement observations. They do not decide site
+  authority and are not persisted as prerequisites for future operations.
+
+## 4. UI contract
+
+After a successful Test Cleanup the detail view reports one of:
+
+- `Test cleanup completed / continuous protection resumed`
+- `Test cleanup completed / continuous protection is resuming`
+- `Test cleanup completed / continuous protection needs attention`
+
+The generic stale-protection ribbon is suppressed for the completed cleanup
+outcome. A degraded protection reason remains visible in the dedicated cleanup
+summary and in protection diagnostics.
+
+## 5. Regression scope
+
+- Cloud unit test: Cross-Mold Test Cleanup sends one `PLAN_AUTHORITY` query to
+  the source and one `OPERATION` query to the target.
+- FTCTL smoke test: target-only profiles recognize explicit `REMOTE_SOURCE`;
+  profiles without that scope do not infer it from workers.
+- UI unit tests: successful cleanup is represented independently for resumed,
+  resuming, and degraded protection.
+- VMware-to-RBD and same-Mold RBD-to-RBD keep their current provider and routing
+  behavior; no transfer, checkpoint, Failover, or Failback algorithm changes.
+

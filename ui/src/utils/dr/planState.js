@@ -170,6 +170,25 @@ export function resolveDrPlanSeverity (plan = {}, currentRun = null) {
   return 'NONE'
 }
 
+export function resolveDrTestCleanupState (plan = {}, latestRun = null) {
+  const run = latestRun || plan.lastrun || {}
+  const runType = String(run.runtype || run.runType || run.action || '').toUpperCase()
+  const runState = String(run.state || '').toUpperCase()
+  if (runType !== 'TEST_CLEANUP' || runState !== 'SUCCEEDED') {
+    return ''
+  }
+
+  const resumeState = resolveDrReplicationResumeState(plan)
+  const severity = resolveDrPlanSeverity(plan)
+  if (['RESUMED', 'RUNNING'].includes(resumeState)) {
+    return 'CLEANED_PROTECTION_READY'
+  }
+  if (resumeState === 'DEGRADED' || severity === 'ERROR') {
+    return 'CLEANED_PROTECTION_DEGRADED'
+  }
+  return 'CLEANED_PROTECTION_RESUMING'
+}
+
 export function resolveDrRpoPresentation (plan = {}) {
   const mode = String(plan.rpoevaluationmode || plan.rpoEvaluationMode || 'LIVE').toUpperCase()
   const seconds = plan.displayrposeconds !== undefined && plan.displayrposeconds !== null
