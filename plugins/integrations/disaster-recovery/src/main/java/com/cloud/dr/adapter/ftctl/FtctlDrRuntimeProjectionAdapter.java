@@ -339,11 +339,11 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                     "FTCTL_DR operation runtime was not created within the allowed grace period",
                     GSON.toJson(details));
         }
-        reconcileCloudManagedTestTarget(plan, projectionRun, status, runtimeStatus);
         if (!status.getResult() && isStatusBoundaryFailure(status)) {
             return handleStatusBoundaryFailure(plan, projectionRun, status, details,
                     "FTCTL_DR status failed validation; last-good projection was retained");
         }
+        reconcileCloudManagedTestTarget(plan, projectionRun, status, runtimeStatus);
         if (!hardwareContractMatches(plan, authorityRuntime)) {
             String message = "FTCTL_DR source hardware fingerprint differs from the persisted DR Plan";
             markPlanProjectionFailed(plan, DrConstants.ERROR_SOURCE_HARDWARE_CHANGED, message);
@@ -2257,6 +2257,11 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
 
     private void reconcileCloudManagedTestTarget(DrPlanVO plan, DrRunVO run, FtctlDrStatusAnswer status, JsonObject runtime) {
         if (run == null || !StringUtils.equalsIgnoreCase(run.getRunType(), DrConstants.RUN_TYPE_TEST_FAILOVER)) {
+            return;
+        }
+        // A healthy non-owner host can return a status-boundary failure for this Run.
+        // That routing observation is not authoritative evidence about the Cloud test session.
+        if (!status.getResult() && isStatusBoundaryFailure(status)) {
             return;
         }
         String runtimeState = isRuntimeError(status, runtime) ? DrTestSessionState.FAILED

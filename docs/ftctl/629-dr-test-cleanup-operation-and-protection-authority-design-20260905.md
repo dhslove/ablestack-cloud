@@ -100,3 +100,14 @@ omitted and leave the session logically deleted after a management restart.
 The retry contract accepts both the original `FAILED` state and a partially
 restored `ARTIFACTS_READY` state, provided the session still owns no Cloud
 resource. This makes the explicit restore idempotent across process restarts.
+
+## 8. Multi-host status authority
+
+Operation status may be probed through more than one eligible target host.
+`DR_STATUS_IDENTITY_MISMATCH` and other status-boundary failures from a host
+that does not own the Run are routing observations, not terminal evidence for
+the test session. Cloud retains the last-good session and artifact state,
+retries another eligible host, and projects `FAILED` only from a correlated
+runtime payload that passed the status-boundary contract. This ordering
+prevents a valid `TEST_ARTIFACTS_READY` session from being restored by the
+owner and soft-closed again by the next non-owner probe.

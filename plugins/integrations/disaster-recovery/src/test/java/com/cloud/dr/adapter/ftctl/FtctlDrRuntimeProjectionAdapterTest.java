@@ -869,6 +869,32 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     }
 
     @Test
+    public void nonOwningHostIdentityMismatchDoesNotMutateTestSession() {
+        DrPlanVO plan = new DrPlanVO("test-session-host-fanout", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_TEST_FAILOVER);
+        DrTestSessionVO session = new DrTestSessionVO(plan.getId(), run.getId(), DrTestSessionState.ARTIFACTS_READY);
+        session.setCleanupRequired(true);
+        ReflectionTestUtils.setField(run, "id", 400L);
+        ReflectionTestUtils.setField(session, "id", 30L);
+
+        FtctlDrStatusCommand command = new FtctlDrStatusCommand(plan.getUuid(), run.getUuid());
+        String statusJson = "{\"result\":\"error\",\"state\":\"UNKNOWN\","
+                + "\"error_code\":\"DR_STATUS_IDENTITY_MISMATCH\"}";
+        FtctlDrStatusAnswer status = new FtctlDrStatusAnswer(command, false,
+                "FTCTL_DR status identity did not match the requested plan/run", plan.getUuid(), run.getUuid(),
+                "error", "UNKNOWN", "status-validation", 0, null, null, null, null,
+                "DR_STATUS_IDENTITY_MISMATCH", 2,
+                "FTCTL_DR status identity did not match the requested plan/run", statusJson);
+        JsonObject runtime = JsonParser.parseString(statusJson).getAsJsonObject();
+
+        ReflectionTestUtils.invokeMethod(adapter, "reconcileCloudManagedTestTarget", plan, run, status, runtime);
+
+        Assert.assertEquals(DrTestSessionState.ARTIFACTS_READY, session.getState());
+        Assert.assertTrue(session.isCleanupRequired());
+        Mockito.verifyNoInteractions(drTestSessionDao, drTargetMaterializationService);
+    }
+
+    @Test
     public void remoteTestFailoverDefersRunNotFoundBeforeProjectingSessionFailure() {
         DrPlanVO plan = new DrPlanVO("remote-test-pending", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
         plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
