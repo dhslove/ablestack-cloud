@@ -52,3 +52,21 @@ summary and in protection diagnostics.
 - VMware-to-RBD and same-Mold RBD-to-RBD keep their current provider and routing
   behavior; no transfer, checkpoint, Failover, or Failback algorithm changes.
 
+## 6. Operation creation race
+
+Cloud may poll OPERATION after persisting a Test Failover Run and before the
+target FTCTL worker publishes that Run file. A run_not_found response is
+therefore non-terminal during the runtime-creation grace period. Cloud must
+process this boundary before projecting a test session, so Plan-level stale
+cycle errors cannot change a new session from REQUESTED to FAILED.
+
+If an earlier build already produced that exact artifact-free failure, a
+correlated current Run with TEST_ARTIFACTS_READY is authoritative repair
+evidence. Cloud restores the session to ARTIFACTS_READY, clears the stale
+error, and resumes normal Cloud volume/VM materialization without direct DB
+repair. Recovery is allowed only when there is no Cloud test VM, no persisted
+artifact manifest, and cleanup was not required by the failed projection.
+
+After the creation grace period, a still-missing Run is terminalized as
+DR_RUNTIME_NOT_CREATED. This prevents an undispatched operation from
+remaining RUNNING indefinitely.

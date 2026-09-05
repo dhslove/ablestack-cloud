@@ -869,6 +869,90 @@ public class FtctlDrRuntimeProjectionAdapterTest {
     }
 
     @Test
+    public void remoteTestFailoverDefersRunNotFoundBeforeProjectingSessionFailure() {
+        DrPlanVO plan = new DrPlanVO("remote-test-pending", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        plan.setEngineType(DrConstants.ENGINE_TYPE_FTCTL_DR);
+        plan.setEngineBindingType(DrConstants.ENGINE_BINDING_TYPE_FTCTL_DR);
+        plan.setState(DrConstants.PLAN_STATE_READY);
+        plan.setActiveSide("SOURCE");
+        plan.setCoordinatorWorkerHostId(103L);
+        DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_TEST_FAILOVER);
+        run.setState(DrConstants.RUN_STATE_ACCEPTED);
+        DrTestSessionVO session = new DrTestSessionVO(plan.getId(), run.getId(), DrTestSessionState.REQUESTED);
+        ReflectionTestUtils.setField(run, "id", 401L);
+        ReflectionTestUtils.setField(session, "id", 31L);
+
+        Mockito.when(drRunDao.findActiveByPlanId(plan.getId())).thenReturn(run);
+        Mockito.when(drTestSessionDao.findActiveByRunId(run.getId())).thenReturn(session);
+        Mockito.when(drRemoteAgentClient.isRemoteKvmSource(plan)).thenReturn(true);
+        Mockito.when(drRemoteAgentClient.execute(Mockito.eq(plan), Mockito.eq("STATUS"),
+                Mockito.any(FtctlDrStatusCommand.class), Mockito.isNull(), Mockito.eq(FtctlDrStatusAnswer.class)))
+                .thenAnswer(invocation -> {
+                    FtctlDrStatusCommand command = invocation.getArgument(2);
+                    FtctlDrStatusAnswer answer = new FtctlDrStatusAnswer(command, true, "ok", plan.getUuid(), null,
+                            "ok", "READY", "source-authority", 100, null, null, null,
+                            null, null, 0, "", "{\"scheduler_state\":\"RUNNING\"}");
+                    answer.setStatusScope(FtctlDrStatusCommand.StatusScope.PLAN_AUTHORITY.name());
+                    return answer;
+                });
+        Mockito.when(agentManager.easySend(Mockito.eq(103L), Mockito.any(FtctlDrStatusCommand.class)))
+                .thenAnswer(invocation -> {
+                    FtctlDrStatusCommand command = invocation.getArgument(1);
+                    String statusJson = "{\"result\":\"run_not_found\",\"status_scope\":\"OPERATION\","
+                            + "\"run_uuid\":\"" + run.getUuid() + "\",\"run_exists\":false,"
+                            + "\"state\":\"QUEUED\",\"step\":\"run-pending\","
+                            + "\"error_code\":\"not_found\",\"terminal_authoritative\":false}";
+                    FtctlDrStatusAnswer answer = new FtctlDrStatusAnswer(command, true, "ok", plan.getUuid(),
+                            run.getUuid(), "run_not_found", "QUEUED", "run-pending", 0, null, null, null,
+                            null, "not_found", 0, "", statusJson);
+                    answer.setStatusScope(FtctlDrStatusCommand.StatusScope.OPERATION.name());
+                    return answer;
+                });
+
+        DrAdapterResult result = adapter.refreshPlanProjection(plan);
+
+        Assert.assertTrue(result.isSuccess());
+        Assert.assertEquals(DrTestSessionState.REQUESTED, session.getState());
+        Assert.assertEquals(DrConstants.ERROR_RUNTIME_STARTING, run.getProjectionState());
+        Assert.assertNull(run.getErrorCode());
+        Mockito.verify(drTestSessionDao, Mockito.never()).update(Mockito.eq(session.getId()),
+                Mockito.any(DrTestSessionVO.class));
+        Mockito.verify(drTargetMaterializationService, Mockito.never())
+                .enqueueTestMaterialization(Mockito.anyLong(), Mockito.anyLong(), Mockito.anyString());
+    }
+
+    @Test
+    public void currentArtifactsRecoverArtifactFreeFailureFromPreDispatchRace() {
+        DrPlanVO plan = new DrPlanVO("recover-test-pending", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_TEST_FAILOVER);
+        DrTestSessionVO session = new DrTestSessionVO(plan.getId(), run.getId(), DrTestSessionState.FAILED);
+        session.setCleanupRequired(false);
+        session.setErrorCode("DR_REPLICATION_CYCLE_FAILED");
+        session.setErrorMessage("stale Plan error");
+        ReflectionTestUtils.setField(run, "id", 402L);
+        ReflectionTestUtils.setField(session, "id", 32L);
+        Mockito.when(drTestSessionDao.findActiveByRunId(run.getId())).thenReturn(session);
+
+        String statusJson = "{\"state\":\"TEST_ARTIFACTS_READY\",\"run_exists\":true,"
+                + "\"worker_state\":\"SUCCEEDED\",\"test_artifacts_state\":\"CREATED\"}";
+        FtctlDrStatusCommand command = new FtctlDrStatusCommand(plan.getUuid(), run.getUuid());
+        FtctlDrStatusAnswer status = new FtctlDrStatusAnswer(command, true, "ok", plan.getUuid(), run.getUuid(),
+                "ok", "TEST_ARTIFACTS_READY", "test-artifacts-ready", 100,
+                null, null, null, null, null, 0, "", statusJson);
+        JsonObject runtime = JsonParser.parseString(statusJson).getAsJsonObject();
+
+        ReflectionTestUtils.invokeMethod(adapter, "reconcileCloudManagedTestTarget", plan, run, status, runtime);
+
+        Assert.assertEquals(DrTestSessionState.ARTIFACTS_READY, session.getState());
+        Assert.assertTrue(session.isCleanupRequired());
+        Assert.assertNull(session.getErrorCode());
+        Assert.assertNull(session.getErrorMessage());
+        Mockito.verify(drTestSessionDao).update(session.getId(), session);
+        Mockito.verify(drTargetMaterializationService)
+                .enqueueTestMaterialization(plan.getId(), run.getId(), statusJson);
+    }
+
+    @Test
     public void failedTestManifestPreservesExactLocatorErrorInRunAndSession() {
         DrPlanVO plan = new DrPlanVO("plan-test-locator-failure", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
         DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_TEST_FAILOVER);

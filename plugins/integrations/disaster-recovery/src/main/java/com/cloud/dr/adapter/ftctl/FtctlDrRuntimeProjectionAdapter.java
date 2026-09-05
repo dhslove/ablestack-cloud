@@ -329,6 +329,16 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             return DrAdapterResult.success("Ignored stale FTCTL_DR runtime status", GSON.toJson(details));
         }
         JsonObject runtimeStatus = parseObject(status.getStatusJson());
+        if (projectionRun != null && isNotFoundStatus(status, runtimeStatus)) {
+            if (deferRuntimeNotFound(plan, status, runtimeStatus)) {
+                return DrAdapterResult.success("FTCTL_DR operation runtime is pending creation",
+                        GSON.toJson(details));
+            }
+            failRunFromProjection(plan, projectionRun, status, runtimeStatus);
+            return DrAdapterResult.failure(DrConstants.ERROR_RUNTIME_NOT_CREATED,
+                    "FTCTL_DR operation runtime was not created within the allowed grace period",
+                    GSON.toJson(details));
+        }
         reconcileCloudManagedTestTarget(plan, projectionRun, status, runtimeStatus);
         if (!status.getResult() && isStatusBoundaryFailure(status)) {
             return handleStatusBoundaryFailure(plan, projectionRun, status, details,
@@ -2254,7 +2264,13 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         DrTestSessionVO session = drTestSessionDao != null ? drTestSessionDao.findActiveByRunId(run.getId()) : null;
         boolean materializationPending = false;
         if (session != null) {
-            String projectedState = DrTestSessionState.projectEngineState(session.getState(), runtimeState);
+            boolean recoverablePreMaterializationFailure =
+                    StringUtils.equalsAny(runtimeState, "TEST_ARTIFACTS_READY", "ARTIFACTS_READY")
+                    && Boolean.TRUE.equals(booleanValue(runtime, "run_exists"))
+                    && DrTestSessionState.canRecoverArtifactFreePreMaterializationFailure(session);
+            String projectedState = recoverablePreMaterializationFailure
+                    ? DrTestSessionState.ARTIFACTS_READY
+                    : DrTestSessionState.projectEngineState(session.getState(), runtimeState);
             if (StringUtils.equals(projectedState, DrTestSessionState.FAILED)) {
                 boolean terminalCleanupProof = hasTerminalTestCleanupProof(status, runtime);
                 session.setState(projectedState);
@@ -2267,6 +2283,10 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             } else if (!StringUtils.equals(session.getState(), projectedState)) {
                 session.setState(projectedState);
                 session.setCleanupRequired(!hasTerminalTestCleanupProof(status, runtime));
+            }
+            if (recoverablePreMaterializationFailure) {
+                session.setErrorCode(null);
+                session.setErrorMessage(null);
             }
             Long checkpointSequence = status.getCurrentCheckpointSequence();
             if (checkpointSequence == null) {
@@ -4249,7 +4269,10 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
     private boolean isNotFoundStatus(FtctlDrStatusAnswer status, JsonObject runtime) {
         String errorCode = StringUtils.defaultIfBlank(status.getErrorCode(), stringValue(runtime, "error_code"));
         String result = StringUtils.defaultIfBlank(status.getFtctlResult(), stringValue(runtime, "result"));
-        return StringUtils.equalsIgnoreCase(errorCode, "not_found") || StringUtils.equalsIgnoreCase(result, "not_found");
+        return StringUtils.equalsIgnoreCase(errorCode, "not_found")
+                || StringUtils.equalsAnyIgnoreCase(result, "not_found", "run_not_found")
+                || Boolean.FALSE.equals(booleanValue(runtime, "run_exists"))
+                        && StringUtils.equalsIgnoreCase(stringValue(runtime, "status_scope"), "OPERATION");
     }
 
     private boolean isStatusTimeout(FtctlDrStatusAnswer status, JsonObject runtime) {

@@ -66,6 +66,15 @@ public final class DrTestSessionState {
                 && terminalCleanupProof;
     }
 
+    public static boolean canRecoverArtifactFreePreMaterializationFailure(DrTestSessionVO session) {
+        return session != null
+                && session.getRemoved() == null
+                && StringUtils.equals(session.getState(), FAILED)
+                && !session.isCleanupRequired()
+                && session.getTargetVmId() == null
+                && StringUtils.isBlank(session.getArtifactManifest());
+    }
+
     public static boolean isTerminalRunFailureWithoutArtifacts(DrTestSessionVO session, DrRunVO run) {
         return session != null
                 && session.getRemoved() == null

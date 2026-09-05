@@ -39,6 +39,17 @@ public class DrTestSessionStateTest {
     }
 
     @Test
+    public void artifactFreePreMaterializationFailureCanBeRecovered() {
+        DrTestSessionVO session = new DrTestSessionVO(38L, 104L, DrTestSessionState.FAILED);
+        session.setCleanupRequired(false);
+
+        Assert.assertTrue(DrTestSessionState.canRecoverArtifactFreePreMaterializationFailure(session));
+
+        session.setArtifactManifest("[{\"path\":\"/mnt/glue-gfs/test.qcow2\"}]");
+        Assert.assertFalse(DrTestSessionState.canRecoverArtifactFreePreMaterializationFailure(session));
+    }
+
+    @Test
     public void cleanupFailureAlwaysBlocksNewTest() {
         DrTestSessionVO session = new DrTestSessionVO(38L, 104L, DrTestSessionState.CLEANUP_FAILED);
         session.setCleanupRequired(false);
