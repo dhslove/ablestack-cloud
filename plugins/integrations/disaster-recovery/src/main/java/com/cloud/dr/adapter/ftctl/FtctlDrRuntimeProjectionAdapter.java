@@ -2316,7 +2316,14 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
             session.markUpdated();
             if (restoredSoftClosedSession) {
                 session.setRemoved(null);
-                drTestSessionDao.restoreSoftClosedForMaterialization(session);
+                if (!drTestSessionDao.restoreSoftClosedForMaterialization(session)) {
+                    return;
+                }
+                DrTestSessionVO restoredSession = drTestSessionDao.findActiveByRunId(run.getId());
+                if (restoredSession == null) {
+                    return;
+                }
+                session = restoredSession;
             } else {
                 drTestSessionDao.update(session.getId(), session);
             }

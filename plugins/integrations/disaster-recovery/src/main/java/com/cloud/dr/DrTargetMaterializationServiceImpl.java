@@ -277,6 +277,9 @@ public class DrTargetMaterializationServiceImpl extends ManagerBase implements D
             protected void runInContext() {
                 try {
                     materializeTestTarget(planId, runId, runtimeStatusJson);
+                } catch (RuntimeException e) {
+                    LOGGER.warn("DR test target materialization task failed before terminal projection for plan {} run {}: {}",
+                            planId, runId, e.getMessage(), e);
                 } finally {
                     inFlightTestRuns.remove(runId);
                 }

@@ -989,8 +989,9 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         session.setRemoved(new Date());
         ReflectionTestUtils.setField(run, "id", 403L);
         ReflectionTestUtils.setField(session, "id", 33L);
-        Mockito.when(drTestSessionDao.findActiveByRunId(run.getId())).thenReturn(null);
+        Mockito.when(drTestSessionDao.findActiveByRunId(run.getId())).thenReturn(null, session);
         Mockito.when(drTestSessionDao.findByRunIdIncludingRemoved(run.getId())).thenReturn(session);
+        Mockito.when(drTestSessionDao.restoreSoftClosedForMaterialization(session)).thenReturn(true);
 
         String statusJson = "{\"state\":\"TEST_ARTIFACTS_READY\",\"run_exists\":true,"
                 + "\"worker_state\":\"SUCCEEDED\",\"test_artifacts_state\":\"CREATED\","
@@ -1015,6 +1016,38 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         Mockito.verify(drTestSessionDao, Mockito.never()).update(session.getId(), session);
         Mockito.verify(drTargetMaterializationService)
                 .enqueueTestMaterialization(plan.getId(), run.getId(), statusJson);
+    }
+
+    @Test
+    public void failedSoftClosedSessionRestoreDoesNotEnqueueMaterialization() {
+        DrPlanVO plan = new DrPlanVO("failed-restore-soft-closed-test", 1L, 2L, DrConstants.DIRECTION_KVM_TO_KVM);
+        DrRunVO run = new DrRunVO(plan.getId(), DrConstants.RUN_TYPE_TEST_FAILOVER);
+        run.setState(DrConstants.RUN_STATE_RUNNING);
+        DrTestSessionVO session = new DrTestSessionVO(plan.getId(), run.getId(), DrTestSessionState.ARTIFACTS_READY);
+        session.setCleanupRequired(true);
+        session.setRemoved(new Date());
+        ReflectionTestUtils.setField(run, "id", 405L);
+        ReflectionTestUtils.setField(session, "id", 35L);
+        Mockito.when(drTestSessionDao.findActiveByRunId(run.getId())).thenReturn(null);
+        Mockito.when(drTestSessionDao.findByRunIdIncludingRemoved(run.getId())).thenReturn(session);
+        Mockito.when(drTestSessionDao.restoreSoftClosedForMaterialization(session)).thenReturn(false);
+
+        String statusJson = "{\"state\":\"TEST_ARTIFACTS_READY\",\"run_exists\":true,"
+                + "\"worker_state\":\"SUCCEEDED\",\"test_artifacts_state\":\"CREATED\","
+                + "\"test_artifact_count\":2}";
+        FtctlDrStatusCommand command = new FtctlDrStatusCommand(plan.getUuid(), run.getUuid());
+        FtctlDrStatusAnswer status = new FtctlDrStatusAnswer(command, true, "ok", plan.getUuid(), run.getUuid(),
+                "ok", "TEST_ARTIFACTS_READY", "test-artifacts-ready", 100,
+                null, null, null, null, null, 0, "", statusJson);
+        status.setWorkerState("SUCCEEDED");
+        status.setTestArtifactsState("CREATED");
+        status.setTestArtifactCount(2);
+
+        ReflectionTestUtils.invokeMethod(adapter, "reconcileCloudManagedTestTarget", plan, run, status,
+                JsonParser.parseString(statusJson).getAsJsonObject());
+
+        Mockito.verify(drTargetMaterializationService, Mockito.never())
+                .enqueueTestMaterialization(Mockito.anyLong(), Mockito.anyLong(), Mockito.anyString());
     }
 
     @Test

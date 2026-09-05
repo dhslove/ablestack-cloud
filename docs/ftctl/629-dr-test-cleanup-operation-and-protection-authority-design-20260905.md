@@ -93,10 +93,15 @@ the session to `ARTIFACTS_READY`, and resumes normal target materialization.
 Historical terminal Runs and sessions that ever owned Cloud resources remain
 immutable.
 
-The restore uses a DAO update builder that explicitly writes `removed=NULL`
-together with the restored state, cleanup ownership, and cleared error fields.
-A generic entity update is not sufficient because nullable columns may be
-omitted and leave the session logically deleted after a management restart.
+The restore uses one conditional SQL update that explicitly writes
+`removed=NULL` together with the restored state, cleanup ownership, and
+cleared error fields. A generic `UpdateBuilder` must not be used for this
+field: CloudStack marks `removed` as DAO-generated, so binding Java `null`
+through the generic update path generates the current timestamp and silently
+soft-closes the row again. The conditional update is limited to the same Run,
+a currently removed row, and a session that has never owned a Cloud VM or
+artifact manifest. Cloud re-reads the active row before enqueueing target
+materialization.
 The retry contract accepts both the original `FAILED` state and a partially
 restored `ARTIFACTS_READY` state, provided the session still owns no Cloud
 resource. This makes the explicit restore idempotent across process restarts.
@@ -111,3 +116,14 @@ retries another eligible host, and projects `FAILED` only from a correlated
 runtime payload that passed the status-boundary contract. This ordering
 prevents a valid `TEST_ARTIFACTS_READY` session from being restored by the
 owner and soft-closed again by the next non-owner probe.
+
+## 9. Test deployment contract
+
+Iteration builds compile only the changed disaster-recovery Maven module. The
+resulting DR classes are applied to one canonical management JAR, its SHA-256
+is fixed, and that exact file is deployed to both the source management server
+(13 cluster) and the target management server (31 cluster). Deployment is not
+considered complete until both installed JAR hashes match, both management
+services are active, and both `/client/` endpoints return HTTP 200. A full
+release build or full-cluster package deployment is performed only when it is
+explicitly requested.

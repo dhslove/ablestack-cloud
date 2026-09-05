@@ -1,12 +1,16 @@
 // Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements.
 package com.cloud.dr.dao;
 
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+
 import com.cloud.dr.DrTestSessionVO;
 import com.cloud.utils.db.DB;
 import com.cloud.utils.db.GenericDaoBase;
 import com.cloud.utils.db.SearchBuilder;
 import com.cloud.utils.db.SearchCriteria;
-import com.cloud.utils.db.UpdateBuilder;
+import com.cloud.utils.db.TransactionLegacy;
+import com.cloud.utils.exception.CloudRuntimeException;
 
 @DB
 public class DrTestSessionDaoImpl extends GenericDaoBase<DrTestSessionVO, Long> implements DrTestSessionDao {
@@ -47,14 +51,29 @@ public class DrTestSessionDaoImpl extends GenericDaoBase<DrTestSessionVO, Long> 
     }
 
     @Override
-    public void restoreSoftClosedForMaterialization(DrTestSessionVO session) {
-        DrTestSessionVO update = createForUpdate();
-        UpdateBuilder builder = getUpdateBuilder(update);
-        builder.set(update, "state", session.getState());
-        builder.set(update, "cleanupRequired", session.isCleanupRequired());
-        builder.set(update, "errorCode", null);
-        builder.set(update, "errorMessage", null);
-        builder.set(update, "removed", null);
-        update(session.getId(), builder, update);
+    public boolean restoreSoftClosedForMaterialization(DrTestSessionVO session) {
+        if (session == null || session.getId() == 0 || session.getRunId() == 0) {
+            return false;
+        }
+        TransactionLegacy txn = TransactionLegacy.currentTxn();
+        try {
+            txn.start();
+            // Generic UpdateBuilder turns null DaoGenerated fields into generated values.
+            PreparedStatement pstmt = txn.prepareAutoCloseStatement(
+                    "UPDATE dr_test_session SET state=?, cleanup_required=?, error_code=NULL, "
+                            + "error_message=NULL, updated=UTC_TIMESTAMP(), removed=NULL "
+                            + "WHERE id=? AND run_id=? AND removed IS NOT NULL "
+                            + "AND target_vm_id IS NULL AND (artifact_manifest IS NULL OR artifact_manifest='')");
+            pstmt.setString(1, session.getState());
+            pstmt.setBoolean(2, session.isCleanupRequired());
+            pstmt.setLong(3, session.getId());
+            pstmt.setLong(4, session.getRunId());
+            int updated = pstmt.executeUpdate();
+            txn.commit();
+            return updated == 1 || findActiveByRunId(session.getRunId()) != null;
+        } catch (SQLException e) {
+            txn.rollback();
+            throw new CloudRuntimeException("Unable to restore the DR test session for materialization", e);
+        }
     }
 }

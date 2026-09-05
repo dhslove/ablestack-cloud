@@ -8,5 +8,5 @@ public interface DrTestSessionDao extends GenericDao<DrTestSessionVO, Long> {
     DrTestSessionVO findActiveByRunId(long runId);
     DrTestSessionVO findActiveByPlanId(long planId);
     DrTestSessionVO findByRunIdIncludingRemoved(long runId);
-    void restoreSoftClosedForMaterialization(DrTestSessionVO session);
+    boolean restoreSoftClosedForMaterialization(DrTestSessionVO session);
 }
