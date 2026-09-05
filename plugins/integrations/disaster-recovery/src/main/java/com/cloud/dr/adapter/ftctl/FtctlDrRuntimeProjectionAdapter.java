@@ -2266,7 +2266,6 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
         if (session == null && hasAuthoritativeTestArtifacts(run, status, runtime, runtimeState)) {
             DrTestSessionVO softClosedSession = drTestSessionDao.findByRunIdIncludingRemoved(run.getId());
             if (DrTestSessionState.canRestoreSoftClosedPreMaterializationFailure(softClosedSession)) {
-                softClosedSession.setRemoved(null);
                 session = softClosedSession;
                 restoredSoftClosedSession = true;
             }
@@ -2310,7 +2309,12 @@ public class FtctlDrRuntimeProjectionAdapter extends ManagerBase implements DrPr
                     status.getLatestCompletedCheckpointRef()));
             session.setDetailsJson(compactRuntimeStatusJson(status.getStatusJson()));
             session.markUpdated();
-            drTestSessionDao.update(session.getId(), session);
+            if (restoredSoftClosedSession) {
+                session.setRemoved(null);
+                drTestSessionDao.restoreSoftClosedForMaterialization(session);
+            } else {
+                drTestSessionDao.update(session.getId(), session);
+            }
             materializationPending = DrTestSessionState.isMaterializationPending(session.getState());
         }
         if (materializationPending && StringUtils.equalsAny(runtimeState, "TEST_ARTIFACTS_READY", "ARTIFACTS_READY")) {

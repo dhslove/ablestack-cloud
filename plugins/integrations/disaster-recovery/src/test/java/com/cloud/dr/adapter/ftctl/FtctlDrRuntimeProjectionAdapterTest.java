@@ -985,7 +985,8 @@ public class FtctlDrRuntimeProjectionAdapterTest {
         Assert.assertTrue(session.isCleanupRequired());
         Assert.assertNull(session.getErrorCode());
         Assert.assertNull(session.getErrorMessage());
-        Mockito.verify(drTestSessionDao).update(session.getId(), session);
+        Mockito.verify(drTestSessionDao).restoreSoftClosedForMaterialization(session);
+        Mockito.verify(drTestSessionDao, Mockito.never()).update(session.getId(), session);
         Mockito.verify(drTargetMaterializationService)
                 .enqueueTestMaterialization(plan.getId(), run.getId(), statusJson);
     }

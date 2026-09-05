@@ -6,6 +6,7 @@ import com.cloud.utils.db.DB;
 import com.cloud.utils.db.GenericDaoBase;
 import com.cloud.utils.db.SearchBuilder;
 import com.cloud.utils.db.SearchCriteria;
+import com.cloud.utils.db.UpdateBuilder;
 
 @DB
 public class DrTestSessionDaoImpl extends GenericDaoBase<DrTestSessionVO, Long> implements DrTestSessionDao {
@@ -43,5 +44,17 @@ public class DrTestSessionDaoImpl extends GenericDaoBase<DrTestSessionVO, Long> 
         SearchCriteria<DrTestSessionVO> sc = byRun.create();
         sc.setParameters("runId", runId);
         return findOneIncludingRemovedBy(sc);
+    }
+
+    @Override
+    public void restoreSoftClosedForMaterialization(DrTestSessionVO session) {
+        DrTestSessionVO update = createForUpdate();
+        UpdateBuilder builder = getUpdateBuilder(update);
+        builder.set(update, "state", session.getState());
+        builder.set(update, "cleanupRequired", session.isCleanupRequired());
+        builder.set(update, "errorCode", null);
+        builder.set(update, "errorMessage", null);
+        builder.set(update, "removed", null);
+        update(session.getId(), builder, update);
     }
 }

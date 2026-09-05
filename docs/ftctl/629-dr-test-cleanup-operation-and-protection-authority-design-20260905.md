@@ -92,3 +92,8 @@ Cloud clears the stale failure, removes the logical deletion marker, restores
 the session to `ARTIFACTS_READY`, and resumes normal target materialization.
 Historical terminal Runs and sessions that ever owned Cloud resources remain
 immutable.
+
+The restore uses a DAO update builder that explicitly writes `removed=NULL`
+together with the restored state, cleanup ownership, and cleared error fields.
+A generic entity update is not sufficient because nullable columns may be
+omitted and leave the session logically deleted after a management restart.
