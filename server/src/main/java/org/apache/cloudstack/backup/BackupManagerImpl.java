@@ -1269,7 +1269,7 @@ public class BackupManagerImpl extends ManagerBase implements BackupManager {
         logger.debug("Trying to retrieve [{}] parameter from the job [ID: {}] parameters.", ApiConstants.SCHEDULE_ID, asyncJob.getId());
         String jobParamsRaw = asyncJob.getCmdInfo();
 
-        if (!jobParamsRaw.contains(ApiConstants.SCHEDULE_ID)) {
+        if (StringUtils.isBlank(jobParamsRaw) || !jobParamsRaw.contains(ApiConstants.SCHEDULE_ID)) {
             logger.info("Job [ID: {}] parameters do not include the [{}] parameter. Thus, the current backup is a manual backup.", asyncJob.getId(), ApiConstants.SCHEDULE_ID);
             return null;
         }
