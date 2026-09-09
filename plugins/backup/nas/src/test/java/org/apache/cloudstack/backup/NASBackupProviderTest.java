@@ -19,6 +19,7 @@ package org.apache.cloudstack.backup;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -116,7 +117,6 @@ public class NASBackupProviderTest {
         Mockito.when(backupRepositoryDao.findByBackupOfferingId(1L)).thenReturn(backupRepository);
         Mockito.when(vmInstanceDao.findByIdIncludingRemoved(1L)).thenReturn(vm);
         Mockito.when(agentManager.send(anyLong(), Mockito.any(DeleteBackupCommand.class))).thenReturn(new BackupAnswer(new DeleteBackupCommand(null, null, null, null), true, "details"));
-        Mockito.when(backupDao.remove(1L)).thenReturn(true);
 
         boolean result = nasBackupProvider.deleteBackup(backup, true);
         Assert.assertTrue(result);
@@ -211,7 +211,7 @@ public class NASBackupProviderTest {
         VolumeVO volume2 = mock(VolumeVO.class);
         Mockito.when(volume2.getState()).thenReturn(Volume.State.Ready);
         Mockito.when(volume2.getSize()).thenReturn(200L);
-        Mockito.when(volumeDao.findByInstance(vmId)).thenReturn(List.of(volume1, volume2));
+        Mockito.when(volumeDao.findByInstance(vmId)).thenReturn(new ArrayList<>(List.of(volume1, volume2)));
 
         BackupAnswer answer = mock(BackupAnswer.class);
         Mockito.when(answer.getResult()).thenReturn(true);
