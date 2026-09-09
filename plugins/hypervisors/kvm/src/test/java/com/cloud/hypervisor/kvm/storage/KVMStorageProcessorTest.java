@@ -265,7 +265,6 @@ public class KVMStorageProcessorTest {
         KVMPhysicalDisk baseFileMock = Mockito.mock(KVMPhysicalDisk.class);
         VolumeObjectTO volumeMock = Mockito.mock(VolumeObjectTO.class);
 
-        Mockito.when(baseFileMock.getPath()).thenReturn("/path/to/baseFile");
         Mockito.when(primaryPoolMock.createFolder(Mockito.anyString())).thenReturn(true);
         try (MockedConstruction<Script> scr = Mockito.mockConstruction(Script.class, ((mock, context) -> {
             Mockito.doReturn("").when(mock).execute();
