@@ -251,6 +251,7 @@ public class StorageVmSharedFSLifeCycleTest {
         when(sharedFS.getName()).thenReturn(s_name);
         when(sharedFS.getServiceOfferingId()).thenReturn(s_serviceOfferingId);
         when(sharedFS.getFsType()).thenReturn(SharedFS.FileSystemType.valueOf(s_fsFormat));
+        when(sharedFS.getNetworkMode()).thenReturn(SharedFS.NetworkMode.DHCP);
         when(sharedFS.getAccountId()).thenReturn(s_ownerId);
 
         DataCenterVO zone = mock(DataCenterVO.class);
