@@ -1,3 +1,9 @@
+cloudstack (v4.10.0-Europa-20260909-RC1) unstable; urgency=low
+
+  * Update the version to v4.10.0-Europa-20260909-RC1
+
+ -- the ABLESTACK Cloud project <dev@ablestack.io>  Wed, 09 Sep 2026 01:32:04 +0000
+
 cloudstack (4.22.0.0-SNAPSHOT) unstable; urgency=low
 
   * Update the version to 4.22.0.0-SNAPSHOT
