@@ -125,6 +125,7 @@ import com.cloud.storage.dao.SnapshotDao;
 import com.cloud.storage.dao.StoragePoolTagsDao;
 import com.cloud.storage.dao.VMTemplateDao;
 import com.cloud.storage.dao.VolumeDao;
+import com.cloud.storage.dao.VolumeDetailsDao;
 import com.cloud.storage.snapshot.SnapshotManager;
 import com.cloud.user.Account;
 import com.cloud.user.AccountManager;
@@ -160,6 +161,8 @@ public class VolumeApiServiceImplTest {
     private VolumeDataStoreDao volumeDataStoreDaoMock;
     @Mock
     private VolumeDao volumeDaoMock;
+    @Mock
+    private VolumeDetailsDao _volsDetailsDao;
     @Mock
     private BackupDao backupDaoMock;
     @Mock

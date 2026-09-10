@@ -27,7 +27,7 @@ on:
         type: string
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: cloud-build-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:

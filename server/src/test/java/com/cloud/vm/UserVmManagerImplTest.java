@@ -4381,7 +4381,6 @@ public class UserVmManagerImplTest {
         when(userVmVoMock.getServiceOfferingId()).thenReturn(1L);
         when(accountDao.findById(anyLong())).thenReturn(callerAccount);
         ServiceOfferingVO serviceOffering = mock(ServiceOfferingVO.class);
-        when(serviceOffering.isDynamic()).thenReturn(false);
         when(serviceOffering.getCpu()).thenReturn(1);
         when(serviceOffering.getRamSize()).thenReturn(1024);
         when(serviceOffering.getSpeed()).thenReturn(1000);
@@ -4403,7 +4402,6 @@ public class UserVmManagerImplTest {
         when(userVmVoMock.getServiceOfferingId()).thenReturn(1L);
         when(accountDao.findById(anyLong())).thenReturn(callerAccount);
         ServiceOfferingVO currentServiceOffering = mock(ServiceOfferingVO.class);
-        when(currentServiceOffering.isDynamic()).thenReturn(true);
         when(currentServiceOffering.getCpu()).thenReturn(1);
         when(currentServiceOffering.getRamSize()).thenReturn(1024);
         when(currentServiceOffering.getSpeed()).thenReturn(1000);

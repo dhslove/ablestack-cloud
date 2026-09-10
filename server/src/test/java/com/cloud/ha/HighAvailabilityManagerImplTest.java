@@ -76,6 +76,7 @@ import com.cloud.vm.UserVmManager;
 import com.cloud.vm.VMInstanceVO;
 import com.cloud.vm.VirtualMachine;
 import com.cloud.vm.VirtualMachineManager;
+import com.cloud.vm.dao.VMInstanceDetailsDao;
 import com.cloud.vm.dao.VMInstanceDao;
 
 @RunWith(MockitoJUnitRunner.class)
@@ -85,6 +86,8 @@ public class HighAvailabilityManagerImplTest {
     HighAvailabilityDao _haDao;
     @Mock
     VMInstanceDao _instanceDao;
+    @Mock
+    VMInstanceDetailsDao _instanceDetailsDao;
     @Mock
     HostDao _hostDao;
     @Mock

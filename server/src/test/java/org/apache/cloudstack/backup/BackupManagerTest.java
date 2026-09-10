@@ -713,7 +713,7 @@ public class BackupManagerTest {
         when(backup.getId()).thenReturn(backupId);
         when(backup.getSize()).thenReturn(newBackupSize);
         when(backupProvider.getName()).thenReturn("testbackupprovider");
-        when(backupProvider.takeBackup(vmInstanceVOMock, null)).thenReturn(new Pair<>(true, backup));
+        when(backupProvider.takeBackup(vmInstanceVOMock, null, scheduleId)).thenReturn(new Pair<>(true, backup));
         Map<String, BackupProvider> backupProvidersMap = new HashMap<>();
         backupProvidersMap.put(backupProvider.getName().toLowerCase(), backupProvider);
         ReflectionTestUtils.setField(backupManager, "backupProvidersMap", backupProvidersMap);
@@ -1908,6 +1908,15 @@ public class BackupManagerTest {
         when(asyncJobVOMock.getId()).thenReturn(1L);
 
         Long backupScheduleId = backupManager.getBackupScheduleId(asyncJobVOMock);
+        assertNull(backupScheduleId);
+    }
+
+    @Test
+    public void getBackupScheduleTestReturnNullWhenJobParametersAreMissing() {
+        when(asyncJobVOMock.getId()).thenReturn(1L);
+
+        Long backupScheduleId = backupManager.getBackupScheduleId(asyncJobVOMock);
+
         assertNull(backupScheduleId);
     }
 

@@ -7285,7 +7285,7 @@ public class LibvirtComputingResourceTest {
         Map<String, String> details = new HashMap<>();
         Mockito.when(volume.getType()).thenReturn(Volume.Type.ROOT);
         Mockito.when(physicalDisk.getPath()).thenReturn(PHYSICAL_DISK_PATH);
-        libvirtComputingResourceSpy.defineDiskForDefaultPoolType(diskDef, volume, true, true, true, true, physicalDisk, DEV_ID, DISK_BUS_TYPE, DISK_BUS_TYPE_DATA, details);
+        libvirtComputingResourceSpy.defineDiskForDefaultPoolType(diskDef, volume, true, true, true, false, physicalDisk, DEV_ID, DISK_BUS_TYPE, DISK_BUS_TYPE_DATA, details);
         Mockito.verify(diskDef).defFileBasedDisk(PHYSICAL_DISK_PATH, DEV_ID, DiskDef.DiskFmtType.QCOW2, true);
     }
 
