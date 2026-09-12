@@ -7470,5 +7470,10 @@
   "message.storage.service.runtime.upgrade.success": "Runtime upgrade and verification completed.",
   "message.storage.service.runtime.upgrade.failed": "Runtime upgrade failed.",
   "message.storage.service.runtime.rollback.success": "The previous runtime was restored.",
-  "message.storage.service.runtime.rollback.failed": "Runtime rollback failed. Manual recovery is required."
+  "message.storage.service.runtime.rollback.failed": "Runtime rollback failed. Manual recovery is required.",
+  "label.action.update.extension.resource": "Update extension resource details",
+  "label.external.network.provider": "External Network Provider",
+  "label.networkorchestrator": "Network Orchestrator",
+  "message.action.update.extension.resource": "Update the extension resource registration details",
+  "message.success.update.extension.resource": "Successfully updated extension resource registration"
 }

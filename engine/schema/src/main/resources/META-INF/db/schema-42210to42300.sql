@@ -1303,3 +1303,8 @@ CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.storage_service_instance', 'previous
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.storage_service_instance', 'runtime_state', 'varchar(32) DEFAULT NULL COMMENT "Current Storage Service runtime state"');
 CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.storage_service_instance', 'runtime_verified_at', 'datetime DEFAULT NULL COMMENT "Last verified Storage Service runtime time"');
 -- END Storage Service runtime in-place upgrade (#911)
+
+-- NetworkOrchestrator compatibility upgrade
+CALL `cloud`.`IDEMPOTENT_CHANGE_COLUMN`('cloud.extension_details', 'value', 'value', 'VARCHAR(4096)');
+CALL `cloud`.`IDEMPOTENT_CHANGE_COLUMN`('cloud.extension_resource_map_details', 'value', 'value', 'VARCHAR(4096)');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.physical_network_service_providers', 'custom_action_service_provided', 'tinyint(1) unsigned NOT NULL DEFAULT 0 COMMENT "Is Custom Action service provided" AFTER `networkacl_service_provided`');
