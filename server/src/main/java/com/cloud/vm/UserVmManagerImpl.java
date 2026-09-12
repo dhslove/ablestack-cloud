@@ -122,6 +122,7 @@ import org.apache.cloudstack.backup.BackupScheduleVO;
 import org.apache.cloudstack.backup.BackupVO;
 import org.apache.cloudstack.backup.dao.BackupDao;
 import org.apache.cloudstack.backup.dao.BackupScheduleDao;
+import org.apache.cloudstack.schedule.ResourceScheduleManager;
 import org.apache.cloudstack.context.CallContext;
 import org.apache.cloudstack.engine.cloud.entity.api.VirtualMachineEntity;
 import org.apache.cloudstack.engine.cloud.entity.api.db.dao.VMNetworkMapDao;
@@ -171,7 +172,6 @@ import org.apache.cloudstack.utils.bytescale.ByteScaleUtils;
 import org.apache.cloudstack.utils.security.ParserUtils;
 import org.apache.cloudstack.vm.UnmanagedVMsManager;
 import org.apache.cloudstack.vm.lease.VMLeaseManager;
-import org.apache.cloudstack.vm.schedule.VMScheduleManager;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang.math.NumberUtils;
@@ -481,6 +481,8 @@ public class UserVmManagerImpl extends ManagerBase implements UserVmManager, Vir
     @Inject
     private EntityManager _entityMgr;
     @Inject
+    private ResourceScheduleManager resourceScheduleManager;
+    @Inject
     private HostDao _hostDao;
     @Inject
     private ServiceOfferingDao serviceOfferingDao;
@@ -693,8 +695,6 @@ public class UserVmManagerImpl extends ManagerBase implements UserVmManager, Vir
     @Inject
     private AutoScaleManager autoScaleManager;
 
-    @Inject
-    VMScheduleManager vmScheduleManager;
     @Inject
     NsxProviderDao nsxProviderDao;
     @Inject
@@ -2762,6 +2762,7 @@ public class UserVmManagerImpl extends ManagerBase implements UserVmManager, Vir
             } catch (Exception e) {
                 logger.error("Failed to deallocate devices for expunged VM {}: {}", vm.getId(), e.getMessage(), e);
             }
+            resourceScheduleManager.removeSchedulesForResource(ApiCommandResourceType.VirtualMachine, vm.getId());
 
             releaseNetworkResourcesOnExpunge(vm.getId());
 

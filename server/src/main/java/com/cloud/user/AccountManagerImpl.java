@@ -1930,6 +1930,25 @@ public class AccountManagerImpl extends ManagerBase implements AccountManager, M
         checkApiAccess(apiCheckers, caller, command, keyPairPermissions.toArray(new ApiKeyPairPermission[0]));
     }
 
+    /** Check an additional API permission without consuming another rate-limit request. */
+    @Override
+    public void checkApiAccessForUser(User caller, String command, String apiKey) {
+        Account account = getAccount(caller.getAccountId());
+        List<ApiKeyPairPermission> permissions = new ArrayList<>();
+        if (apiKey != null) {
+            Ternary<User, Account, ApiKeyPair> resolved = findUserByApiKey(apiKey);
+            if (resolved == null || resolved.first().getId() != caller.getId()) {
+                throw new PermissionDeniedException("API key does not belong to the calling user");
+            }
+            permissions = keyPairManager.findAllPermissionsByKeyPairId(resolved.third().getId(), account.getRoleId());
+        }
+        for (APIChecker checker : getEnabledApiCheckers()) {
+            if (checker instanceof org.apache.cloudstack.acl.APIAclChecker) {
+                checker.checkAccess(caller, command, permissions.toArray(new ApiKeyPairPermission[0]));
+            }
+        }
+    }
+
     @NotNull
     private List<APIChecker> getEnabledApiCheckers() {
         // we are really only interested in the dynamic access checker

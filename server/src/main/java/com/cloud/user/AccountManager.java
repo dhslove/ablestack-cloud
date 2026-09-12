@@ -204,6 +204,8 @@ public interface AccountManager extends AccountService, Configurable {
 
     void checkApiAccess(Account caller, String command, String apiKey);
 
+    void checkApiAccessForUser(User caller, String command, String apiKey);
+
     UserAccount clearUserTwoFactorAuthenticationInSetupStateOnLogin(UserAccount user);
 
     void verifyCallerPrivilegeForUserOrAccountOperations(Account userAccount);
