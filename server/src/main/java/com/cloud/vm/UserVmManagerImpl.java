@@ -122,7 +122,6 @@ import org.apache.cloudstack.backup.BackupScheduleVO;
 import org.apache.cloudstack.backup.BackupVO;
 import org.apache.cloudstack.backup.dao.BackupDao;
 import org.apache.cloudstack.backup.dao.BackupScheduleDao;
-import org.apache.cloudstack.schedule.ResourceScheduleManager;
 import org.apache.cloudstack.context.CallContext;
 import org.apache.cloudstack.engine.cloud.entity.api.VirtualMachineEntity;
 import org.apache.cloudstack.engine.cloud.entity.api.db.dao.VMNetworkMapDao;
@@ -172,6 +171,7 @@ import org.apache.cloudstack.utils.bytescale.ByteScaleUtils;
 import org.apache.cloudstack.utils.security.ParserUtils;
 import org.apache.cloudstack.vm.UnmanagedVMsManager;
 import org.apache.cloudstack.vm.lease.VMLeaseManager;
+import org.apache.cloudstack.schedule.ResourceScheduleManager;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang.math.NumberUtils;
@@ -481,8 +481,6 @@ public class UserVmManagerImpl extends ManagerBase implements UserVmManager, Vir
     @Inject
     private EntityManager _entityMgr;
     @Inject
-    private ResourceScheduleManager resourceScheduleManager;
-    @Inject
     private HostDao _hostDao;
     @Inject
     private ServiceOfferingDao serviceOfferingDao;
@@ -695,6 +693,8 @@ public class UserVmManagerImpl extends ManagerBase implements UserVmManager, Vir
     @Inject
     private AutoScaleManager autoScaleManager;
 
+    @Inject
+    ResourceScheduleManager resourceScheduleManager;
     @Inject
     NsxProviderDao nsxProviderDao;
     @Inject
@@ -2762,8 +2762,8 @@ public class UserVmManagerImpl extends ManagerBase implements UserVmManager, Vir
             } catch (Exception e) {
                 logger.error("Failed to deallocate devices for expunged VM {}: {}", vm.getId(), e.getMessage(), e);
             }
-            resourceScheduleManager.removeSchedulesForResource(ApiCommandResourceType.VirtualMachine, vm.getId());
 
+            resourceScheduleManager.removeSchedulesForResource(ApiCommandResourceType.VirtualMachine, vm.getId());
             releaseNetworkResourcesOnExpunge(vm.getId());
 
             List<VolumeVO> rootVol = _volsDao.findByInstanceAndType(vm.getId(), Volume.Type.ROOT);
@@ -11421,15 +11421,13 @@ public class UserVmManagerImpl extends ManagerBase implements UserVmManager, Vir
     }
 
     protected boolean flattenOneSharedMountPointFastCloneVolume() {
-        boolean recovered = recoverFastCloneSourceOverlayCommit();
-
         if (checkOneRunningSharedMountPointFastCloneVolume()) {
             return true;
         }
 
         List<VolumeDetailVO> pendingDetails = volumeDetailsDao.findDetails(FAST_CLONE_FLATTEN_STATUS, FAST_CLONE_FLATTEN_PENDING, false);
         if (CollectionUtils.isEmpty(pendingDetails)) {
-            return recovered;
+            return recoverFastCloneSourceOverlayCommit();
         }
 
         for (VolumeDetailVO pendingDetail : pendingDetails) {
@@ -11497,14 +11495,13 @@ public class UserVmManagerImpl extends ManagerBase implements UserVmManager, Vir
             }
         }
 
-        boolean recovered = false;
         for (String operationId : operationIds) {
             logger.info("Recovering SharedMountPoint clone source overlay commit for operation [{}].", operationId);
             tryCommitFastCloneSourceOverlay(operationId);
-            recovered = true;
+            return true;
         }
 
-        return recovered;
+        return false;
     }
 
     protected boolean checkOneRunningSharedMountPointFastCloneVolume() {
@@ -11675,17 +11672,6 @@ public class UserVmManagerImpl extends ManagerBase implements UserVmManager, Vir
             VolumeDetailVO status = volumeDetailsDao.findDetail(volumeId, FAST_CLONE_FLATTEN_STATUS);
             if (role != null && FAST_CLONE_ROLE_CLONE.equals(role.getValue()) && status != null &&
                     (FAST_CLONE_FLATTEN_PENDING.equals(status.getValue()) || FAST_CLONE_FLATTEN_RUNNING.equals(status.getValue()))) {
-                VolumeVO volume = _volsDao.findById(volumeId);
-                if (volume == null) {
-                    volumeDetailsDao.removeDetail(volumeId, FAST_CLONE_FLATTEN_STATUS);
-                    continue;
-                }
-                Long vmId = volume.getInstanceId();
-                UserVmVO vm = vmId != null ? _vmDao.findById(vmId) : null;
-                if (vm == null || vm.getRemoved() != null || vm.getState() == State.Destroyed || vm.getState() == State.Expunging) {
-                    volumeDetailsDao.removeDetail(volumeId, FAST_CLONE_FLATTEN_STATUS);
-                    continue;
-                }
                 return true;
             }
         }
@@ -11757,19 +11743,7 @@ public class UserVmManagerImpl extends ManagerBase implements UserVmManager, Vir
         String macAddress = null;
         IpAddresses addr = new IpAddresses(null, ipv6Address, macAddress);
         long serviceOfferingId = curVm.getServiceOfferingId();
-        ServiceOfferingVO serviceOffering = serviceOfferingDao.findById(curVm.getId(), serviceOfferingId);
-        ServiceOfferingVO baseOffering = serviceOfferingDao.findById(serviceOfferingId);
-
-        if (!baseOffering.isDynamic() || baseOffering.getCpu() != null) {
-            customParameters.remove(UsageEventVO.DynamicParameters.cpuNumber.name());
-        }
-        if (!baseOffering.isCustomCpuSpeedSupported()) {
-            customParameters.remove(UsageEventVO.DynamicParameters.cpuSpeed.name());
-        }
-        if (!baseOffering.isDynamic() || baseOffering.getRamSize() != null) {
-            customParameters.remove(UsageEventVO.DynamicParameters.memory.name());
-        }
-
+        ServiceOffering serviceOffering = serviceOfferingDao.findById(curVm.getId(), serviceOfferingId);
         List<SecurityGroupVO> securityGroupList = _securityGroupMgr.getSecurityGroupsForVm(curVm.getId());
         List<Long> securityGroupIdList = securityGroupList.stream().map(SecurityGroupVO::getId).collect(Collectors.toList());
         String name = cmd.getName();
