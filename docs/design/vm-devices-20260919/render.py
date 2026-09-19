@@ -44,5 +44,5 @@ pages={
 pages['08-details']=pages['08-details'].replace('<footer class="modal-footer"><button>취소</button>','<footer class="modal-footer">')
 pages['13-dialog-light']=pages['04-allocate-lun']
 for name,body in pages.items():
- (p/(name+'.html')).write_text(license+'<!doctype html><html lang="ko"><meta charset="UTF-8"><title>'+name+' · 장치 탭 설계</title><style>'+css+'</style><body class="'+('light' if name in ['02-tab-light','13-dialog-light'] else '')+'">'+body+'</body></html>',encoding='utf-8')
+ (p/(name+'.html')).write_text(license+'<!doctype html><html lang="ko"><meta charset="UTF-8"><title>'+name+' · 장치 탭 설계</title><style>'+css+'</style><body class="'+('light' if name in ['02-tab-light','13-dialog-light'] else '')+'">'+body+'</body></html>',encoding='utf-8', newline='')
 print('Generated',len(pages),'static frames')
