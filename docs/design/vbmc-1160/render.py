@@ -82,64 +82,89 @@ SCREENS = [
   ('권한', '작업 권한이 없으면 조회 가능 범위 내에서 안내하고 실행은 차단합니다.')], ['닫기', '할당 불가']),
 ]
 
-def render(name, status, note, rows, buttons, light=False):
-    bg, panel, field, line, fg, muted = ('#eef1f5','#ffffff','#f5f7fa','#c5ced8','#202b38','#46586b') if light else ('#171e24','#252e37','#1d252d','#526170','#edf3f9','#c1cfdd')
-    im=Image.new('RGB',(1440,1060),bg); d=ImageDraw.Draw(im)
-    def txt(x,y,s,size=18,c=fg,b=False): d.text((x,y),s,font=ImageFont.truetype(BOLD if b else FONT,size),fill=c)
-    def box(r,fill=panel,outline=line): d.rounded_rectangle(r,8,fill=fill,outline=outline,width=1)
-    txt(38,25,'ABLESTACK  /  가상머신  /  vm-ipmi-demo',20,b=True)
-    txt(38,70,'설계 목업 · #1160 · '+('라이트 모드' if light else '다크 모드'),16,c=muted)
-    box((34,130,298,1000)); txt(56,155,'vm-ipmi-demo',23,b=True)
-    for i,s in enumerate(['실행 중','4 CPU · 8 GiB','KVM','현재 호스트','compute-31-2','가상 BMC(IPMI)','관리 화면 열기 →']): txt(56,220+i*48,s,17,c=muted)
-    box((322,130,1404,1000)); txt(347,155,'상세     IP 구성     메트릭     스케줄',17,c=muted)
-    # Fixed frame: title and footer outside scrollable body.
-    im.paste(Image.blend(im, Image.new("RGB", im.size, "#000000"), 0.45))
-    d=ImageDraw.Draw(im)
-    x,y,w,h=220,175,1000,710
-    box((x,y,x+w,y+h)); txt(x+28,y+22,'가상 BMC(IPMI) 관리',25,b=True); txt(x+w-48,y+22,'×',25,c=muted)
-    d.line((x,y+75,x+w,y+75),fill=line)
-    txt(x+28,y+95,status,23,c=('#866000' if light else '#ffdc88') if name not in ['03-ready'] else ('#126e4b' if light else '#8ce6bd'),b=True)
-    txt(x+28,y+134,note,17,c=muted)
-    yy=y+183
-    for label,val in rows:
-        txt(x+28,yy,label,16,c=muted,b=True)
-        if name == '02-allocate' and label in ['비밀번호 *', '허용 클라이언트 IPv4 CIDR *']:
-            box((x+26,yy+23,x+w-30,yy+53),field)
-        txt(x+32,yy+25,val,18); yy+=53
-    d.line((x,y+h-78,x+w,y+h-78),fill=line)
-    bx=x+w-28
+def render(name, status, note, rows, buttons, light=False, compact=False):
+    bg,panel,field,line,fg,muted=('#e9edf2','#ffffff','#f2f5f8','#c9d2dd','#192c40','#465a70') if light else ('#12191f','#242e38','#1a242e','#46596b','#edf4fc','#bdcede')
+    W,H=(900,740) if compact else (1440,1060)
+    im=Image.new('RGB',(W,H),bg); d=ImageDraw.Draw(im)
+    font=lambda n,b=False:ImageFont.truetype(BOLD if b else FONT,n)
+    def text(x,y,t,n=18,c=fg,b=False): d.text((x,y),t,font=font(n,b),fill=c)
+    def box(rect,fill=panel,outline=line,r=7): d.rounded_rectangle(rect,r,fill=fill,outline=outline)
+    def wrap(t,width,n=17):
+        out=[]; cur=''
+        for ch in t:
+            if d.textlength(cur+ch,font=font(n))>width: out.append(cur);cur=ch
+            else: cur+=ch
+        return out+[cur]
+    text(30,24,'ABLESTACK  /  가상머신  /  vm-ipmi-demo',19,b=True)
+    text(30,68,'#1160  ·  UI 디자인 개정안  ·  '+('라이트' if light else '다크'),15,c=muted)
+    x=40 if compact else 250; w=W-2*x; h=660 if compact else 824; y=(H-h)//2
+    box((x,y,x+w,y+h));text(x+28,y+22,'가상 BMC(IPMI) 관리',24,b=True);text(x+w-45,y+22,'×',24,c=muted)
+    d.line((x,y+76,x+w,y+76),fill=line)
+    # Status banner has a separate semantic surface.
+    color=('#17684b' if light else '#97e5c2') if name=='03-ready' else ('#765100' if light else '#ffdb91')
+    banner=('#eaf5f0' if light else '#203e36') if name=='03-ready' else ('#fff6e2' if light else '#3a3426')
+    yy=y+96; box((x+28,yy,x+w-28,yy+88),banner,banner)
+    text(x+46,yy+11,status,21,c=color,b=True)
+    for i,t in enumerate(wrap(note,w-100,16)):text(x+46,yy+44+i*22,t,16,c=fg)
+    yy+=108
+    if name=='02-allocate':
+        text(x+28,yy,'접속 대상',18,b=True);yy+=32
+        box((x+28,yy,x+w-28,yy+54),field)
+        text(x+44,yy+16,'가상머신',16,c=muted);text(x+208,yy+16,'vm-ipmi-demo  /  compute-31-2',17)
+        yy+=76
+        def form(label,value,helper=None,active=False):
+            nonlocal yy
+            text(x+28,yy+12,label,17,b=True)
+            box((x+208,yy,x+w-28,yy+44),field,'#409dff' if active else line)
+            text(x+224,yy+10,value,17)
+            yy+=52
+            if helper:
+                for t in wrap(helper,w-244,15):text(x+208,yy,t,15,c=muted);yy+=22
+                yy+=6
+        form('IPMI 사용자','vbmc  (고정)')
+        form('비밀번호 *','● ● ● ● ● ● ● ● ● ● ● ● ● ● ● ●','16~20자 ASCII · 공백과 % 제외 · 저장 후 조회 불가')
+        text(x+28,yy+10,'접근 범위',17,b=True)
+        d.ellipse((x+208,yy+13,x+222,yy+27),outline=muted,width=1)
+        text(x+231,yy+8,'호스트 내부만',17)
+        d.ellipse((x+385,yy+13,x+399,yy+27),outline='#409dff',width=2)
+        d.ellipse((x+389,yy+17,x+395,yy+23),fill='#409dff')
+        text(x+408,yy+8,'외부 클라이언트 허용',17); yy+=54
+        form('클라이언트 CIDR *','10.10.0.0/16','접속해 오는 클라이언트의 IPv4 범위입니다.',True)
+        if not compact:
+            box((x+208,yy,x+w-28,yy+68),field)
+            text(x+224,yy+10,'동적 IP도 지정한 범위 안이면 허용됩니다.',16,c=muted)
+            text(x+224,yy+34,'VBMC 접속 대상 주소와는 별도 설정입니다.',16,c=muted)
+    else:
+        text(x+28,yy,'접속 정보' if name=='03-ready' else '관리 정보',18,b=True); yy+=33
+        # Description table: stable label column, borders and wrapped values.
+        for label,val in rows:
+            if '접속 예시' in label:
+                yy+=14;text(x+28,yy,'접속 명령',17,b=True);yy+=29
+                box((x+28,yy,x+w-28,yy+72),field)
+                for i,t in enumerate(wrap(val,w-90,16)):text(x+44,yy+12+i*24,t,16)
+                yy+=86;continue
+            lines=wrap(val,w-280,16);rh=max(48,20+max(len(lines),len(wrap(label,168,16)))*23)
+            d.rectangle((x+28,yy,x+220,yy+rh),fill=field,outline=line)
+            d.rectangle((x+220,yy,x+w-28,yy+rh),fill=panel,outline=line)
+            for i,t in enumerate(wrap(label,168,16)):text(x+42,yy+12+i*22,t,16,c=muted,b=True)
+            for i,t in enumerate(lines):text(x+237,yy+12+i*23,t,16)
+            yy+=rh
+    # Footer is always a distinct fixed region.
+    fy=y+h-80
+    d.rectangle((x+1,fy,x+w-1,y+h-8),fill=panel)
+    d.line((x,fy,x+w,fy),fill=line);bx=x+w-28
     for j,label in enumerate(reversed(buttons)):
-        bw=max(90,int(d.textlength(label,font=ImageFont.truetype(FONT,18)))+34)
-        primary=j==0 and len(buttons)>1 and label!='할당 불가'
-        box((bx-bw,y+h-58,bx,y+h-16), '#176bc2' if primary else field)
-        txt(bx-bw+17,y+h-50,label,18,c='#ffffff' if primary else muted); bx-=bw+12
-    txt(350,922,'중앙 배치  ·  제목 / 하단 버튼 고정  ·  긴 본문만 스크롤',18,c=muted)
-    txt(350,958,'주소·시각·이름은 예시입니다. 비밀번호는 표시하거나 복사하지 않습니다.',16,c=muted)
-    im.save(OUT/(name+('-light' if light else '-dark')+'.png'))
+        bw=max(88,int(d.textlength(label,font=font(17)))+32);primary=j==0 and len(buttons)>1 and label!='할당 불가'
+        box((bx-bw,fy+20,bx,fy+60),'#176bc2' if primary else field)
+        text(bx-bw+16,fy+29,label,17,c='#ffffff' if primary else muted);bx-=bw+12
+    if compact:
+        d.rounded_rectangle((x+w-13,y+96,x+w-7,fy-12),3,fill=field)
+        d.rounded_rectangle((x+w-13,y+96,x+w-7,y+310),3,fill=muted)
+    else:
+        text(x,H-77,'화면 중앙 정렬  ·  제목과 버튼 고정  ·  본문만 스크롤',16,c=muted)
+        text(x,H-48,'정적 설계 목업 / 표시된 이름·주소·시각은 예시',14,c=muted)
+    im.save(OUT/('10-compact-scroll-dark.png' if compact else name+('-light' if light else '-dark')+'.png'))
 
 for s in SCREENS: render(*s)
-for s in [SCREENS[1],SCREENS[2],SCREENS[6]]: render(*s,light=True)
-
-# Compact viewport: the body is clipped inside its own scroll region.
-im=Image.new('RGB',(900,700),'#171e24'); d=ImageDraw.Draw(im)
-f=lambda n:ImageFont.truetype(FONT,n)
-d.rounded_rectangle((50,40,850,660),8,fill='#252e37',outline='#526170')
-d.text((78,64),'가상 BMC(IPMI) 관리',font=f(24),fill='#edf3f9')
-d.line((50,115,850,115),fill='#526170')
-body=Image.new('RGB',(744,462),'#252e37'); bd=ImageDraw.Draw(body)
-lines=['할당 설정','가상머신: vm-with-a-very-long-name-for-ipmi-management',
- '긴 이름은 줄바꿈 또는 툴팁으로 전체 내용을 확인합니다.',
- 'IPMI 사용자 이름: vbmc (고정)','비밀번호 *',
- '● ● ● ● ● ● ● ● ● ● ● ● ● ● ● ●',
- '16~20자 ASCII · 공백과 % 제외','접근 범위: 외부 클라이언트 허용',
- '허용 클라이언트 IPv4 CIDR *','10.10.0.0/16',
- '클라이언트가 접속해 오는 주소 범위입니다.',
- '지정 범위 내 동적 IP는 허용됩니다.']
-for i,t in enumerate(lines): bd.text((0,i*46),t,font=f(19),fill='#edf3f9')
-im.paste(body,(78,134)); d=ImageDraw.Draw(im)
-d.rounded_rectangle((831,133,837,588),3,fill='#1d252d')
-d.rounded_rectangle((831,134,837,384),3,fill='#c1cfdd')
-d.line((50,595,850,595),fill='#526170')
-for x,t,c in [(628,'취소','#1d252d'),(732,'할당','#176bc2')]:
- d.rounded_rectangle((x,609,x+90,649),5,fill=c,outline='#526170'); d.text((x+23,616),t,font=f(18),fill='#edf3f9')
-im.save(OUT/'10-compact-scroll-dark.png')
+for s in [SCREENS[1],SCREENS[2],SCREENS[6]]:render(*s,light=True)
+render(*SCREENS[1],compact=True)
