@@ -1,0 +1,568 @@
+{
+  "scope": "Mockup rendering only; production UI implementation not performed.",
+  "checks": [
+    {
+      "tab": "ip",
+      "theme": "light",
+      "image": "ip-light.png",
+      "viewport": [
+        1440,
+        1050
+      ],
+      "toolbars": [
+        {
+          "tab": "ip",
+          "buttons": [
+            {
+              "text": "지금 재수집",
+              "height": 32,
+              "x": 526,
+              "y": 203.25,
+              "radius": "4px",
+              "background": "rgb(24, 144, 255)"
+            },
+            {
+              "text": "업데이트",
+              "height": 32,
+              "x": 637.84375,
+              "y": 203.25,
+              "radius": "4px",
+              "background": "rgba(0, 0, 0, 0)"
+            }
+          ],
+          "rect": {
+            "x": 526,
+            "y": 203.25,
+            "width": 870,
+            "height": 32,
+            "top": 203.25,
+            "right": 1396,
+            "bottom": 235.25,
+            "left": 526
+          }
+        }
+      ],
+      "overflow": false
+    },
+    {
+      "tab": "metrics",
+      "theme": "light",
+      "image": "metrics-light.png",
+      "viewport": [
+        1440,
+        1050
+      ],
+      "toolbars": [
+        {
+          "tab": "metrics",
+          "buttons": [],
+          "rect": {
+            "x": 526,
+            "y": 203.25,
+            "width": 870,
+            "height": 32,
+            "top": 203.25,
+            "right": 1396,
+            "bottom": 235.25,
+            "left": 526
+          }
+        }
+      ],
+      "overflow": false
+    },
+    {
+      "tab": "events",
+      "theme": "light",
+      "image": "events-light.png",
+      "viewport": [
+        1440,
+        1050
+      ],
+      "toolbars": [
+        {
+          "tab": "events",
+          "buttons": [
+            {
+              "text": "업데이트",
+              "height": 32,
+              "x": 526,
+              "y": 203.25,
+              "radius": "4px",
+              "background": "rgba(0, 0, 0, 0)"
+            }
+          ],
+          "rect": {
+            "x": 526,
+            "y": 203.25,
+            "width": 870,
+            "height": 32,
+            "top": 203.25,
+            "right": 1396,
+            "bottom": 235.25,
+            "left": 526
+          }
+        }
+      ],
+      "overflow": false
+    },
+    {
+      "tab": "comments",
+      "theme": "light",
+      "image": "comments-light.png",
+      "viewport": [
+        1440,
+        1050
+      ],
+      "toolbars": [
+        {
+          "tab": "comments",
+          "buttons": [
+            {
+              "text": "보내기",
+              "height": 32,
+              "x": 526,
+              "y": 203.25,
+              "radius": "4px",
+              "background": "rgb(24, 144, 255)"
+            },
+            {
+              "text": "업데이트",
+              "height": 32,
+              "x": 606,
+              "y": 203.25,
+              "radius": "4px",
+              "background": "rgba(0, 0, 0, 0)"
+            }
+          ],
+          "rect": {
+            "x": 526,
+            "y": 203.25,
+            "width": 870,
+            "height": 32,
+            "top": 203.25,
+            "right": 1396,
+            "bottom": 235.25,
+            "left": 526
+          }
+        }
+      ],
+      "overflow": false
+    },
+    {
+      "tab": "overview",
+      "theme": "light",
+      "image": "overview-light.png",
+      "viewport": [
+        1440,
+        1050
+      ],
+      "toolbars": [
+        {
+          "tab": "ip",
+          "buttons": [
+            {
+              "text": "지금 재수집",
+              "height": 32,
+              "x": 44,
+              "y": 271.515625,
+              "radius": "4px",
+              "background": "rgb(24, 144, 255)"
+            },
+            {
+              "text": "업데이트",
+              "height": 32,
+              "x": 155.84375,
+              "y": 271.515625,
+              "radius": "4px",
+              "background": "rgba(0, 0, 0, 0)"
+            }
+          ],
+          "rect": {
+            "x": 44,
+            "y": 271.515625,
+            "width": 646,
+            "height": 46,
+            "top": 271.515625,
+            "right": 690,
+            "bottom": 317.515625,
+            "left": 44
+          }
+        },
+        {
+          "tab": "metrics",
+          "buttons": [],
+          "rect": {
+            "x": 750,
+            "y": 271.515625,
+            "width": 646,
+            "height": 46,
+            "top": 271.515625,
+            "right": 1396,
+            "bottom": 317.515625,
+            "left": 750
+          }
+        },
+        {
+          "tab": "events",
+          "buttons": [
+            {
+              "text": "업데이트",
+              "height": 32,
+              "x": 44,
+              "y": 821.515625,
+              "radius": "4px",
+              "background": "rgba(0, 0, 0, 0)"
+            }
+          ],
+          "rect": {
+            "x": 44,
+            "y": 821.515625,
+            "width": 646,
+            "height": 46,
+            "top": 821.515625,
+            "right": 690,
+            "bottom": 867.515625,
+            "left": 44
+          }
+        },
+        {
+          "tab": "comments",
+          "buttons": [
+            {
+              "text": "보내기",
+              "height": 32,
+              "x": 750,
+              "y": 821.515625,
+              "radius": "4px",
+              "background": "rgb(24, 144, 255)"
+            },
+            {
+              "text": "업데이트",
+              "height": 32,
+              "x": 830,
+              "y": 821.515625,
+              "radius": "4px",
+              "background": "rgba(0, 0, 0, 0)"
+            }
+          ],
+          "rect": {
+            "x": 750,
+            "y": 821.515625,
+            "width": 646,
+            "height": 46,
+            "top": 821.515625,
+            "right": 1396,
+            "bottom": 867.515625,
+            "left": 750
+          }
+        }
+      ],
+      "overflow": false
+    },
+    {
+      "tab": "ip",
+      "theme": "dark",
+      "image": "ip-dark.png",
+      "viewport": [
+        1440,
+        1050
+      ],
+      "toolbars": [
+        {
+          "tab": "ip",
+          "buttons": [
+            {
+              "text": "지금 재수집",
+              "height": 32,
+              "x": 527,
+              "y": 205.25,
+              "radius": "4px",
+              "background": "rgb(24, 144, 255)"
+            },
+            {
+              "text": "업데이트",
+              "height": 32,
+              "x": 640.84375,
+              "y": 205.25,
+              "radius": "4px",
+              "background": "rgb(27, 33, 40)"
+            }
+          ],
+          "rect": {
+            "x": 527,
+            "y": 205.25,
+            "width": 868,
+            "height": 32,
+            "top": 205.25,
+            "right": 1395,
+            "bottom": 237.25,
+            "left": 527
+          }
+        }
+      ],
+      "overflow": false
+    },
+    {
+      "tab": "metrics",
+      "theme": "dark",
+      "image": "metrics-dark.png",
+      "viewport": [
+        1440,
+        1050
+      ],
+      "toolbars": [
+        {
+          "tab": "metrics",
+          "buttons": [],
+          "rect": {
+            "x": 527,
+            "y": 205.25,
+            "width": 868,
+            "height": 32,
+            "top": 205.25,
+            "right": 1395,
+            "bottom": 237.25,
+            "left": 527
+          }
+        }
+      ],
+      "overflow": false
+    },
+    {
+      "tab": "events",
+      "theme": "dark",
+      "image": "events-dark.png",
+      "viewport": [
+        1440,
+        1050
+      ],
+      "toolbars": [
+        {
+          "tab": "events",
+          "buttons": [
+            {
+              "text": "업데이트",
+              "height": 32,
+              "x": 527,
+              "y": 205.25,
+              "radius": "4px",
+              "background": "rgb(27, 33, 40)"
+            }
+          ],
+          "rect": {
+            "x": 527,
+            "y": 205.25,
+            "width": 868,
+            "height": 32,
+            "top": 205.25,
+            "right": 1395,
+            "bottom": 237.25,
+            "left": 527
+          }
+        }
+      ],
+      "overflow": false
+    },
+    {
+      "tab": "comments",
+      "theme": "dark",
+      "image": "comments-dark.png",
+      "viewport": [
+        1440,
+        1050
+      ],
+      "toolbars": [
+        {
+          "tab": "comments",
+          "buttons": [
+            {
+              "text": "보내기",
+              "height": 32,
+              "x": 527,
+              "y": 205.25,
+              "radius": "4px",
+              "background": "rgb(24, 144, 255)"
+            },
+            {
+              "text": "업데이트",
+              "height": 32,
+              "x": 609,
+              "y": 205.25,
+              "radius": "4px",
+              "background": "rgb(27, 33, 40)"
+            }
+          ],
+          "rect": {
+            "x": 527,
+            "y": 205.25,
+            "width": 868,
+            "height": 32,
+            "top": 205.25,
+            "right": 1395,
+            "bottom": 237.25,
+            "left": 527
+          }
+        }
+      ],
+      "overflow": false
+    },
+    {
+      "tab": "overview",
+      "theme": "dark",
+      "image": "overview-dark.png",
+      "viewport": [
+        1440,
+        1050
+      ],
+      "toolbars": [
+        {
+          "tab": "ip",
+          "buttons": [
+            {
+              "text": "지금 재수집",
+              "height": 32,
+              "x": 45,
+              "y": 275.515625,
+              "radius": "4px",
+              "background": "rgb(24, 144, 255)"
+            },
+            {
+              "text": "업데이트",
+              "height": 32,
+              "x": 158.84375,
+              "y": 275.515625,
+              "radius": "4px",
+              "background": "rgb(27, 33, 40)"
+            }
+          ],
+          "rect": {
+            "x": 45,
+            "y": 275.515625,
+            "width": 644,
+            "height": 47,
+            "top": 275.515625,
+            "right": 689,
+            "bottom": 322.515625,
+            "left": 45
+          }
+        },
+        {
+          "tab": "metrics",
+          "buttons": [],
+          "rect": {
+            "x": 751,
+            "y": 275.515625,
+            "width": 644,
+            "height": 47,
+            "top": 275.515625,
+            "right": 1395,
+            "bottom": 322.515625,
+            "left": 751
+          }
+        },
+        {
+          "tab": "events",
+          "buttons": [
+            {
+              "text": "업데이트",
+              "height": 32,
+              "x": 45,
+              "y": 825.515625,
+              "radius": "4px",
+              "background": "rgb(27, 33, 40)"
+            }
+          ],
+          "rect": {
+            "x": 45,
+            "y": 825.515625,
+            "width": 644,
+            "height": 47,
+            "top": 825.515625,
+            "right": 689,
+            "bottom": 872.515625,
+            "left": 45
+          }
+        },
+        {
+          "tab": "comments",
+          "buttons": [
+            {
+              "text": "보내기",
+              "height": 32,
+              "x": 751,
+              "y": 825.515625,
+              "radius": "4px",
+              "background": "rgb(24, 144, 255)"
+            },
+            {
+              "text": "업데이트",
+              "height": 32,
+              "x": 833,
+              "y": 825.515625,
+              "radius": "4px",
+              "background": "rgb(27, 33, 40)"
+            }
+          ],
+          "rect": {
+            "x": 751,
+            "y": 825.515625,
+            "width": 644,
+            "height": 47,
+            "top": 825.515625,
+            "right": 1395,
+            "bottom": 872.515625,
+            "left": 751
+          }
+        }
+      ],
+      "overflow": false
+    },
+    {
+      "tab": "ip",
+      "theme": "dark",
+      "mobile": true,
+      "viewport": [
+        430,
+        932
+      ],
+      "width": 430,
+      "scrollWidth": 430,
+      "buttons": [
+        {
+          "text": "지금 재수집",
+          "x": 29,
+          "y": 273.5
+        },
+        {
+          "text": "업데이트",
+          "x": 142.84375,
+          "y": 273.5
+        }
+      ]
+    }
+  ],
+  "scriptErrors": [],
+  "readability": [
+    {
+      "theme": "light",
+      "textContrast": {
+        "--ui-text-primary": 14.68,
+        "--ui-text-secondary": 7.56,
+        "--ui-text-muted": 4.97,
+        "--ui-link": 5.19,
+        "infoText": 10.31
+      }
+    },
+    {
+      "theme": "dark",
+      "textContrast": {
+        "--ui-text-primary": 13.35,
+        "--ui-text-secondary": 9.18,
+        "--ui-text-muted": 5.88,
+        "--ui-link": 6.61,
+        "infoText": 11.86
+      }
+    }
+  ],
+  "preservedExistingBlueButtonColor": "#1890ff"
+}
