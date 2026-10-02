@@ -47,7 +47,7 @@ under the License.
 
 1. 템플릿 방식은 **컴퓨트 오퍼링 → 루트 디스크의 기본 스토리지 → 루트 디스크 오퍼링 무시·별도 용량 입력** 순서로 배치한다. 먼저 기본 용량을 기준으로 스토리지를 선택한다. 다른 용량을 원하는 경우에만 아래의 무시 옵션을 켜고 루트 크기를 입력한다. 무시 옵션이 꺼져 있으면 오퍼링 기본 용량을 사용하고 크기 입력을 숨긴다.
 2. 데이터 오퍼링 아래에 **디스크당 크기·개수·합계 용량**을 배치하고, 그 아래에 **데이터 디스크의 기본 스토리지**를 표시한다. 같은 오퍼링·크기·선택 스토리지의 데이터 디스크를 여러 개 생성해 연결한다. 기본 개수는 1이며 데이터 없음이면 숨긴다. 서로 다른 오퍼링/크기의 디스크를 새로 추가하려면 VM 생성 후 기존 볼륨 생성·연결 기능을 이용하라는 안내를 표시한다. 이 기능에 서로 다른 구성의 디스크 묶음 편집기를 추가하지 않는다. 기존 자식 템플릿 디스크 경로는 별도 계약을 유지한다.
-3. 기존 표·라디오 선택과 상단 도구 모음을 사용한다. **업데이트 아이콘 + 업데이트**, 이름 검색을 제공한다. 버튼 모양과 주 액션인 우측 파란 VM 시작 버튼을 유지한다.
+3. 기존 표·라디오 선택과 상단 도구 모음을 사용한다. **업데이트 아이콘 + 업데이트**, 이름 검색을 제공한다. 주 액션인 우측 파란 생성/시작 버튼의 모양을 유지한다. 기본 문구는 가상머신 생성이며 바로 시작을 켰을 때 VM 시작으로 표시한다.
 4. 우측 VM 요약에 루트/데이터별 스토리지 이름, 크기, 직접/자동 선택 여부를 표시한다. 요약이 길면 내용 영역을 스크롤하고 생성 버튼을 같은 요약 하단에 유지한다.
 5. 기존 자동 배치를 기본값으로 보존한다. 직접 선택한 풀은 최초 생성/배치의 필수 조건이며 불가능하면 이유를 표시한다.
 6. 조회 중 기존 표/선택을 유지하고 바뀐 행만 갱신한다. 화면 전체를 비우거나 최초 조회 완료 전에 호환 불가 경고를 표시하지 않는다.
@@ -60,6 +60,23 @@ under the License.
 4. 입력한 루트 용량을 필요 용량·우측 요약·생성 요청에 반영하고 선택한 스토리지의 용량/호환성을 다시 검증한다. 여전히 유효하면 선택을 유지하며, 불가능하면 이유와 재선택 요구를 표시한다. 다른 스토리지로 자동 대체하지 않는다.
 
 오퍼링 무시는 스토리지 선택을 초기화하는 동작이 아니다. 기본 용량을 따르지 않는 수동 크기 입력이며, 기존 템플릿 최소 크기·오퍼링 강제 정책 및 서버 허용 범위 등 배포 검증은 유지한다. 무시를 다시 끄면 기본 용량으로 복원한 뒤 같은 규칙으로 검증한다. 유효 루트 오퍼링/태그가 바뀌는 기존 경로에서도 선택한 풀의 유효성을 재평가한다.
+
+### 마지막 상세 단계: 생성 후 바로 시작 기본값 변경
+
+마지막 상세 단계의 시작 레이블을 **가상머신 생성 후 바로 시작**으로 바꾸고 스위치의 초기값을 **꺼짐(false)**으로 설정한다. 템플릿·ISO 생성에 동일하게 적용한다. 기존 필드 배치·스위치와 생성 버튼 모양을 유지한다. 마지막 단계 검토 안내도 시작을 전제로 하지 않고 설정 정보를 확인한 뒤 가상머신을 생성하도록 표시한다.
+
+| 선택 | 마지막 단계 안내 | 우측 주 액션 |
+| --- | --- | --- |
+| 기본값 · 꺼짐 | 가상머신을 생성하고 중지 상태로 유지합니다. 생성 후 상세 화면에서 시작할 수 있습니다. | 가상머신 생성 |
+| 사용자가 켬 | 템플릿은 생성 완료 후 시작. ISO는 요청 디스크가 모두 연결된 뒤 ISO 부팅. | VM 시작 |
+
+폼 최초 진입, 새 폼 초기화와 Zone 선택에 startvm=false를 적용한다. 사용자가 선택한 값은 스토리지 조회/크기·개수 변경 시 보존하고 재조회·재시도에서 true로 자동 복원하지 않는다. 생성할 VM 수가 여러 개여도 동일한 사용자의 선택을 각 요청에 적용한다.
+
+현재 API는 startvm을 생략하면 true로 처리하므로 UI에서 false도 반드시 명시적으로 전달한다. API 기본값 자체를 바꾸거나 다른 시작 액션의 공통 레이블을 일괄 변경하지 않는다. 생성 폼 전용 번역 키(제안: label.vm.start.after.creation)를 사용한다. 현재 initForm과 updateZone에서 true를 넣는 두 경로, DeployButtons/우측 요약, 완료/재시도 상태를 함께 수정한다.
+
+ISO DATA 추가의 중간 deployVirtualMachine 요청은 사용자가 스위치를 켰더라도 startvm=false로 보낸다. createVolume/attachVolume의 전체 성공 확인 후 사용자가 켠 경우에만 startVirtualMachine을 호출한다. 기본 꺼짐, 생성만 하기, 부분 실패에서는 자동 시작하지 않는다. 첫 물리 배치·ISO 설치 대기 의미는 아래의 ISO 계약과 같다.
+
+근거: [기존 마지막 단계 레이블과 스위치](https://github.com/ablecloud-team/ablestack-cloud/blob/f862c21f167d05641c75809d1c64659dcf24c20b/ui/src/views/compute/DeployVM.vue#L922), [폼 초기 true](https://github.com/ablecloud-team/ablestack-cloud/blob/f862c21f167d05641c75809d1c64659dcf24c20b/ui/src/views/compute/DeployVM.vue#L1888), [Zone 선택의 true](https://github.com/ablecloud-team/ablestack-cloud/blob/f862c21f167d05641c75809d1c64659dcf24c20b/ui/src/views/compute/DeployVM.vue#L3384), [API 생략값 처리](https://github.com/ablecloud-team/ablestack-cloud/blob/f862c21f167d05641c75809d1c64659dcf24c20b/api/src/main/java/org/apache/cloudstack/api/command/user/vm/BaseDeployVMCmd.java#L664).
 
 ### 동일 오퍼링·크기의 데이터 디스크 여러 개 추가
 
@@ -90,7 +107,7 @@ ISO 방식은 아래의 별도 생성 순서를 적용한다. 자식 템플릿 �
 | 루트 디스크 | 유효 루트 오퍼링 → 루트 기본 스토리지 → 루트 용량. 필수인 빈 ROOT 1개와 추가 DATA를 별도 입력 상태로 관리. |
 | 루트 고정/가변 용량 | 고정 오퍼링은 제공 용량 읽기 전용. 가변 오퍼링은 용량 필수 입력. ISO 루트에는 템플릿용 루트 디스크 오퍼링 무시 스위치를 표시하지 않는다. 다른 고정 용량이 필요하면 허용된 오퍼링 변경. |
 | 데이터 디스크 | 새 선택 사항 단계. 기본은 설정 안함. 선택 시 동일 오퍼링·디스크당 크기·개수·합계·데이터 스토리지 입력. 고정/가변 규칙과 서로 다른 구성의 사후 볼륨 기능 안내는 템플릿과 동일. |
-| 완료 | 설치 ISO, ROOT 1개 및 DATA N개, 크기·오퍼링·선택 풀을 구분하여 요약. 모든 요청 디스크 준비 후 ISO로 첫 부팅. 생성만 하기면 시작하지 않음. |
+| 완료 | 설치 ISO, ROOT 1개 및 DATA N개, 크기·오퍼링·선택 풀을 구분하여 요약. 기본값은 생성 후 중지 유지. 가상머신 생성 후 바로 시작을 켠 경우에만 모든 요청 디스크 준비 후 ISO로 첫 부팅. |
 
 가변 루트 용량을 아직 입력하지 않았으면 태그·배포 범위에 맞는 후보를 먼저 보여주되 용량 판단은 입력 후 확인으로 표시한다. 미입력 값을 0이나 충분으로 해석하지 않으며 최종 생성은 비활성화한다. 용량 변경 시 유효한 풀 선택을 유지하고 부족하면 재선택을 요청한다. 같은 풀은 (루트 크기 + 데이터 크기 × 데이터 개수) × VM 개수를 합산하며 서로 다른 풀은 풀별로 계산한다. ISO 파일 크기를 설치 OS의 루트 최소 요구 용량으로 간주하지 않는다.
 
@@ -98,7 +115,7 @@ ISO 방식은 아래의 별도 생성 순서를 적용한다. 자식 템플릿 �
 
 #### 기존 API를 재사용하는 ISO 생성 순서
 
-1. 데이터 없음: 기존 deployVirtualMachine에 templateid=설치 ISO UUID, hypervisor, diskofferingid=ROOT 오퍼링 UUID를 전달한다. 가변 ROOT의 size는 루트 용량이며 고정 ROOT는 오퍼링 크기를 사용한다. rootdisksize는 API 설명상 템플릿용이므로 ISO 용량의 공통 입력 인자로 오용하지 않는다. 기존 시작/생성만 하기 선택을 유지한다.
+1. 데이터 없음: 기존 deployVirtualMachine에 templateid=설치 ISO UUID, hypervisor, diskofferingid=ROOT 오퍼링 UUID를 전달한다. 가변 ROOT의 size는 루트 용량이며 고정 ROOT는 오퍼링 크기를 사용한다. rootdisksize는 API 설명상 템플릿용이므로 ISO 용량의 공통 입력 인자로 오용하지 않는다. UI 기본값 startvm=false를 명시적으로 전달하며 사용자가 바로 시작을 켠 경우에만 true로 전달한다.
 2. DATA 추가: deployVirtualMachine(startvm=false)로 ISO·ROOT VM을 먼저 생성한다. ISO ROOT의 diskofferingid와 DATA datadisksdetails를 한 요청에 혼합하지 않는다. 명세는 상호 배타이며 서버 검증부의 누락된 throw를 지원 근거로 삼지 않는다.
 3. 동일 DATA 오퍼링·크기로 기존 createVolume을 N회 호출하고 각 비동기 작업 성공 후 기존 attachVolume으로 연결한다. 고정/가변 size, IOPS/KMS·소유자/프로젝트·지정 스토리지·쿼터를 보존한다. 배포/연결 경로가 선택 풀을 임의 변경하지 않도록 서버의 최초 배치 조건과 함께 구현한다.
 4. N개가 모두 연결되면 시작 선택 시 기존 startVirtualMachine으로 처음 ISO 부팅한다. 생성만 하기면 Stopped 상태로 유지한다. 일부 실패 시 자동 시작하지 않고 VM/볼륨/작업 ID와 완료/실패/대기 상태를 보존하여 실패 항목만 재시도한다. 완료된 볼륨 임의 삭제 금지.
@@ -150,6 +167,7 @@ Stopped VM의 attachVolume 경로는 기존 구현에 있다. 한 번도 시작�
 
 - [ ] 기존 deployVirtualMachine.datadisksdetails 및 createVolume/attachVolume 재사용 경로 확정. 별도 다중 생성 API 신설 없이 구현.
 - [ ] ISO ROOT 필수·DATA 선택 사항 분리, 고정/가변 루트 용량·강제 오퍼링 정책·미입력 상태, 설치 ISO 요약 구현.
+- [ ] 템플릿/ISO 마지막 단계 레이블·초기 꺼짐, 새 폼/Zone 선택 기본값, 조회 중 선택 보존, false의 명시적 API 전달, 버튼 문구·켜기/끄기·다수 VM·재시도 검증. ISO 전체 디스크 연결 성공 및 명시적 켜짐일 때만 시작 호출 확인.
 - [ ] 후보/용량/디스크별 UUID API 계약과 권한 확정.
 - [ ] 서버 후보 조회와 최초 배치 강제 조건 구현, WSL ext4에서 관련 Maven 변경 모듈 빌드.
 - [ ] 기존 VM 생성 UI의 표/선택/요약/조회 상태 구현 및 UI 빌드.
@@ -179,8 +197,10 @@ Stopped VM의 attachVolume 경로는 기존 구현에 있다. 한 번도 시작�
 | ISO 루트·고정 용량·데이터 없음 | [이미지](images/iso-root-fixed-light.jpg) | [이미지](images/iso-root-fixed-dark.jpg) |
 | ISO 데이터·가변 크기·다수 | [이미지](images/iso-data-multiple-light.jpg) | [이미지](images/iso-data-multiple-dark.jpg) |
 | ISO 데이터·고정 크기·다수 | [이미지](images/iso-data-fixed-light.jpg) | [이미지](images/iso-data-fixed-dark.jpg) |
+| 마지막 상세 단계·기본 꺼짐 (템플릿) | [이미지](images/details-template-light.jpg) | [이미지](images/details-template-dark.jpg) |
+| 마지막 상세 단계·기본 꺼짐 (ISO) | [이미지](images/details-iso-light.jpg) | [이미지](images/details-iso-dark.jpg) |
 | 예외 상태 | [이미지](images/states-light.jpg) | [이미지](images/states-dark.jpg) |
 
 현재 화면: [current-ui.jpg](images/current-ui.jpg).
 
-정적 목업: [mockup.html](mockup.html). 로컬 HTTP 서버에서 ?theme=light&part=root, ?theme=light&part=root&override=on, ?theme=dark&part=data, ?theme=light&part=data&batch=on, ?theme=dark&part=data&offering=fixed, ?theme=dark&view=states로 확인한다. ISO 전용은 ?theme=light&source=iso&part=root, ?theme=dark&source=iso&part=root&root-offering=fixed, ?theme=light&source=iso&part=data, ?theme=dark&source=iso&part=data&offering=fixed로 확인한다. 서버/API 연결이나 VM 생성 동작은 없다.
+정적 목업: [mockup.html](mockup.html). 로컬 HTTP 서버에서 ?theme=light&part=root, ?theme=light&part=root&override=on, ?theme=dark&part=data, ?theme=light&part=data&batch=on, ?theme=dark&part=data&offering=fixed, ?theme=dark&view=states로 확인한다. ISO 전용은 ?theme=light&source=iso&part=root, ?theme=dark&source=iso&part=root&root-offering=fixed, ?theme=light&source=iso&part=data, ?theme=dark&source=iso&part=data&offering=fixed로 확인한다. 마지막 상세 단계는 ?theme=light&part=details, ?theme=dark&source=iso&part=details&batch=on으로 확인한다. 스위치는 기본 꺼짐이며 로컬 목업에서 켜기/끄기를 확인할 수 있다. 서버/API 연결이나 VM 생성 동작은 없다.
