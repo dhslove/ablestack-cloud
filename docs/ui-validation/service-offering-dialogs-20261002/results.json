@@ -1,0 +1,4564 @@
+{
+  "issue": 1212,
+  "standard": "MOLD-DIALOG-1.0",
+  "environment": "local product components / API fixtures",
+  "matrix": [
+    {
+      "type": "compute",
+      "theme": "dark",
+      "zoom": 100,
+      "width": 1600,
+      "height": 1000,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 421,
+        "y": 84,
+        "width": 758,
+        "height": 832,
+        "top": 84,
+        "right": 1179,
+        "bottom": 916,
+        "left": 421
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "system",
+      "theme": "dark",
+      "zoom": 100,
+      "width": 1600,
+      "height": 1000,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 421,
+        "y": 84,
+        "width": 758,
+        "height": 832,
+        "top": 84,
+        "right": 1179,
+        "bottom": 916,
+        "left": 421
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "disk",
+      "theme": "dark",
+      "zoom": 100,
+      "width": 1600,
+      "height": 1000,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 496,
+        "y": 84,
+        "width": 608,
+        "height": 832,
+        "top": 84,
+        "right": 1104,
+        "bottom": 916,
+        "left": 496
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "backup-create",
+      "theme": "dark",
+      "zoom": 100,
+      "width": 1600,
+      "height": 1000,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 546,
+        "y": 84,
+        "width": 508,
+        "height": 832,
+        "top": 84,
+        "right": 1054,
+        "bottom": 916,
+        "left": 546
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "backup-import",
+      "theme": "dark",
+      "zoom": 100,
+      "width": 1600,
+      "height": 1000,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 546,
+        "y": 155,
+        "width": 508,
+        "height": 690,
+        "top": 155,
+        "right": 1054,
+        "bottom": 845,
+        "left": 546
+      },
+      "scrolls": false,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "network",
+      "theme": "dark",
+      "zoom": 100,
+      "width": 1600,
+      "height": 1000,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 471,
+        "y": 84,
+        "width": 658,
+        "height": 832,
+        "top": 84,
+        "right": 1129,
+        "bottom": 916,
+        "left": 471
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "vpc",
+      "theme": "dark",
+      "zoom": 100,
+      "width": 1600,
+      "height": 1000,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 521,
+        "y": 84,
+        "width": 558,
+        "height": 832,
+        "top": 84,
+        "right": 1079,
+        "bottom": 916,
+        "left": 521
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "compute",
+      "theme": "dark",
+      "zoom": 100,
+      "width": 1440,
+      "height": 900,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 341,
+        "y": 34,
+        "width": 758,
+        "height": 832,
+        "top": 34,
+        "right": 1099,
+        "bottom": 866,
+        "left": 341
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "system",
+      "theme": "dark",
+      "zoom": 100,
+      "width": 1440,
+      "height": 900,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 341,
+        "y": 34,
+        "width": 758,
+        "height": 832,
+        "top": 34,
+        "right": 1099,
+        "bottom": 866,
+        "left": 341
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "disk",
+      "theme": "dark",
+      "zoom": 100,
+      "width": 1440,
+      "height": 900,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 416,
+        "y": 34,
+        "width": 608,
+        "height": 832,
+        "top": 34,
+        "right": 1024,
+        "bottom": 866,
+        "left": 416
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "backup-create",
+      "theme": "dark",
+      "zoom": 100,
+      "width": 1440,
+      "height": 900,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 466,
+        "y": 34,
+        "width": 508,
+        "height": 832,
+        "top": 34,
+        "right": 974,
+        "bottom": 866,
+        "left": 466
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "backup-import",
+      "theme": "dark",
+      "zoom": 100,
+      "width": 1440,
+      "height": 900,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 466,
+        "y": 105,
+        "width": 508,
+        "height": 690,
+        "top": 105,
+        "right": 974,
+        "bottom": 795,
+        "left": 466
+      },
+      "scrolls": false,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "network",
+      "theme": "dark",
+      "zoom": 100,
+      "width": 1440,
+      "height": 900,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 391,
+        "y": 34,
+        "width": 658,
+        "height": 832,
+        "top": 34,
+        "right": 1049,
+        "bottom": 866,
+        "left": 391
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "vpc",
+      "theme": "dark",
+      "zoom": 100,
+      "width": 1440,
+      "height": 900,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 441,
+        "y": 34,
+        "width": 558,
+        "height": 832,
+        "top": 34,
+        "right": 999,
+        "bottom": 866,
+        "left": 441
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "compute",
+      "theme": "dark",
+      "zoom": 100,
+      "width": 1280,
+      "height": 720,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 261,
+        "y": 32,
+        "width": 758,
+        "height": 656,
+        "top": 32,
+        "right": 1019,
+        "bottom": 688,
+        "left": 261
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "system",
+      "theme": "dark",
+      "zoom": 100,
+      "width": 1280,
+      "height": 720,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 261,
+        "y": 32,
+        "width": 758,
+        "height": 656,
+        "top": 32,
+        "right": 1019,
+        "bottom": 688,
+        "left": 261
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "disk",
+      "theme": "dark",
+      "zoom": 100,
+      "width": 1280,
+      "height": 720,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 336,
+        "y": 32,
+        "width": 608,
+        "height": 656,
+        "top": 32,
+        "right": 944,
+        "bottom": 688,
+        "left": 336
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "backup-create",
+      "theme": "dark",
+      "zoom": 100,
+      "width": 1280,
+      "height": 720,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 386,
+        "y": 32,
+        "width": 508,
+        "height": 656,
+        "top": 32,
+        "right": 894,
+        "bottom": 688,
+        "left": 386
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "backup-import",
+      "theme": "dark",
+      "zoom": 100,
+      "width": 1280,
+      "height": 720,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 386,
+        "y": 32,
+        "width": 508,
+        "height": 656,
+        "top": 32,
+        "right": 894,
+        "bottom": 688,
+        "left": 386
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "network",
+      "theme": "dark",
+      "zoom": 100,
+      "width": 1280,
+      "height": 720,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 311,
+        "y": 32,
+        "width": 658,
+        "height": 656,
+        "top": 32,
+        "right": 969,
+        "bottom": 688,
+        "left": 311
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "vpc",
+      "theme": "dark",
+      "zoom": 100,
+      "width": 1280,
+      "height": 720,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 361,
+        "y": 32,
+        "width": 558,
+        "height": 656,
+        "top": 32,
+        "right": 919,
+        "bottom": 688,
+        "left": 361
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "compute",
+      "theme": "dark",
+      "zoom": 100,
+      "width": 1024,
+      "height": 768,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 133,
+        "y": 32,
+        "width": 758,
+        "height": 704,
+        "top": 32,
+        "right": 891,
+        "bottom": 736,
+        "left": 133
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "system",
+      "theme": "dark",
+      "zoom": 100,
+      "width": 1024,
+      "height": 768,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 133,
+        "y": 32,
+        "width": 758,
+        "height": 704,
+        "top": 32,
+        "right": 891,
+        "bottom": 736,
+        "left": 133
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "disk",
+      "theme": "dark",
+      "zoom": 100,
+      "width": 1024,
+      "height": 768,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 208,
+        "y": 32,
+        "width": 608,
+        "height": 704,
+        "top": 32,
+        "right": 816,
+        "bottom": 736,
+        "left": 208
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "backup-create",
+      "theme": "dark",
+      "zoom": 100,
+      "width": 1024,
+      "height": 768,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 258,
+        "y": 32,
+        "width": 508,
+        "height": 704,
+        "top": 32,
+        "right": 766,
+        "bottom": 736,
+        "left": 258
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "backup-import",
+      "theme": "dark",
+      "zoom": 100,
+      "width": 1024,
+      "height": 768,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 258,
+        "y": 39,
+        "width": 508,
+        "height": 690,
+        "top": 39,
+        "right": 766,
+        "bottom": 729,
+        "left": 258
+      },
+      "scrolls": false,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "network",
+      "theme": "dark",
+      "zoom": 100,
+      "width": 1024,
+      "height": 768,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 183,
+        "y": 32,
+        "width": 658,
+        "height": 704,
+        "top": 32,
+        "right": 841,
+        "bottom": 736,
+        "left": 183
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "vpc",
+      "theme": "dark",
+      "zoom": 100,
+      "width": 1024,
+      "height": 768,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 233,
+        "y": 32,
+        "width": 558,
+        "height": 704,
+        "top": 32,
+        "right": 791,
+        "bottom": 736,
+        "left": 233
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "compute",
+      "theme": "dark",
+      "zoom": 100,
+      "width": 390,
+      "height": 844,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 12,
+        "y": 12,
+        "width": 366,
+        "height": 820,
+        "top": 12,
+        "right": 378,
+        "bottom": 832,
+        "left": 12
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "system",
+      "theme": "dark",
+      "zoom": 100,
+      "width": 390,
+      "height": 844,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 12,
+        "y": 12,
+        "width": 366,
+        "height": 820,
+        "top": 12,
+        "right": 378,
+        "bottom": 832,
+        "left": 12
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "disk",
+      "theme": "dark",
+      "zoom": 100,
+      "width": 390,
+      "height": 844,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 12,
+        "y": 12,
+        "width": 366,
+        "height": 820,
+        "top": 12,
+        "right": 378,
+        "bottom": 832,
+        "left": 12
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "backup-create",
+      "theme": "dark",
+      "zoom": 100,
+      "width": 390,
+      "height": 844,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 12,
+        "y": 12,
+        "width": 366,
+        "height": 820,
+        "top": 12,
+        "right": 378,
+        "bottom": 832,
+        "left": 12
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "backup-import",
+      "theme": "dark",
+      "zoom": 100,
+      "width": 390,
+      "height": 844,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 12,
+        "y": 98,
+        "width": 366,
+        "height": 648,
+        "top": 98,
+        "right": 378,
+        "bottom": 746,
+        "left": 12
+      },
+      "scrolls": false,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "network",
+      "theme": "dark",
+      "zoom": 100,
+      "width": 390,
+      "height": 844,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 12,
+        "y": 12,
+        "width": 366,
+        "height": 820,
+        "top": 12,
+        "right": 378,
+        "bottom": 832,
+        "left": 12
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "vpc",
+      "theme": "dark",
+      "zoom": 100,
+      "width": 390,
+      "height": 844,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 12,
+        "y": 12,
+        "width": 366,
+        "height": 820,
+        "top": 12,
+        "right": 378,
+        "bottom": 832,
+        "left": 12
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "compute",
+      "theme": "light",
+      "zoom": 100,
+      "width": 1600,
+      "height": 1000,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 421,
+        "y": 84,
+        "width": 758,
+        "height": 832,
+        "top": 84,
+        "right": 1179,
+        "bottom": 916,
+        "left": 421
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "system",
+      "theme": "light",
+      "zoom": 100,
+      "width": 1600,
+      "height": 1000,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 421,
+        "y": 84,
+        "width": 758,
+        "height": 832,
+        "top": 84,
+        "right": 1179,
+        "bottom": 916,
+        "left": 421
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "disk",
+      "theme": "light",
+      "zoom": 100,
+      "width": 1600,
+      "height": 1000,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 496,
+        "y": 84,
+        "width": 608,
+        "height": 832,
+        "top": 84,
+        "right": 1104,
+        "bottom": 916,
+        "left": 496
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "backup-create",
+      "theme": "light",
+      "zoom": 100,
+      "width": 1600,
+      "height": 1000,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 546,
+        "y": 84,
+        "width": 508,
+        "height": 832,
+        "top": 84,
+        "right": 1054,
+        "bottom": 916,
+        "left": 546
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "backup-import",
+      "theme": "light",
+      "zoom": 100,
+      "width": 1600,
+      "height": 1000,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 546,
+        "y": 155,
+        "width": 508,
+        "height": 690,
+        "top": 155,
+        "right": 1054,
+        "bottom": 845,
+        "left": 546
+      },
+      "scrolls": false,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "network",
+      "theme": "light",
+      "zoom": 100,
+      "width": 1600,
+      "height": 1000,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 471,
+        "y": 84,
+        "width": 658,
+        "height": 832,
+        "top": 84,
+        "right": 1129,
+        "bottom": 916,
+        "left": 471
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "vpc",
+      "theme": "light",
+      "zoom": 100,
+      "width": 1600,
+      "height": 1000,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 521,
+        "y": 84,
+        "width": 558,
+        "height": 832,
+        "top": 84,
+        "right": 1079,
+        "bottom": 916,
+        "left": 521
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "compute",
+      "theme": "light",
+      "zoom": 100,
+      "width": 1440,
+      "height": 900,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 341,
+        "y": 34,
+        "width": 758,
+        "height": 832,
+        "top": 34,
+        "right": 1099,
+        "bottom": 866,
+        "left": 341
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "system",
+      "theme": "light",
+      "zoom": 100,
+      "width": 1440,
+      "height": 900,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 341,
+        "y": 34,
+        "width": 758,
+        "height": 832,
+        "top": 34,
+        "right": 1099,
+        "bottom": 866,
+        "left": 341
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "disk",
+      "theme": "light",
+      "zoom": 100,
+      "width": 1440,
+      "height": 900,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 416,
+        "y": 34,
+        "width": 608,
+        "height": 832,
+        "top": 34,
+        "right": 1024,
+        "bottom": 866,
+        "left": 416
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "backup-create",
+      "theme": "light",
+      "zoom": 100,
+      "width": 1440,
+      "height": 900,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 466,
+        "y": 34,
+        "width": 508,
+        "height": 832,
+        "top": 34,
+        "right": 974,
+        "bottom": 866,
+        "left": 466
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "backup-import",
+      "theme": "light",
+      "zoom": 100,
+      "width": 1440,
+      "height": 900,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 466,
+        "y": 105,
+        "width": 508,
+        "height": 690,
+        "top": 105,
+        "right": 974,
+        "bottom": 795,
+        "left": 466
+      },
+      "scrolls": false,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "network",
+      "theme": "light",
+      "zoom": 100,
+      "width": 1440,
+      "height": 900,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 391,
+        "y": 34,
+        "width": 658,
+        "height": 832,
+        "top": 34,
+        "right": 1049,
+        "bottom": 866,
+        "left": 391
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "vpc",
+      "theme": "light",
+      "zoom": 100,
+      "width": 1440,
+      "height": 900,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 441,
+        "y": 34,
+        "width": 558,
+        "height": 832,
+        "top": 34,
+        "right": 999,
+        "bottom": 866,
+        "left": 441
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "compute",
+      "theme": "light",
+      "zoom": 100,
+      "width": 1280,
+      "height": 720,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 261,
+        "y": 32,
+        "width": 758,
+        "height": 656,
+        "top": 32,
+        "right": 1019,
+        "bottom": 688,
+        "left": 261
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "system",
+      "theme": "light",
+      "zoom": 100,
+      "width": 1280,
+      "height": 720,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 261,
+        "y": 32,
+        "width": 758,
+        "height": 656,
+        "top": 32,
+        "right": 1019,
+        "bottom": 688,
+        "left": 261
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "disk",
+      "theme": "light",
+      "zoom": 100,
+      "width": 1280,
+      "height": 720,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 336,
+        "y": 32,
+        "width": 608,
+        "height": 656,
+        "top": 32,
+        "right": 944,
+        "bottom": 688,
+        "left": 336
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "backup-create",
+      "theme": "light",
+      "zoom": 100,
+      "width": 1280,
+      "height": 720,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 386,
+        "y": 32,
+        "width": 508,
+        "height": 656,
+        "top": 32,
+        "right": 894,
+        "bottom": 688,
+        "left": 386
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "backup-import",
+      "theme": "light",
+      "zoom": 100,
+      "width": 1280,
+      "height": 720,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 386,
+        "y": 32,
+        "width": 508,
+        "height": 656,
+        "top": 32,
+        "right": 894,
+        "bottom": 688,
+        "left": 386
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "network",
+      "theme": "light",
+      "zoom": 100,
+      "width": 1280,
+      "height": 720,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 311,
+        "y": 32,
+        "width": 658,
+        "height": 656,
+        "top": 32,
+        "right": 969,
+        "bottom": 688,
+        "left": 311
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "vpc",
+      "theme": "light",
+      "zoom": 100,
+      "width": 1280,
+      "height": 720,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 361,
+        "y": 32,
+        "width": 558,
+        "height": 656,
+        "top": 32,
+        "right": 919,
+        "bottom": 688,
+        "left": 361
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "compute",
+      "theme": "light",
+      "zoom": 100,
+      "width": 1024,
+      "height": 768,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 133,
+        "y": 32,
+        "width": 758,
+        "height": 704,
+        "top": 32,
+        "right": 891,
+        "bottom": 736,
+        "left": 133
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "system",
+      "theme": "light",
+      "zoom": 100,
+      "width": 1024,
+      "height": 768,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 133,
+        "y": 32,
+        "width": 758,
+        "height": 704,
+        "top": 32,
+        "right": 891,
+        "bottom": 736,
+        "left": 133
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "disk",
+      "theme": "light",
+      "zoom": 100,
+      "width": 1024,
+      "height": 768,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 208,
+        "y": 32,
+        "width": 608,
+        "height": 704,
+        "top": 32,
+        "right": 816,
+        "bottom": 736,
+        "left": 208
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "backup-create",
+      "theme": "light",
+      "zoom": 100,
+      "width": 1024,
+      "height": 768,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 258,
+        "y": 32,
+        "width": 508,
+        "height": 704,
+        "top": 32,
+        "right": 766,
+        "bottom": 736,
+        "left": 258
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "backup-import",
+      "theme": "light",
+      "zoom": 100,
+      "width": 1024,
+      "height": 768,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 258,
+        "y": 39,
+        "width": 508,
+        "height": 690,
+        "top": 39,
+        "right": 766,
+        "bottom": 729,
+        "left": 258
+      },
+      "scrolls": false,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "network",
+      "theme": "light",
+      "zoom": 100,
+      "width": 1024,
+      "height": 768,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 183,
+        "y": 32,
+        "width": 658,
+        "height": 704,
+        "top": 32,
+        "right": 841,
+        "bottom": 736,
+        "left": 183
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "vpc",
+      "theme": "light",
+      "zoom": 100,
+      "width": 1024,
+      "height": 768,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 233,
+        "y": 32,
+        "width": 558,
+        "height": 704,
+        "top": 32,
+        "right": 791,
+        "bottom": 736,
+        "left": 233
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "compute",
+      "theme": "light",
+      "zoom": 100,
+      "width": 390,
+      "height": 844,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 12,
+        "y": 12,
+        "width": 366,
+        "height": 820,
+        "top": 12,
+        "right": 378,
+        "bottom": 832,
+        "left": 12
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "system",
+      "theme": "light",
+      "zoom": 100,
+      "width": 390,
+      "height": 844,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 12,
+        "y": 12,
+        "width": 366,
+        "height": 820,
+        "top": 12,
+        "right": 378,
+        "bottom": 832,
+        "left": 12
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "disk",
+      "theme": "light",
+      "zoom": 100,
+      "width": 390,
+      "height": 844,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 12,
+        "y": 12,
+        "width": 366,
+        "height": 820,
+        "top": 12,
+        "right": 378,
+        "bottom": 832,
+        "left": 12
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "backup-create",
+      "theme": "light",
+      "zoom": 100,
+      "width": 390,
+      "height": 844,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 12,
+        "y": 12,
+        "width": 366,
+        "height": 820,
+        "top": 12,
+        "right": 378,
+        "bottom": 832,
+        "left": 12
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "backup-import",
+      "theme": "light",
+      "zoom": 100,
+      "width": 390,
+      "height": 844,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 12,
+        "y": 98,
+        "width": 366,
+        "height": 648,
+        "top": 98,
+        "right": 378,
+        "bottom": 746,
+        "left": 12
+      },
+      "scrolls": false,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "network",
+      "theme": "light",
+      "zoom": 100,
+      "width": 390,
+      "height": 844,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 12,
+        "y": 12,
+        "width": 366,
+        "height": 820,
+        "top": 12,
+        "right": 378,
+        "bottom": 832,
+        "left": 12
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "vpc",
+      "theme": "light",
+      "zoom": 100,
+      "width": 390,
+      "height": 844,
+      "dpr": 1,
+      "centerX": 0,
+      "centerY": 0,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 12,
+        "y": 12,
+        "width": 366,
+        "height": 820,
+        "top": 12,
+        "right": 378,
+        "bottom": 832,
+        "left": 12
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "compute",
+      "theme": "dark",
+      "zoom": 200,
+      "width": 800,
+      "height": 456,
+      "dpr": 2,
+      "centerX": 0,
+      "centerY": 0.25,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 24,
+        "y": 32,
+        "width": 752,
+        "height": 392.5,
+        "top": 32,
+        "right": 776,
+        "bottom": 424.5,
+        "left": 24
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "system",
+      "theme": "dark",
+      "zoom": 200,
+      "width": 800,
+      "height": 456,
+      "dpr": 2,
+      "centerX": 0,
+      "centerY": 0.25,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 24,
+        "y": 32,
+        "width": 752,
+        "height": 392.5,
+        "top": 32,
+        "right": 776,
+        "bottom": 424.5,
+        "left": 24
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "disk",
+      "theme": "dark",
+      "zoom": 200,
+      "width": 800,
+      "height": 456,
+      "dpr": 2,
+      "centerX": 0,
+      "centerY": 0.25,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 96,
+        "y": 32,
+        "width": 608,
+        "height": 392.5,
+        "top": 32,
+        "right": 704,
+        "bottom": 424.5,
+        "left": 96
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "backup-create",
+      "theme": "dark",
+      "zoom": 200,
+      "width": 800,
+      "height": 456,
+      "dpr": 2,
+      "centerX": 0,
+      "centerY": 0.25,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 146,
+        "y": 32,
+        "width": 508,
+        "height": 392.5,
+        "top": 32,
+        "right": 654,
+        "bottom": 424.5,
+        "left": 146
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "backup-import",
+      "theme": "dark",
+      "zoom": 200,
+      "width": 800,
+      "height": 456,
+      "dpr": 2,
+      "centerX": 0,
+      "centerY": 0.25,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 146,
+        "y": 32,
+        "width": 508,
+        "height": 392.5,
+        "top": 32,
+        "right": 654,
+        "bottom": 424.5,
+        "left": 146
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "network",
+      "theme": "dark",
+      "zoom": 200,
+      "width": 800,
+      "height": 456,
+      "dpr": 2,
+      "centerX": 0,
+      "centerY": 0.25,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 71,
+        "y": 32,
+        "width": 658,
+        "height": 392.5,
+        "top": 32,
+        "right": 729,
+        "bottom": 424.5,
+        "left": 71
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "vpc",
+      "theme": "dark",
+      "zoom": 200,
+      "width": 800,
+      "height": 456,
+      "dpr": 2,
+      "centerX": 0,
+      "centerY": 0.25,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 121,
+        "y": 32,
+        "width": 558,
+        "height": 392.5,
+        "top": 32,
+        "right": 679,
+        "bottom": 424.5,
+        "left": 121
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "compute",
+      "theme": "light",
+      "zoom": 200,
+      "width": 800,
+      "height": 456,
+      "dpr": 2,
+      "centerX": 0,
+      "centerY": 0.25,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 24,
+        "y": 32,
+        "width": 752,
+        "height": 392.5,
+        "top": 32,
+        "right": 776,
+        "bottom": 424.5,
+        "left": 24
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "system",
+      "theme": "light",
+      "zoom": 200,
+      "width": 800,
+      "height": 456,
+      "dpr": 2,
+      "centerX": 0,
+      "centerY": 0.25,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 24,
+        "y": 32,
+        "width": 752,
+        "height": 392.5,
+        "top": 32,
+        "right": 776,
+        "bottom": 424.5,
+        "left": 24
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "disk",
+      "theme": "light",
+      "zoom": 200,
+      "width": 800,
+      "height": 456,
+      "dpr": 2,
+      "centerX": 0,
+      "centerY": 0.25,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 96,
+        "y": 32,
+        "width": 608,
+        "height": 392.5,
+        "top": 32,
+        "right": 704,
+        "bottom": 424.5,
+        "left": 96
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "backup-create",
+      "theme": "light",
+      "zoom": 200,
+      "width": 800,
+      "height": 456,
+      "dpr": 2,
+      "centerX": 0,
+      "centerY": 0.25,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 146,
+        "y": 32,
+        "width": 508,
+        "height": 392.5,
+        "top": 32,
+        "right": 654,
+        "bottom": 424.5,
+        "left": 146
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "backup-import",
+      "theme": "light",
+      "zoom": 200,
+      "width": 800,
+      "height": 456,
+      "dpr": 2,
+      "centerX": 0,
+      "centerY": 0.25,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 146,
+        "y": 32,
+        "width": 508,
+        "height": 392.5,
+        "top": 32,
+        "right": 654,
+        "bottom": 424.5,
+        "left": 146
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "network",
+      "theme": "light",
+      "zoom": 200,
+      "width": 800,
+      "height": 456,
+      "dpr": 2,
+      "centerX": 0,
+      "centerY": 0.25,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 71,
+        "y": 32,
+        "width": 658,
+        "height": 392.5,
+        "top": 32,
+        "right": 729,
+        "bottom": 424.5,
+        "left": 71
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    },
+    {
+      "type": "vpc",
+      "theme": "light",
+      "zoom": 200,
+      "width": 800,
+      "height": 456,
+      "dpr": 2,
+      "centerX": 0,
+      "centerY": 0.25,
+      "shellXOverflow": false,
+      "pageXOverflow": false,
+      "bounds": {
+        "x": 121,
+        "y": 32,
+        "width": 558,
+        "height": 392.5,
+        "top": 32,
+        "right": 679,
+        "bottom": 424.5,
+        "left": 121
+      },
+      "scrolls": true,
+      "headerMoved": 0,
+      "footerMoved": 0
+    }
+  ],
+  "interactions": [
+    {
+      "type": "compute",
+      "theme": "dark",
+      "validation": true,
+      "duplicateGuard": true,
+      "failedValuesPreserved": true,
+      "retry": true,
+      "completion": {
+        "refresh": 1,
+        "closeCount": 1,
+        "posts": 2,
+        "pending": 0,
+        "polls": 0,
+        "unknown": []
+      }
+    },
+    {
+      "type": "system",
+      "theme": "dark",
+      "validation": true,
+      "duplicateGuard": true,
+      "failedValuesPreserved": true,
+      "retry": true,
+      "completion": {
+        "refresh": 1,
+        "closeCount": 1,
+        "posts": 2,
+        "pending": 0,
+        "polls": 0,
+        "unknown": []
+      }
+    },
+    {
+      "type": "disk",
+      "theme": "dark",
+      "validation": true,
+      "duplicateGuard": true,
+      "failedValuesPreserved": true,
+      "retry": true,
+      "completion": {
+        "refresh": 1,
+        "closeCount": 1,
+        "posts": 2,
+        "pending": 0,
+        "polls": 0,
+        "unknown": []
+      }
+    },
+    {
+      "type": "backup-create",
+      "theme": "dark",
+      "validation": true,
+      "duplicateGuard": true,
+      "failedValuesPreserved": true,
+      "retry": true,
+      "completion": {
+        "refresh": 1,
+        "closeCount": 1,
+        "posts": 2,
+        "pending": 0,
+        "polls": 0,
+        "unknown": []
+      }
+    },
+    {
+      "type": "backup-import",
+      "theme": "dark",
+      "validation": true,
+      "duplicateGuard": true,
+      "failedValuesPreserved": true,
+      "retry": true,
+      "completion": {
+        "refresh": 0,
+        "closeCount": 1,
+        "posts": 2,
+        "pending": 0,
+        "polls": 1,
+        "unknown": []
+      }
+    },
+    {
+      "type": "network",
+      "theme": "dark",
+      "validation": true,
+      "duplicateGuard": true,
+      "failedValuesPreserved": true,
+      "retry": true,
+      "completion": {
+        "refresh": 1,
+        "closeCount": 1,
+        "posts": 2,
+        "pending": 0,
+        "polls": 0,
+        "unknown": []
+      }
+    },
+    {
+      "type": "vpc",
+      "theme": "dark",
+      "validation": true,
+      "duplicateGuard": true,
+      "failedValuesPreserved": true,
+      "retry": true,
+      "completion": {
+        "refresh": 1,
+        "closeCount": 1,
+        "posts": 2,
+        "pending": 0,
+        "polls": 0,
+        "unknown": []
+      }
+    },
+    {
+      "type": "compute",
+      "theme": "light",
+      "validation": true,
+      "duplicateGuard": true,
+      "failedValuesPreserved": true,
+      "retry": true,
+      "completion": {
+        "refresh": 1,
+        "closeCount": 1,
+        "posts": 2,
+        "pending": 0,
+        "polls": 0,
+        "unknown": []
+      }
+    },
+    {
+      "type": "system",
+      "theme": "light",
+      "validation": true,
+      "duplicateGuard": true,
+      "failedValuesPreserved": true,
+      "retry": true,
+      "completion": {
+        "refresh": 1,
+        "closeCount": 1,
+        "posts": 2,
+        "pending": 0,
+        "polls": 0,
+        "unknown": []
+      }
+    },
+    {
+      "type": "disk",
+      "theme": "light",
+      "validation": true,
+      "duplicateGuard": true,
+      "failedValuesPreserved": true,
+      "retry": true,
+      "completion": {
+        "refresh": 1,
+        "closeCount": 1,
+        "posts": 2,
+        "pending": 0,
+        "polls": 0,
+        "unknown": []
+      }
+    },
+    {
+      "type": "backup-create",
+      "theme": "light",
+      "validation": true,
+      "duplicateGuard": true,
+      "failedValuesPreserved": true,
+      "retry": true,
+      "completion": {
+        "refresh": 1,
+        "closeCount": 1,
+        "posts": 2,
+        "pending": 0,
+        "polls": 0,
+        "unknown": []
+      }
+    },
+    {
+      "type": "backup-import",
+      "theme": "light",
+      "validation": true,
+      "duplicateGuard": true,
+      "failedValuesPreserved": true,
+      "retry": true,
+      "completion": {
+        "refresh": 0,
+        "closeCount": 1,
+        "posts": 2,
+        "pending": 0,
+        "polls": 1,
+        "unknown": []
+      }
+    },
+    {
+      "type": "network",
+      "theme": "light",
+      "validation": true,
+      "duplicateGuard": true,
+      "failedValuesPreserved": true,
+      "retry": true,
+      "completion": {
+        "refresh": 1,
+        "closeCount": 1,
+        "posts": 2,
+        "pending": 0,
+        "polls": 0,
+        "unknown": []
+      }
+    },
+    {
+      "type": "vpc",
+      "theme": "light",
+      "validation": true,
+      "duplicateGuard": true,
+      "failedValuesPreserved": true,
+      "retry": true,
+      "completion": {
+        "refresh": 1,
+        "closeCount": 1,
+        "posts": 2,
+        "pending": 0,
+        "polls": 0,
+        "unknown": []
+      }
+    },
+    {
+      "type": "compute",
+      "feature": "instanceleaseenabled",
+      "enabled": false,
+      "leaseControls": 0
+    },
+    {
+      "type": "compute",
+      "feature": "instanceleaseenabled",
+      "enabled": true,
+      "leaseControls": 1
+    },
+    {
+      "type": "network",
+      "services": true,
+      "providerPopupOutsideSubscroll": true,
+      "preservedSubscroll": {
+        "height": 250,
+        "scrollable": true,
+        "headerMoved": 0
+      },
+      "providerConditions": [
+        "NSX",
+        "Netris"
+      ],
+      "protocol": "dualstack",
+      "routing": "dynamic"
+    },
+    {
+      "type": "vpc",
+      "services": true,
+      "providerPopupOutsideSubscroll": true,
+      "preservedSubscroll": {
+        "height": 250,
+        "scrollable": true,
+        "headerMoved": 0
+      },
+      "providerConditions": [
+        "NSX",
+        "Netris"
+      ],
+      "protocol": "dualstack",
+      "routing": "dynamic"
+    },
+    {
+      "type": "compute",
+      "cloneSharedForm": true,
+      "originalActions": true,
+      "resourceValues": true
+    },
+    {
+      "type": "disk",
+      "cloneSharedForm": true,
+      "originalActions": true,
+      "resourceValues": true
+    },
+    {
+      "type": "special-states",
+      "nested": true,
+      "popup": true,
+      "providerPolicies": true,
+      "roleConditions": true,
+      "customModes": true
+    }
+  ],
+  "preservedBodies": [
+    {
+      "type": "compute",
+      "width": 700,
+      "legacyWidth": 700,
+      "fields": 30,
+      "grids": 35
+    },
+    {
+      "type": "system",
+      "width": 700,
+      "legacyWidth": 700,
+      "fields": 26,
+      "grids": 31
+    },
+    {
+      "type": "disk",
+      "width": 550,
+      "legacyWidth": 550,
+      "fields": 14,
+      "grids": 14
+    },
+    {
+      "type": "backup-create",
+      "width": 450,
+      "legacyWidth": 450,
+      "fields": 10,
+      "grids": 10
+    },
+    {
+      "type": "backup-import",
+      "width": 450,
+      "legacyWidth": 450,
+      "fields": 7,
+      "grids": 7
+    },
+    {
+      "type": "network",
+      "width": 600,
+      "legacyWidth": 600,
+      "fields": 21,
+      "grids": 35
+    },
+    {
+      "type": "vpc",
+      "width": 500,
+      "legacyWidth": 500,
+      "fields": 11,
+      "grids": 22
+    }
+  ],
+  "contrast": [
+    {
+      "name": "compute dark title",
+      "ratio": 12.321533585708302,
+      "threshold": 4.5,
+      "foreground": [
+        240,
+        243,
+        246,
+        1
+      ],
+      "background": [
+        39,
+        46,
+        54,
+        1
+      ]
+    },
+    {
+      "name": "compute dark label",
+      "ratio": 13.348661188320586,
+      "threshold": 4.5,
+      "foreground": [
+        240,
+        243,
+        246,
+        1
+      ],
+      "background": [
+        34,
+        40,
+        47,
+        1
+      ]
+    },
+    {
+      "name": "compute dark input",
+      "ratio": 14.56307547372849,
+      "threshold": 4.5,
+      "foreground": [
+        240,
+        243,
+        246,
+        1
+      ],
+      "background": [
+        27,
+        33,
+        40,
+        1
+      ]
+    },
+    {
+      "name": "compute dark placeholder",
+      "ratio": 6.4128150629431655,
+      "threshold": 4.5,
+      "foreground": [
+        154,
+        164,
+        175,
+        1
+      ],
+      "background": [
+        27,
+        33,
+        40,
+        1
+      ]
+    },
+    {
+      "name": "compute dark boundary",
+      "ratio": 6.607418085557632,
+      "threshold": 3,
+      "foreground": [
+        105,
+        177,
+        255,
+        1
+      ],
+      "background": [
+        34,
+        40,
+        47,
+        1
+      ]
+    },
+    {
+      "name": "compute dark primary",
+      "ratio": 5.192060987927794,
+      "threshold": 4.5,
+      "foreground": [
+        255,
+        255,
+        255,
+        1
+      ],
+      "background": [
+        9,
+        105,
+        218,
+        1
+      ]
+    },
+    {
+      "name": "compute dark selected radio",
+      "ratio": 5.192060987927794,
+      "threshold": 4.5,
+      "foreground": [
+        255,
+        255,
+        255,
+        1
+      ],
+      "background": [
+        9,
+        105,
+        218,
+        1
+      ]
+    },
+    {
+      "name": "compute dark radio",
+      "ratio": 14.56307547372849,
+      "threshold": 4.5,
+      "foreground": [
+        240,
+        243,
+        246,
+        1
+      ],
+      "background": [
+        27,
+        33,
+        40,
+        1
+      ]
+    },
+    {
+      "name": "system dark title",
+      "ratio": 12.321533585708302,
+      "threshold": 4.5,
+      "foreground": [
+        240,
+        243,
+        246,
+        1
+      ],
+      "background": [
+        39,
+        46,
+        54,
+        1
+      ]
+    },
+    {
+      "name": "system dark label",
+      "ratio": 13.348661188320586,
+      "threshold": 4.5,
+      "foreground": [
+        240,
+        243,
+        246,
+        1
+      ],
+      "background": [
+        34,
+        40,
+        47,
+        1
+      ]
+    },
+    {
+      "name": "system dark input",
+      "ratio": 14.56307547372849,
+      "threshold": 4.5,
+      "foreground": [
+        240,
+        243,
+        246,
+        1
+      ],
+      "background": [
+        27,
+        33,
+        40,
+        1
+      ]
+    },
+    {
+      "name": "system dark placeholder",
+      "ratio": 6.4128150629431655,
+      "threshold": 4.5,
+      "foreground": [
+        154,
+        164,
+        175,
+        1
+      ],
+      "background": [
+        27,
+        33,
+        40,
+        1
+      ]
+    },
+    {
+      "name": "system dark boundary",
+      "ratio": 6.607418085557632,
+      "threshold": 3,
+      "foreground": [
+        105,
+        177,
+        255,
+        1
+      ],
+      "background": [
+        34,
+        40,
+        47,
+        1
+      ]
+    },
+    {
+      "name": "system dark primary",
+      "ratio": 5.192060987927794,
+      "threshold": 4.5,
+      "foreground": [
+        255,
+        255,
+        255,
+        1
+      ],
+      "background": [
+        9,
+        105,
+        218,
+        1
+      ]
+    },
+    {
+      "name": "disk dark title",
+      "ratio": 12.321533585708302,
+      "threshold": 4.5,
+      "foreground": [
+        240,
+        243,
+        246,
+        1
+      ],
+      "background": [
+        39,
+        46,
+        54,
+        1
+      ]
+    },
+    {
+      "name": "disk dark label",
+      "ratio": 13.348661188320586,
+      "threshold": 4.5,
+      "foreground": [
+        240,
+        243,
+        246,
+        1
+      ],
+      "background": [
+        34,
+        40,
+        47,
+        1
+      ]
+    },
+    {
+      "name": "disk dark input",
+      "ratio": 14.56307547372849,
+      "threshold": 4.5,
+      "foreground": [
+        240,
+        243,
+        246,
+        1
+      ],
+      "background": [
+        27,
+        33,
+        40,
+        1
+      ]
+    },
+    {
+      "name": "disk dark placeholder",
+      "ratio": 6.4128150629431655,
+      "threshold": 4.5,
+      "foreground": [
+        154,
+        164,
+        175,
+        1
+      ],
+      "background": [
+        27,
+        33,
+        40,
+        1
+      ]
+    },
+    {
+      "name": "disk dark boundary",
+      "ratio": 6.607418085557632,
+      "threshold": 3,
+      "foreground": [
+        105,
+        177,
+        255,
+        1
+      ],
+      "background": [
+        34,
+        40,
+        47,
+        1
+      ]
+    },
+    {
+      "name": "disk dark primary",
+      "ratio": 5.192060987927794,
+      "threshold": 4.5,
+      "foreground": [
+        255,
+        255,
+        255,
+        1
+      ],
+      "background": [
+        9,
+        105,
+        218,
+        1
+      ]
+    },
+    {
+      "name": "disk dark selected radio",
+      "ratio": 5.192060987927794,
+      "threshold": 4.5,
+      "foreground": [
+        255,
+        255,
+        255,
+        1
+      ],
+      "background": [
+        9,
+        105,
+        218,
+        1
+      ]
+    },
+    {
+      "name": "disk dark radio",
+      "ratio": 14.56307547372849,
+      "threshold": 4.5,
+      "foreground": [
+        240,
+        243,
+        246,
+        1
+      ],
+      "background": [
+        27,
+        33,
+        40,
+        1
+      ]
+    },
+    {
+      "name": "backup-create dark title",
+      "ratio": 12.321533585708302,
+      "threshold": 4.5,
+      "foreground": [
+        240,
+        243,
+        246,
+        1
+      ],
+      "background": [
+        39,
+        46,
+        54,
+        1
+      ]
+    },
+    {
+      "name": "backup-create dark label",
+      "ratio": 13.348661188320586,
+      "threshold": 4.5,
+      "foreground": [
+        240,
+        243,
+        246,
+        1
+      ],
+      "background": [
+        34,
+        40,
+        47,
+        1
+      ]
+    },
+    {
+      "name": "backup-create dark input",
+      "ratio": 14.56307547372849,
+      "threshold": 4.5,
+      "foreground": [
+        240,
+        243,
+        246,
+        1
+      ],
+      "background": [
+        27,
+        33,
+        40,
+        1
+      ]
+    },
+    {
+      "name": "backup-create dark placeholder",
+      "ratio": 14.56307547372849,
+      "threshold": 4.5,
+      "foreground": [
+        240,
+        243,
+        246,
+        1
+      ],
+      "background": [
+        27,
+        33,
+        40,
+        1
+      ]
+    },
+    {
+      "name": "backup-create dark boundary",
+      "ratio": 6.607418085557632,
+      "threshold": 3,
+      "foreground": [
+        105,
+        177,
+        255,
+        1
+      ],
+      "background": [
+        34,
+        40,
+        47,
+        1
+      ]
+    },
+    {
+      "name": "backup-create dark primary",
+      "ratio": 5.192060987927794,
+      "threshold": 4.5,
+      "foreground": [
+        255,
+        255,
+        255,
+        1
+      ],
+      "background": [
+        9,
+        105,
+        218,
+        1
+      ]
+    },
+    {
+      "name": "backup-import dark title",
+      "ratio": 12.321533585708302,
+      "threshold": 4.5,
+      "foreground": [
+        240,
+        243,
+        246,
+        1
+      ],
+      "background": [
+        39,
+        46,
+        54,
+        1
+      ]
+    },
+    {
+      "name": "backup-import dark label",
+      "ratio": 13.348661188320586,
+      "threshold": 4.5,
+      "foreground": [
+        240,
+        243,
+        246,
+        1
+      ],
+      "background": [
+        34,
+        40,
+        47,
+        1
+      ]
+    },
+    {
+      "name": "backup-import dark input",
+      "ratio": 14.56307547372849,
+      "threshold": 4.5,
+      "foreground": [
+        240,
+        243,
+        246,
+        1
+      ],
+      "background": [
+        27,
+        33,
+        40,
+        1
+      ]
+    },
+    {
+      "name": "backup-import dark placeholder",
+      "ratio": 14.56307547372849,
+      "threshold": 4.5,
+      "foreground": [
+        240,
+        243,
+        246,
+        1
+      ],
+      "background": [
+        27,
+        33,
+        40,
+        1
+      ]
+    },
+    {
+      "name": "backup-import dark boundary",
+      "ratio": 6.607418085557632,
+      "threshold": 3,
+      "foreground": [
+        105,
+        177,
+        255,
+        1
+      ],
+      "background": [
+        34,
+        40,
+        47,
+        1
+      ]
+    },
+    {
+      "name": "backup-import dark primary",
+      "ratio": 5.192060987927794,
+      "threshold": 4.5,
+      "foreground": [
+        255,
+        255,
+        255,
+        1
+      ],
+      "background": [
+        9,
+        105,
+        218,
+        1
+      ]
+    },
+    {
+      "name": "network dark title",
+      "ratio": 12.321533585708302,
+      "threshold": 4.5,
+      "foreground": [
+        240,
+        243,
+        246,
+        1
+      ],
+      "background": [
+        39,
+        46,
+        54,
+        1
+      ]
+    },
+    {
+      "name": "network dark label",
+      "ratio": 13.348661188320586,
+      "threshold": 4.5,
+      "foreground": [
+        240,
+        243,
+        246,
+        1
+      ],
+      "background": [
+        34,
+        40,
+        47,
+        1
+      ]
+    },
+    {
+      "name": "network dark input",
+      "ratio": 14.56307547372849,
+      "threshold": 4.5,
+      "foreground": [
+        240,
+        243,
+        246,
+        1
+      ],
+      "background": [
+        27,
+        33,
+        40,
+        1
+      ]
+    },
+    {
+      "name": "network dark placeholder",
+      "ratio": 6.4128150629431655,
+      "threshold": 4.5,
+      "foreground": [
+        154,
+        164,
+        175,
+        1
+      ],
+      "background": [
+        27,
+        33,
+        40,
+        1
+      ]
+    },
+    {
+      "name": "network dark boundary",
+      "ratio": 6.607418085557632,
+      "threshold": 3,
+      "foreground": [
+        105,
+        177,
+        255,
+        1
+      ],
+      "background": [
+        34,
+        40,
+        47,
+        1
+      ]
+    },
+    {
+      "name": "network dark primary",
+      "ratio": 5.192060987927794,
+      "threshold": 4.5,
+      "foreground": [
+        255,
+        255,
+        255,
+        1
+      ],
+      "background": [
+        9,
+        105,
+        218,
+        1
+      ]
+    },
+    {
+      "name": "vpc dark title",
+      "ratio": 12.321533585708302,
+      "threshold": 4.5,
+      "foreground": [
+        240,
+        243,
+        246,
+        1
+      ],
+      "background": [
+        39,
+        46,
+        54,
+        1
+      ]
+    },
+    {
+      "name": "vpc dark label",
+      "ratio": 13.348661188320586,
+      "threshold": 4.5,
+      "foreground": [
+        240,
+        243,
+        246,
+        1
+      ],
+      "background": [
+        34,
+        40,
+        47,
+        1
+      ]
+    },
+    {
+      "name": "vpc dark input",
+      "ratio": 14.56307547372849,
+      "threshold": 4.5,
+      "foreground": [
+        240,
+        243,
+        246,
+        1
+      ],
+      "background": [
+        27,
+        33,
+        40,
+        1
+      ]
+    },
+    {
+      "name": "vpc dark placeholder",
+      "ratio": 6.4128150629431655,
+      "threshold": 4.5,
+      "foreground": [
+        154,
+        164,
+        175,
+        1
+      ],
+      "background": [
+        27,
+        33,
+        40,
+        1
+      ]
+    },
+    {
+      "name": "vpc dark boundary",
+      "ratio": 6.607418085557632,
+      "threshold": 3,
+      "foreground": [
+        105,
+        177,
+        255,
+        1
+      ],
+      "background": [
+        34,
+        40,
+        47,
+        1
+      ]
+    },
+    {
+      "name": "vpc dark primary",
+      "ratio": 5.192060987927794,
+      "threshold": 4.5,
+      "foreground": [
+        255,
+        255,
+        255,
+        1
+      ],
+      "background": [
+        9,
+        105,
+        218,
+        1
+      ]
+    },
+    {
+      "name": "compute dark validation error",
+      "ratio": 5.801765735909778,
+      "threshold": 4.5,
+      "foreground": [
+        255,
+        120,
+        117,
+        1
+      ],
+      "background": [
+        34,
+        40,
+        47,
+        1
+      ]
+    },
+    {
+      "name": "compute dark request error",
+      "ratio": 5.801765735909778,
+      "threshold": 4.5,
+      "foreground": [
+        255,
+        120,
+        117,
+        1
+      ],
+      "background": [
+        34,
+        40,
+        47,
+        1
+      ]
+    },
+    {
+      "name": "system dark validation error",
+      "ratio": 5.801765735909778,
+      "threshold": 4.5,
+      "foreground": [
+        255,
+        120,
+        117,
+        1
+      ],
+      "background": [
+        34,
+        40,
+        47,
+        1
+      ]
+    },
+    {
+      "name": "system dark request error",
+      "ratio": 5.801765735909778,
+      "threshold": 4.5,
+      "foreground": [
+        255,
+        120,
+        117,
+        1
+      ],
+      "background": [
+        34,
+        40,
+        47,
+        1
+      ]
+    },
+    {
+      "name": "disk dark validation error",
+      "ratio": 5.801765735909778,
+      "threshold": 4.5,
+      "foreground": [
+        255,
+        120,
+        117,
+        1
+      ],
+      "background": [
+        34,
+        40,
+        47,
+        1
+      ]
+    },
+    {
+      "name": "disk dark request error",
+      "ratio": 5.801765735909778,
+      "threshold": 4.5,
+      "foreground": [
+        255,
+        120,
+        117,
+        1
+      ],
+      "background": [
+        34,
+        40,
+        47,
+        1
+      ]
+    },
+    {
+      "name": "backup-create dark validation error",
+      "ratio": 5.801765735909778,
+      "threshold": 4.5,
+      "foreground": [
+        255,
+        120,
+        117,
+        1
+      ],
+      "background": [
+        34,
+        40,
+        47,
+        1
+      ]
+    },
+    {
+      "name": "backup-create dark request error",
+      "ratio": 5.801765735909778,
+      "threshold": 4.5,
+      "foreground": [
+        255,
+        120,
+        117,
+        1
+      ],
+      "background": [
+        34,
+        40,
+        47,
+        1
+      ]
+    },
+    {
+      "name": "backup-import dark validation error",
+      "ratio": 5.801765735909778,
+      "threshold": 4.5,
+      "foreground": [
+        255,
+        120,
+        117,
+        1
+      ],
+      "background": [
+        34,
+        40,
+        47,
+        1
+      ]
+    },
+    {
+      "name": "backup-import dark request error",
+      "ratio": 5.801765735909778,
+      "threshold": 4.5,
+      "foreground": [
+        255,
+        120,
+        117,
+        1
+      ],
+      "background": [
+        34,
+        40,
+        47,
+        1
+      ]
+    },
+    {
+      "name": "network dark validation error",
+      "ratio": 5.801765735909778,
+      "threshold": 4.5,
+      "foreground": [
+        255,
+        120,
+        117,
+        1
+      ],
+      "background": [
+        34,
+        40,
+        47,
+        1
+      ]
+    },
+    {
+      "name": "network dark request error",
+      "ratio": 5.801765735909778,
+      "threshold": 4.5,
+      "foreground": [
+        255,
+        120,
+        117,
+        1
+      ],
+      "background": [
+        34,
+        40,
+        47,
+        1
+      ]
+    },
+    {
+      "name": "vpc dark validation error",
+      "ratio": 5.801765735909778,
+      "threshold": 4.5,
+      "foreground": [
+        255,
+        120,
+        117,
+        1
+      ],
+      "background": [
+        34,
+        40,
+        47,
+        1
+      ]
+    },
+    {
+      "name": "vpc dark request error",
+      "ratio": 5.801765735909778,
+      "threshold": 4.5,
+      "foreground": [
+        255,
+        120,
+        117,
+        1
+      ],
+      "background": [
+        34,
+        40,
+        47,
+        1
+      ]
+    },
+    {
+      "name": "compute light title",
+      "ratio": 13.917732922695903,
+      "threshold": 4.5,
+      "foreground": [
+        31,
+        41,
+        55,
+        1
+      ],
+      "background": [
+        247,
+        249,
+        252,
+        1
+      ]
+    },
+    {
+      "name": "compute light label",
+      "ratio": 14.67911847763172,
+      "threshold": 4.5,
+      "foreground": [
+        31,
+        41,
+        55,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "compute light input",
+      "ratio": 14.67911847763172,
+      "threshold": 4.5,
+      "foreground": [
+        31,
+        41,
+        55,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "compute light placeholder",
+      "ratio": 4.974752735406439,
+      "threshold": 4.5,
+      "foreground": [
+        102,
+        112,
+        133,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "compute light boundary",
+      "ratio": 4.104091535864498,
+      "threshold": 3,
+      "foreground": [
+        22,
+        119,
+        255,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "compute light primary",
+      "ratio": 5.192060987927794,
+      "threshold": 4.5,
+      "foreground": [
+        255,
+        255,
+        255,
+        1
+      ],
+      "background": [
+        9,
+        105,
+        218,
+        1
+      ]
+    },
+    {
+      "name": "compute light selected radio",
+      "ratio": 5.192060987927794,
+      "threshold": 4.5,
+      "foreground": [
+        255,
+        255,
+        255,
+        1
+      ],
+      "background": [
+        9,
+        105,
+        218,
+        1
+      ]
+    },
+    {
+      "name": "compute light radio",
+      "ratio": 14.67911847763172,
+      "threshold": 4.5,
+      "foreground": [
+        31,
+        41,
+        55,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "system light title",
+      "ratio": 13.917732922695903,
+      "threshold": 4.5,
+      "foreground": [
+        31,
+        41,
+        55,
+        1
+      ],
+      "background": [
+        247,
+        249,
+        252,
+        1
+      ]
+    },
+    {
+      "name": "system light label",
+      "ratio": 14.67911847763172,
+      "threshold": 4.5,
+      "foreground": [
+        31,
+        41,
+        55,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "system light input",
+      "ratio": 14.67911847763172,
+      "threshold": 4.5,
+      "foreground": [
+        31,
+        41,
+        55,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "system light placeholder",
+      "ratio": 4.974752735406439,
+      "threshold": 4.5,
+      "foreground": [
+        102,
+        112,
+        133,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "system light boundary",
+      "ratio": 4.104091535864498,
+      "threshold": 3,
+      "foreground": [
+        22,
+        119,
+        255,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "system light primary",
+      "ratio": 5.192060987927794,
+      "threshold": 4.5,
+      "foreground": [
+        255,
+        255,
+        255,
+        1
+      ],
+      "background": [
+        9,
+        105,
+        218,
+        1
+      ]
+    },
+    {
+      "name": "disk light title",
+      "ratio": 13.917732922695903,
+      "threshold": 4.5,
+      "foreground": [
+        31,
+        41,
+        55,
+        1
+      ],
+      "background": [
+        247,
+        249,
+        252,
+        1
+      ]
+    },
+    {
+      "name": "disk light label",
+      "ratio": 14.67911847763172,
+      "threshold": 4.5,
+      "foreground": [
+        31,
+        41,
+        55,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "disk light input",
+      "ratio": 14.67911847763172,
+      "threshold": 4.5,
+      "foreground": [
+        31,
+        41,
+        55,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "disk light placeholder",
+      "ratio": 4.974752735406439,
+      "threshold": 4.5,
+      "foreground": [
+        102,
+        112,
+        133,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "disk light boundary",
+      "ratio": 4.104091535864498,
+      "threshold": 3,
+      "foreground": [
+        22,
+        119,
+        255,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "disk light primary",
+      "ratio": 5.192060987927794,
+      "threshold": 4.5,
+      "foreground": [
+        255,
+        255,
+        255,
+        1
+      ],
+      "background": [
+        9,
+        105,
+        218,
+        1
+      ]
+    },
+    {
+      "name": "disk light selected radio",
+      "ratio": 5.192060987927794,
+      "threshold": 4.5,
+      "foreground": [
+        255,
+        255,
+        255,
+        1
+      ],
+      "background": [
+        9,
+        105,
+        218,
+        1
+      ]
+    },
+    {
+      "name": "disk light radio",
+      "ratio": 14.67911847763172,
+      "threshold": 4.5,
+      "foreground": [
+        31,
+        41,
+        55,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "backup-create light title",
+      "ratio": 13.917732922695903,
+      "threshold": 4.5,
+      "foreground": [
+        31,
+        41,
+        55,
+        1
+      ],
+      "background": [
+        247,
+        249,
+        252,
+        1
+      ]
+    },
+    {
+      "name": "backup-create light label",
+      "ratio": 14.67911847763172,
+      "threshold": 4.5,
+      "foreground": [
+        31,
+        41,
+        55,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "backup-create light input",
+      "ratio": 14.67911847763172,
+      "threshold": 4.5,
+      "foreground": [
+        31,
+        41,
+        55,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "backup-create light placeholder",
+      "ratio": 14.67911847763172,
+      "threshold": 4.5,
+      "foreground": [
+        31,
+        41,
+        55,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "backup-create light boundary",
+      "ratio": 4.104091535864498,
+      "threshold": 3,
+      "foreground": [
+        22,
+        119,
+        255,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "backup-create light primary",
+      "ratio": 5.192060987927794,
+      "threshold": 4.5,
+      "foreground": [
+        255,
+        255,
+        255,
+        1
+      ],
+      "background": [
+        9,
+        105,
+        218,
+        1
+      ]
+    },
+    {
+      "name": "backup-import light title",
+      "ratio": 13.917732922695903,
+      "threshold": 4.5,
+      "foreground": [
+        31,
+        41,
+        55,
+        1
+      ],
+      "background": [
+        247,
+        249,
+        252,
+        1
+      ]
+    },
+    {
+      "name": "backup-import light label",
+      "ratio": 14.67911847763172,
+      "threshold": 4.5,
+      "foreground": [
+        31,
+        41,
+        55,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "backup-import light input",
+      "ratio": 14.67911847763172,
+      "threshold": 4.5,
+      "foreground": [
+        31,
+        41,
+        55,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "backup-import light placeholder",
+      "ratio": 14.67911847763172,
+      "threshold": 4.5,
+      "foreground": [
+        31,
+        41,
+        55,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "backup-import light boundary",
+      "ratio": 4.104091535864498,
+      "threshold": 3,
+      "foreground": [
+        22,
+        119,
+        255,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "backup-import light primary",
+      "ratio": 5.192060987927794,
+      "threshold": 4.5,
+      "foreground": [
+        255,
+        255,
+        255,
+        1
+      ],
+      "background": [
+        9,
+        105,
+        218,
+        1
+      ]
+    },
+    {
+      "name": "network light title",
+      "ratio": 13.917732922695903,
+      "threshold": 4.5,
+      "foreground": [
+        31,
+        41,
+        55,
+        1
+      ],
+      "background": [
+        247,
+        249,
+        252,
+        1
+      ]
+    },
+    {
+      "name": "network light label",
+      "ratio": 14.67911847763172,
+      "threshold": 4.5,
+      "foreground": [
+        31,
+        41,
+        55,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "network light input",
+      "ratio": 14.67911847763172,
+      "threshold": 4.5,
+      "foreground": [
+        31,
+        41,
+        55,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "network light placeholder",
+      "ratio": 4.974752735406439,
+      "threshold": 4.5,
+      "foreground": [
+        102,
+        112,
+        133,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "network light boundary",
+      "ratio": 4.104091535864498,
+      "threshold": 3,
+      "foreground": [
+        22,
+        119,
+        255,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "network light primary",
+      "ratio": 5.192060987927794,
+      "threshold": 4.5,
+      "foreground": [
+        255,
+        255,
+        255,
+        1
+      ],
+      "background": [
+        9,
+        105,
+        218,
+        1
+      ]
+    },
+    {
+      "name": "vpc light title",
+      "ratio": 13.917732922695903,
+      "threshold": 4.5,
+      "foreground": [
+        31,
+        41,
+        55,
+        1
+      ],
+      "background": [
+        247,
+        249,
+        252,
+        1
+      ]
+    },
+    {
+      "name": "vpc light label",
+      "ratio": 14.67911847763172,
+      "threshold": 4.5,
+      "foreground": [
+        31,
+        41,
+        55,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "vpc light input",
+      "ratio": 14.67911847763172,
+      "threshold": 4.5,
+      "foreground": [
+        31,
+        41,
+        55,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "vpc light placeholder",
+      "ratio": 4.974752735406439,
+      "threshold": 4.5,
+      "foreground": [
+        102,
+        112,
+        133,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "vpc light boundary",
+      "ratio": 4.104091535864498,
+      "threshold": 3,
+      "foreground": [
+        22,
+        119,
+        255,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "vpc light primary",
+      "ratio": 5.192060987927794,
+      "threshold": 4.5,
+      "foreground": [
+        255,
+        255,
+        255,
+        1
+      ],
+      "background": [
+        9,
+        105,
+        218,
+        1
+      ]
+    },
+    {
+      "name": "compute light validation error",
+      "ratio": 6.57428861557707,
+      "threshold": 4.5,
+      "foreground": [
+        180,
+        35,
+        24,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "compute light request error",
+      "ratio": 6.57428861557707,
+      "threshold": 4.5,
+      "foreground": [
+        180,
+        35,
+        24,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "system light validation error",
+      "ratio": 6.57428861557707,
+      "threshold": 4.5,
+      "foreground": [
+        180,
+        35,
+        24,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "system light request error",
+      "ratio": 6.57428861557707,
+      "threshold": 4.5,
+      "foreground": [
+        180,
+        35,
+        24,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "disk light validation error",
+      "ratio": 6.57428861557707,
+      "threshold": 4.5,
+      "foreground": [
+        180,
+        35,
+        24,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "disk light request error",
+      "ratio": 6.57428861557707,
+      "threshold": 4.5,
+      "foreground": [
+        180,
+        35,
+        24,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "backup-create light validation error",
+      "ratio": 6.57428861557707,
+      "threshold": 4.5,
+      "foreground": [
+        180,
+        35,
+        24,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "backup-create light request error",
+      "ratio": 6.57428861557707,
+      "threshold": 4.5,
+      "foreground": [
+        180,
+        35,
+        24,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "backup-import light validation error",
+      "ratio": 6.57428861557707,
+      "threshold": 4.5,
+      "foreground": [
+        180,
+        35,
+        24,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "backup-import light request error",
+      "ratio": 6.57428861557707,
+      "threshold": 4.5,
+      "foreground": [
+        180,
+        35,
+        24,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "network light validation error",
+      "ratio": 6.57428861557707,
+      "threshold": 4.5,
+      "foreground": [
+        180,
+        35,
+        24,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "network light request error",
+      "ratio": 6.57428861557707,
+      "threshold": 4.5,
+      "foreground": [
+        180,
+        35,
+        24,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "vpc light validation error",
+      "ratio": 6.57428861557707,
+      "threshold": 4.5,
+      "foreground": [
+        180,
+        35,
+        24,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "vpc light request error",
+      "ratio": 6.57428861557707,
+      "threshold": 4.5,
+      "foreground": [
+        180,
+        35,
+        24,
+        1
+      ],
+      "background": [
+        255,
+        255,
+        255,
+        1
+      ]
+    },
+    {
+      "name": "dark select popup",
+      "ratio": 10.436447967076155,
+      "threshold": 4.5,
+      "foreground": [
+        240,
+        243,
+        246,
+        1
+      ],
+      "background": [
+        51.68000000000001,
+        57.2,
+        63.64,
+        1
+      ]
+    }
+  ],
+  "errors": [],
+  "apiRequests": [],
+  "externalRequests": [],
+  "screenshots": [
+    "01-compute-dark.png",
+    "02-compute-body-scrolled.png",
+    "03-system-dark.png",
+    "04-disk-dark.png",
+    "05-backup-create-dark.png",
+    "06-backup-import-dark.png",
+    "07-network-dark.png",
+    "08-network-body-scrolled.png",
+    "09-vpc-dark.png",
+    "10-vpc-body-scrolled.png",
+    "11-compute-mobile.png",
+    "12-system-mobile.png",
+    "13-disk-mobile.png",
+    "14-backup-create-mobile.png",
+    "15-backup-import-mobile.png",
+    "16-network-mobile.png",
+    "17-vpc-mobile.png",
+    "18-compute-submit-loading.png",
+    "19-compute-request-failure.png",
+    "20-backup-create-validation-error.png",
+    "21-compute-light.png",
+    "22-system-light.png",
+    "23-disk-light.png",
+    "24-backup-create-light.png",
+    "25-backup-import-light.png",
+    "26-network-light.png",
+    "27-vpc-light.png",
+    "28-compute-select-popup.png",
+    "29-compute-help-tooltip.png",
+    "30-compute-child-disk.png",
+    "31-compute-child-disk-created.png",
+    "32-compute-customconstrained.png",
+    "33-compute-customunconstrained.png",
+    "34-backup-create-policy-options.png",
+    "35-backup-import-commvault.png",
+    "36-backup-import-netbackup.png",
+    "37-backup-import-ablestack-netbackup.png",
+    "38-backup-import-provider-restriction.png",
+    "39-disk-domainadmin.png",
+    "40-disk-user.png",
+    "41-network-service-provider-popup.png",
+    "42-network-guest-shared.png",
+    "43-network-guest-l2.png",
+    "44-network-nsx-routed-dualstack.png",
+    "45-network-netris-routed-dualstack.png",
+    "46-vpc-service-provider-popup.png",
+    "47-vpc-nsx-routed-dualstack.png",
+    "48-vpc-netris-routed-dualstack.png",
+    "49-compute-clone-reuse.png",
+    "50-disk-clone-reuse.png",
+    "51-compute-browser-zoom-200.png"
+  ],
+  "passed": true
+}
