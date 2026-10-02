@@ -1,0 +1,164 @@
+<!--
+Licensed to the Apache Software Foundation (ASF) under one
+or more contributor license agreements. See the NOTICE file
+distributed with this work for additional information
+regarding copyright ownership. The ASF licenses this file
+to you under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License. You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on an
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, either express or implied. See the License for the
+specific language governing permissions and limitations
+under the License.
+-->
+<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<title>#1211 루트 디스크 선택 순서 · 검토 목업</title><style>
+:root{--bg:#f0f2f5;--panel:#fff;--text:#303b44;--muted:#6d7783;--line:#e8eaee;--thead:#fafafa;--selected:#e6f7ff;--blue:#1890ff;--info:#e6f7ff;--info-line:#91d5ff}
+body.dark{--bg:#171c22;--panel:#222930;--text:#e7edf3;--muted:#afb9c3;--line:#424a52;--thead:#29313a;--selected:#1b3e55;--blue:#40a9ff;--info:#142c3e;--info-line:#255d83}
+*{box-sizing:border-box}body{margin:0;min-width:1300px;background:var(--bg);color:var(--text);font:14px/1.5 "Malgun Gothic","Noto Sans KR",Arial,sans-serif}
+button,input,select{font:inherit;color:inherit}button{cursor:pointer}.layout{display:grid;grid-template-columns:250px 1fr;min-height:100vh}
+aside{background:var(--panel);border-right:1px solid var(--line);padding:15px 12px}.brand{width:228px;height:36px;object-fit:contain;margin-bottom:20px}
+.nav{padding:12px 12px;display:flex;align-items:center;gap:13px;color:var(--muted)}.nav.sub{padding-left:33px}.nav.active{background:var(--selected);color:var(--blue)}
+header{height:64px;background:var(--panel);display:flex;align-items:center;padding:0 25px;gap:24px;border-bottom:1px solid var(--line)}.grow{flex:1}.view{width:518px;border:1px solid var(--line);padding:5px 13px;border-radius:3px;display:flex;justify-content:space-between}
+.primary{background:#1890ff;border:1px solid #1890ff;color:white;padding:6px 17px;border-radius:3px;height:32px}.avatar{width:25px;height:25px;background:#1890ff;color:white;border-radius:50%;display:inline-grid;place-items:center;font-size:11px}
+.area{padding:14px 16px;display:grid;grid-template-columns:minmax(820px,1fr) 385px;gap:14px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:3px}
+.title{height:55px;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);font-size:16px}
+.review{font-size:12px;color:var(--muted);font-weight:400;border:1px solid var(--line);border-radius:3px;padding:3px 8px}
+.form{padding:14px 26px 22px 37px}.context{display:flex;gap:12px;align-items:center;padding:8px 0 13px;border-bottom:1px solid var(--line);font-size:13px;color:var(--muted)}
+.check{width:21px;height:21px;border:1px solid var(--blue);color:var(--blue);border-radius:50%;display:inline-grid;place-items:center;font-size:12px;flex-shrink:0}
+.step{position:relative;padding:16px 0 0 27px;border-left:1px solid var(--line);margin-top:12px}.stepnum{position:absolute;left:-13px;top:17px;border-radius:50%;width:25px;height:25px;display:grid;place-items:center;background:#1890ff;color:white}
+h2{font-size:15px;font-weight:600;margin:0 0 16px}.section{margin-bottom:17px}.caption{font-weight:600;font-size:14px;margin:0 0 9px;display:flex;gap:9px;align-items:center}
+.seq{width:21px;height:21px;display:inline-grid;place-items:center;border:1px solid var(--line);border-radius:50%;color:var(--muted);font-size:12px;font-weight:400}
+.switch{width:42px;height:22px;border:0;border-radius:13px;background:#b3b7bb;position:relative;padding:0;vertical-align:middle}
+.switch:before{content:"";position:absolute;left:3px;top:3px;width:16px;height:16px;background:#fff;border-radius:50%}
+.switch[aria-checked=true]{background:#1890ff}.switch[aria-checked=true]:before{left:23px}
+.toggle-line{display:flex;gap:13px;align-items:center}.help{margin:5px 0 0;font-size:12px;color:var(--muted);line-height:1.65}.summary-current{margin:9px 0 0;padding:9px 13px;background:var(--thead);border:1px solid var(--line);border-radius:3px;font-size:13px}
+.tag{display:inline-block;font-size:12px;border:1px solid var(--info-line);color:var(--blue);background:var(--selected);padding:0 6px;border-radius:3px;margin-left:8px}
+table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}th{font-weight:500;background:var(--thead);text-align:left}th,td{padding:8px 12px;border-bottom:1px solid var(--line)}.selected{background:var(--selected)}
+input[type=radio]{accent-color:#1890ff;width:15px;height:15px;vertical-align:middle;margin:0}.radio-col{width:35px;text-align:center}
+.toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px}.tools{display:flex;gap:10px;align-items:center}.search{background:var(--panel);border:1px solid var(--line);height:32px;padding:4px 10px;border-radius:3px;width:220px}
+.plain{background:var(--panel);border:1px solid var(--line);border-radius:3px;height:32px;padding:4px 13px;display:inline-flex;align-items:center;gap:7px}.ico{fill:none;stroke:currentColor;stroke-width:1.5;width:14px;height:14px}
+#offering-table{margin-top:10px}#offering-search{margin-left:auto}#offering-table td:first-child{width:35px}.number{width:178px;height:33px;border:1px solid var(--line);background:var(--panel);border-radius:3px;padding:4px 12px;font-variant-numeric:tabular-nums}
+.number[readonly]{background:var(--thead);color:var(--muted)}.size-controls{display:flex;align-items:center;gap:11px;margin-top:10px}
+.pool th:nth-child(n+3),.pool td:nth-child(n+3){text-align:right;white-space:nowrap}.pool small{font-size:12px;color:var(--muted);display:block;margin-top:3px}.need{font-weight:500}
+.automatic{display:flex;gap:7px;align-items:center;font-size:13px;margin:10px 0 9px}.blue{color:var(--blue)}.next{margin:16px 0 0;padding:13px 0 0;border-top:1px solid var(--line);color:var(--muted);font-size:13px;display:flex;justify-content:space-between}
+.summary{align-self:start;position:sticky;top:14px}.summary-body{padding:19px 25px}.summary-body .os{font-size:25px;margin-bottom:13px}.line{margin:12px 0}.label{font-size:12px;color:var(--muted);display:block;margin-bottom:4px}.val{font-size:13px}
+.summary-body hr{border:0;border-top:1px solid var(--line);margin:19px 0}.storage-box{border:1px solid var(--line);border-radius:3px;background:var(--thead);padding:12px;margin:14px 0}
+.actions{padding:15px 25px;border-top:1px solid var(--line)}.actions .primary{width:100%;height:34px}.actions .help{margin-top:9px}
+#default-block .size-switch{margin-top:11px}.info{background:var(--info);border:1px solid var(--info-line);border-radius:3px;padding:10px 13px;font-size:12px;margin-top:15px}
+#review-switches{position:fixed;bottom:8px;left:15px;width:218px;padding:9px 10px;background:var(--panel);border:1px solid var(--line);border-radius:3px;z-index:5;font-size:12px;color:var(--muted)}
+#review-switches select{background:var(--panel);border:1px solid var(--line);padding:3px 6px;margin-top:5px;width:100%;font-size:12px}#review-switches button{margin-top:6px;font-size:12px}
+body.capture #review-switches{display:none}.side-note{font-size:12px;color:var(--muted);padding:12px;border-top:1px solid var(--line);margin-top:20px}
+@media(max-width:1600px){.area{grid-template-columns:minmax(760px,1fr) 310px}.layout{grid-template-columns:230px 1fr}.brand{width:205px}.form{padding-left:32px}.summary-body{padding:15px 20px}header .view{width:350px}.pool th,.pool td{padding-left:8px;padding-right:8px}}
+
+/* Focused review frame: keep the root configuration and storage table visible together. */
+.brand{height:48px;margin-top:-6px;margin-bottom:12px}
+.form{padding-top:10px;padding-bottom:14px}
+.context:first-child{display:none}.context{padding-top:6px;padding-bottom:9px}
+.step{padding-top:12px;margin-top:8px}.stepnum{top:13px}h2{margin-bottom:11px}
+.section{margin-bottom:12px}.caption{margin-bottom:7px}
+#offering-table th,#offering-table td{padding-top:6px;padding-bottom:6px}
+#clvm-row{display:none}
+#storage-section>.help:first-of-type{display:none}
+.info,.next{display:none}
+.summary-body{padding-top:14px;padding-bottom:14px}.summary-body .line{margin:9px 0}.summary-body .os{margin-bottom:8px}
+.summary-body hr{margin:13px 0}.summary-body .storage-box{margin:10px 0;padding:10px}
+.summary-body .line{margin:7px 0}.actions{padding-top:12px;padding-bottom:12px}.summary-body .os{display:none}
+
+</style></head><body>
+<svg style="position:absolute;width:0;height:0" aria-hidden="true"><defs><symbol id="reload" viewBox="0 0 16 16"><path d="M13.3 5.7A5.4 5.4 0 1 0 13.2 11M13.4 2.7v3.5h-3.5"/></symbol><symbol id="rocket" viewBox="0 0 16 16"><path d="M6 10C4 5 8 2 11 1c2 4 1 8-3 10l-2-1Zm0 0-3 2 1-4 2 2Zm2 1 1 4 2-4M5 12l-2 2"/><circle cx="9" cy="5" r="1"/></symbol></defs></svg>
+<div class="layout"><aside><img id="brand" class="brand" src="logo-ablestack.png" alt="ABLESTACK">
+<div class="nav">◉ <span>대시보드</span></div><div class="nav">☁ <span>컴퓨트</span><span class="grow"></span>⌃</div><div class="nav sub active">▣ <span>가상머신</span></div><div class="nav sub">▧ <span>VM 스냅샷</span></div><div class="nav sub">▢ <span>쿠버네티스</span></div><div class="nav sub">↔ <span>오토스케일 VM 그룹</span></div><div class="nav sub">▱ <span>가상머신 그룹</span></div><div class="nav sub">⚿ <span>SSH 키 쌍</span></div><div class="nav sub">▤ <span>사용자 데이터 라이브러리</span></div><div class="nav sub">⌘ <span>Affinity 그룹</span></div><div class="nav">▰ <span>스토리지</span></div><div class="nav">◈ <span>네트워크</span></div><div class="nav">▧ <span>이미지</span></div><div class="nav">▣ <span>키 관리</span></div><div class="nav">▦ <span>이벤트</span></div><div class="nav">♧ <span>계정</span></div>
+<div class="side-note">#1211 검토 목업<br>루트 디스크 입력 순서 개선<br>표시된 용량과 오퍼링은 예시입니다.</div></aside>
+<div><header><span>☰</span><div class="view"><span>▣ 기본 보기</span><span>⌄</span></div><span class="grow"></span><button class="primary">생성 ⌄</button><span>⚐</span><span>♧</span><span class="avatar">AC</span><span style="font-size:13px">admin cloud</span></header>
+<div class="area"><main class="panel"><div class="title"><span>새 가상머신</span><span class="review">검토 목업 · <span id="state-name"></span></span></div><div class="form">
+<div class="context"><span class="check">✓</span><span id="source-context">템플릿 · Rocky Linux 9</span><span class="grow"></span><span>KVM · Zone1</span></div>
+<div class="context"><span class="check">✓</span><b style="color:var(--text);font-weight:500">컴퓨트 오퍼링</b><span>2C-4GB-GFS</span><span class="grow"></span><span>2 CPU × 2.00 GHz · 4096 MB</span></div>
+<div class="step"><span class="stepnum">6</span><h2>루트 디스크</h2>
+<section class="section" id="offering-section"><div class="caption"><span class="seq">1</span><span>루트 디스크 오퍼링</span></div>
+<div class="toggle-line" id="offering-toggle-line"><button class="switch" role="switch" aria-label="루트 디스크 오퍼링 무시" aria-checked="false" id="override-toggle"></button><span>루트 디스크 오퍼링 무시</span></div>
+<p class="help" id="offering-help">컴퓨트 오퍼링의 기본 루트 디스크 오퍼링을 사용합니다.</p>
+<div class="summary-current" id="default-offering">적용 오퍼링 <b style="margin-left:13px">GFS-Sparse</b><span class="tag">컴퓨트 오퍼링 기본값</span></div>
+<div id="offering-table" hidden><div class="toolbar"><span class="help">사용할 루트 디스크 오퍼링을 선택하세요.</span><input class="search" id="offering-search" placeholder="오퍼링 검색" aria-label="오퍼링 검색"></div>
+<table aria-label="루트 디스크 오퍼링 목록"><thead><tr><th></th><th>디스크 오퍼링</th><th>루트 디스크 크기</th><th>스토리지 태그</th></tr></thead><tbody>
+<tr id="custom-row"><td><input type="radio" name="offering" value="custom" aria-label="Custom-GFS-Sparse"></td><td>Custom-GFS-Sparse</td><td>사용자 지정</td><td>glue-gfs</td></tr>
+<tr id="fixed-row"><td><input type="radio" name="offering" value="fixed" aria-label="GFS-200GB-Fixed"></td><td>GFS-200GB-Fixed <span class="help">(예시)</span></td><td>200 GB · 고정</td><td>glue-gfs</td></tr>
+<tr id="clvm-row"><td><input type="radio" name="offering" value="clvm" aria-label="Custom-CLVM"></td><td>Custom-CLVM</td><td>사용자 지정</td><td>clvm</td></tr>
+</tbody></table></div></section>
+<section class="section" id="size-section"><div class="caption"><span class="seq">2</span><span>루트 디스크 용량</span></div>
+<div id="default-block"><div class="summary-current" style="margin-top:0">기본 용량 <b style="margin-left:13px">100 GB</b><span class="help" style="margin-left:13px">템플릿 최소 크기 100 GB</span></div>
+<div class="toggle-line size-switch"><button class="switch" role="switch" aria-label="루트 디스크 크기 무시" aria-checked="false" id="size-toggle"></button><span>루트 디스크 크기 무시</span></div>
+<p class="help">루트 디스크 오퍼링을 유지하면서 용량만 변경합니다.</p></div>
+<div class="size-controls" id="size-input" hidden><input class="number" id="root-size" type="number" min="100" value="125" aria-label="루트 디스크 크기"><span>GB</span><span class="tag" id="fixed-tag" hidden>고정 용량</span></div>
+<p class="help" id="size-help" hidden>가변 오퍼링의 용량을 입력하세요. 템플릿 최소 크기 100 GB 이상이어야 합니다.</p>
+</section>
+<section class="section" id="storage-section"><div class="toolbar"><div class="caption" style="margin:0"><span class="seq">3</span><span>루트 디스크의 기본 스토리지</span></div><div class="tools"><button class="plain" aria-label="스토리지 업데이트"><svg class="ico"><use href="#reload"/></svg>업데이트</button><input class="search" placeholder="스토리지 검색" aria-label="스토리지 검색"></div></div>
+<p class="help" style="margin-top:0">선택한 오퍼링과 루트 용량에 맞는 스토리지를 선택하세요.</p>
+<label class="automatic"><input type="radio" name="pool" value="auto"> 자동 선택</label>
+<table class="pool" aria-label="기본 스토리지 목록"><thead><tr><th class="radio-col"></th><th>스토리지</th><th>총 용량</th><th>할당 용량</th><th>물리 여유</th><th>추가 할당 가능</th><th>필요 용량</th></tr></thead><tbody>
+<tr class="selected" id="primary-row"><td class="radio-col"><input type="radio" name="pool" value="primary" checked></td><td><span id="pool-name">Primary</span><small id="pool-detail">SharedMountPoint · CLUSTER</small></td><td>7.28 TiB</td><td>5.80 TiB</td><td>6.63 TiB</td><td>389.8 GiB</td><td class="need"><span class="size-value">100</span> GiB</td></tr>
+<tr id="secondary-row"><td class="radio-col"><input type="radio" name="pool" value="secondary"></td><td><span id="pool-name-2">Primary-02</span><small>SharedMountPoint · CLUSTER</small></td><td>4.00 TiB</td><td>1.60 TiB</td><td>3.21 TiB</td><td>2.40 TiB</td><td class="need"><span class="size-value">100</span> GiB</td></tr>
+</tbody></table><p class="help">할당 용량에는 예약 용량이 포함됩니다. 물리 여유와 추가 할당 가능 용량은 서로 다를 수 있습니다.</p>
+<div class="info">루트 디스크 오퍼링과 용량을 먼저 정한 뒤 스토리지를 선택합니다. 조건을 변경하면 후보와 용량을 다시 확인하며, 유효한 선택은 유지합니다.</div>
+</section><div class="next"><span>7　데이터 디스크</span><span>설정 안함</span></div></div></div></main>
+<section class="panel summary"><div class="title">귀하의 가상머신</div><div class="summary-body"><div class="os">♧</div><span class="tag" style="margin-left:0">KVM</span>
+<div class="line"><span class="label">OS 유형</span><span class="val" id="os-summary">Rocky Linux 9</span></div><div class="line"><span class="label">CPU</span><span class="val">2 CPU × 2.00 GHz</span></div><div class="line"><span class="label">메모리</span><span class="val">4096 MB</span></div><hr>
+<div class="line"><span class="label" id="source-label">템플릿</span><span class="val" id="source-summary">rocky-9-4-minimal.qcow2</span></div><div class="line"><span class="label">컴퓨트 오퍼링</span><span class="val">2C-4GB-GFS</span></div>
+<div class="line"><span class="label">루트 디스크 오퍼링</span><span class="val" id="offering-summary">GFS-Sparse · 컴퓨트 오퍼링 기본값</span></div><div class="line"><span class="label">루트 디스크 용량</span><span class="val"><span class="size-value">100</span> GB · 1개</span></div>
+<div class="storage-box"><span class="label">루트 디스크의 기본 스토리지</span><span class="val blue" id="storage-summary">Primary</span><p class="help"><span class="size-value">100</span> GB · 직접 선택</p></div>
+<div class="line"><span class="label">데이터 디스크</span><span class="val">설정 안함</span></div></div>
+<div class="actions"><button class="primary"><svg class="ico" style="vertical-align:-2px;margin-right:7px"><use href="#rocket"/></svg>가상머신 생성</button><p class="help">생성 후 중지 상태로 유지합니다.<br>상세 화면에서 시작할 수 있습니다.</p></div></section></div></div></div>
+<div id="review-switches">검토 화면<select id="review-state" aria-label="목업 상태"><option value="default">템플릿 · 기본 오퍼링 유지</option><option value="size">템플릿 · 용량만 변경</option><option value="custom">템플릿 · 가변 오퍼링 선택</option><option value="fixed">템플릿 · 고정 오퍼링 선택</option><option value="iso">ISO · 가변 루트 오퍼링</option></select><button class="plain" id="theme-toggle">일반 / 다크 모드</button></div>
+<script>
+const q=new URLSearchParams(location.search);
+let state=q.get('state')||'custom';
+const iso=()=>state==='iso',override=()=>['custom','fixed','clvm'].includes(state);
+document.body.classList.toggle('dark',q.get('theme')==='dark');
+document.body.classList.toggle('capture',q.get('capture')==='1');
+const byId=id=>document.getElementById(id);
+function render(){
+ const useOverride=override(),isFixed=state==='fixed',isIso=iso(),defaultSizeChange=state==='size';
+ byId('brand').src=document.body.classList.contains('dark')?'white-logo-ablestack.png':'logo-ablestack.png';
+ byId('state-name').textContent=({default:'기본 오퍼링 유지',size:'용량만 변경',custom:'가변 오퍼링 선택',fixed:'고정 오퍼링 선택',clvm:'다른 스토리지 오퍼링 선택',iso:'ISO · 루트 디스크'})[state];
+ byId('override-toggle').setAttribute('aria-checked',useOverride);
+ byId('offering-toggle-line').hidden=isIso;
+ byId('offering-toggle-line').style.display=isIso?'none':'flex';
+ byId('offering-help').textContent=isIso?'설치 ISO에 사용할 빈 루트 디스크의 오퍼링을 선택하세요.':useOverride?'컴퓨트 오퍼링의 기본값 대신 다른 루트 디스크 오퍼링을 선택합니다.':'컴퓨트 오퍼링의 기본 루트 디스크 오퍼링을 사용합니다.';
+ byId('default-offering').hidden=useOverride||isIso;
+ byId('offering-table').hidden=!(useOverride||isIso);
+ byId('default-block').hidden=useOverride||isIso;
+ byId('size-toggle').setAttribute('aria-checked',defaultSizeChange);
+ byId('size-input').hidden=!(useOverride||isIso||defaultSizeChange);
+ byId('size-input').style.display=useOverride||isIso||defaultSizeChange?'flex':'none';
+ byId('size-help').hidden=!(useOverride||isIso||defaultSizeChange);
+ byId('fixed-tag').hidden=!isFixed;byId('fixed-tag').style.display=isFixed?'inline-block':'none';
+ byId('root-size').readOnly=isFixed;byId('root-size').min=isIso?'1':'100';
+ byId('root-size').value=isFixed?'200':isIso?'40':useOverride||defaultSizeChange?'125':'100';
+ byId('size-help').textContent=isFixed?'오퍼링에 설정된 고정 용량을 사용합니다. 다른 용량이 필요하면 위에서 오퍼링을 변경하세요.':isIso?'설치할 운영체제에 필요한 루트 용량을 입력하세요.':'템플릿 최소 크기 100 GB 이상으로 입력하세요.';
+ const offering=state==='clvm'?'clvm':isFixed?'fixed':'custom';
+ document.querySelectorAll('input[name=offering]').forEach(el=>{el.checked=el.value===offering;el.closest('tr').classList.toggle('selected',el.checked)});
+ byId('source-context').textContent=isIso?'설치 ISO · Ubuntu 24.04 LTS':'템플릿 · Rocky Linux 9';
+ byId('source-label').textContent=isIso?'설치 원본 ISO':'템플릿';
+ byId('source-summary').textContent=isIso?'Ubuntu 24.04.4 Server.iso':'rocky-9-4-minimal.qcow2';
+ byId('os-summary').textContent=isIso?'Ubuntu 24.04 LTS':'Rocky Linux 9';
+ byId('offering-summary').textContent=state==='clvm'?'Custom-CLVM':isFixed?'GFS-200GB-Fixed':useOverride||isIso?'Custom-GFS-Sparse':'GFS-Sparse · 컴퓨트 오퍼링 기본값';
+ byId('pool-name').textContent=state==='clvm'?'CLVM':'Primary';byId('pool-name-2').textContent=state==='clvm'?'CLVM-02':'Primary-02';
+ byId('pool-detail').textContent=state==='clvm'?'CLVM · CLUSTER':'SharedMountPoint · CLUSTER';
+ byId('storage-summary').textContent=state==='clvm'?'CLVM':'Primary';
+ updateSize();
+ byId('review-state').value=state==='clvm'?'custom':state;
+}
+function updateSize(){const v=byId('root-size').value;document.querySelectorAll('.size-value').forEach(el=>el.textContent=v||'—')}
+byId('override-toggle').addEventListener('click',()=>{state=override()?'default':'custom';render()});
+byId('size-toggle').addEventListener('click',()=>{state=state==='size'?'default':'size';render()});
+document.querySelectorAll('input[name=offering]').forEach(el=>el.addEventListener('change',()=>{if(!iso()){state=el.value;render()}}));
+byId('root-size').addEventListener('input',updateSize);
+byId('review-state').addEventListener('change',e=>{state=e.target.value;render()});
+byId('theme-toggle').addEventListener('click',()=>{document.body.classList.toggle('dark');render()});
+render();
+</script></body></html>
