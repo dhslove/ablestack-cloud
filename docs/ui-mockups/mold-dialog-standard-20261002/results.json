@@ -1838,6 +1838,23 @@
       ]
     },
     {
+      "name": "light tooltip",
+      "ratio": 14.67911847763172,
+      "threshold": 4.5,
+      "foreground": [
+        255,
+        255,
+        255,
+        1
+      ],
+      "background": [
+        31,
+        41,
+        55,
+        1
+      ]
+    },
+    {
       "name": "light danger",
       "ratio": 6.57428861557707,
       "threshold": 4.5,
@@ -2144,6 +2161,23 @@
       ]
     },
     {
+      "name": "dark tooltip",
+      "ratio": 14.67911847763172,
+      "threshold": 4.5,
+      "foreground": [
+        255,
+        255,
+        255,
+        1
+      ],
+      "background": [
+        31,
+        41,
+        55,
+        1
+      ]
+    },
+    {
       "name": "dark danger",
       "ratio": 6.57428861557707,
       "threshold": 4.5,
@@ -2190,6 +2224,7 @@
     "10-form-error-scrolled.png",
     "08-select-popup-dark.png",
     "09-calendar-popup-dark.png",
+    "17-tooltip-popup-dark.png",
     "12-form-loading-dark.png",
     "15-submission-loading-dark.png",
     "05-confirm-dark.png",
