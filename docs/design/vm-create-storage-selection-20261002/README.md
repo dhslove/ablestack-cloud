@@ -45,7 +45,7 @@ under the License.
 
 ## 화면 개선안
 
-1. **컴퓨트 오퍼링 → 루트 디스크의 기본 스토리지 → 루트 디스크 오퍼링 무시·별도 용량 입력** 순서로 배치한다. 먼저 기본 용량을 기준으로 스토리지를 선택한다. 다른 용량을 원하는 경우에만 아래의 무시 옵션을 켜고 루트 크기를 입력한다. 무시 옵션이 꺼져 있으면 오퍼링 기본 용량을 사용하고 크기 입력을 숨긴다.
+1. 템플릿 방식은 **컴퓨트 오퍼링 → 루트 디스크의 기본 스토리지 → 루트 디스크 오퍼링 무시·별도 용량 입력** 순서로 배치한다. 먼저 기본 용량을 기준으로 스토리지를 선택한다. 다른 용량을 원하는 경우에만 아래의 무시 옵션을 켜고 루트 크기를 입력한다. 무시 옵션이 꺼져 있으면 오퍼링 기본 용량을 사용하고 크기 입력을 숨긴다.
 2. 데이터 오퍼링 아래에 **디스크당 크기·개수·합계 용량**을 배치하고, 그 아래에 **데이터 디스크의 기본 스토리지**를 표시한다. 같은 오퍼링·크기·선택 스토리지의 데이터 디스크를 여러 개 생성해 연결한다. 기본 개수는 1이며 데이터 없음이면 숨긴다. 서로 다른 오퍼링/크기의 디스크를 새로 추가하려면 VM 생성 후 기존 볼륨 생성·연결 기능을 이용하라는 안내를 표시한다. 이 기능에 서로 다른 구성의 디스크 묶음 편집기를 추가하지 않는다. 기존 자식 템플릿 디스크 경로는 별도 계약을 유지한다.
 3. 기존 표·라디오 선택과 상단 도구 모음을 사용한다. **업데이트 아이콘 + 업데이트**, 이름 검색을 제공한다. 버튼 모양과 주 액션인 우측 파란 VM 시작 버튼을 유지한다.
 4. 우측 VM 요약에 루트/데이터별 스토리지 이름, 크기, 직접/자동 선택 여부를 표시한다. 요약이 길면 내용 영역을 스크롤하고 생성 버튼을 같은 요약 하단에 유지한다.
@@ -71,11 +71,42 @@ under the License.
 
 **새로운 다중 생성 API를 만들지 않는다.** 일반 템플릿 배포는 기존 deployVirtualMachine의 datadisksdetails[0..N-1]에 동일 오퍼링·크기·IOPS/KMS를 펼쳐 한 요청으로 전달한다. 각 디스크는 고유한 deviceid를 갖고 ROOT 0, CD-ROM 3, 기존 사용 ID를 제외한다. 기존 단일 diskofferingid/size와 혼합하지 않는다. 스토리지 지정 보강은 기존 API/배치 경로의 선택 UUID 전달 개선이며 별도 일괄 생성 명령 신설과 구분한다.
 
-ISO 루트/자식 템플릿 디스크 등 기존 계약과 한 요청에 조합할 수 없는 경로는 계약을 먼저 확인한다. 필요할 경우 기존 createVolume → attachVolume을 작업 완료 확인과 함께 반복하고, 모든 디스크 연결 후 기존 startVirtualMachine을 실행하는 방식으로 구성한다. 기존 createVolume.storageid는 관리자 전용이며 일반 사용자 권한을 우회하지 않는다. 경로별 권한/스토리지 지정 지원 범위를 구현 전 확정한다.
+ISO 방식은 아래의 별도 생성 순서를 적용한다. 자식 템플릿 디스크 등 다른 계약과 조합할 수 없는 경로는 계약을 먼저 확인하고, 필요할 경우 기존 createVolume → attachVolume → startVirtualMachine을 재사용한다. 기존 createVolume.storageid는 관리자 전용이며 일반 사용자 권한을 우회하지 않는다. 경로별 권한/스토리지 지정 지원 범위를 구현 전 확정한다.
 
 반복 경로는 원자적 성공으로 취급하지 않는다. VM/볼륨/비동기 작업 ID와 생성·연결 결과를 개별 추적하고 부분 실패 시 완료/실패/대기 개수를 표시한다. 재시도는 실패한 항목만 처리하여 중복 생성·연결을 방지한다. 사용자가 삭제를 선택하기 전 완료된 디스크를 임의 삭제하거나, 일부 연결을 전체 성공으로 보고하지 않는다. 생성만 하기 모드면 시작하지 않는다.
 
 근거: [기존 다중 디스크 생성 인자](https://github.com/ablecloud-team/ablestack-cloud/blob/f862c21f167d05641c75809d1c64659dcf24c20b/api/src/main/java/org/apache/cloudstack/api/command/user/vm/BaseDeployVMCmd.java#L142), [디스크별 크기·deviceid 파서](https://github.com/ablecloud-team/ablestack-cloud/blob/f862c21f167d05641c75809d1c64659dcf24c20b/api/src/main/java/org/apache/cloudstack/api/command/user/vm/BaseDeployVMCmd.java#L589), [기존 생성/연결 API의 풀·권한](https://github.com/ablecloud-team/ablestack-cloud/blob/f862c21f167d05641c75809d1c64659dcf24c20b/api/src/main/java/org/apache/cloudstack/api/command/user/volume/CreateVolumeCmd.java#L121), [하이퍼바이저별 연결 한도 및 예약 ID 검증](https://github.com/ablecloud-team/ablestack-cloud/blob/f862c21f167d05641c75809d1c64659dcf24c20b/server/src/main/java/com/cloud/storage/VolumeApiServiceImpl.java#L5674).
+
+### ISO 기반 생성: 빈 루트 디스크와 선택적 데이터 디스크 분리
+
+목업의 Rocky ISO 파일명·고정 오퍼링·크기·개수는 예시이며 Windows/Linux 등 부팅 가능한 설치 ISO에 동일한 생성 절차를 적용한다.
+
+31번 클러스터의 현재 생성 폼에서 이미지 유형을 ISO로 변경하면 컴퓨트 아래 단계가 데이터 디스크에서 디스크 크기로 바뀐다. 해당 오퍼링은 ROOT를 만들기 위한 값이며 데이터 없음 항목도 제외된다. 기존 요약의 dataDiskOffering은 ISO 선택 시 null을 반환한다. 따라서 템플릿용 데이터 입력을 그대로 ISO의 데이터 디스크로 해석해서는 안 된다.
+
+| 순서 | ISO 생성 UI와 동작 |
+| --- | --- |
+| 이미지 | 부팅 가능한 설치 ISO·하이퍼바이저 선택. 기존 추가 ISO 기능 및 권한 유지. 요약은 템플릿 대신 설치 ISO 표시. |
+| 컴퓨트 | 기존 컴퓨트 오퍼링 단계 유지. 연결된 루트 오퍼링의 강제 정책을 적용. |
+| 루트 디스크 | 유효 루트 오퍼링 → 루트 기본 스토리지 → 루트 용량. 필수인 빈 ROOT 1개와 추가 DATA를 별도 입력 상태로 관리. |
+| 루트 고정/가변 용량 | 고정 오퍼링은 제공 용량 읽기 전용. 가변 오퍼링은 용량 필수 입력. ISO 루트에는 템플릿용 루트 디스크 오퍼링 무시 스위치를 표시하지 않는다. 다른 고정 용량이 필요하면 허용된 오퍼링 변경. |
+| 데이터 디스크 | 새 선택 사항 단계. 기본은 설정 안함. 선택 시 동일 오퍼링·디스크당 크기·개수·합계·데이터 스토리지 입력. 고정/가변 규칙과 서로 다른 구성의 사후 볼륨 기능 안내는 템플릿과 동일. |
+| 완료 | 설치 ISO, ROOT 1개 및 DATA N개, 크기·오퍼링·선택 풀을 구분하여 요약. 모든 요청 디스크 준비 후 ISO로 첫 부팅. 생성만 하기면 시작하지 않음. |
+
+가변 루트 용량을 아직 입력하지 않았으면 태그·배포 범위에 맞는 후보를 먼저 보여주되 용량 판단은 입력 후 확인으로 표시한다. 미입력 값을 0이나 충분으로 해석하지 않으며 최종 생성은 비활성화한다. 용량 변경 시 유효한 풀 선택을 유지하고 부족하면 재선택을 요청한다. 같은 풀은 (루트 크기 + 데이터 크기 × 데이터 개수) × VM 개수를 합산하며 서로 다른 풀은 풀별로 계산한다. ISO 파일 크기를 설치 OS의 루트 최소 요구 용량으로 간주하지 않는다.
+
+컴퓨트에 연결된 루트 오퍼링이 강제되는 경우 유효 루트 오퍼링을 고정하고 변경을 허용하지 않는다. 강제되지 않은 경우에만 권한·배포 조건에 맞는 다른 오퍼링 선택을 제공한다. 기존 encrypt/KMS·IOPS, 하이퍼바이저·부팅 모드·추가 ISO 제한을 보존한다.
+
+#### 기존 API를 재사용하는 ISO 생성 순서
+
+1. 데이터 없음: 기존 deployVirtualMachine에 templateid=설치 ISO UUID, hypervisor, diskofferingid=ROOT 오퍼링 UUID를 전달한다. 가변 ROOT의 size는 루트 용량이며 고정 ROOT는 오퍼링 크기를 사용한다. rootdisksize는 API 설명상 템플릿용이므로 ISO 용량의 공통 입력 인자로 오용하지 않는다. 기존 시작/생성만 하기 선택을 유지한다.
+2. DATA 추가: deployVirtualMachine(startvm=false)로 ISO·ROOT VM을 먼저 생성한다. ISO ROOT의 diskofferingid와 DATA datadisksdetails를 한 요청에 혼합하지 않는다. 명세는 상호 배타이며 서버 검증부의 누락된 throw를 지원 근거로 삼지 않는다.
+3. 동일 DATA 오퍼링·크기로 기존 createVolume을 N회 호출하고 각 비동기 작업 성공 후 기존 attachVolume으로 연결한다. 고정/가변 size, IOPS/KMS·소유자/프로젝트·지정 스토리지·쿼터를 보존한다. 배포/연결 경로가 선택 풀을 임의 변경하지 않도록 서버의 최초 배치 조건과 함께 구현한다.
+4. N개가 모두 연결되면 시작 선택 시 기존 startVirtualMachine으로 처음 ISO 부팅한다. 생성만 하기면 Stopped 상태로 유지한다. 일부 실패 시 자동 시작하지 않고 VM/볼륨/작업 ID와 완료/실패/대기 상태를 보존하여 실패 항목만 재시도한다. 완료된 볼륨 임의 삭제 금지.
+5. 새 다중 생성 API는 만들지 않는다. 기존 createVolume.storageid 관리자 제한은 우회하지 않는다. 일반 사용자 직접 선택 지원이 필요하면 이 이슈의 호출자 권한을 검증하는 기존 API/배치 계약 보강으로 처리한다. 최초 부팅 전 호스트가 없는 경우에도 실제 배포 후보 하이퍼바이저의 연결 한도·예약 장치 ID를 확인하며 10개 예시를 무조건 허용하지 않는다.
+
+Stopped VM의 attachVolume 경로는 기존 구현에 있으나, 구현 완료 판정에는 한 번도 부팅하지 않은 ISO VM에서 실제 생성·연결 및 최초 부팅 후 지정 풀·디스크 개수·CD-ROM 구성을 확인하는 테스트가 필요하다. UI 목업으로 실행 성공을 대신하지 않는다.
+
+근거: [현재 ISO 단계와 크기 입력](https://github.com/ablecloud-team/ablestack-cloud/blob/f862c21f167d05641c75809d1c64659dcf24c20b/ui/src/views/compute/DeployVM.vue#L401), [ISO ROOT와 DATA 요약 분기](https://github.com/ablecloud-team/ablestack-cloud/blob/f862c21f167d05641c75809d1c64659dcf24c20b/ui/src/views/compute/DeployVM.vue#L1254), [ROOT 인자 및 템플릿용 rootdisksize 계약](https://github.com/ablecloud-team/ablestack-cloud/blob/f862c21f167d05641c75809d1c64659dcf24c20b/api/src/main/java/org/apache/cloudstack/api/command/user/vm/BaseDeployVMCmd.java#L118), [ISO ROOT size 처리](https://github.com/ablecloud-team/ablestack-cloud/blob/f862c21f167d05641c75809d1c64659dcf24c20b/server/src/main/java/com/cloud/vm/UserVmManagerImpl.java#L4814), [혼합 인자 검증부](https://github.com/ablecloud-team/ablestack-cloud/blob/f862c21f167d05641c75809d1c64659dcf24c20b/server/src/main/java/com/cloud/vm/UserVmManagerImpl.java#L7217), [Stopped VM 연결 검증](https://github.com/ablecloud-team/ablestack-cloud/blob/f862c21f167d05641c75809d1c64659dcf24c20b/server/src/main/java/com/cloud/storage/VolumeApiServiceImpl.java#L3244).
 
 ### 용량 표시
 
@@ -118,6 +149,7 @@ ISO 루트/자식 템플릿 디스크 등 기존 계약과 한 요청에 조합�
 ## 단계별 구현 및 완료 기준
 
 - [ ] 기존 deployVirtualMachine.datadisksdetails 및 createVolume/attachVolume 재사용 경로 확정. 별도 다중 생성 API 신설 없이 구현.
+- [ ] ISO ROOT 필수·DATA 선택 사항 분리, 고정/가변 루트 용량·강제 오퍼링 정책·미입력 상태, 설치 ISO 요약 구현.
 - [ ] 후보/용량/디스크별 UUID API 계약과 권한 확정.
 - [ ] 서버 후보 조회와 최초 배치 강제 조건 구현, WSL ext4에서 관련 Maven 변경 모듈 빌드.
 - [ ] 기존 VM 생성 UI의 표/선택/요약/조회 상태 구현 및 UI 빌드.
@@ -127,6 +159,7 @@ ISO 루트/자식 템플릿 디스크 등 기존 계약과 한 요청에 조합�
 - [ ] 자동 선택, 템플릿/ISO, 루트 오퍼링 무시, 데이터 없음/여러 개, KMS, 사용자 지정 크기/IOPS, VM 여러 대, 생성만 하기→최초 시작 회귀 검증.
 - [ ] 컴퓨트 오퍼링→기본 스토리지→오퍼링 무시 순서, 무시 켜기/끄기와 수동 루트 용량 반영, 유효 스토리지 선택 유지 및 부족 시 재선택 안내 검증.
 - [ ] 사용자 지정 크기·고정 크기 오퍼링, 개수 1/여러 개(지원 환경에서 예시 10개), 고정 용량 수정 불가·가변 크기 입력·오퍼링 전환·서로 다른 구성의 사후 볼륨 기능 안내, 연결/쿼터 한도, 합산 용량/IOPS, 예약 deviceid, 부분 실패·재시도 중복 방지 검증. 실제 요청한 개수의 볼륨이 생성·연결되었는지 확인.
+- [ ] ISO 데이터 없음/1개/다수, 처음 부팅 전 생성·연결, 생성만 하기, 부분 실패 시 부팅 금지·중복 없는 재시도, IOPS/KMS·추가 ISO·권한·연결 한도, 같은 풀 ROOT+DATA 합산 검증. 최초 ISO 부팅 시 ROOT·DATA·CD-ROM과 선택 풀 일치 확인.
 - [ ] 조회 갱신 중 입력/선택 보존, 화면 깜빡임 없음, 선택 불가 사유, 업데이트 아이콘·문구 확인.
 
 전체 Cloud 빌드는 이번 설계 범위가 아니다. 구현 단계도 변경 모듈 빌드를 우선하고 전체 빌드는 별도 요청이 있을 때만 수행한다.
@@ -142,8 +175,12 @@ ISO 루트/자식 템플릿 디스크 등 기존 계약과 한 요청에 조합�
 | 데이터 선택/용량 부족 | [이미지](images/data-storage-light.jpg) | [이미지](images/data-storage-dark.jpg) |
 | 동일 크기 여러 개 생성·연결 | [이미지](images/data-storage-multiple-light.jpg) | [이미지](images/data-storage-multiple-dark.jpg) |
 | 고정 오퍼링·개수 입력 | [이미지](images/data-storage-fixed-light.jpg) | [이미지](images/data-storage-fixed-dark.jpg) |
+| ISO 루트·가변 용량·데이터 없음 | [이미지](images/iso-root-custom-light.jpg) | [이미지](images/iso-root-custom-dark.jpg) |
+| ISO 루트·고정 용량·데이터 없음 | [이미지](images/iso-root-fixed-light.jpg) | [이미지](images/iso-root-fixed-dark.jpg) |
+| ISO 데이터·가변 크기·다수 | [이미지](images/iso-data-multiple-light.jpg) | [이미지](images/iso-data-multiple-dark.jpg) |
+| ISO 데이터·고정 크기·다수 | [이미지](images/iso-data-fixed-light.jpg) | [이미지](images/iso-data-fixed-dark.jpg) |
 | 예외 상태 | [이미지](images/states-light.jpg) | [이미지](images/states-dark.jpg) |
 
 현재 화면: [current-ui.jpg](images/current-ui.jpg).
 
-정적 목업: [mockup.html](mockup.html). 로컬 HTTP 서버에서 ?theme=light&part=root, ?theme=light&part=root&override=on, ?theme=dark&part=data, ?theme=light&part=data&batch=on, ?theme=dark&part=data&offering=fixed, ?theme=dark&view=states로 확인한다. 서버/API 연결이나 VM 생성 동작은 없다.
+정적 목업: [mockup.html](mockup.html). 로컬 HTTP 서버에서 ?theme=light&part=root, ?theme=light&part=root&override=on, ?theme=dark&part=data, ?theme=light&part=data&batch=on, ?theme=dark&part=data&offering=fixed, ?theme=dark&view=states로 확인한다. ISO 전용은 ?theme=light&source=iso&part=root, ?theme=dark&source=iso&part=root&root-offering=fixed, ?theme=light&source=iso&part=data, ?theme=dark&source=iso&part=data&offering=fixed로 확인한다. 서버/API 연결이나 VM 생성 동작은 없다.

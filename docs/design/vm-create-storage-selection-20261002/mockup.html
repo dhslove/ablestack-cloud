@@ -94,6 +94,40 @@ body.fixedoffering #data-disk-size::-webkit-inner-spin-button{display:none}
 body.fixedoffering .data-batch-controls{gap:9px}
 
 body.fixedoffering .pool-table td{padding-top:6px;padding-bottom:6px}
+
+.iso-block{display:none}body.isoview .form.normal-block{display:none}body.isoview .iso-block{display:block}
+.iso-context{display:flex;align-items:center;gap:12px;margin:1px 0 8px;font-size:12px;color:var(--muted)}
+.iso-context .tag{font-size:12px}.iso-context .filename{color:var(--text);font-weight:500}
+.iso-block .collapsed{padding:6px 0}.iso-block .step{padding-top:13px;padding-bottom:10px}.iso-block .step-num{top:14px}
+.iso-block .step-title{margin-bottom:9px}.iso-block td{padding-top:7px;padding-bottom:7px}
+.iso-block .offerbar{padding-bottom:7px}.iso-block .storage-title{margin-top:12px;margin-bottom:9px}
+.iso-block .sizebox{margin:10px 0 4px}.iso-block .hint{margin:5px 0}.iso-block .capacity-help{margin:10px 0 0;padding:9px 12px}
+body.iso-rootview .iso-block>#iso-compute,body.iso-rootview .iso-block>.iso-data-collapsed,body.iso-dataview .iso-block>.iso-root-context{display:flex}
+.iso-root-size{width:146px}.iso-data-collapsed{display:none}
+body.iso-rootview #iso-data{display:none}body.iso-rootview .iso-data-collapsed{display:flex}
+body.iso-dataview #iso-root,body.iso-dataview #iso-compute{display:none}
+.iso-root-context{display:none}body.iso-dataview .iso-root-context{display:flex}
+.iso-fixed-tag{display:none}body.isofixedroot .iso-fixed-tag{display:inline-block}
+body.isofixedroot #iso-root-size{background:var(--thead);color:var(--muted);cursor:not-allowed}
+body.isofixedroot #iso-root-size::-webkit-inner-spin-button{display:none}
+.iso-root-capacity-warning{display:none;color:var(--red)}
+body.isoview .summary-inner .line{margin:6px 0}
+body.isoview .iso-flow-note{color:var(--text)}
+body.isoview .iso-block .step{padding-top:10px;padding-bottom:7px}
+body.isoview .iso-block .hint{margin:3px 0}
+body.iso-rootview .iso-block td{padding-top:4px;padding-bottom:4px}
+body.iso-rootview .iso-block .capacity-help{margin-top:6px}
+body.iso-rootview .iso-block .step-title{margin-bottom:4px}
+body.iso-rootview .iso-block .offerbar{padding-bottom:3px}
+body.iso-rootview .iso-block .storage-title{margin-top:8px;margin-bottom:7px}
+body.iso-rootview .iso-block th{padding-top:7px;padding-bottom:7px}
+body.iso-rootview .iso-block .sizebox{margin-top:6px}
+body.iso-rootview .iso-block .capacity-help{padding-top:6px;padding-bottom:6px}
+body.isoview .iso-block .offerbar{position:absolute;right:0;top:2px;padding:0}
+body.isoview .iso-block .step-title{margin-bottom:12px}
+body.isoview .iso-block td{padding-top:4px;padding-bottom:4px}
+body.isoview .iso-block th{padding-top:7px;padding-bottom:7px}
+body.isoview .summary-inner .line{margin:5px 0}
 </style></head><body>
 <svg style="position:absolute;width:0;height:0" aria-hidden="true"><defs>
 <symbol id="reload" viewBox="0 0 16 16"><path d="M13.3 5.7A5.4 5.4 0 1 0 13.2 11M13.4 2.7v3.5h-3.5"/></symbol>
@@ -151,6 +185,40 @@ body.fixedoffering .pool-table td{padding-top:6px;padding-bottom:6px}
 </section>
 <div class="collapsed"><span class="completed">6</span><strong>네트워크</strong><span class="short-val">ADMIN-L2-Network</span></div><div class="collapsed"><span class="completed">7</span><strong>SSH 키 쌍</strong><span class="short-val">설정 안함</span></div><div class="collapsed"><span class="completed">8</span><strong>확장 모드</strong></div><div class="collapsed"><span class="completed">9</span><strong>상세</strong><span class="short-val">VM 1개 · 생성 후 시작</span></div>
 </div>
+
+<div class="iso-block form">
+<div class="iso-context"><span class="tag">ISO로 설치</span><span class="filename">Rocky-9.4-x86_64-dvd.iso</span><span>· KVM · BIOS / LEGACY</span></div>
+<div class="collapsed" id="iso-compute"><span class="completed">4</span><strong>컴퓨트 오퍼링</strong><span class="short-val">2C-4GB-GFS · 2 CPU · 4096 MB</span></div>
+<div class="collapsed iso-root-context"><span class="completed">5</span><strong>루트 디스크</strong><span class="short-val"><span class="iso-root-offering-name">Custom-GFS-Sparse</span> · <span class="iso-root-size-value">100</span> GB · Primary</span></div>
+<section class="step" id="iso-root"><span class="step-num">5</span><h2 class="step-title">루트 디스크</h2>
+<div class="offerbar"><div class="search">오퍼링 검색 <svg class="ico"><use href="#search"/></svg></div></div>
+<table><thead><tr><th class="select-col"></th><th>루트 디스크 오퍼링</th><th>디스크 크기(GB 단위)</th><th>스토리지 태그</th></tr></thead><tbody>
+<tr class="iso-root-custom-row"><td class="select-col"><span class="radio"></span></td><td>Custom-GFS-Sparse</td><td>사용자지정 디스크 크기</td><td>glue-gfs</td></tr>
+<tr class="iso-root-fixed-row"><td class="select-col"><span class="radio"></span></td><td>GFS-80GB-Fixed (예시)</td><td>80 GB (고정)</td><td>glue-gfs</td></tr>
+</tbody></table>
+<div class="storage-title"><strong>루트 디스크의 기본 스토리지</strong><span class="tag">glue-gfs</span><span class="require">필요 용량 <span class="iso-root-size-value">100</span> GB</span><div class="tools"><button class="plain-button update"><svg class="ico"><use href="#reload"/></svg>업데이트</button><div class="search">스토리지 이름 검색 <svg class="ico"><use href="#search"/></svg></div></div></div>
+<table class="pool-table"><thead><tr><th class="select-col"></th><th>기본 스토리지</th><th>총 용량</th><th>할당 용량</th><th>물리 여유</th><th>추가 할당 가능</th></tr></thead><tbody><tr class="selected "><td class="select-col"><span class="radio checked"></span></td><td><span class="pool-name">Primary</span><span class="subline">SharedMountPoint · Cluster · <span class="status">Up</span></span></td><td>8.00 TiB</td><td>5.60 TiB</td><td>7.30 TiB</td><td><span class="availability">1.60 TiB</span></td></tr><tr class=" "><td class="select-col"><span class="radio "></span></td><td><span class="pool-name">Primary-02</span><span class="subline">SharedMountPoint · Cluster · <span class="status">Up</span></span></td><td>4.00 TiB</td><td>1.10 TiB</td><td>3.20 TiB</td><td><span class="availability">2.50 TiB</span></td></tr></tbody></table>
+<div class="summary-choice"><span class="check">✓</span> 선택됨: <strong>Primary</strong><span class="dim">· 루트 <span class="iso-root-size-value">100</span> GB · 1개</span><span style="margin-left:auto"><span class="radio"></span> 자동 선택</span></div>
+<div class="sizebox"><label for="iso-root-size">루트 디스크 크기(GB 단위)</label><input id="iso-root-size" class="data-number iso-root-size" type="number" min="1" step="1" value="100"><span>GB</span><span class="tag iso-fixed-tag">고정 용량</span><span class="dim">루트 디스크 1개</span></div>
+<p class="hint iso-root-size-help"></p><p class="hint">ISO 설치 대상은 빈 루트 디스크 1개입니다. 운영체제의 필요 용량을 확인하세요.</p>
+<p class="hint iso-root-capacity-warning"></p>
+<div class="capacity-help"><span class="sym">ⓘ</span><span>루트와 데이터 디스크가 같은 스토리지를 사용하면 필요 용량을 합산합니다.</span></div>
+</section>
+<div class="collapsed iso-data-collapsed"><span class="completed">6</span><strong>데이터 디스크 (선택 사항)</strong><span class="short-val">설정 안함 · 루트 디스크 1개로 설치</span></div>
+<section class="step" id="iso-data"><span class="step-num">6</span><h2 class="step-title">데이터 디스크 (선택 사항)</h2>
+<div class="offerbar"><div class="search">오퍼링 검색 <svg class="ico"><use href="#search"/></svg></div></div>
+<table><thead><tr><th class="select-col"></th><th>데이터 디스크 오퍼링</th><th>디스크 크기(GB 단위)</th><th>최소 IOPS/최대 IOPS</th></tr></thead><tbody>
+<tr><td class="select-col"><span class="radio"></span></td><td>설정 안함</td><td>—</td><td>—</td></tr>
+<tr class="selected"><td class="select-col"><span class="radio checked"></span></td><td class="iso-data-offering-name">Custom-GFS-Sparse</td><td class="iso-data-offering-size">사용자지정 디스크 크기</td><td>—</td></tr></tbody></table>
+<div class="sizebox data-batch-controls"><label for="iso-data-size">디스크당 크기(GB 단위)</label><input id="iso-data-size" class="data-number" type="number" min="1" step="1" value="100"><span>GB</span><span class="tag iso-fixed-data-tag">고정 용량</span><label for="iso-data-count">개수</label><input id="iso-data-count" class="data-number count-number" type="number" min="1" step="1" value="10"><span>개</span><span class="data-total-badge">데이터 합계 <strong class="iso-data-total">1,000</strong> GB</span></div>
+<p class="hint iso-data-size-help">같은 오퍼링·크기의 디스크를 지정한 개수만큼 생성하여 이 가상머신에 연결합니다.</p>
+<p class="hint">서로 다른 오퍼링이나 크기의 디스크는 가상머신 생성 후 볼륨 생성·연결 기능을 이용하세요.</p>
+<div class="storage-title"><strong>데이터 디스크의 기본 스토리지</strong><span class="tag">glue-gfs</span><span class="require">필요 용량 <span class="iso-data-total">1,000</span> GB</span><div class="tools"><button class="plain-button update"><svg class="ico"><use href="#reload"/></svg>업데이트</button><div class="search">스토리지 이름 검색 <svg class="ico"><use href="#search"/></svg></div></div></div>
+<table class="pool-table"><thead><tr><th class="select-col"></th><th>기본 스토리지</th><th>총 용량</th><th>할당 용량</th><th>물리 여유</th><th>추가 할당 가능</th></tr></thead><tbody><tr class=" "><td class="select-col"><span class="radio "></span></td><td><span class="pool-name">Primary</span><span class="subline">SharedMountPoint · Cluster · <span class="status">Up</span></span></td><td>8.00 TiB</td><td>5.60 TiB</td><td>7.30 TiB</td><td><span class="availability">1.60 TiB</span></td></tr><tr class="selected "><td class="select-col"><span class="radio checked"></span></td><td><span class="pool-name">Primary-02</span><span class="subline">SharedMountPoint · Cluster · <span class="status">Up</span></span></td><td>4.00 TiB</td><td>1.10 TiB</td><td>3.20 TiB</td><td><span class="availability">2.50 TiB</span></td></tr><tr class=" disabled-row iso-data-capacity-row"><td class="select-col"><span class="radio "></span></td><td><span class="pool-name">Primary-03</span><span class="subline">SharedMountPoint · Cluster · <span class="status">Up</span></span></td><td>2.00 TiB</td><td>1.70 TiB</td><td>0.40 TiB</td><td><span class="availability">0.10 TiB</span><span class="warn iso-data-warning"></span></td></tr></tbody></table>
+<div class="summary-choice"><span class="check">✓</span> 선택됨: <strong>Primary-02</strong><span class="dim">· <span class="iso-data-configuration">100 GB × 10개 · 합계 1,000 GB</span></span><span style="margin-left:auto"><span class="radio"></span> 자동 선택</span></div>
+<div class="capacity-help"><span class="sym">ⓘ</span><span><b>데이터 디스크를 모두 생성·연결한 뒤 ISO로 부팅합니다.</b><br>연결에 실패하면 자동으로 시작하지 않습니다. 설치 대상은 우측 루트 디스크 구성을 확인하세요.</span></div>
+</section>
+</div>
 <div class="state-block states"><h2 style="font-size:18px;margin:0">기본 스토리지 선택 · 예외 상태</h2><p class="dim">목록 영역 안에서 상태를 설명하고, 업데이트와 생성 버튼은 기존 상단·요약 영역을 사용합니다.</p>
 <div class="states-grid">
 <div class="case"><h3>1. 호환되는 스토리지 없음</h3><div class="storage-title"><strong>루트 디스크의 기본 스토리지</strong><button class="plain-button update" style="margin-left:auto"><svg class="ico"><use href="#reload"/></svg>업데이트</button></div><div class="empty"><div class="symbol">▱</div><b>선택한 오퍼링과 배포 조건에 맞는 기본 스토리지가 없습니다.</b><br>오퍼링 또는 배포 인프라를 변경하세요.</div><div class="blank-controls">직접 선택·자동 선택 모두 생성 조건을 만족하지 못하면 VM 시작 비활성화</div></div>
@@ -202,4 +270,49 @@ function updateDataDiskExample(){
 diskSizeInput.addEventListener('input',updateDataDiskExample);
 diskCountInput.addEventListener('input',updateDataDiskExample);
 updateDataDiskExample();
+
+const isoMode=q.get('source')==='iso';
+if(isoMode){
+ document.body.classList.add('isoview');
+ const isoDataView=q.get('part')==='data';
+ document.body.classList.toggle('iso-rootview',!isoDataView);document.body.classList.toggle('iso-dataview',isoDataView);
+ const isoFixedRoot=q.get('root-offering')==='fixed',isoFixedData=q.get('offering')==='fixed';
+ document.body.classList.toggle('isofixedroot',isoFixedRoot);
+ const isoRootInput=document.getElementById('iso-root-size'),isoDataInput=document.getElementById('iso-data-size'),isoCountInput=document.getElementById('iso-data-count');
+ isoRootInput.value=isoFixedRoot?'80':'100';isoRootInput.disabled=isoFixedRoot;isoRootInput.readOnly=isoFixedRoot;
+ isoDataInput.value=isoFixedData?'200':'100';isoDataInput.disabled=isoFixedData;isoDataInput.readOnly=isoFixedData;isoCountInput.value=isoFixedData?'4':'10';
+ document.querySelector('.iso-fixed-data-tag').style.display=isoFixedData?'inline-block':'none';
+ const rootName=isoFixedRoot?'GFS-80GB-Fixed (예시)':'Custom-GFS-Sparse';
+ document.querySelectorAll('.iso-root-offering-name').forEach(el=>el.textContent=rootName);
+ const selectedRoot=document.querySelector(isoFixedRoot?'.iso-root-fixed-row':'.iso-root-custom-row');
+ selectedRoot.classList.add('selected');selectedRoot.querySelector('.radio').classList.add('checked');
+ document.querySelector('.iso-root-size-help').textContent=isoFixedRoot?'용량은 오퍼링에 설정된 값입니다. 다른 용량이 필요하면 허용된 루트 디스크 오퍼링을 변경하세요.':'가변 오퍼링의 루트 용량은 필수 입력입니다. 용량 변경 후 선택한 스토리지의 할당 가능 여부를 다시 확인합니다.';
+ document.querySelector('.iso-data-offering-name').textContent=isoFixedData?'GFS-200GB-Fixed (예시)':'Custom-GFS-Sparse';
+ document.querySelector('.iso-data-offering-size').textContent=isoFixedData?'200 GB (고정)':'사용자지정 디스크 크기';
+ document.querySelector('.iso-data-size-help').textContent=isoFixedData?'오퍼링의 고정 용량을 사용하며 개수만 입력합니다. 다른 용량이 필요하면 데이터 디스크 오퍼링을 변경하세요.':'같은 오퍼링·크기의 디스크를 지정한 개수만큼 생성하여 이 가상머신에 연결합니다.';
+ const lines=Array.from(document.querySelectorAll('.summary-inner>.line'));
+ const findSummary=label=>lines.find(el=>el.querySelector('.label')?.textContent===label);
+ findSummary('템플릿').querySelector('.label').textContent='설치 ISO';findSummary('설치 ISO').querySelector('.val').textContent='Rocky-9.4-x86_64-dvd.iso';
+ findSummary('디스크 오퍼링').querySelector('.label').textContent='루트 디스크 오퍼링';findSummary('루트 디스크 오퍼링').querySelector('.val').textContent=rootName;
+ const dataLine=document.createElement('div');dataLine.className='line';dataLine.innerHTML='<span class="label">데이터 디스크 오퍼링</span><span class="val">'+(isoDataView?(isoFixedData?'GFS-200GB-Fixed (예시)':'Custom-GFS-Sparse'):'설정 안함')+'</span>';
+ findSummary('루트 디스크 오퍼링').after(dataLine);
+ const entries=document.querySelectorAll('.summary-inner .storage-box .entry');entries[1].style.display=isoDataView?'':'none';
+ document.querySelector('.summary-note').textContent=isoDataView?'선택한 디스크를 모두 생성·연결한 뒤 ISO로 부팅하여 운영체제를 설치합니다.':'ISO로 부팅하여 운영체제를 설치합니다. 루트 디스크 용량과 설치 대상을 확인하세요.';
+ function updateIsoExample(){
+  const root=Number(isoRootInput.value),size=Number(isoDataInput.value),count=Number(isoCountInput.value);
+  const rootValid=Number.isSafeInteger(root)&&root>0,valid=Number.isSafeInteger(size)&&size>0&&Number.isSafeInteger(count)&&count>0&&Number.isSafeInteger(size*count);
+  const fmt=n=>n.toLocaleString('en-US'),total=valid?size*count:null;
+  document.querySelectorAll('.iso-root-size-value').forEach(el=>el.textContent=rootValid?fmt(root):'—');
+  document.querySelectorAll('.root-size-value').forEach(el=>el.textContent=rootValid?fmt(root):'—');
+  entries[0].querySelector('.desc').textContent=rootValid?fmt(root)+' GB · 1개 · 직접 선택':'루트 용량을 입력하세요';
+  document.querySelectorAll('.iso-data-total').forEach(el=>el.textContent=valid?fmt(total):'—');
+  const dataDescription=valid?fmt(size)+' GB × '+fmt(count)+'개 · 합계 '+fmt(total)+' GB':'크기와 개수를 확인하세요';
+  document.querySelector('.iso-data-configuration').textContent=dataDescription;entries[1].querySelector('.desc').textContent=dataDescription+' · 직접 선택';
+  findSummary('디스크 크기(GB 단위)').querySelector('.val').textContent=(rootValid?fmt(root)+' GB (Root) · 1개':'루트 용량을 입력하세요')+(isoDataView?(valid?' | '+fmt(size)+' GB × '+fmt(count)+'개 (Data)':' | 크기와 개수를 확인하세요'):'');
+  const warning=document.querySelector('.iso-root-capacity-warning');warning.style.display=!rootValid||root>1638?'block':'none';warning.textContent=rootValid?'선택한 Primary에 '+fmt(root)+' GB를 할당할 수 없습니다. 용량과 스토리지를 확인하세요.':'루트 디스크 용량을 입력하세요.';
+  document.querySelector('.iso-data-capacity-row').classList.toggle('disabled-row',!valid||total>102);
+  document.querySelector('.iso-data-warning').textContent=!valid?'크기와 개수를 확인하세요':total>102?'합계 '+fmt(total)+' GB 할당 불가':'';
+ }
+ isoRootInput.addEventListener('input',updateIsoExample);isoDataInput.addEventListener('input',updateIsoExample);isoCountInput.addEventListener('input',updateIsoExample);updateIsoExample();
+}
 </script></body></html>
