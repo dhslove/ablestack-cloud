@@ -76,6 +76,24 @@ body.rootmanual .override-manual{display:block}
 body.rootmanual .override-default{display:none}
 body.rootmanual .root-override .switch{background:#1890ff}
 body.rootmanual .root-override .switch:before{left:18px}
+
+.data-batch-controls{gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.data-number{width:146px;height:34px;background:var(--panel);border:1px solid var(--border);border-radius:3px;padding:5px 12px;color:var(--text)}
+.count-number{width:85px}
+.data-batch-controls label[for="data-disk-count"]{margin-left:12px}
+.data-total-badge{margin-left:auto;color:var(--text);background:var(--thead);border:1px solid var(--border);border-radius:3px;padding:5px 10px}
+.batch-help{margin:5px 0 12px}.storage-title .data-count-formula{margin-left:5px}
+.batch-capacity-row.can-fit .availability{color:var(--good)}.batch-capacity-row.can-fit .radio{opacity:1}
+
+.fixed-data-tag{display:none}
+body.fixedoffering .fixed-data-tag{display:inline-block}
+body.fixedoffering #data-disk-size{color:var(--muted);background:var(--thead);cursor:not-allowed}
+body.fixedoffering #data-disk-size::-webkit-inner-spin-button{display:none}
+.fixed-size-help{display:none}body.fixedoffering .fixed-size-help{display:block;margin-top:3px}
+.separate-volume-help{margin:4px 0 12px}.batch-help{margin-bottom:4px}
+body.fixedoffering .data-batch-controls{gap:9px}
+
+body.fixedoffering .pool-table td{padding-top:6px;padding-bottom:6px}
 </style></head><body>
 <svg style="position:absolute;width:0;height:0" aria-hidden="true"><defs>
 <symbol id="reload" viewBox="0 0 16 16"><path d="M13.3 5.7A5.4 5.4 0 1 0 13.2 11M13.4 2.7v3.5h-3.5"/></symbol>
@@ -114,16 +132,22 @@ body.rootmanual .root-override .switch:before{left:18px}
 <div class="offerbar"><div class="search">검색 <svg class="ico"><use href="#search"/></svg></div></div>
 <table><thead><tr><th class="select-col"></th><th>디스크 오퍼링</th><th>디스크 크기(GB 단위)</th><th>최소 IOPS/최대 IOPS</th></tr></thead><tbody>
 <tr><td class="select-col"><span class="radio"></span></td><td>설정 안함</td><td>—</td><td>—</td></tr>
-<tr class="selected"><td class="select-col"><span class="radio checked"></span></td><td>Custom-GFS-Sparse</td><td>사용자지정 디스크 크기</td><td>—</td></tr></tbody></table>
-<div class="sizebox"><span>디스크 크기(GB 단위)</span><span class="number-field">500 <span class="dim">⌃⌄</span></span><span>GB</span></div>
-<div class="storage-title"><strong>데이터 디스크의 기본 스토리지</strong><span class="tag">glue-gfs</span><span class="require">필요 용량 500 GB</span><div class="tools"><button class="plain-button update"><svg class="ico"><use href="#reload"/></svg>업데이트</button><div class="search">스토리지 이름 검색 <svg class="ico"><use href="#search"/></svg></div></div></div>
+<tr class="selected"><td class="select-col"><span class="radio checked"></span></td><td><span class="data-offering-name">Custom-GFS-Sparse</span></td><td><span class="data-offering-size">사용자지정 디스크 크기</span></td><td>—</td></tr></tbody></table>
+<div class="sizebox data-batch-controls">
+<label for="data-disk-size">디스크당 크기(GB 단위)</label><input id="data-disk-size" class="data-number" type="number" min="1" step="1" value="500"><span>GB</span><span class="tag fixed-data-tag">고정 용량</span>
+<label for="data-disk-count">개수</label><input id="data-disk-count" class="data-number count-number" type="number" min="1" step="1" value="1"><span>개</span>
+<span class="data-total-badge">데이터 합계 <strong class="data-total-value">500</strong> GB</span>
+</div>
+<p class="hint batch-help">같은 오퍼링·크기의 디스크를 지정한 개수만큼 생성하여 이 가상머신에 연결합니다.<span class="fixed-size-help"></span></p>
+<p class="hint separate-volume-help">서로 다른 오퍼링이나 크기의 디스크는 가상머신 생성 후 볼륨 생성·연결 기능을 이용하세요.</p>
+<div class="storage-title"><strong>데이터 디스크의 기본 스토리지</strong><span class="tag">glue-gfs</span><span class="require">필요 용량 <span class="data-total-value">500</span> GB<span class="data-count-formula"></span></span><div class="tools"><button class="plain-button update"><svg class="ico"><use href="#reload"/></svg>업데이트</button><div class="search">스토리지 이름 검색 <svg class="ico"><use href="#search"/></svg></div></div></div>
 <table class="pool-table"><thead><tr><th class="select-col"></th><th>기본 스토리지</th><th>총 용량</th><th>할당 용량</th><th>물리 여유</th><th>추가 할당 가능</th></tr></thead><tbody>
 <tr><td class="select-col"><span class="radio"></span></td><td><span class="pool-name">Primary</span><span class="subline">SharedMountPoint · Cluster · <span class="status">Up</span></span></td><td>8.00 TiB</td><td>5.60 TiB</td><td>7.30 TiB</td><td><span class="availability">1.60 TiB</span></td></tr>
 <tr class="selected"><td class="select-col"><span class="radio checked"></span></td><td><span class="pool-name">Primary-02</span><span class="subline">SharedMountPoint · Cluster · <span class="status">Up</span></span></td><td>4.00 TiB</td><td>1.10 TiB</td><td>3.20 TiB</td><td><span class="availability">2.50 TiB</span></td></tr>
-<tr class="disabled-row"><td class="select-col"><span class="radio"></span></td><td><span class="pool-name">Primary-03</span><span class="subline">SharedMountPoint · Cluster · <span class="status">Up</span></span></td><td>2.00 TiB</td><td>1.70 TiB</td><td>0.40 TiB</td><td><span class="availability">0.10 TiB</span><span class="warn">500 GB를 할당할 수 없습니다</span></td></tr>
+<tr class="disabled-row batch-capacity-row"><td class="select-col"><span class="radio"></span></td><td><span class="pool-name">Primary-03</span><span class="subline">SharedMountPoint · Cluster · <span class="status">Up</span></span></td><td>2.00 TiB</td><td>1.70 TiB</td><td>0.40 TiB</td><td><span class="availability">0.10 TiB</span><span class="warn batch-capacity-warning">500 GB를 할당할 수 없습니다</span></td></tr>
 </tbody></table>
-<div class="summary-choice"><span class="check">✓</span> 선택됨: <strong>Primary-02</strong><span class="dim">· 데이터 500 GB</span><span style="margin-left:auto"><span class="radio"></span> 자동 선택</span></div>
-<div class="capacity-help"><span class="sym">ⓘ</span><span><b>물리 여유와 추가 할당 가능 용량은 서로 다를 수 있습니다.</b><br>할당 용량에는 예약 용량이 포함됩니다. 추가 할당 가능 용량은 스토리지 정책과 선택한 디스크 구성으로 확인합니다.</span></div>
+<div class="summary-choice"><span class="check">✓</span> 선택됨: <strong>Primary-02</strong><span class="dim">· 데이터 <span class="data-configuration">500 GB</span></span><span style="margin-left:auto"><span class="radio"></span> 자동 선택</span></div>
+<div class="capacity-help"><span class="sym">ⓘ</span><span><b>물리 여유와 추가 할당 가능 용량은 서로 다를 수 있습니다.</b><br>할당 용량에는 예약 용량이 포함됩니다. 추가 할당 가능 용량은 스토리지 정책과 선택한 전체 디스크의 합산 용량으로 확인합니다.</span></div>
 </section>
 <div class="collapsed"><span class="completed">6</span><strong>네트워크</strong><span class="short-val">ADMIN-L2-Network</span></div><div class="collapsed"><span class="completed">7</span><strong>SSH 키 쌍</strong><span class="short-val">설정 안함</span></div><div class="collapsed"><span class="completed">8</span><strong>확장 모드</strong></div><div class="collapsed"><span class="completed">9</span><strong>상세</strong><span class="short-val">VM 1개 · 생성 후 시작</span></div>
 </div>
@@ -136,8 +160,8 @@ body.rootmanual .root-override .switch:before{left:18px}
 </div><div class="capacity-help"><span class="sym">ⓘ</span><span>최종 생성 시 서버에서 선택한 UUID·오퍼링·배포 인프라·전체 디스크의 용량을 다시 검증합니다. 지정한 스토리지에 생성할 수 없으면 변경되지 않은 선택을 유지하고 원인을 표시합니다.</span></div></div>
 <div class="footer-note">구현 전 검토용 목업입니다. 실제 등록된 스토리지 개수·용량을 나타내지 않습니다.</div>
 </main><aside class="panel summary normal-block"><div class="panel-title">귀하의 가상머신</div><div class="summary-inner"><div class="os-icon">♧</div><span class="tag">KVM</span><hr>
-<div class="line"><span class="label">OS 유형</span><span class="val">Rocky Linux 9</span></div><div class="line"><span class="label">CPU</span><span class="val">2 CPU × 2.00 GHz</span></div><div class="line"><span class="label">메모리</span><span class="val">4096 MB</span></div><div class="line"><span class="label">디스크 크기(GB 단위)</span><span class="val"><span class="root-size-value">100</span> GB (Root) | 500 GB (Data)</span></div><div class="line"><span class="label">템플릿</span><span class="val">rocky-9-4-minimal.qcow22</span></div><div class="line"><span class="label">컴퓨트 오퍼링</span><span class="val">2C-4GB-GFS</span></div><div class="line"><span class="label">디스크 오퍼링</span><span class="val">Custom-GFS-Sparse (Data)</span></div>
-<div class="storage-box"><div class="entry"><span class="label">루트 디스크 스토리지</span><span class="name">Primary</span><span class="desc"><span class="root-size-value">100</span> GB · 직접 선택</span></div><div class="entry"><span class="label">데이터 디스크 스토리지</span><span class="name">Primary-02</span><span class="desc">500 GB · 직접 선택</span></div></div>
+<div class="line"><span class="label">OS 유형</span><span class="val">Rocky Linux 9</span></div><div class="line"><span class="label">CPU</span><span class="val">2 CPU × 2.00 GHz</span></div><div class="line"><span class="label">메모리</span><span class="val">4096 MB</span></div><div class="line"><span class="label">디스크 크기(GB 단위)</span><span class="val"><span class="root-size-value">100</span> GB (Root) | <span class="data-summary">500 GB (Data)</span></span></div><div class="line"><span class="label">템플릿</span><span class="val">rocky-9-4-minimal.qcow22</span></div><div class="line"><span class="label">컴퓨트 오퍼링</span><span class="val">2C-4GB-GFS</span></div><div class="line"><span class="label">디스크 오퍼링</span><span class="val"><span class="data-offering-name">Custom-GFS-Sparse</span> (Data)</span></div>
+<div class="storage-box"><div class="entry"><span class="label">루트 디스크 스토리지</span><span class="name">Primary</span><span class="desc"><span class="root-size-value">100</span> GB · 직접 선택</span></div><div class="entry"><span class="label">데이터 디스크 스토리지</span><span class="name">Primary-02</span><span class="desc"><span class="data-configuration">500 GB</span> · 직접 선택</span></div></div>
 <div class="line"><span class="label">Zone</span><span class="val">Zone</span></div><div class="line"><span class="label">부팅 유형 / 부팅 모드</span><span class="val">BIOS / LEGACY</span></div>
 </div><div class="summary-actions"><button class="blue-button start-button"><svg class="ico"><use href="#rocket"/></svg>VM 시작<span style="margin-left:8px">⌄</span></button><p class="summary-note">선택한 스토리지의 호환성과 용량을 확인한 뒤 생성합니다.</p>
 </div></aside></div></div></div>
@@ -147,4 +171,35 @@ const q=new URLSearchParams(location.search);const dark=q.get('theme')==='dark';
 const manualRoot=q.get('override')==='on';
 document.body.classList.toggle('rootmanual',manualRoot);
 document.querySelectorAll('.root-size-value').forEach(el=>el.textContent=manualRoot?'500':'100');
+
+const diskSizeInput=document.getElementById('data-disk-size');
+const diskCountInput=document.getElementById('data-disk-count');
+const batchExample=q.get('batch')==='on';
+const fixedOffering=q.get('offering')==='fixed';
+document.body.classList.toggle('fixedoffering',fixedOffering);
+diskSizeInput.value=fixedOffering?'200':batchExample?'100':'500';diskCountInput.value=fixedOffering?'4':batchExample?'10':'1';
+diskSizeInput.disabled=fixedOffering;
+document.querySelectorAll('.data-offering-name').forEach(el=>el.textContent=fixedOffering?'GFS-200GB-Fixed (예시)':'Custom-GFS-Sparse');
+document.querySelectorAll('.data-offering-size').forEach(el=>el.textContent=fixedOffering?'200 GB (고정)':'사용자지정 디스크 크기');
+document.querySelectorAll('.fixed-size-help').forEach(el=>el.textContent='용량은 오퍼링에 설정된 값입니다. 다른 용량이 필요하면 디스크 오퍼링을 변경하세요.');
+function updateDataDiskExample(){
+ const size=Number(diskSizeInput.value),count=Number(diskCountInput.value);
+ const valid=Number.isSafeInteger(size)&&size>0&&Number.isSafeInteger(count)&&count>0&&Number.isSafeInteger(size*count);
+ const fmt=n=>n.toLocaleString('en-US');
+ const total=valid?size*count:null;
+ const configuration=valid?(count>1?fmt(size)+' GB × '+fmt(count)+'개 · 합계 '+fmt(total)+' GB':fmt(size)+' GB'):'크기와 개수를 확인하세요';
+ document.querySelectorAll('.data-total-value').forEach(el=>el.textContent=valid?fmt(total):'—');
+ document.querySelectorAll('.data-configuration').forEach(el=>el.textContent=configuration);
+ document.querySelectorAll('.data-count-formula').forEach(el=>el.textContent=valid&&count>1?'('+fmt(size)+' GB × '+fmt(count)+'개)':'');
+ document.querySelectorAll('.data-summary').forEach(el=>el.textContent=valid?(count>1?fmt(size)+' GB × '+fmt(count)+'개 (Data) · 합계 '+fmt(total)+' GB':fmt(size)+' GB (Data)'):'크기와 개수를 확인하세요');
+ const blocked=!valid||total>102;
+ const capacityRow=document.querySelector('.batch-capacity-row');
+ capacityRow.classList.toggle('disabled-row',blocked);capacityRow.classList.toggle('can-fit',!blocked);
+ const warning=document.querySelector('.batch-capacity-warning');
+ warning.style.display=blocked?'block':'none';
+ warning.textContent=valid?'합계 '+fmt(total)+' GB 할당 불가':'크기와 개수를 확인하세요';
+}
+diskSizeInput.addEventListener('input',updateDataDiskExample);
+diskCountInput.addEventListener('input',updateDataDiskExample);
+updateDataDiskExample();
 </script></body></html>

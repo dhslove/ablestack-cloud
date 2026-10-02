@@ -46,7 +46,7 @@ under the License.
 ## 화면 개선안
 
 1. **컴퓨트 오퍼링 → 루트 디스크의 기본 스토리지 → 루트 디스크 오퍼링 무시·별도 용량 입력** 순서로 배치한다. 먼저 기본 용량을 기준으로 스토리지를 선택한다. 다른 용량을 원하는 경우에만 아래의 무시 옵션을 켜고 루트 크기를 입력한다. 무시 옵션이 꺼져 있으면 오퍼링 기본 용량을 사용하고 크기 입력을 숨긴다.
-2. 데이터 디스크 오퍼링과 크기 아래에 **데이터 디스크의 기본 스토리지**를 배치한다. 데이터 없음이면 숨기고, 여러 데이터 디스크는 각 디스크에서 선택한다.
+2. 데이터 오퍼링 아래에 **디스크당 크기·개수·합계 용량**을 배치하고, 그 아래에 **데이터 디스크의 기본 스토리지**를 표시한다. 같은 오퍼링·크기·선택 스토리지의 데이터 디스크를 여러 개 생성해 연결한다. 기본 개수는 1이며 데이터 없음이면 숨긴다. 서로 다른 오퍼링/크기의 디스크를 새로 추가하려면 VM 생성 후 기존 볼륨 생성·연결 기능을 이용하라는 안내를 표시한다. 이 기능에 서로 다른 구성의 디스크 묶음 편집기를 추가하지 않는다. 기존 자식 템플릿 디스크 경로는 별도 계약을 유지한다.
 3. 기존 표·라디오 선택과 상단 도구 모음을 사용한다. **업데이트 아이콘 + 업데이트**, 이름 검색을 제공한다. 버튼 모양과 주 액션인 우측 파란 VM 시작 버튼을 유지한다.
 4. 우측 VM 요약에 루트/데이터별 스토리지 이름, 크기, 직접/자동 선택 여부를 표시한다. 요약이 길면 내용 영역을 스크롤하고 생성 버튼을 같은 요약 하단에 유지한다.
 5. 기존 자동 배치를 기본값으로 보존한다. 직접 선택한 풀은 최초 생성/배치의 필수 조건이며 불가능하면 이유를 표시한다.
@@ -60,6 +60,22 @@ under the License.
 4. 입력한 루트 용량을 필요 용량·우측 요약·생성 요청에 반영하고 선택한 스토리지의 용량/호환성을 다시 검증한다. 여전히 유효하면 선택을 유지하며, 불가능하면 이유와 재선택 요구를 표시한다. 다른 스토리지로 자동 대체하지 않는다.
 
 오퍼링 무시는 스토리지 선택을 초기화하는 동작이 아니다. 기본 용량을 따르지 않는 수동 크기 입력이며, 기존 템플릿 최소 크기·오퍼링 강제 정책 및 서버 허용 범위 등 배포 검증은 유지한다. 무시를 다시 끄면 기본 용량으로 복원한 뒤 같은 규칙으로 검증한다. 유효 루트 오퍼링/태그가 바뀌는 기존 경로에서도 선택한 풀의 유효성을 재평가한다.
+
+### 동일 오퍼링·크기의 데이터 디스크 여러 개 추가
+
+100 GB 디스크 10개는 기능 설명용 예시이며 고정값이나 상한이 아니다. 고정 오퍼링 목업의 200 GB × 4개 역시 예시이며 등록된 오퍼링의 실제 용량과 사용자가 정한 개수를 사용한다. 사용자 지정(가변) 오퍼링은 디스크당 크기 S를 허용 범위 내에서 입력하고 개수 N을 입력한다. 고정 크기 오퍼링은 제공하는 크기 S를 읽기 전용 필드와 고정 용량 표시로 보여주고 개수 N만 입력한다. 오퍼링을 변경하면 고정/가변 입력 상태와 크기·합계를 갱신한다. 개수 기본값은 1, 허용 범위는 양의 정수와 해당 VM/하이퍼바이저의 남은 연결 한도·계정 한도다.
+
+서로 다른 오퍼링/크기로 새 디스크를 여러 개 추가하는 흐름은 VM 생성 이후 기존 볼륨 생성·연결 기능으로 안내한다. 안내는 데이터 디스크 입력 아래에 제품 문구로 표시한다. 기존 자식 템플릿 디스크의 고유 오퍼링 선택은 보존한다.
+
+표의 필요 용량과 우측 요약에는 S × N 및 데이터 합계를 표시한다. 같은 풀에 루트도 생성하면 루트 용량까지 합산하고, VM 여러 대를 생성하는 경우 VM 개수도 곱한다. 볼륨 개수 쿼터, 할당/예약 용량, 합산 IOPS, KMS·오퍼링 권한도 검사한다. 개수/크기 변경 후 유효한 스토리지 선택을 유지하고 부족하면 재선택을 안내한다.
+
+**새로운 다중 생성 API를 만들지 않는다.** 일반 템플릿 배포는 기존 deployVirtualMachine의 datadisksdetails[0..N-1]에 동일 오퍼링·크기·IOPS/KMS를 펼쳐 한 요청으로 전달한다. 각 디스크는 고유한 deviceid를 갖고 ROOT 0, CD-ROM 3, 기존 사용 ID를 제외한다. 기존 단일 diskofferingid/size와 혼합하지 않는다. 스토리지 지정 보강은 기존 API/배치 경로의 선택 UUID 전달 개선이며 별도 일괄 생성 명령 신설과 구분한다.
+
+ISO 루트/자식 템플릿 디스크 등 기존 계약과 한 요청에 조합할 수 없는 경로는 계약을 먼저 확인한다. 필요할 경우 기존 createVolume → attachVolume을 작업 완료 확인과 함께 반복하고, 모든 디스크 연결 후 기존 startVirtualMachine을 실행하는 방식으로 구성한다. 기존 createVolume.storageid는 관리자 전용이며 일반 사용자 권한을 우회하지 않는다. 경로별 권한/스토리지 지정 지원 범위를 구현 전 확정한다.
+
+반복 경로는 원자적 성공으로 취급하지 않는다. VM/볼륨/비동기 작업 ID와 생성·연결 결과를 개별 추적하고 부분 실패 시 완료/실패/대기 개수를 표시한다. 재시도는 실패한 항목만 처리하여 중복 생성·연결을 방지한다. 사용자가 삭제를 선택하기 전 완료된 디스크를 임의 삭제하거나, 일부 연결을 전체 성공으로 보고하지 않는다. 생성만 하기 모드면 시작하지 않는다.
+
+근거: [기존 다중 디스크 생성 인자](https://github.com/ablecloud-team/ablestack-cloud/blob/f862c21f167d05641c75809d1c64659dcf24c20b/api/src/main/java/org/apache/cloudstack/api/command/user/vm/BaseDeployVMCmd.java#L142), [디스크별 크기·deviceid 파서](https://github.com/ablecloud-team/ablestack-cloud/blob/f862c21f167d05641c75809d1c64659dcf24c20b/api/src/main/java/org/apache/cloudstack/api/command/user/vm/BaseDeployVMCmd.java#L589), [기존 생성/연결 API의 풀·권한](https://github.com/ablecloud-team/ablestack-cloud/blob/f862c21f167d05641c75809d1c64659dcf24c20b/api/src/main/java/org/apache/cloudstack/api/command/user/volume/CreateVolumeCmd.java#L121), [하이퍼바이저별 연결 한도 및 예약 ID 검증](https://github.com/ablecloud-team/ablestack-cloud/blob/f862c21f167d05641c75809d1c64659dcf24c20b/server/src/main/java/com/cloud/storage/VolumeApiServiceImpl.java#L5674).
 
 ### 용량 표시
 
@@ -101,6 +117,7 @@ under the License.
 
 ## 단계별 구현 및 완료 기준
 
+- [ ] 기존 deployVirtualMachine.datadisksdetails 및 createVolume/attachVolume 재사용 경로 확정. 별도 다중 생성 API 신설 없이 구현.
 - [ ] 후보/용량/디스크별 UUID API 계약과 권한 확정.
 - [ ] 서버 후보 조회와 최초 배치 강제 조건 구현, WSL ext4에서 관련 Maven 변경 모듈 빌드.
 - [ ] 기존 VM 생성 UI의 표/선택/요약/조회 상태 구현 및 UI 빌드.
@@ -109,6 +126,7 @@ under the License.
 - [ ] 태그 불일치, 다른 클러스터/로컬 조합, 용량 부족, 권한 위반, 점검/삭제 풀, 용량 경쟁, 동일 풀 합산 초과 거절 및 무통보 대체 배치 금지 검증.
 - [ ] 자동 선택, 템플릿/ISO, 루트 오퍼링 무시, 데이터 없음/여러 개, KMS, 사용자 지정 크기/IOPS, VM 여러 대, 생성만 하기→최초 시작 회귀 검증.
 - [ ] 컴퓨트 오퍼링→기본 스토리지→오퍼링 무시 순서, 무시 켜기/끄기와 수동 루트 용량 반영, 유효 스토리지 선택 유지 및 부족 시 재선택 안내 검증.
+- [ ] 사용자 지정 크기·고정 크기 오퍼링, 개수 1/여러 개(지원 환경에서 예시 10개), 고정 용량 수정 불가·가변 크기 입력·오퍼링 전환·서로 다른 구성의 사후 볼륨 기능 안내, 연결/쿼터 한도, 합산 용량/IOPS, 예약 deviceid, 부분 실패·재시도 중복 방지 검증. 실제 요청한 개수의 볼륨이 생성·연결되었는지 확인.
 - [ ] 조회 갱신 중 입력/선택 보존, 화면 깜빡임 없음, 선택 불가 사유, 업데이트 아이콘·문구 확인.
 
 전체 Cloud 빌드는 이번 설계 범위가 아니다. 구현 단계도 변경 모듈 빌드를 우선하고 전체 빌드는 별도 요청이 있을 때만 수행한다.
@@ -122,8 +140,10 @@ under the License.
 | 루트 선택 | [이미지](images/root-storage-light.jpg) | [이미지](images/root-storage-dark.jpg) |
 | 루트 별도 용량 입력 | [이미지](images/root-storage-override-light.jpg) | [이미지](images/root-storage-override-dark.jpg) |
 | 데이터 선택/용량 부족 | [이미지](images/data-storage-light.jpg) | [이미지](images/data-storage-dark.jpg) |
+| 동일 크기 여러 개 생성·연결 | [이미지](images/data-storage-multiple-light.jpg) | [이미지](images/data-storage-multiple-dark.jpg) |
+| 고정 오퍼링·개수 입력 | [이미지](images/data-storage-fixed-light.jpg) | [이미지](images/data-storage-fixed-dark.jpg) |
 | 예외 상태 | [이미지](images/states-light.jpg) | [이미지](images/states-dark.jpg) |
 
 현재 화면: [current-ui.jpg](images/current-ui.jpg).
 
-정적 목업: [mockup.html](mockup.html). 로컬 HTTP 서버에서 ?theme=light&part=root, ?theme=light&part=root&override=on, ?theme=dark&part=data, ?theme=dark&view=states로 확인한다. 서버/API 연결이나 VM 생성 동작은 없다.
+정적 목업: [mockup.html](mockup.html). 로컬 HTTP 서버에서 ?theme=light&part=root, ?theme=light&part=root&override=on, ?theme=dark&part=data, ?theme=light&part=data&batch=on, ?theme=dark&part=data&offering=fixed, ?theme=dark&view=states로 확인한다. 서버/API 연결이나 VM 생성 동작은 없다.
