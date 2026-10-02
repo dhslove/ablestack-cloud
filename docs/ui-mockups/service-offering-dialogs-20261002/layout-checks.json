@@ -1,0 +1,394 @@
+[
+  {
+    "slug": "01-compute",
+    "desktop": {
+      "dialog": {
+        "x": 320,
+        "y": 84,
+        "width": 960,
+        "height": 832
+      },
+      "header": {
+        "x": 321,
+        "y": 85,
+        "width": 958,
+        "height": 104.09375
+      },
+      "footer": {
+        "x": 321,
+        "y": 833,
+        "width": 958,
+        "height": 82
+      },
+      "scrollHeight": 1779,
+      "clientHeight": 644,
+      "outerOverflow": false,
+      "horizontalOverflow": false,
+      "centerErrorX": 0,
+      "centerErrorY": 0
+    },
+    "headerFooterFixed": true,
+    "mobile": {
+      "dialog": {
+        "x": 12,
+        "y": 12,
+        "width": 366,
+        "height": 820
+      },
+      "header": {
+        "x": 13,
+        "y": 13,
+        "width": 364,
+        "height": 102.375
+      },
+      "footer": {
+        "x": 13,
+        "y": 755,
+        "width": 364,
+        "height": 76
+      },
+      "scrollHeight": 3159,
+      "clientHeight": 640,
+      "outerOverflow": false,
+      "horizontalOverflow": false,
+      "centerErrorX": 0,
+      "centerErrorY": 0
+    }
+  },
+  {
+    "slug": "02-system",
+    "desktop": {
+      "dialog": {
+        "x": 360,
+        "y": 84,
+        "width": 880,
+        "height": 832
+      },
+      "header": {
+        "x": 361,
+        "y": 85,
+        "width": 878,
+        "height": 104.09375
+      },
+      "footer": {
+        "x": 361,
+        "y": 833,
+        "width": 878,
+        "height": 82
+      },
+      "scrollHeight": 1145,
+      "clientHeight": 644,
+      "outerOverflow": false,
+      "horizontalOverflow": false,
+      "centerErrorX": 0,
+      "centerErrorY": 0
+    },
+    "headerFooterFixed": true,
+    "mobile": {
+      "dialog": {
+        "x": 12,
+        "y": 12,
+        "width": 366,
+        "height": 820
+      },
+      "header": {
+        "x": 13,
+        "y": 13,
+        "width": 364,
+        "height": 83.6875
+      },
+      "footer": {
+        "x": 13,
+        "y": 755,
+        "width": 364,
+        "height": 76
+      },
+      "scrollHeight": 1996,
+      "clientHeight": 658,
+      "outerOverflow": false,
+      "horizontalOverflow": false,
+      "centerErrorX": 0,
+      "centerErrorY": 0
+    }
+  },
+  {
+    "slug": "03-disk",
+    "desktop": {
+      "dialog": {
+        "x": 340,
+        "y": 84,
+        "width": 920,
+        "height": 832
+      },
+      "header": {
+        "x": 341,
+        "y": 85,
+        "width": 918,
+        "height": 104.09375
+      },
+      "footer": {
+        "x": 341,
+        "y": 833,
+        "width": 918,
+        "height": 82
+      },
+      "scrollHeight": 1262,
+      "clientHeight": 644,
+      "outerOverflow": false,
+      "horizontalOverflow": false,
+      "centerErrorX": 0,
+      "centerErrorY": 0
+    },
+    "headerFooterFixed": true,
+    "mobile": {
+      "dialog": {
+        "x": 12,
+        "y": 12,
+        "width": 366,
+        "height": 820
+      },
+      "header": {
+        "x": 13,
+        "y": 13,
+        "width": 364,
+        "height": 102.375
+      },
+      "footer": {
+        "x": 13,
+        "y": 755,
+        "width": 364,
+        "height": 76
+      },
+      "scrollHeight": 2226,
+      "clientHeight": 640,
+      "outerOverflow": false,
+      "horizontalOverflow": false,
+      "centerErrorX": 0,
+      "centerErrorY": 0
+    }
+  },
+  {
+    "slug": "04-backup-create",
+    "desktop": {
+      "dialog": {
+        "x": 390,
+        "y": 84,
+        "width": 820,
+        "height": 832
+      },
+      "header": {
+        "x": 391,
+        "y": 85,
+        "width": 818,
+        "height": 104.09375
+      },
+      "footer": {
+        "x": 391,
+        "y": 833,
+        "width": 818,
+        "height": 82
+      },
+      "scrollHeight": 745,
+      "clientHeight": 644,
+      "outerOverflow": false,
+      "horizontalOverflow": false,
+      "centerErrorX": 0,
+      "centerErrorY": 0
+    },
+    "headerFooterFixed": true,
+    "mobile": {
+      "dialog": {
+        "x": 12,
+        "y": 12,
+        "width": 366,
+        "height": 820
+      },
+      "header": {
+        "x": 13,
+        "y": 13,
+        "width": 364,
+        "height": 83.6875
+      },
+      "footer": {
+        "x": 13,
+        "y": 755,
+        "width": 364,
+        "height": 76
+      },
+      "scrollHeight": 1240,
+      "clientHeight": 658,
+      "outerOverflow": false,
+      "horizontalOverflow": false,
+      "centerErrorX": 0,
+      "centerErrorY": 0
+    }
+  },
+  {
+    "slug": "05-network",
+    "desktop": {
+      "dialog": {
+        "x": 270,
+        "y": 84,
+        "width": 1060,
+        "height": 832
+      },
+      "header": {
+        "x": 271,
+        "y": 85,
+        "width": 1058,
+        "height": 104.09375
+      },
+      "footer": {
+        "x": 271,
+        "y": 833,
+        "width": 1058,
+        "height": 82
+      },
+      "scrollHeight": 1632,
+      "clientHeight": 644,
+      "outerOverflow": false,
+      "horizontalOverflow": false,
+      "centerErrorX": 0,
+      "centerErrorY": 0
+    },
+    "headerFooterFixed": true,
+    "mobile": {
+      "dialog": {
+        "x": 12,
+        "y": 12,
+        "width": 366,
+        "height": 820
+      },
+      "header": {
+        "x": 13,
+        "y": 13,
+        "width": 364,
+        "height": 102.375
+      },
+      "footer": {
+        "x": 13,
+        "y": 755,
+        "width": 364,
+        "height": 76
+      },
+      "scrollHeight": 2628,
+      "clientHeight": 640,
+      "outerOverflow": false,
+      "horizontalOverflow": false,
+      "centerErrorX": 0,
+      "centerErrorY": 0
+    }
+  },
+  {
+    "slug": "06-vpc",
+    "desktop": {
+      "dialog": {
+        "x": 320,
+        "y": 84,
+        "width": 960,
+        "height": 832
+      },
+      "header": {
+        "x": 321,
+        "y": 85,
+        "width": 958,
+        "height": 104.09375
+      },
+      "footer": {
+        "x": 321,
+        "y": 833,
+        "width": 958,
+        "height": 82
+      },
+      "scrollHeight": 1309,
+      "clientHeight": 644,
+      "outerOverflow": false,
+      "horizontalOverflow": false,
+      "centerErrorX": 0,
+      "centerErrorY": 0
+    },
+    "headerFooterFixed": true,
+    "mobile": {
+      "dialog": {
+        "x": 12,
+        "y": 12,
+        "width": 366,
+        "height": 820
+      },
+      "header": {
+        "x": 13,
+        "y": 13,
+        "width": 364,
+        "height": 102.375
+      },
+      "footer": {
+        "x": 13,
+        "y": 755,
+        "width": 364,
+        "height": 76
+      },
+      "scrollHeight": 1685,
+      "clientHeight": 640,
+      "outerOverflow": false,
+      "horizontalOverflow": false,
+      "centerErrorX": 0,
+      "centerErrorY": 0
+    }
+  },
+  {
+    "slug": "07-backup-import",
+    "desktop": {
+      "dialog": {
+        "x": 390,
+        "y": 84,
+        "width": 820,
+        "height": 832
+      },
+      "header": {
+        "x": 391,
+        "y": 85,
+        "width": 818,
+        "height": 104.09375
+      },
+      "footer": {
+        "x": 391,
+        "y": 833,
+        "width": 818,
+        "height": 82
+      },
+      "scrollHeight": 709,
+      "clientHeight": 644,
+      "outerOverflow": false,
+      "horizontalOverflow": false,
+      "centerErrorX": 0,
+      "centerErrorY": 0
+    },
+    "headerFooterFixed": true,
+    "mobile": {
+      "dialog": {
+        "x": 12,
+        "y": 12,
+        "width": 366,
+        "height": 820
+      },
+      "header": {
+        "x": 13,
+        "y": 13,
+        "width": 364,
+        "height": 83.6875
+      },
+      "footer": {
+        "x": 13,
+        "y": 755,
+        "width": 364,
+        "height": 76
+      },
+      "scrollHeight": 967,
+      "clientHeight": 658,
+      "outerOverflow": false,
+      "horizontalOverflow": false,
+      "centerErrorX": 0,
+      "centerErrorY": 0
+    }
+  }
+]

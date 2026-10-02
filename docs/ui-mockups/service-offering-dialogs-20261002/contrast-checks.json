@@ -1,0 +1,82 @@
+[
+  {
+    "name": "본문",
+    "foreground": "#f0f3f6",
+    "background": "#22282f",
+    "ratio": 13.349,
+    "minimum": 4.5,
+    "pass_": true
+  },
+  {
+    "name": "레이블",
+    "foreground": "#f0f3f6",
+    "background": "#22282f",
+    "ratio": 13.349,
+    "minimum": 4.5,
+    "pass_": true
+  },
+  {
+    "name": "보조 설명",
+    "foreground": "#9aa4af",
+    "background": "#22282f",
+    "ratio": 5.878,
+    "minimum": 4.5,
+    "pass_": true
+  },
+  {
+    "name": "플레이스홀더",
+    "foreground": "#9aa4af",
+    "background": "#1b2128",
+    "ratio": 6.413,
+    "minimum": 4.5,
+    "pass_": true
+  },
+  {
+    "name": "입력값",
+    "foreground": "#f0f3f6",
+    "background": "#1b2128",
+    "ratio": 14.563,
+    "minimum": 4.5,
+    "pass_": true
+  },
+  {
+    "name": "주 액션 버튼 문자",
+    "foreground": "#ffffff",
+    "background": "#0969da",
+    "ratio": 5.192,
+    "minimum": 4.5,
+    "pass_": true
+  },
+  {
+    "name": "미선택 라디오 문자",
+    "foreground": "#c5ccd4",
+    "background": "#1b2128",
+    "ratio": 10.011,
+    "minimum": 4.5,
+    "pass_": true
+  },
+  {
+    "name": "입력 경계 / 내부",
+    "foreground": "#748293",
+    "background": "#1b2128",
+    "ratio": 4.137,
+    "minimum": 3,
+    "pass_": true
+  },
+  {
+    "name": "입력 경계 / 외부",
+    "foreground": "#748293",
+    "background": "#22282f",
+    "ratio": 3.792,
+    "minimum": 3,
+    "pass_": true
+  },
+  {
+    "name": "포커스 표시",
+    "foreground": "#69b1ff",
+    "background": "#1b2128",
+    "ratio": 7.209,
+    "minimum": 3,
+    "pass_": true
+  }
+]

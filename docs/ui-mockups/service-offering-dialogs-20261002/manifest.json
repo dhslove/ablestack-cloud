@@ -1,0 +1,51 @@
+[
+  {
+    "slug": "01-compute",
+    "title": "컴퓨트 오퍼링 추가",
+    "category": "컴퓨트 오퍼링",
+    "width": 960,
+    "button": "추가"
+  },
+  {
+    "slug": "02-system",
+    "title": "시스템 오퍼링 추가",
+    "category": "시스템 오퍼링",
+    "width": 880,
+    "button": "추가"
+  },
+  {
+    "slug": "03-disk",
+    "title": "디스크 오퍼링 추가",
+    "category": "디스크 오퍼링",
+    "width": 920,
+    "button": "추가"
+  },
+  {
+    "slug": "04-backup-create",
+    "title": "백업 오퍼링 생성",
+    "category": "백업 오퍼링",
+    "width": 820,
+    "button": "생성"
+  },
+  {
+    "slug": "05-network",
+    "title": "네트워크 오퍼링 추가",
+    "category": "네트워크 오퍼링",
+    "width": 1060,
+    "button": "추가"
+  },
+  {
+    "slug": "06-vpc",
+    "title": "VPC 오퍼링 추가",
+    "category": "VPC 오퍼링",
+    "width": 960,
+    "button": "추가"
+  },
+  {
+    "slug": "07-backup-import",
+    "title": "백업 오퍼링 가져오기",
+    "category": "백업 오퍼링",
+    "width": 820,
+    "button": "가져오기"
+  }
+]
