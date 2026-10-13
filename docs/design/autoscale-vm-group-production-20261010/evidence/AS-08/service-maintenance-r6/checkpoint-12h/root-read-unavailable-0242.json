@@ -1,0 +1,7 @@
+{
+  "capturedAt": "2026-10-13T17:43:22.085330+00:00",
+  "operation": "read-original-roots.py",
+  "success": false,
+  "error": "URLError: connection refused while Cloud login",
+  "assessment": "Current ROOT API verification unavailable; retain prior successful timestamp; do not mark this attempt PASS"
+}

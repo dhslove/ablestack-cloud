@@ -1,0 +1,6856 @@
+[
+  {
+    "at": "2026-10-13T07:15:34.158715+00:00",
+    "epoch": 1791875734.1587322,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1406,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 07:15:32.000000",
+        "oldest": "2026-10-13 05:14:48.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 07:15:31.000000",
+        "oldest": "2026-10-13 05:14:49.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T07:20:34.193244+00:00",
+    "epoch": 1791876034.1932638,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1406,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 07:20:29.000000",
+        "oldest": "2026-10-13 05:19:45.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 07:20:33.000000",
+        "oldest": "2026-10-13 05:19:51.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T07:25:34.167500+00:00",
+    "epoch": 1791876334.1675193,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1404,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 07:25:26.000000",
+        "oldest": "2026-10-13 05:24:53.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 476,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 07:25:05.000000",
+        "oldest": "2026-10-13 05:24:54.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T07:30:34.184358+00:00",
+    "epoch": 1791876634.1843739,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1406,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 07:30:34.000000",
+        "oldest": "2026-10-13 05:29:49.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 476,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 07:30:08.000000",
+        "oldest": "2026-10-13 05:29:57.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T07:35:34.200026+00:00",
+    "epoch": 1791876934.2000468,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1406,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 07:35:31.000000",
+        "oldest": "2026-10-13 05:34:47.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 476,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 07:35:10.000000",
+        "oldest": "2026-10-13 05:34:59.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T07:40:34.140905+00:00",
+    "epoch": 1791877234.1409228,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1406,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 07:40:27.000000",
+        "oldest": "2026-10-13 05:39:44.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 476,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 07:40:13.000000",
+        "oldest": "2026-10-13 05:40:01.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T07:45:34.189208+00:00",
+    "epoch": 1791877534.1892276,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1404,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 07:45:24.000000",
+        "oldest": "2026-10-13 05:44:51.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 476,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 07:45:15.000000",
+        "oldest": "2026-10-13 05:45:04.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T07:50:34.190805+00:00",
+    "epoch": 1791877834.1908238,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1406,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 07:50:32.000000",
+        "oldest": "2026-10-13 05:49:48.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 476,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 07:50:18.000000",
+        "oldest": "2026-10-13 05:50:06.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T07:55:34.189817+00:00",
+    "epoch": 1791878134.1898332,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1406,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 07:55:29.000000",
+        "oldest": "2026-10-13 05:54:45.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 476,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 07:55:20.000000",
+        "oldest": "2026-10-13 05:55:08.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T08:00:34.184531+00:00",
+    "epoch": 1791878434.18455,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 08:00:26.000000",
+        "oldest": "2026-10-13 05:59:53.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 08:00:23.000000",
+        "oldest": "2026-10-13 05:59:52.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T08:05:34.196476+00:00",
+    "epoch": 1791878734.1964939,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1416,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 08:05:33.000000",
+        "oldest": "2026-10-13 06:04:50.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 08:05:25.000000",
+        "oldest": "2026-10-13 06:04:55.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T08:10:34.194701+00:00",
+    "epoch": 1791879034.1947181,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1416,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 08:10:31.000000",
+        "oldest": "2026-10-13 06:09:47.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 08:10:27.000000",
+        "oldest": "2026-10-13 06:09:57.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T08:15:34.187622+00:00",
+    "epoch": 1791879334.1876397,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 08:15:28.000000",
+        "oldest": "2026-10-13 06:14:54.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 08:15:30.000000",
+        "oldest": "2026-10-13 06:15:00.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T08:20:34.198612+00:00",
+    "epoch": 1791879634.1986284,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 08:20:25.000000",
+        "oldest": "2026-10-13 06:19:52.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 08:20:32.000000",
+        "oldest": "2026-10-13 06:20:02.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T08:25:34.174536+00:00",
+    "epoch": 1791879934.1745539,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1416,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 08:25:33.000000",
+        "oldest": "2026-10-13 06:24:49.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 08:25:04.000000",
+        "oldest": "2026-10-13 06:25:05.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T08:30:34.349565+00:00",
+    "epoch": 1791880234.349583,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 08:30:30.000000",
+        "oldest": "2026-10-13 06:29:56.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 08:30:07.000000",
+        "oldest": "2026-10-13 06:30:07.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T08:35:34.184336+00:00",
+    "epoch": 1791880534.184354,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 08:35:27.000000",
+        "oldest": "2026-10-13 06:34:53.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 08:35:09.000000",
+        "oldest": "2026-10-13 06:35:10.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T08:40:34.180581+00:00",
+    "epoch": 1791880834.180597,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 08:40:24.000000",
+        "oldest": "2026-10-13 06:39:51.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 08:40:12.000000",
+        "oldest": "2026-10-13 06:40:13.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T08:45:34.169614+00:00",
+    "epoch": 1791881134.1696312,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1416,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 08:45:32.000000",
+        "oldest": "2026-10-13 06:44:48.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 08:45:14.000000",
+        "oldest": "2026-10-13 06:45:15.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T08:50:34.185028+00:00",
+    "epoch": 1791881434.1850457,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 08:50:29.000000",
+        "oldest": "2026-10-13 06:49:55.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 08:50:17.000000",
+        "oldest": "2026-10-13 06:50:18.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T08:55:34.191561+00:00",
+    "epoch": 1791881734.1915808,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 08:55:26.000000",
+        "oldest": "2026-10-13 06:54:52.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 08:55:19.000000",
+        "oldest": "2026-10-13 06:54:50.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T09:00:34.175521+00:00",
+    "epoch": 1791882034.175539,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1416,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 09:00:33.000000",
+        "oldest": "2026-10-13 06:59:50.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 09:00:22.000000",
+        "oldest": "2026-10-13 06:59:53.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T09:05:34.184970+00:00",
+    "epoch": 1791882334.1849897,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 09:05:30.000000",
+        "oldest": "2026-10-13 07:04:57.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 09:05:24.000000",
+        "oldest": "2026-10-13 07:04:55.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T09:10:34.209855+00:00",
+    "epoch": 1791882634.2098732,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 09:10:27.000000",
+        "oldest": "2026-10-13 07:09:54.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 09:10:26.000000",
+        "oldest": "2026-10-13 07:09:58.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T09:15:34.180243+00:00",
+    "epoch": 1791882934.1802633,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 09:15:24.000000",
+        "oldest": "2026-10-13 07:14:51.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 09:15:29.000000",
+        "oldest": "2026-10-13 07:15:00.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T09:20:34.206210+00:00",
+    "epoch": 1791883234.2062278,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 09:20:31.000000",
+        "oldest": "2026-10-13 07:19:59.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 09:20:31.000000",
+        "oldest": "2026-10-13 07:20:03.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T09:25:34.186580+00:00",
+    "epoch": 1791883534.186599,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 09:25:28.000000",
+        "oldest": "2026-10-13 07:24:56.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 09:25:33.000000",
+        "oldest": "2026-10-13 07:25:05.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T09:30:34.150358+00:00",
+    "epoch": 1791883834.1503756,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 09:30:26.000000",
+        "oldest": "2026-10-13 07:29:53.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 09:30:05.000000",
+        "oldest": "2026-10-13 07:30:08.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T09:35:34.181055+00:00",
+    "epoch": 1791884134.181074,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1416,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 09:35:33.000000",
+        "oldest": "2026-10-13 07:34:50.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 09:35:08.000000",
+        "oldest": "2026-10-13 07:35:10.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T09:40:34.195619+00:00",
+    "epoch": 1791884434.1956356,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 09:40:30.000000",
+        "oldest": "2026-10-13 07:39:57.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 09:40:10.000000",
+        "oldest": "2026-10-13 07:40:13.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T09:45:34.188739+00:00",
+    "epoch": 1791884734.1887598,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 09:45:27.000000",
+        "oldest": "2026-10-13 07:44:54.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 09:45:13.000000",
+        "oldest": "2026-10-13 07:45:15.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T09:50:34.193802+00:00",
+    "epoch": 1791885034.1938212,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 09:50:24.000000",
+        "oldest": "2026-10-13 07:49:51.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 09:50:15.000000",
+        "oldest": "2026-10-13 07:50:18.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T09:55:34.196063+00:00",
+    "epoch": 1791885334.1960802,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 09:55:32.000000",
+        "oldest": "2026-10-13 07:54:58.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 09:55:18.000000",
+        "oldest": "2026-10-13 07:55:20.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T10:00:34.176560+00:00",
+    "epoch": 1791885634.1765783,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 10:00:29.000000",
+        "oldest": "2026-10-13 07:59:55.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 10:00:20.000000",
+        "oldest": "2026-10-13 07:59:52.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T10:05:34.175130+00:00",
+    "epoch": 1791885934.1751487,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 10:05:26.000000",
+        "oldest": "2026-10-13 08:04:52.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 10:05:23.000000",
+        "oldest": "2026-10-13 08:04:55.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T10:10:34.192054+00:00",
+    "epoch": 1791886234.192073,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1412,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 10:10:23.000000",
+        "oldest": "2026-10-13 08:10:00.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 10:10:25.000000",
+        "oldest": "2026-10-13 08:09:57.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T10:15:34.181234+00:00",
+    "epoch": 1791886534.1812532,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 10:15:31.000000",
+        "oldest": "2026-10-13 08:14:57.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 10:15:28.000000",
+        "oldest": "2026-10-13 08:15:00.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T10:20:34.183278+00:00",
+    "epoch": 1791886834.1832955,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 10:20:28.000000",
+        "oldest": "2026-10-13 08:19:54.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 10:20:30.000000",
+        "oldest": "2026-10-13 08:20:02.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T10:25:34.178703+00:00",
+    "epoch": 1791887134.178729,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1412,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 10:25:25.000000",
+        "oldest": "2026-10-13 08:25:02.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 10:25:32.000000",
+        "oldest": "2026-10-13 08:25:04.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T10:30:34.168637+00:00",
+    "epoch": 1791887434.1686654,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 10:30:33.000000",
+        "oldest": "2026-10-13 08:29:59.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 10:30:04.000000",
+        "oldest": "2026-10-13 08:30:07.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T10:35:34.168796+00:00",
+    "epoch": 1791887734.168813,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 10:35:30.000000",
+        "oldest": "2026-10-13 08:34:57.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 10:35:07.000000",
+        "oldest": "2026-10-13 08:35:09.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T10:40:34.202540+00:00",
+    "epoch": 1791888034.2025588,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 10:40:27.000000",
+        "oldest": "2026-10-13 08:39:54.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 10:40:09.000000",
+        "oldest": "2026-10-13 08:40:12.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T10:45:34.185182+00:00",
+    "epoch": 1791888334.185199,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1412,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 10:45:23.000000",
+        "oldest": "2026-10-13 08:45:01.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 10:45:12.000000",
+        "oldest": "2026-10-13 08:45:14.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T10:50:34.161236+00:00",
+    "epoch": 1791888634.1612518,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 10:50:31.000000",
+        "oldest": "2026-10-13 08:49:58.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 10:50:14.000000",
+        "oldest": "2026-10-13 08:50:17.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T10:55:34.164224+00:00",
+    "epoch": 1791888934.164241,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 10:55:28.000000",
+        "oldest": "2026-10-13 08:54:55.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 10:55:17.000000",
+        "oldest": "2026-10-13 08:55:19.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T11:00:34.180808+00:00",
+    "epoch": 1791889234.1808271,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1412,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 11:00:25.000000",
+        "oldest": "2026-10-13 09:00:02.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 11:00:19.000000",
+        "oldest": "2026-10-13 09:00:22.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T11:05:34.184898+00:00",
+    "epoch": 1791889534.1849167,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 11:05:32.000000",
+        "oldest": "2026-10-13 09:04:59.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 11:05:21.000000",
+        "oldest": "2026-10-13 09:05:24.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T11:10:34.202355+00:00",
+    "epoch": 1791889834.2023728,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 11:10:29.000000",
+        "oldest": "2026-10-13 09:09:56.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 11:10:24.000000",
+        "oldest": "2026-10-13 09:09:56.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T11:15:34.199920+00:00",
+    "epoch": 1791890134.1999383,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1412,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 11:15:26.000000",
+        "oldest": "2026-10-13 09:15:03.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 11:15:26.000000",
+        "oldest": "2026-10-13 09:14:59.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T11:20:34.192875+00:00",
+    "epoch": 1791890434.1928918,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 11:20:34.000000",
+        "oldest": "2026-10-13 09:20:00.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 11:20:29.000000",
+        "oldest": "2026-10-13 09:20:01.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T11:25:34.187857+00:00",
+    "epoch": 1791890734.1878736,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 11:25:31.000000",
+        "oldest": "2026-10-13 09:24:58.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 11:25:31.000000",
+        "oldest": "2026-10-13 09:25:03.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T11:30:34.183217+00:00",
+    "epoch": 1791891034.1832356,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1412,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 11:30:28.000000",
+        "oldest": "2026-10-13 09:30:05.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 11:30:04.000000",
+        "oldest": "2026-10-13 09:30:05.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T11:35:34.200882+00:00",
+    "epoch": 1791891334.2008991,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1412,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 11:35:25.000000",
+        "oldest": "2026-10-13 09:35:02.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 11:35:06.000000",
+        "oldest": "2026-10-13 09:35:08.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T11:40:34.185542+00:00",
+    "epoch": 1791891634.1855593,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 11:40:33.000000",
+        "oldest": "2026-10-13 09:39:59.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 11:40:08.000000",
+        "oldest": "2026-10-13 09:40:10.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T11:45:34.207446+00:00",
+    "epoch": 1791891934.2074635,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1412,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 11:45:30.000000",
+        "oldest": "2026-10-13 09:45:07.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 11:45:11.000000",
+        "oldest": "2026-10-13 09:45:13.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T11:50:34.189013+00:00",
+    "epoch": 1791892234.189032,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1412,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 11:50:27.000000",
+        "oldest": "2026-10-13 09:50:04.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 11:50:13.000000",
+        "oldest": "2026-10-13 09:50:15.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T11:55:34.180961+00:00",
+    "epoch": 1791892534.18098,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1412,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 11:55:25.000000",
+        "oldest": "2026-10-13 09:55:01.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 11:55:16.000000",
+        "oldest": "2026-10-13 09:55:18.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T12:00:34.177993+00:00",
+    "epoch": 1791892834.1780107,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1412,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 12:00:32.000000",
+        "oldest": "2026-10-13 10:00:08.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 12:00:18.000000",
+        "oldest": "2026-10-13 10:00:20.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T12:05:34.178980+00:00",
+    "epoch": 1791893134.1789978,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1412,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 12:05:29.000000",
+        "oldest": "2026-10-13 10:05:06.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 12:05:21.000000",
+        "oldest": "2026-10-13 10:05:23.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T12:10:34.181347+00:00",
+    "epoch": 1791893434.1813648,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1412,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 12:10:26.000000",
+        "oldest": "2026-10-13 10:10:03.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 12:10:23.000000",
+        "oldest": "2026-10-13 10:10:25.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T12:15:34.191888+00:00",
+    "epoch": 1791893734.191906,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 12:15:33.000000",
+        "oldest": "2026-10-13 10:15:00.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 12:15:26.000000",
+        "oldest": "2026-10-13 10:15:28.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T12:20:34.144661+00:00",
+    "epoch": 1791894034.1446793,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1412,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 12:20:30.000000",
+        "oldest": "2026-10-13 10:20:08.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 12:20:28.000000",
+        "oldest": "2026-10-13 10:20:30.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T12:25:34.187890+00:00",
+    "epoch": 1791894334.187908,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1412,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 12:25:27.000000",
+        "oldest": "2026-10-13 10:25:05.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 12:25:30.000000",
+        "oldest": "2026-10-13 10:25:02.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T12:30:34.180242+00:00",
+    "epoch": 1791894634.1802588,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1412,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 12:30:24.000000",
+        "oldest": "2026-10-13 10:30:02.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 12:30:33.000000",
+        "oldest": "2026-10-13 10:30:04.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T12:35:34.174042+00:00",
+    "epoch": 1791894934.1740584,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1412,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 12:35:31.000000",
+        "oldest": "2026-10-13 10:35:09.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 12:35:05.000000",
+        "oldest": "2026-10-13 10:35:07.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T12:40:34.185105+00:00",
+    "epoch": 1791895234.1851344,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1412,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 12:40:29.000000",
+        "oldest": "2026-10-13 10:40:06.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 12:40:07.000000",
+        "oldest": "2026-10-13 10:40:09.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T12:45:34.171409+00:00",
+    "epoch": 1791895534.1714263,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1412,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 12:45:26.000000",
+        "oldest": "2026-10-13 10:45:03.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 12:45:09.000000",
+        "oldest": "2026-10-13 10:45:12.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T12:50:34.202045+00:00",
+    "epoch": 1791895834.2020628,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1408,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 12:50:25.000000",
+        "oldest": "2026-10-13 10:49:39.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 12:50:22.000000",
+        "oldest": "2026-10-13 10:49:44.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T12:55:34.206498+00:00",
+    "epoch": 1791896134.2065134,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1410,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 12:55:32.000000",
+        "oldest": "2026-10-13 10:54:36.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 12:55:24.000000",
+        "oldest": "2026-10-13 10:54:46.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T13:00:34.209069+00:00",
+    "epoch": 1791896434.2090852,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1408,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 13:00:29.000000",
+        "oldest": "2026-10-13 10:59:44.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 13:00:27.000000",
+        "oldest": "2026-10-13 10:59:49.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T13:05:34.219630+00:00",
+    "epoch": 1791896734.219646,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1408,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 13:05:26.000000",
+        "oldest": "2026-10-13 11:04:41.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 13:05:29.000000",
+        "oldest": "2026-10-13 11:04:51.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T13:10:34.181774+00:00",
+    "epoch": 1791897034.1817927,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1410,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 13:10:33.000000",
+        "oldest": "2026-10-13 11:09:38.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 13:10:31.000000",
+        "oldest": "2026-10-13 11:09:54.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T13:15:34.189663+00:00",
+    "epoch": 1791897334.1896808,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1408,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 13:15:30.000000",
+        "oldest": "2026-10-13 11:14:45.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 476,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 13:15:04.000000",
+        "oldest": "2026-10-13 11:14:56.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T13:20:34.167708+00:00",
+    "epoch": 1791897634.1677258,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1408,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 13:20:27.000000",
+        "oldest": "2026-10-13 11:19:42.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 476,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 13:20:06.000000",
+        "oldest": "2026-10-13 11:19:59.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T13:25:34.176218+00:00",
+    "epoch": 1791897934.1762414,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1408,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 13:25:24.000000",
+        "oldest": "2026-10-13 11:24:40.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 476,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 13:25:09.000000",
+        "oldest": "2026-10-13 11:25:01.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T13:30:34.187132+00:00",
+    "epoch": 1791898234.1871495,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1408,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 13:30:31.000000",
+        "oldest": "2026-10-13 11:29:47.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 476,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 13:30:11.000000",
+        "oldest": "2026-10-13 11:30:04.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T13:35:34.197824+00:00",
+    "epoch": 1791898534.197841,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1408,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 13:35:28.000000",
+        "oldest": "2026-10-13 11:34:45.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 476,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 13:35:13.000000",
+        "oldest": "2026-10-13 11:35:06.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T13:40:34.161560+00:00",
+    "epoch": 1791898834.1615767,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1408,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 13:40:26.000000",
+        "oldest": "2026-10-13 11:39:42.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 476,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 13:40:16.000000",
+        "oldest": "2026-10-13 11:40:08.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T13:45:34.190262+00:00",
+    "epoch": 1791899134.1902795,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1410,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 13:45:33.000000",
+        "oldest": "2026-10-13 11:44:39.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 13:45:18.000000",
+        "oldest": "2026-10-13 11:44:40.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T13:50:34.200708+00:00",
+    "epoch": 1791899434.2007256,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1408,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 13:50:30.000000",
+        "oldest": "2026-10-13 11:49:46.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 13:50:21.000000",
+        "oldest": "2026-10-13 11:49:43.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T13:55:34.193313+00:00",
+    "epoch": 1791899734.1933312,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1408,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 13:55:27.000000",
+        "oldest": "2026-10-13 11:54:44.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 13:55:23.000000",
+        "oldest": "2026-10-13 11:54:45.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T14:00:34.166377+00:00",
+    "epoch": 1791900034.1663938,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1408,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 14:00:24.000000",
+        "oldest": "2026-10-13 11:59:41.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 14:00:25.000000",
+        "oldest": "2026-10-13 11:59:48.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T14:05:34.211047+00:00",
+    "epoch": 1791900334.211065,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1408,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 14:05:32.000000",
+        "oldest": "2026-10-13 12:04:48.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 14:05:28.000000",
+        "oldest": "2026-10-13 12:04:50.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T14:10:34.207444+00:00",
+    "epoch": 1791900634.207462,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1408,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 14:10:29.000000",
+        "oldest": "2026-10-13 12:09:45.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 14:10:30.000000",
+        "oldest": "2026-10-13 12:09:53.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T14:15:34.174897+00:00",
+    "epoch": 1791900934.1749165,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1408,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 14:15:26.000000",
+        "oldest": "2026-10-13 12:14:42.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 14:15:33.000000",
+        "oldest": "2026-10-13 12:14:55.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T14:20:34.179664+00:00",
+    "epoch": 1791901234.1796806,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1408,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 14:20:33.000000",
+        "oldest": "2026-10-13 12:19:49.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 476,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 14:20:05.000000",
+        "oldest": "2026-10-13 12:19:58.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T14:25:34.198230+00:00",
+    "epoch": 1791901534.1982474,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1408,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 14:25:30.000000",
+        "oldest": "2026-10-13 12:24:46.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 476,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 14:25:07.000000",
+        "oldest": "2026-10-13 12:25:00.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T14:30:34.160102+00:00",
+    "epoch": 1791901834.1601365,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1408,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 14:30:27.000000",
+        "oldest": "2026-10-13 12:29:43.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 476,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 14:30:10.000000",
+        "oldest": "2026-10-13 12:30:02.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T14:35:34.138666+00:00",
+    "epoch": 1791902134.1386833,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1406,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 14:35:24.000000",
+        "oldest": "2026-10-13 12:34:50.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 476,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 14:35:12.000000",
+        "oldest": "2026-10-13 12:35:05.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T14:40:34.193975+00:00",
+    "epoch": 1791902434.1939924,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1408,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 14:40:31.000000",
+        "oldest": "2026-10-13 12:39:48.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 476,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 14:40:15.000000",
+        "oldest": "2026-10-13 12:40:07.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T14:45:34.176639+00:00",
+    "epoch": 1791902734.1766558,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1408,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 14:45:28.000000",
+        "oldest": "2026-10-13 12:44:45.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 476,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 14:45:17.000000",
+        "oldest": "2026-10-13 12:45:09.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T14:50:34.164393+00:00",
+    "epoch": 1791903034.1644106,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1416,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 14:50:25.000000",
+        "oldest": "2026-10-13 12:49:44.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 14:50:20.000000",
+        "oldest": "2026-10-13 12:49:51.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T14:55:34.193037+00:00",
+    "epoch": 1791903334.1930544,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1416,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 14:55:33.000000",
+        "oldest": "2026-10-13 12:54:51.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 14:55:22.000000",
+        "oldest": "2026-10-13 12:54:54.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T15:00:34.148141+00:00",
+    "epoch": 1791903634.1481583,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1416,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 15:00:30.000000",
+        "oldest": "2026-10-13 12:59:48.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 15:00:24.000000",
+        "oldest": "2026-10-13 12:59:56.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T15:05:34.180420+00:00",
+    "epoch": 1791903934.180439,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1416,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 15:05:27.000000",
+        "oldest": "2026-10-13 13:04:45.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 15:05:27.000000",
+        "oldest": "2026-10-13 13:04:59.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T15:10:34.193948+00:00",
+    "epoch": 1791904234.1939664,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 15:10:24.000000",
+        "oldest": "2026-10-13 13:09:52.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 15:10:29.000000",
+        "oldest": "2026-10-13 13:10:01.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T15:15:34.181428+00:00",
+    "epoch": 1791904534.181446,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1416,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 15:15:31.000000",
+        "oldest": "2026-10-13 13:14:50.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 15:15:31.000000",
+        "oldest": "2026-10-13 13:15:04.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T15:20:34.205979+00:00",
+    "epoch": 1791904834.2059958,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1416,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 15:20:29.000000",
+        "oldest": "2026-10-13 13:19:46.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 15:20:04.000000",
+        "oldest": "2026-10-13 13:20:06.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T15:25:34.149549+00:00",
+    "epoch": 1791905134.1495657,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 15:25:26.000000",
+        "oldest": "2026-10-13 13:24:54.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 15:25:06.000000",
+        "oldest": "2026-10-13 13:25:09.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T15:30:34.195216+00:00",
+    "epoch": 1791905434.1952326,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1416,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 15:30:33.000000",
+        "oldest": "2026-10-13 13:29:51.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 15:30:08.000000",
+        "oldest": "2026-10-13 13:30:11.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T15:35:34.163700+00:00",
+    "epoch": 1791905734.163716,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1416,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 15:35:30.000000",
+        "oldest": "2026-10-13 13:34:48.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 15:35:11.000000",
+        "oldest": "2026-10-13 13:35:13.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T15:40:34.186629+00:00",
+    "epoch": 1791906034.186649,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 15:40:27.000000",
+        "oldest": "2026-10-13 13:39:55.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 15:40:13.000000",
+        "oldest": "2026-10-13 13:39:46.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T15:45:34.181563+00:00",
+    "epoch": 1791906334.1815817,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 15:45:24.000000",
+        "oldest": "2026-10-13 13:44:52.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 15:45:16.000000",
+        "oldest": "2026-10-13 13:44:48.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T15:50:34.188223+00:00",
+    "epoch": 1791906634.1882405,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1416,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 15:50:32.000000",
+        "oldest": "2026-10-13 13:49:49.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 15:50:18.000000",
+        "oldest": "2026-10-13 13:49:50.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T15:55:34.177495+00:00",
+    "epoch": 1791906934.177513,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 15:55:28.000000",
+        "oldest": "2026-10-13 13:54:57.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 15:55:20.000000",
+        "oldest": "2026-10-13 13:54:53.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T16:00:34.188314+00:00",
+    "epoch": 1791907234.1883333,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 16:00:25.000000",
+        "oldest": "2026-10-13 13:59:54.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 16:00:23.000000",
+        "oldest": "2026-10-13 13:59:55.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T16:05:34.187361+00:00",
+    "epoch": 1791907534.18738,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1416,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 16:05:33.000000",
+        "oldest": "2026-10-13 14:04:51.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 16:05:25.000000",
+        "oldest": "2026-10-13 14:04:58.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T16:10:34.176205+00:00",
+    "epoch": 1791907834.1762235,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1416,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 16:10:30.000000",
+        "oldest": "2026-10-13 14:09:48.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 16:10:28.000000",
+        "oldest": "2026-10-13 14:10:00.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T16:15:34.129897+00:00",
+    "epoch": 1791908134.1299155,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 16:15:27.000000",
+        "oldest": "2026-10-13 14:14:55.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 16:15:30.000000",
+        "oldest": "2026-10-13 14:15:03.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T16:20:34.188035+00:00",
+    "epoch": 1791908434.188053,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 16:20:24.000000",
+        "oldest": "2026-10-13 14:19:52.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 16:20:33.000000",
+        "oldest": "2026-10-13 14:20:05.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T16:25:34.193626+00:00",
+    "epoch": 1791908734.1936421,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1416,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 16:25:31.000000",
+        "oldest": "2026-10-13 14:24:49.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 16:25:05.000000",
+        "oldest": "2026-10-13 14:25:07.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T16:30:34.152370+00:00",
+    "epoch": 1791909034.1523867,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 16:30:29.000000",
+        "oldest": "2026-10-13 14:29:56.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 16:30:07.000000",
+        "oldest": "2026-10-13 14:30:10.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T16:35:34.191306+00:00",
+    "epoch": 1791909334.1913257,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 16:35:26.000000",
+        "oldest": "2026-10-13 14:34:53.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 16:35:10.000000",
+        "oldest": "2026-10-13 14:35:12.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T16:40:34.172020+00:00",
+    "epoch": 1791909634.172037,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1416,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 16:40:33.000000",
+        "oldest": "2026-10-13 14:39:50.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 16:40:12.000000",
+        "oldest": "2026-10-13 14:40:15.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T16:45:34.180163+00:00",
+    "epoch": 1791909934.1801813,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 16:45:30.000000",
+        "oldest": "2026-10-13 14:44:57.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 16:45:15.000000",
+        "oldest": "2026-10-13 14:45:17.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T16:50:34.174278+00:00",
+    "epoch": 1791910234.1742942,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 16:50:27.000000",
+        "oldest": "2026-10-13 14:49:54.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 16:50:17.000000",
+        "oldest": "2026-10-13 14:50:20.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T16:55:34.188608+00:00",
+    "epoch": 1791910534.1886282,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 16:55:25.000000",
+        "oldest": "2026-10-13 14:54:52.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 16:55:19.000000",
+        "oldest": "2026-10-13 14:54:52.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T17:00:34.186556+00:00",
+    "epoch": 1791910834.1865735,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 17:00:32.000000",
+        "oldest": "2026-10-13 14:59:59.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 17:00:21.000000",
+        "oldest": "2026-10-13 14:59:54.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T17:05:34.168503+00:00",
+    "epoch": 1791911134.1685207,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 17:05:29.000000",
+        "oldest": "2026-10-13 15:04:56.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 17:05:24.000000",
+        "oldest": "2026-10-13 15:04:56.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T17:10:34.203663+00:00",
+    "epoch": 1791911434.2036798,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 17:10:26.000000",
+        "oldest": "2026-10-13 15:09:53.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 17:10:26.000000",
+        "oldest": "2026-10-13 15:09:59.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T17:15:34.189249+00:00",
+    "epoch": 1791911734.1892676,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1412,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 17:15:24.000000",
+        "oldest": "2026-10-13 15:15:01.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 17:15:29.000000",
+        "oldest": "2026-10-13 15:15:01.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T17:20:34.193777+00:00",
+    "epoch": 1791912034.1937935,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 17:20:31.000000",
+        "oldest": "2026-10-13 15:19:58.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 480,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 17:20:31.000000",
+        "oldest": "2026-10-13 15:20:04.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T17:25:34.168064+00:00",
+    "epoch": 1791912334.1680818,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 17:25:28.000000",
+        "oldest": "2026-10-13 15:24:55.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 17:25:04.000000",
+        "oldest": "2026-10-13 15:25:06.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T17:30:34.152971+00:00",
+    "epoch": 1791912634.1529891,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 17:30:25.000000",
+        "oldest": "2026-10-13 15:29:52.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 17:30:06.000000",
+        "oldest": "2026-10-13 15:30:08.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T17:35:34.192248+00:00",
+    "epoch": 1791912934.1922648,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 17:35:32.000000",
+        "oldest": "2026-10-13 15:35:00.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 17:35:08.000000",
+        "oldest": "2026-10-13 15:35:11.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T17:40:34.196222+00:00",
+    "epoch": 1791913234.196238,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 17:40:29.000000",
+        "oldest": "2026-10-13 15:39:57.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 17:40:11.000000",
+        "oldest": "2026-10-13 15:40:13.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T17:45:34.190710+00:00",
+    "epoch": 1791913534.1907291,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1414,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 17:45:26.000000",
+        "oldest": "2026-10-13 15:44:54.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 17:45:13.000000",
+        "oldest": "2026-10-13 15:45:16.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T17:50:34.185412+00:00",
+    "epoch": 1791913834.1854298,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1408,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 17:50:30.000000",
+        "oldest": "2026-10-13 15:49:40.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 17:50:26.000000",
+        "oldest": "2026-10-13 15:49:48.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T17:55:34.213606+00:00",
+    "epoch": 1791914134.2136228,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1406,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 17:55:27.000000",
+        "oldest": "2026-10-13 15:54:48.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 17:55:29.000000",
+        "oldest": "2026-10-13 15:54:50.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T18:00:34.201806+00:00",
+    "epoch": 1791914434.2018244,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1406,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 18:00:24.000000",
+        "oldest": "2026-10-13 15:59:44.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 18:00:31.000000",
+        "oldest": "2026-10-13 15:59:53.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T18:05:34.201404+00:00",
+    "epoch": 1791914734.2014217,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1408,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 18:05:32.000000",
+        "oldest": "2026-10-13 16:04:42.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 476,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 18:05:04.000000",
+        "oldest": "2026-10-13 16:04:55.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T18:10:34.144820+00:00",
+    "epoch": 1791915034.1448402,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1406,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 18:10:29.000000",
+        "oldest": "2026-10-13 16:09:49.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 476,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 18:10:06.000000",
+        "oldest": "2026-10-13 16:09:58.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T18:15:34.174533+00:00",
+    "epoch": 1791915334.1745505,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1406,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 18:15:26.000000",
+        "oldest": "2026-10-13 16:14:46.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 476,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 18:15:08.000000",
+        "oldest": "2026-10-13 16:15:00.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T18:20:34.141252+00:00",
+    "epoch": 1791915634.141271,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1408,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 18:20:33.000000",
+        "oldest": "2026-10-13 16:19:43.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 476,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 18:20:11.000000",
+        "oldest": "2026-10-13 16:20:02.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T18:25:34.200556+00:00",
+    "epoch": 1791915934.200572,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1406,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 18:25:31.000000",
+        "oldest": "2026-10-13 16:24:50.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 476,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 18:25:13.000000",
+        "oldest": "2026-10-13 16:25:05.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T18:30:34.202913+00:00",
+    "epoch": 1791916234.20293,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1406,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 18:30:28.000000",
+        "oldest": "2026-10-13 16:29:48.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 476,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 18:30:16.000000",
+        "oldest": "2026-10-13 16:30:07.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T18:35:34.197171+00:00",
+    "epoch": 1791916534.197188,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1406,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 18:35:25.000000",
+        "oldest": "2026-10-13 16:34:45.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 476,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 18:35:18.000000",
+        "oldest": "2026-10-13 16:35:10.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T18:40:34.160733+00:00",
+    "epoch": 1791916834.1607509,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1406,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 18:40:32.000000",
+        "oldest": "2026-10-13 16:39:52.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 476,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 18:40:21.000000",
+        "oldest": "2026-10-13 16:40:12.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T18:45:34.129513+00:00",
+    "epoch": 1791917134.1295311,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1406,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 18:45:29.000000",
+        "oldest": "2026-10-13 16:44:49.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 18:45:23.000000",
+        "oldest": "2026-10-13 16:44:44.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T18:50:34.186338+00:00",
+    "epoch": 1791917434.1863563,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1406,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 18:50:27.000000",
+        "oldest": "2026-10-13 16:49:46.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 18:50:25.000000",
+        "oldest": "2026-10-13 16:49:47.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T18:55:34.186667+00:00",
+    "epoch": 1791917734.1866877,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1406,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 18:55:24.000000",
+        "oldest": "2026-10-13 16:54:44.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 18:55:28.000000",
+        "oldest": "2026-10-13 16:54:49.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T19:00:34.149006+00:00",
+    "epoch": 1791918034.149022,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1406,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 19:00:31.000000",
+        "oldest": "2026-10-13 16:59:51.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 19:00:30.000000",
+        "oldest": "2026-10-13 16:59:51.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T19:05:34.208760+00:00",
+    "epoch": 1791918334.2087796,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1406,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 19:05:28.000000",
+        "oldest": "2026-10-13 17:04:48.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 478,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 19:05:33.000000",
+        "oldest": "2026-10-13 17:04:54.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T19:10:34.145152+00:00",
+    "epoch": 1791918634.1451695,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1406,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 19:10:25.000000",
+        "oldest": "2026-10-13 17:09:46.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 476,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 19:10:05.000000",
+        "oldest": "2026-10-13 17:09:56.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T19:15:34.173362+00:00",
+    "epoch": 1791918934.1733785,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1406,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 19:15:32.000000",
+        "oldest": "2026-10-13 17:14:53.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 476,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 19:15:07.000000",
+        "oldest": "2026-10-13 17:14:59.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T19:20:34.149172+00:00",
+    "epoch": 1791919234.1491895,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1406,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 19:20:29.000000",
+        "oldest": "2026-10-13 17:19:50.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 476,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 19:20:10.000000",
+        "oldest": "2026-10-13 17:20:01.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T19:25:34.177685+00:00",
+    "epoch": 1791919534.1777039,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1406,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 19:25:26.000000",
+        "oldest": "2026-10-13 17:24:47.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 476,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 19:25:12.000000",
+        "oldest": "2026-10-13 17:25:04.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T19:30:34.197874+00:00",
+    "epoch": 1791919834.19789,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1406,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 19:30:34.000000",
+        "oldest": "2026-10-13 17:29:54.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 476,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 19:30:15.000000",
+        "oldest": "2026-10-13 17:30:06.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  },
+  {
+    "at": "2026-10-13T19:35:34.172427+00:00",
+    "epoch": 1791920134.1724439,
+    "rows": [
+      {
+        "kind": "group",
+        "uuid": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "group",
+        "uuid": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "state": "ENABLED",
+        "members": 1,
+        "lbMembers": 1,
+        "operation": null
+      },
+      {
+        "kind": "statistics",
+        "rows": 1406,
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "newest": "2026-10-13 19:35:31.000000",
+        "oldest": "2026-10-13 17:34:52.000000"
+      },
+      {
+        "kind": "statistics",
+        "rows": 476,
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "newest": "2026-10-13 19:35:17.000000",
+        "oldest": "2026-10-13 17:35:08.000000"
+      },
+      {
+        "kind": "cleanupConfig",
+        "name": "autoscale.stats.cleanup.delay",
+        "value": "7200"
+      },
+      {
+        "kind": "orphans",
+        "vmMaps": 0,
+        "volumeRows": 0
+      }
+    ]
+  }
+]

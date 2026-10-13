@@ -1,0 +1,4919 @@
+[
+  {
+    "at": "2026-10-13T07:15:36.035348+00:00",
+    "epoch": 1791875736.0353675,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8409504 kB",
+      "VmRSS": "1309100 kB",
+      "Threads": "308"
+    },
+    "fds": 59,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 4,
+        "heapmemoryused": 441393176,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 294,
+        "collectiontime": "2026-10-13T16:15:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "e963669cee81f29f532837d515e2352ff35cdc4a4eef6544089ed83e3976fb6f",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T07:20:36.166593+00:00",
+    "epoch": 1791876036.166622,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8411584 kB",
+      "VmRSS": "1542364 kB",
+      "Threads": "312"
+    },
+    "fds": 61,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 8,
+        "heapmemoryused": 452498144,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 296,
+        "collectiontime": "2026-10-13T16:20:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "e963669cee81f29f532837d515e2352ff35cdc4a4eef6544089ed83e3976fb6f",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T07:25:36.081156+00:00",
+    "epoch": 1791876336.081177,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8414668 kB",
+      "VmRSS": "1547036 kB",
+      "Threads": "318"
+    },
+    "fds": 67,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 11,
+        "heapmemoryused": 420807824,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 300,
+        "collectiontime": "2026-10-13T16:25:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "e963669cee81f29f532837d515e2352ff35cdc4a4eef6544089ed83e3976fb6f",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T07:30:36.098504+00:00",
+    "epoch": 1791876636.0985217,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8432144 kB",
+      "VmRSS": "1576604 kB",
+      "Threads": "334"
+    },
+    "fds": 67,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 15,
+        "heapmemoryused": 627463656,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 318,
+        "collectiontime": "2026-10-13T16:30:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "e963669cee81f29f532837d515e2352ff35cdc4a4eef6544089ed83e3976fb6f",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T07:35:36.097276+00:00",
+    "epoch": 1791876936.0972972,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8435228 kB",
+      "VmRSS": "1518400 kB",
+      "Threads": "336"
+    },
+    "fds": 65,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 15,
+        "heapmemoryused": 317580760,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 320,
+        "collectiontime": "2026-10-13T16:35:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "e963669cee81f29f532837d515e2352ff35cdc4a4eef6544089ed83e3976fb6f",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T07:40:36.006582+00:00",
+    "epoch": 1791877236.0066004,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8436256 kB",
+      "VmRSS": "1667008 kB",
+      "Threads": "336"
+    },
+    "fds": 59,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 13,
+        "heapmemoryused": 516346080,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 320,
+        "collectiontime": "2026-10-13T16:40:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "e963669cee81f29f532837d515e2352ff35cdc4a4eef6544089ed83e3976fb6f",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T07:45:36.063092+00:00",
+    "epoch": 1791877536.0631187,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8436256 kB",
+      "VmRSS": "1588856 kB",
+      "Threads": "336"
+    },
+    "fds": 57,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 14,
+        "heapmemoryused": 562999496,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 320,
+        "collectiontime": "2026-10-13T16:45:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "e963669cee81f29f532837d515e2352ff35cdc4a4eef6544089ed83e3976fb6f",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T07:50:36.100073+00:00",
+    "epoch": 1791877836.100093,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8436256 kB",
+      "VmRSS": "1493452 kB",
+      "Threads": "335"
+    },
+    "fds": 60,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 8,
+        "heapmemoryused": 473368272,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 319,
+        "collectiontime": "2026-10-13T16:50:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "e963669cee81f29f532837d515e2352ff35cdc4a4eef6544089ed83e3976fb6f",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T07:55:36.065742+00:00",
+    "epoch": 1791878136.0657609,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8436256 kB",
+      "VmRSS": "1442772 kB",
+      "Threads": "335"
+    },
+    "fds": 56,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 8,
+        "heapmemoryused": 394903984,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 316,
+        "collectiontime": "2026-10-13T16:55:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "e963669cee81f29f532837d515e2352ff35cdc4a4eef6544089ed83e3976fb6f",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T08:00:36.059978+00:00",
+    "epoch": 1791878436.059997,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8461532 kB",
+      "VmRSS": "1482196 kB",
+      "Threads": "343"
+    },
+    "fds": 62,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 4,
+        "heapmemoryused": 481288256,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 327,
+        "collectiontime": "2026-10-13T17:00:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T08:05:36.072306+00:00",
+    "epoch": 1791878736.0723305,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8451040 kB",
+      "VmRSS": "1427892 kB",
+      "Threads": "338"
+    },
+    "fds": 64,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 5,
+        "heapmemoryused": 342004840,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 322,
+        "collectiontime": "2026-10-13T17:05:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T08:10:36.105740+00:00",
+    "epoch": 1791879036.1057584,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8433328 kB",
+      "VmRSS": "1620788 kB",
+      "Threads": "339"
+    },
+    "fds": 67,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 7,
+        "heapmemoryused": 589816856,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 322,
+        "collectiontime": "2026-10-13T17:10:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T08:15:36.079547+00:00",
+    "epoch": 1791879336.0795684,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8433328 kB",
+      "VmRSS": "1539768 kB",
+      "Threads": "340"
+    },
+    "fds": 70,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 6,
+        "heapmemoryused": 310761960,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 324,
+        "collectiontime": "2026-10-13T17:15:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T08:20:36.092275+00:00",
+    "epoch": 1791879636.0922937,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8433328 kB",
+      "VmRSS": "1521900 kB",
+      "Threads": "338"
+    },
+    "fds": 57,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 6,
+        "heapmemoryused": 445160712,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 322,
+        "collectiontime": "2026-10-13T17:20:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T08:25:36.093273+00:00",
+    "epoch": 1791879936.0932934,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8433328 kB",
+      "VmRSS": "1501644 kB",
+      "Threads": "333"
+    },
+    "fds": 56,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 4,
+        "heapmemoryused": 369050544,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 317,
+        "collectiontime": "2026-10-13T17:25:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T08:30:36.225792+00:00",
+    "epoch": 1791880236.2258127,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8433328 kB",
+      "VmRSS": "1411956 kB",
+      "Threads": "337"
+    },
+    "fds": 57,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 4,
+        "heapmemoryused": 459759896,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 321,
+        "collectiontime": "2026-10-13T17:30:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T08:35:36.035062+00:00",
+    "epoch": 1791880536.0350807,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8433328 kB",
+      "VmRSS": "1375872 kB",
+      "Threads": "337"
+    },
+    "fds": 61,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 3,
+        "heapmemoryused": 308213040,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 321,
+        "collectiontime": "2026-10-13T17:35:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T08:40:36.100857+00:00",
+    "epoch": 1791880836.100878,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8433328 kB",
+      "VmRSS": "1436868 kB",
+      "Threads": "338"
+    },
+    "fds": 64,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 6,
+        "heapmemoryused": 322754248,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 322,
+        "collectiontime": "2026-10-13T17:40:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T08:45:36.057120+00:00",
+    "epoch": 1791881136.057139,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8433328 kB",
+      "VmRSS": "1385384 kB",
+      "Threads": "339"
+    },
+    "fds": 64,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 6,
+        "heapmemoryused": 322761960,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 322,
+        "collectiontime": "2026-10-13T17:45:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T08:50:36.041795+00:00",
+    "epoch": 1791881436.0418136,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8433328 kB",
+      "VmRSS": "1375640 kB",
+      "Threads": "336"
+    },
+    "fds": 57,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 6,
+        "heapmemoryused": 336736400,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 320,
+        "collectiontime": "2026-10-13T17:50:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T08:55:36.039938+00:00",
+    "epoch": 1791881736.039957,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8433328 kB",
+      "VmRSS": "1410600 kB",
+      "Threads": "335"
+    },
+    "fds": 57,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 4,
+        "heapmemoryused": 263484888,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 318,
+        "collectiontime": "2026-10-13T17:55:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T09:00:36.062195+00:00",
+    "epoch": 1791882036.0622141,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8433328 kB",
+      "VmRSS": "1382660 kB",
+      "Threads": "337"
+    },
+    "fds": 57,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 4,
+        "heapmemoryused": 258693768,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 319,
+        "collectiontime": "2026-10-13T18:00:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T09:05:36.073442+00:00",
+    "epoch": 1791882336.0734594,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8433328 kB",
+      "VmRSS": "1375164 kB",
+      "Threads": "336"
+    },
+    "fds": 58,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 5,
+        "heapmemoryused": 280592904,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 320,
+        "collectiontime": "2026-10-13T18:05:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T09:10:36.069322+00:00",
+    "epoch": 1791882636.0693402,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8433328 kB",
+      "VmRSS": "1403428 kB",
+      "Threads": "339"
+    },
+    "fds": 59,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 6,
+        "heapmemoryused": 337682880,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 324,
+        "collectiontime": "2026-10-13T18:10:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T09:15:36.027749+00:00",
+    "epoch": 1791882936.027776,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8433328 kB",
+      "VmRSS": "1362040 kB",
+      "Threads": "336"
+    },
+    "fds": 57,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 6,
+        "heapmemoryused": 313595680,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 320,
+        "collectiontime": "2026-10-13T18:15:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T09:20:36.114795+00:00",
+    "epoch": 1791883236.1148157,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8433328 kB",
+      "VmRSS": "1352816 kB",
+      "Threads": "341"
+    },
+    "fds": 64,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 5,
+        "heapmemoryused": 298114552,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 325,
+        "collectiontime": "2026-10-13T18:20:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T09:25:36.065179+00:00",
+    "epoch": 1791883536.0651975,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8433328 kB",
+      "VmRSS": "1381832 kB",
+      "Threads": "336"
+    },
+    "fds": 57,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 5,
+        "heapmemoryused": 408836984,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 319,
+        "collectiontime": "2026-10-13T18:25:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T09:30:35.990134+00:00",
+    "epoch": 1791883835.9901543,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8434356 kB",
+      "VmRSS": "1384688 kB",
+      "Threads": "341"
+    },
+    "fds": 57,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 4,
+        "heapmemoryused": 357025064,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 327,
+        "collectiontime": "2026-10-13T18:30:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T09:35:36.083230+00:00",
+    "epoch": 1791884136.0832484,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8434356 kB",
+      "VmRSS": "1362260 kB",
+      "Threads": "339"
+    },
+    "fds": 57,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 4,
+        "heapmemoryused": 407442400,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 323,
+        "collectiontime": "2026-10-13T18:35:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T09:40:36.094231+00:00",
+    "epoch": 1791884436.094249,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8467264 kB",
+      "VmRSS": "1389852 kB",
+      "Threads": "377"
+    },
+    "fds": 59,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 6,
+        "heapmemoryused": 321793944,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 359,
+        "collectiontime": "2026-10-13T18:40:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T09:45:36.076605+00:00",
+    "epoch": 1791884736.076623,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8467264 kB",
+      "VmRSS": "1379472 kB",
+      "Threads": "372"
+    },
+    "fds": 59,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 6,
+        "heapmemoryused": 276606912,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 356,
+        "collectiontime": "2026-10-13T18:45:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T09:50:36.131932+00:00",
+    "epoch": 1791885036.1319537,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8469320 kB",
+      "VmRSS": "1412124 kB",
+      "Threads": "378"
+    },
+    "fds": 66,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 5,
+        "heapmemoryused": 305205872,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 360,
+        "collectiontime": "2026-10-13T18:50:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T09:55:36.065268+00:00",
+    "epoch": 1791885336.0652864,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8469320 kB",
+      "VmRSS": "1350444 kB",
+      "Threads": "378"
+    },
+    "fds": 66,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 6,
+        "heapmemoryused": 404064056,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 359,
+        "collectiontime": "2026-10-13T18:55:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T10:00:36.095910+00:00",
+    "epoch": 1791885636.0959296,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8470348 kB",
+      "VmRSS": "1406928 kB",
+      "Threads": "377"
+    },
+    "fds": 58,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 6,
+        "heapmemoryused": 284231416,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 362,
+        "collectiontime": "2026-10-13T19:00:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T10:05:36.078064+00:00",
+    "epoch": 1791885936.078083,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8470348 kB",
+      "VmRSS": "1380052 kB",
+      "Threads": "373"
+    },
+    "fds": 58,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 5,
+        "heapmemoryused": 362528360,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 357,
+        "collectiontime": "2026-10-13T19:05:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T10:10:36.094913+00:00",
+    "epoch": 1791886236.0949316,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8470348 kB",
+      "VmRSS": "1400604 kB",
+      "Threads": "376"
+    },
+    "fds": 66,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 6,
+        "heapmemoryused": 411947392,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 362,
+        "collectiontime": "2026-10-13T19:10:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T10:15:36.053716+00:00",
+    "epoch": 1791886536.053733,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8470348 kB",
+      "VmRSS": "1370840 kB",
+      "Threads": "373"
+    },
+    "fds": 59,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 6,
+        "heapmemoryused": 413534688,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 357,
+        "collectiontime": "2026-10-13T19:15:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T10:20:36.056843+00:00",
+    "epoch": 1791886836.0568612,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8470348 kB",
+      "VmRSS": "1368624 kB",
+      "Threads": "371"
+    },
+    "fds": 58,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 6,
+        "heapmemoryused": 404841552,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 355,
+        "collectiontime": "2026-10-13T19:20:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T10:25:36.035240+00:00",
+    "epoch": 1791887136.03526,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8470348 kB",
+      "VmRSS": "1327908 kB",
+      "Threads": "371"
+    },
+    "fds": 56,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 4,
+        "heapmemoryused": 277539256,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 354,
+        "collectiontime": "2026-10-13T19:25:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T10:30:36.065839+00:00",
+    "epoch": 1791887436.0658555,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8470348 kB",
+      "VmRSS": "1315596 kB",
+      "Threads": "371"
+    },
+    "fds": 56,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 4,
+        "heapmemoryused": 243350080,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 355,
+        "collectiontime": "2026-10-13T19:30:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T10:35:36.057857+00:00",
+    "epoch": 1791887736.057876,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8470348 kB",
+      "VmRSS": "1295748 kB",
+      "Threads": "371"
+    },
+    "fds": 58,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 3,
+        "heapmemoryused": 260055792,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 355,
+        "collectiontime": "2026-10-13T19:35:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T10:40:36.054197+00:00",
+    "epoch": 1791888036.054216,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8470348 kB",
+      "VmRSS": "1344868 kB",
+      "Threads": "374"
+    },
+    "fds": 63,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 5,
+        "heapmemoryused": 308869584,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 358,
+        "collectiontime": "2026-10-13T19:40:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T10:45:36.040944+00:00",
+    "epoch": 1791888336.0409634,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8470348 kB",
+      "VmRSS": "1334020 kB",
+      "Threads": "371"
+    },
+    "fds": 56,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 5,
+        "heapmemoryused": 344762600,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 355,
+        "collectiontime": "2026-10-13T19:45:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T10:50:36.046568+00:00",
+    "epoch": 1791888636.0465875,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8470348 kB",
+      "VmRSS": "1333784 kB",
+      "Threads": "371"
+    },
+    "fds": 56,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 5,
+        "heapmemoryused": 370116280,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 355,
+        "collectiontime": "2026-10-13T19:50:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T10:55:36.065103+00:00",
+    "epoch": 1791888936.0651324,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8470348 kB",
+      "VmRSS": "1302860 kB",
+      "Threads": "371"
+    },
+    "fds": 54,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 5,
+        "heapmemoryused": 268424288,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 354,
+        "collectiontime": "2026-10-13T19:55:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T11:00:36.052935+00:00",
+    "epoch": 1791889236.0529518,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8470348 kB",
+      "VmRSS": "1280884 kB",
+      "Threads": "371"
+    },
+    "fds": 56,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 3,
+        "heapmemoryused": 290132224,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 355,
+        "collectiontime": "2026-10-13T20:00:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T11:05:36.033730+00:00",
+    "epoch": 1791889536.0337484,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8470348 kB",
+      "VmRSS": "1473636 kB",
+      "Threads": "372"
+    },
+    "fds": 65,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 4,
+        "heapmemoryused": 425779536,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 356,
+        "collectiontime": "2026-10-13T20:05:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T11:10:36.119354+00:00",
+    "epoch": 1791889836.119371,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8470348 kB",
+      "VmRSS": "1447504 kB",
+      "Threads": "374"
+    },
+    "fds": 70,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 6,
+        "heapmemoryused": 316178032,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 358,
+        "collectiontime": "2026-10-13T20:10:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T11:15:36.088065+00:00",
+    "epoch": 1791890136.0880845,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8470348 kB",
+      "VmRSS": "1447316 kB",
+      "Threads": "372"
+    },
+    "fds": 65,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 7,
+        "heapmemoryused": 293281992,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 356,
+        "collectiontime": "2026-10-13T20:15:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T11:20:36.072012+00:00",
+    "epoch": 1791890436.0720296,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8470348 kB",
+      "VmRSS": "1400280 kB",
+      "Threads": "376"
+    },
+    "fds": 63,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 7,
+        "heapmemoryused": 413690944,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 360,
+        "collectiontime": "2026-10-13T20:20:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T11:25:36.067464+00:00",
+    "epoch": 1791890736.067483,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8470348 kB",
+      "VmRSS": "1338324 kB",
+      "Threads": "376"
+    },
+    "fds": 65,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 7,
+        "heapmemoryused": 275688720,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 359,
+        "collectiontime": "2026-10-13T20:25:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T11:30:36.067534+00:00",
+    "epoch": 1791891036.067554,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8470348 kB",
+      "VmRSS": "1321984 kB",
+      "Threads": "376"
+    },
+    "fds": 65,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 3,
+        "heapmemoryused": 247018600,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 360,
+        "collectiontime": "2026-10-13T20:30:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T11:35:36.102628+00:00",
+    "epoch": 1791891336.102646,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8470348 kB",
+      "VmRSS": "1297408 kB",
+      "Threads": "376"
+    },
+    "fds": 65,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 3,
+        "heapmemoryused": 282957688,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 360,
+        "collectiontime": "2026-10-13T20:35:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T11:40:36.052456+00:00",
+    "epoch": 1791891636.052474,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8470348 kB",
+      "VmRSS": "1278580 kB",
+      "Threads": "376"
+    },
+    "fds": 65,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 4,
+        "heapmemoryused": 347061592,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 360,
+        "collectiontime": "2026-10-13T20:40:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T11:45:36.072946+00:00",
+    "epoch": 1791891936.0729651,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8473432 kB",
+      "VmRSS": "1332828 kB",
+      "Threads": "382"
+    },
+    "fds": 72,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 5,
+        "heapmemoryused": 300610768,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 365,
+        "collectiontime": "2026-10-13T20:45:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T11:50:36.029596+00:00",
+    "epoch": 1791892236.0296166,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8473432 kB",
+      "VmRSS": "1311536 kB",
+      "Threads": "376"
+    },
+    "fds": 56,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 5,
+        "heapmemoryused": 329733944,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 361,
+        "collectiontime": "2026-10-13T20:50:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T11:55:36.073965+00:00",
+    "epoch": 1791892536.0739822,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8473432 kB",
+      "VmRSS": "1283976 kB",
+      "Threads": "376"
+    },
+    "fds": 57,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 4,
+        "heapmemoryused": 298156504,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 360,
+        "collectiontime": "2026-10-13T20:55:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T12:00:36.059206+00:00",
+    "epoch": 1791892836.0592246,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8473432 kB",
+      "VmRSS": "1272200 kB",
+      "Threads": "376"
+    },
+    "fds": 57,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 4,
+        "heapmemoryused": 330838744,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 360,
+        "collectiontime": "2026-10-13T21:00:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T12:05:36.033056+00:00",
+    "epoch": 1791893136.033074,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8473432 kB",
+      "VmRSS": "1254348 kB",
+      "Threads": "378"
+    },
+    "fds": 56,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 3,
+        "heapmemoryused": 277903832,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 360,
+        "collectiontime": "2026-10-13T21:05:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T12:10:36.020761+00:00",
+    "epoch": 1791893436.02078,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8473432 kB",
+      "VmRSS": "1323836 kB",
+      "Threads": "379"
+    },
+    "fds": 63,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 5,
+        "heapmemoryused": 274271360,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 363,
+        "collectiontime": "2026-10-13T21:10:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T12:15:36.092153+00:00",
+    "epoch": 1791893736.0921724,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8477544 kB",
+      "VmRSS": "1330064 kB",
+      "Threads": "378"
+    },
+    "fds": 58,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 5,
+        "heapmemoryused": 377734608,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 362,
+        "collectiontime": "2026-10-13T21:15:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T12:20:36.004306+00:00",
+    "epoch": 1791894036.0043259,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8477544 kB",
+      "VmRSS": "1305952 kB",
+      "Threads": "376"
+    },
+    "fds": 58,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 5,
+        "heapmemoryused": 249893760,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 360,
+        "collectiontime": "2026-10-13T21:20:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T12:25:36.044831+00:00",
+    "epoch": 1791894336.0448618,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8477544 kB",
+      "VmRSS": "1285520 kB",
+      "Threads": "376"
+    },
+    "fds": 58,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 3,
+        "heapmemoryused": 280501408,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 360,
+        "collectiontime": "2026-10-13T21:25:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T12:30:36.092962+00:00",
+    "epoch": 1791894636.0929797,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8477544 kB",
+      "VmRSS": "1324584 kB",
+      "Threads": "378"
+    },
+    "fds": 57,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 3,
+        "heapmemoryused": 360260872,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 362,
+        "collectiontime": "2026-10-13T21:30:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T12:35:36.093789+00:00",
+    "epoch": 1791894936.0938103,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8477544 kB",
+      "VmRSS": "1334292 kB",
+      "Threads": "378"
+    },
+    "fds": 57,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 3,
+        "heapmemoryused": 249994056,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 363,
+        "collectiontime": "2026-10-13T21:35:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T12:40:36.069980+00:00",
+    "epoch": 1791895236.0699959,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8477544 kB",
+      "VmRSS": "1341808 kB",
+      "Threads": "379"
+    },
+    "fds": 57,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 4,
+        "heapmemoryused": 288099760,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 364,
+        "collectiontime": "2026-10-13T21:40:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T12:45:36.047414+00:00",
+    "epoch": 1791895536.0474312,
+    "service": "active",
+    "pid": "1158028",
+    "status": {
+      "VmSize": "8477544 kB",
+      "VmRSS": "1353476 kB",
+      "Threads": "383"
+    },
+    "fds": 65,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 5,
+        "heapmemoryused": 302872760,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 367,
+        "collectiontime": "2026-10-13T21:45:23+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+    "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T12:50:36.081807+00:00",
+    "epoch": 1791895836.0818243,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8309348 kB",
+      "VmRSS": "1427284 kB",
+      "Threads": "279"
+    },
+    "fds": 51,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 4,
+        "heapmemoryused": 744369136,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 11,
+        "threadstotalcount": 264,
+        "collectiontime": "2026-10-13T21:50:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "bcf271f110d39f59fceec8cb7d4ce2316995e77e23de80f063277ef56bf6529f",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T12:55:36.118558+00:00",
+    "epoch": 1791896136.118576,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8315516 kB",
+      "VmRSS": "1454380 kB",
+      "Threads": "284"
+    },
+    "fds": 50,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 4,
+        "heapmemoryused": 690945096,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 11,
+        "threadstotalcount": 269,
+        "collectiontime": "2026-10-13T21:55:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "bcf271f110d39f59fceec8cb7d4ce2316995e77e23de80f063277ef56bf6529f",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T13:00:36.123397+00:00",
+    "epoch": 1791896436.1234171,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8348756 kB",
+      "VmRSS": "1474540 kB",
+      "Threads": "289"
+    },
+    "fds": 63,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 5,
+        "heapmemoryused": 441416112,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 273,
+        "collectiontime": "2026-10-13T22:00:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "bcf271f110d39f59fceec8cb7d4ce2316995e77e23de80f063277ef56bf6529f",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T13:05:36.114662+00:00",
+    "epoch": 1791896736.1146815,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8348756 kB",
+      "VmRSS": "1343716 kB",
+      "Threads": "293"
+    },
+    "fds": 58,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 8,
+        "heapmemoryused": 399608712,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 274,
+        "collectiontime": "2026-10-13T22:05:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "bcf271f110d39f59fceec8cb7d4ce2316995e77e23de80f063277ef56bf6529f",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T13:10:36.051567+00:00",
+    "epoch": 1791897036.0515842,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8354928 kB",
+      "VmRSS": "1359996 kB",
+      "Threads": "304"
+    },
+    "fds": 59,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 7,
+        "heapmemoryused": 502855752,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 288,
+        "collectiontime": "2026-10-13T22:10:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "bcf271f110d39f59fceec8cb7d4ce2316995e77e23de80f063277ef56bf6529f",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T13:15:36.070829+00:00",
+    "epoch": 1791897336.0708494,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8355956 kB",
+      "VmRSS": "1275368 kB",
+      "Threads": "301"
+    },
+    "fds": 60,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 7,
+        "heapmemoryused": 367661864,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 285,
+        "collectiontime": "2026-10-13T22:15:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "bcf271f110d39f59fceec8cb7d4ce2316995e77e23de80f063277ef56bf6529f",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T13:20:36.018200+00:00",
+    "epoch": 1791897636.0182195,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8355956 kB",
+      "VmRSS": "1277848 kB",
+      "Threads": "299"
+    },
+    "fds": 59,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 6,
+        "heapmemoryused": 377245968,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 283,
+        "collectiontime": "2026-10-13T22:20:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "bcf271f110d39f59fceec8cb7d4ce2316995e77e23de80f063277ef56bf6529f",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T13:25:36.112342+00:00",
+    "epoch": 1791897936.1123605,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8355956 kB",
+      "VmRSS": "1246500 kB",
+      "Threads": "297"
+    },
+    "fds": 58,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 6,
+        "heapmemoryused": 342268104,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 280,
+        "collectiontime": "2026-10-13T22:25:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "bcf271f110d39f59fceec8cb7d4ce2316995e77e23de80f063277ef56bf6529f",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T13:30:36.088164+00:00",
+    "epoch": 1791898236.088184,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8355956 kB",
+      "VmRSS": "1226776 kB",
+      "Threads": "297"
+    },
+    "fds": 58,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 5,
+        "heapmemoryused": 337485256,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 283,
+        "collectiontime": "2026-10-13T22:30:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "bcf271f110d39f59fceec8cb7d4ce2316995e77e23de80f063277ef56bf6529f",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T13:35:36.053980+00:00",
+    "epoch": 1791898536.053998,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8355956 kB",
+      "VmRSS": "1203096 kB",
+      "Threads": "297"
+    },
+    "fds": 58,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 5,
+        "heapmemoryused": 335373680,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 281,
+        "collectiontime": "2026-10-13T22:35:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "bcf271f110d39f59fceec8cb7d4ce2316995e77e23de80f063277ef56bf6529f",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T13:40:36.062911+00:00",
+    "epoch": 1791898836.0629294,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8355956 kB",
+      "VmRSS": "1195596 kB",
+      "Threads": "299"
+    },
+    "fds": 56,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 3,
+        "heapmemoryused": 359341472,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 281,
+        "collectiontime": "2026-10-13T22:40:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "bcf271f110d39f59fceec8cb7d4ce2316995e77e23de80f063277ef56bf6529f",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T13:45:36.116262+00:00",
+    "epoch": 1791899136.1162815,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8355956 kB",
+      "VmRSS": "1291364 kB",
+      "Threads": "298"
+    },
+    "fds": 56,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 4,
+        "heapmemoryused": 462009880,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 282,
+        "collectiontime": "2026-10-13T22:45:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "bcf271f110d39f59fceec8cb7d4ce2316995e77e23de80f063277ef56bf6529f",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T13:50:36.082462+00:00",
+    "epoch": 1791899436.082481,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8355956 kB",
+      "VmRSS": "1322512 kB",
+      "Threads": "300"
+    },
+    "fds": 56,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 6,
+        "heapmemoryused": 440954632,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 284,
+        "collectiontime": "2026-10-13T22:50:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "bcf271f110d39f59fceec8cb7d4ce2316995e77e23de80f063277ef56bf6529f",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T13:55:36.066592+00:00",
+    "epoch": 1791899736.066612,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8355956 kB",
+      "VmRSS": "1307600 kB",
+      "Threads": "300"
+    },
+    "fds": 56,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 6,
+        "heapmemoryused": 450558712,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 286,
+        "collectiontime": "2026-10-13T22:55:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "bcf271f110d39f59fceec8cb7d4ce2316995e77e23de80f063277ef56bf6529f",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T14:00:36.011274+00:00",
+    "epoch": 1791900036.011295,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8356984 kB",
+      "VmRSS": "1256072 kB",
+      "Threads": "301"
+    },
+    "fds": 58,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 5,
+        "heapmemoryused": 302123464,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 285,
+        "collectiontime": "2026-10-13T23:00:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "bcf271f110d39f59fceec8cb7d4ce2316995e77e23de80f063277ef56bf6529f",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T14:05:36.116553+00:00",
+    "epoch": 1791900336.116572,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8356984 kB",
+      "VmRSS": "1219008 kB",
+      "Threads": "301"
+    },
+    "fds": 58,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 5,
+        "heapmemoryused": 253704216,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 287,
+        "collectiontime": "2026-10-13T23:05:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "bcf271f110d39f59fceec8cb7d4ce2316995e77e23de80f063277ef56bf6529f",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T14:10:36.071732+00:00",
+    "epoch": 1791900636.0717497,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8357016 kB",
+      "VmRSS": "1172240 kB",
+      "Threads": "302"
+    },
+    "fds": 56,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 3,
+        "heapmemoryused": 288459104,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 286,
+        "collectiontime": "2026-10-13T23:10:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "868459d007db7145b51e7d23475a6ba7ff8830a1787a03bc9de096a217b52463",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T14:15:36.028004+00:00",
+    "epoch": 1791900936.0280216,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8357020 kB",
+      "VmRSS": "1243672 kB",
+      "Threads": "305"
+    },
+    "fds": 63,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 5,
+        "heapmemoryused": 345586072,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 289,
+        "collectiontime": "2026-10-13T23:15:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "868459d007db7145b51e7d23475a6ba7ff8830a1787a03bc9de096a217b52463",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T14:20:36.110010+00:00",
+    "epoch": 1791901236.1100278,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8360104 kB",
+      "VmRSS": "1258968 kB",
+      "Threads": "306"
+    },
+    "fds": 63,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 5,
+        "heapmemoryused": 333427504,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 290,
+        "collectiontime": "2026-10-13T23:20:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "868459d007db7145b51e7d23475a6ba7ff8830a1787a03bc9de096a217b52463",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T14:25:36.154836+00:00",
+    "epoch": 1791901536.1548548,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8366252 kB",
+      "VmRSS": "1354848 kB",
+      "Threads": "309"
+    },
+    "fds": 66,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 6,
+        "heapmemoryused": 452246816,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 292,
+        "collectiontime": "2026-10-13T23:25:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "868459d007db7145b51e7d23475a6ba7ff8830a1787a03bc9de096a217b52463",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T14:30:36.039989+00:00",
+    "epoch": 1791901836.0400085,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8366284 kB",
+      "VmRSS": "1272664 kB",
+      "Threads": "310"
+    },
+    "fds": 66,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 5,
+        "heapmemoryused": 317284608,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 293,
+        "collectiontime": "2026-10-13T23:30:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "c23c69766787369ad590dd7372b0636829c50d719d9af7972a5245487d9dabec",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T14:35:36.022734+00:00",
+    "epoch": 1791902136.0227537,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8367776 kB",
+      "VmRSS": "1329896 kB",
+      "Threads": "308"
+    },
+    "fds": 66,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 5,
+        "heapmemoryused": 361086160,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 293,
+        "collectiontime": "2026-10-13T23:35:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "c23c69766787369ad590dd7372b0636829c50d719d9af7972a5245487d9dabec",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T14:40:36.059903+00:00",
+    "epoch": 1791902436.0599217,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8367776 kB",
+      "VmRSS": "1308060 kB",
+      "Threads": "309"
+    },
+    "fds": 67,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 6,
+        "heapmemoryused": 384564216,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 294,
+        "collectiontime": "2026-10-13T23:40:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "c23c69766787369ad590dd7372b0636829c50d719d9af7972a5245487d9dabec",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T14:45:36.090207+00:00",
+    "epoch": 1791902736.090226,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8367776 kB",
+      "VmRSS": "1309824 kB",
+      "Threads": "309"
+    },
+    "fds": 66,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 6,
+        "heapmemoryused": 338521128,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 293,
+        "collectiontime": "2026-10-13T23:45:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "c23c69766787369ad590dd7372b0636829c50d719d9af7972a5245487d9dabec",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T14:50:36.072948+00:00",
+    "epoch": 1791903036.0729666,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8367776 kB",
+      "VmRSS": "1259308 kB",
+      "Threads": "308"
+    },
+    "fds": 66,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 6,
+        "heapmemoryused": 315813296,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 293,
+        "collectiontime": "2026-10-13T23:50:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "c23c69766787369ad590dd7372b0636829c50d719d9af7972a5245487d9dabec",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T14:55:36.090269+00:00",
+    "epoch": 1791903336.0902889,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8367776 kB",
+      "VmRSS": "1312648 kB",
+      "Threads": "308"
+    },
+    "fds": 64,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 6,
+        "heapmemoryused": 272892480,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 291,
+        "collectiontime": "2026-10-13T23:55:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "c23c69766787369ad590dd7372b0636829c50d719d9af7972a5245487d9dabec",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T15:00:36.050228+00:00",
+    "epoch": 1791903636.0502477,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8367776 kB",
+      "VmRSS": "1267316 kB",
+      "Threads": "307"
+    },
+    "fds": 66,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 5,
+        "heapmemoryused": 355756072,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 291,
+        "collectiontime": "2026-10-14T00:00:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "c23c69766787369ad590dd7372b0636829c50d719d9af7972a5245487d9dabec",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T15:05:36.062244+00:00",
+    "epoch": 1791903936.062261,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8367776 kB",
+      "VmRSS": "1306844 kB",
+      "Threads": "309"
+    },
+    "fds": 66,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 6,
+        "heapmemoryused": 356777880,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 293,
+        "collectiontime": "2026-10-14T00:05:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "c23c69766787369ad590dd7372b0636829c50d719d9af7972a5245487d9dabec",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T15:10:36.057167+00:00",
+    "epoch": 1791904236.0571856,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8367776 kB",
+      "VmRSS": "1268768 kB",
+      "Threads": "310"
+    },
+    "fds": 64,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 7,
+        "heapmemoryused": 305050632,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 293,
+        "collectiontime": "2026-10-14T00:10:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "c23c69766787369ad590dd7372b0636829c50d719d9af7972a5245487d9dabec",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T15:15:36.133861+00:00",
+    "epoch": 1791904536.1338801,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8367776 kB",
+      "VmRSS": "1286776 kB",
+      "Threads": "309"
+    },
+    "fds": 57,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 8,
+        "heapmemoryused": 356016824,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 293,
+        "collectiontime": "2026-10-14T00:15:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "c23c69766787369ad590dd7372b0636829c50d719d9af7972a5245487d9dabec",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T15:20:36.109669+00:00",
+    "epoch": 1791904836.1096869,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8367776 kB",
+      "VmRSS": "1247344 kB",
+      "Threads": "306"
+    },
+    "fds": 59,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 7,
+        "heapmemoryused": 300400408,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 290,
+        "collectiontime": "2026-10-14T00:20:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "64a373bb64bd46c458cb552c6b96f7bf19a75670f900c9974698de2989c95184",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T15:25:36.028606+00:00",
+    "epoch": 1791905136.0286229,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8369304 kB",
+      "VmRSS": "1265940 kB",
+      "Threads": "306"
+    },
+    "fds": 59,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 8,
+        "heapmemoryused": 294091176,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 291,
+        "collectiontime": "2026-10-14T00:25:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "64a373bb64bd46c458cb552c6b96f7bf19a75670f900c9974698de2989c95184",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T15:30:36.066923+00:00",
+    "epoch": 1791905436.0669417,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8369304 kB",
+      "VmRSS": "1239448 kB",
+      "Threads": "306"
+    },
+    "fds": 59,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 5,
+        "heapmemoryused": 241377384,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 290,
+        "collectiontime": "2026-10-14T00:30:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "64a373bb64bd46c458cb552c6b96f7bf19a75670f900c9974698de2989c95184",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T15:35:36.088839+00:00",
+    "epoch": 1791905736.0888548,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8369304 kB",
+      "VmRSS": "1264356 kB",
+      "Threads": "306"
+    },
+    "fds": 59,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 5,
+        "heapmemoryused": 304483760,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 290,
+        "collectiontime": "2026-10-14T00:35:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "64a373bb64bd46c458cb552c6b96f7bf19a75670f900c9974698de2989c95184",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T15:40:36.072355+00:00",
+    "epoch": 1791906036.072373,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8369304 kB",
+      "VmRSS": "1298936 kB",
+      "Threads": "308"
+    },
+    "fds": 65,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 6,
+        "heapmemoryused": 365221472,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 292,
+        "collectiontime": "2026-10-14T00:40:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "64a373bb64bd46c458cb552c6b96f7bf19a75670f900c9974698de2989c95184",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T15:45:36.058514+00:00",
+    "epoch": 1791906336.0585318,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8369304 kB",
+      "VmRSS": "1331420 kB",
+      "Threads": "304"
+    },
+    "fds": 58,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 7,
+        "heapmemoryused": 352144832,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 288,
+        "collectiontime": "2026-10-14T00:45:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "64a373bb64bd46c458cb552c6b96f7bf19a75670f900c9974698de2989c95184",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T15:50:36.044543+00:00",
+    "epoch": 1791906636.0445614,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8369304 kB",
+      "VmRSS": "1294056 kB",
+      "Threads": "304"
+    },
+    "fds": 59,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 6,
+        "heapmemoryused": 307646672,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 14,
+        "threadstotalcount": 288,
+        "collectiontime": "2026-10-14T00:50:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "64a373bb64bd46c458cb552c6b96f7bf19a75670f900c9974698de2989c95184",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T15:55:36.101506+00:00",
+    "epoch": 1791906936.101524,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8369304 kB",
+      "VmRSS": "1270088 kB",
+      "Threads": "304"
+    },
+    "fds": 58,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 6,
+        "heapmemoryused": 360091016,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 287,
+        "collectiontime": "2026-10-14T00:55:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "64a373bb64bd46c458cb552c6b96f7bf19a75670f900c9974698de2989c95184",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T16:00:36.084863+00:00",
+    "epoch": 1791907236.0848897,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8369304 kB",
+      "VmRSS": "1230456 kB",
+      "Threads": "304"
+    },
+    "fds": 56,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 3,
+        "heapmemoryused": 347935064,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 288,
+        "collectiontime": "2026-10-14T01:00:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "64a373bb64bd46c458cb552c6b96f7bf19a75670f900c9974698de2989c95184",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T16:05:36.079131+00:00",
+    "epoch": 1791907536.0791488,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8369304 kB",
+      "VmRSS": "1203372 kB",
+      "Threads": "304"
+    },
+    "fds": 54,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 3,
+        "heapmemoryused": 359768224,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 287,
+        "collectiontime": "2026-10-14T01:05:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "64a373bb64bd46c458cb552c6b96f7bf19a75670f900c9974698de2989c95184",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T16:10:36.056055+00:00",
+    "epoch": 1791907836.056081,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8369304 kB",
+      "VmRSS": "1257204 kB",
+      "Threads": "308"
+    },
+    "fds": 63,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 5,
+        "heapmemoryused": 272468280,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 292,
+        "collectiontime": "2026-10-14T01:10:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "64a373bb64bd46c458cb552c6b96f7bf19a75670f900c9974698de2989c95184",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T16:15:35.969763+00:00",
+    "epoch": 1791908135.9697802,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8369304 kB",
+      "VmRSS": "1228776 kB",
+      "Threads": "304"
+    },
+    "fds": 56,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 6,
+        "heapmemoryused": 370221440,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 288,
+        "collectiontime": "2026-10-14T01:15:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "64a373bb64bd46c458cb552c6b96f7bf19a75670f900c9974698de2989c95184",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T16:20:36.096432+00:00",
+    "epoch": 1791908436.0964506,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8369304 kB",
+      "VmRSS": "1216168 kB",
+      "Threads": "304"
+    },
+    "fds": 56,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 6,
+        "heapmemoryused": 327092600,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 288,
+        "collectiontime": "2026-10-14T01:20:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "64a373bb64bd46c458cb552c6b96f7bf19a75670f900c9974698de2989c95184",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T16:25:36.087849+00:00",
+    "epoch": 1791908736.087867,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8369304 kB",
+      "VmRSS": "1187196 kB",
+      "Threads": "306"
+    },
+    "fds": 56,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 6,
+        "heapmemoryused": 250736456,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 288,
+        "collectiontime": "2026-10-14T01:25:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "64a373bb64bd46c458cb552c6b96f7bf19a75670f900c9974698de2989c95184",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T16:30:36.022662+00:00",
+    "epoch": 1791909036.022681,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8369304 kB",
+      "VmRSS": "1178044 kB",
+      "Threads": "304"
+    },
+    "fds": 56,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 3,
+        "heapmemoryused": 295409856,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 288,
+        "collectiontime": "2026-10-14T01:30:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "64a373bb64bd46c458cb552c6b96f7bf19a75670f900c9974698de2989c95184",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T16:35:36.098508+00:00",
+    "epoch": 1791909336.0985296,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8369304 kB",
+      "VmRSS": "1176220 kB",
+      "Threads": "304"
+    },
+    "fds": 56,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 3,
+        "heapmemoryused": 273795696,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 288,
+        "collectiontime": "2026-10-14T01:35:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "64a373bb64bd46c458cb552c6b96f7bf19a75670f900c9974698de2989c95184",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T16:40:36.066165+00:00",
+    "epoch": 1791909636.0661845,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8369304 kB",
+      "VmRSS": "1251256 kB",
+      "Threads": "308"
+    },
+    "fds": 63,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 7,
+        "heapmemoryused": 245340216,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 292,
+        "collectiontime": "2026-10-14T01:40:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "64a373bb64bd46c458cb552c6b96f7bf19a75670f900c9974698de2989c95184",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T16:45:36.054015+00:00",
+    "epoch": 1791909936.0540328,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8369304 kB",
+      "VmRSS": "1213048 kB",
+      "Threads": "304"
+    },
+    "fds": 56,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 8,
+        "heapmemoryused": 306232880,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 288,
+        "collectiontime": "2026-10-14T01:45:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "64a373bb64bd46c458cb552c6b96f7bf19a75670f900c9974698de2989c95184",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T16:50:36.032939+00:00",
+    "epoch": 1791910236.0329585,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8369304 kB",
+      "VmRSS": "1197760 kB",
+      "Threads": "305"
+    },
+    "fds": 54,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 8,
+        "heapmemoryused": 311838264,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 289,
+        "collectiontime": "2026-10-14T01:50:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "64a373bb64bd46c458cb552c6b96f7bf19a75670f900c9974698de2989c95184",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T16:55:36.049075+00:00",
+    "epoch": 1791910536.049096,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8373416 kB",
+      "VmRSS": "1239252 kB",
+      "Threads": "315"
+    },
+    "fds": 55,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 9,
+        "heapmemoryused": 303797296,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 299,
+        "collectiontime": "2026-10-14T01:55:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "64a373bb64bd46c458cb552c6b96f7bf19a75670f900c9974698de2989c95184",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T17:00:36.068272+00:00",
+    "epoch": 1791910836.0682895,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8373416 kB",
+      "VmRSS": "1203140 kB",
+      "Threads": "315"
+    },
+    "fds": 56,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 4,
+        "heapmemoryused": 322824496,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 299,
+        "collectiontime": "2026-10-14T02:00:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "64a373bb64bd46c458cb552c6b96f7bf19a75670f900c9974698de2989c95184",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T17:05:36.065881+00:00",
+    "epoch": 1791911136.0658987,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8380612 kB",
+      "VmRSS": "1188232 kB",
+      "Threads": "322"
+    },
+    "fds": 56,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 7,
+        "heapmemoryused": 257464904,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 306,
+        "collectiontime": "2026-10-14T02:05:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "64a373bb64bd46c458cb552c6b96f7bf19a75670f900c9974698de2989c95184",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T17:10:36.080785+00:00",
+    "epoch": 1791911436.0808032,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8384724 kB",
+      "VmRSS": "1248404 kB",
+      "Threads": "328"
+    },
+    "fds": 63,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 8,
+        "heapmemoryused": 233193352,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 309,
+        "collectiontime": "2026-10-14T02:10:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "64a373bb64bd46c458cb552c6b96f7bf19a75670f900c9974698de2989c95184",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T17:15:36.113120+00:00",
+    "epoch": 1791911736.11314,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8384724 kB",
+      "VmRSS": "1217804 kB",
+      "Threads": "322"
+    },
+    "fds": 56,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 10,
+        "heapmemoryused": 314047376,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 307,
+        "collectiontime": "2026-10-14T02:15:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "64a373bb64bd46c458cb552c6b96f7bf19a75670f900c9974698de2989c95184",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T17:20:36.086950+00:00",
+    "epoch": 1791912036.0869677,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8384724 kB",
+      "VmRSS": "1194728 kB",
+      "Threads": "324"
+    },
+    "fds": 56,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 7,
+        "heapmemoryused": 298179728,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 306,
+        "collectiontime": "2026-10-14T02:20:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "64a373bb64bd46c458cb552c6b96f7bf19a75670f900c9974698de2989c95184",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T17:25:36.060390+00:00",
+    "epoch": 1791912336.0604079,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8384724 kB",
+      "VmRSS": "1175604 kB",
+      "Threads": "322"
+    },
+    "fds": 56,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 7,
+        "heapmemoryused": 241388464,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 305,
+        "collectiontime": "2026-10-14T02:25:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "64a373bb64bd46c458cb552c6b96f7bf19a75670f900c9974698de2989c95184",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T17:30:36.065013+00:00",
+    "epoch": 1791912636.065031,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8384724 kB",
+      "VmRSS": "1172308 kB",
+      "Threads": "322"
+    },
+    "fds": 56,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 3,
+        "heapmemoryused": 308919880,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 306,
+        "collectiontime": "2026-10-14T02:30:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "64a373bb64bd46c458cb552c6b96f7bf19a75670f900c9974698de2989c95184",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T17:35:36.050133+00:00",
+    "epoch": 1791912936.0501523,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8384724 kB",
+      "VmRSS": "1171376 kB",
+      "Threads": "322"
+    },
+    "fds": 56,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 3,
+        "heapmemoryused": 244341776,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 306,
+        "collectiontime": "2026-10-14T02:35:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "64a373bb64bd46c458cb552c6b96f7bf19a75670f900c9974698de2989c95184",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T17:40:36.103970+00:00",
+    "epoch": 1791913236.1039872,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8384724 kB",
+      "VmRSS": "1227800 kB",
+      "Threads": "325"
+    },
+    "fds": 62,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 5,
+        "heapmemoryused": 273096560,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 311,
+        "collectiontime": "2026-10-14T02:40:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "64a373bb64bd46c458cb552c6b96f7bf19a75670f900c9974698de2989c95184",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T17:45:36.086244+00:00",
+    "epoch": 1791913536.0862627,
+    "service": "active",
+    "pid": "1202380",
+    "status": {
+      "VmSize": "8386780 kB",
+      "VmRSS": "1189900 kB",
+      "Threads": "326"
+    },
+    "fds": 63,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 7,
+        "heapmemoryused": 268185816,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 310,
+        "collectiontime": "2026-10-14T02:45:21+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+    "indexSha256": "64a373bb64bd46c458cb552c6b96f7bf19a75670f900c9974698de2989c95184",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T17:50:36.062923+00:00",
+    "epoch": 1791913836.062941,
+    "service": "active",
+    "pid": "1234242",
+    "status": {
+      "VmSize": "8311404 kB",
+      "VmRSS": "1465104 kB",
+      "Threads": "281"
+    },
+    "fds": 51,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 3,
+        "heapmemoryused": 407475696,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 11,
+        "threadstotalcount": 265,
+        "collectiontime": "2026-10-14T02:50:26+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "c4109d66eb005348c1a0af5b5def62b39bcc9f4a027fe4ac83f99913ae676e6a",
+    "indexSha256": "d07ff7a2e9713391777718396561ded2d549330ae5e9bc6598f81b3b03ade4bf",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T17:55:36.111987+00:00",
+    "epoch": 1791914136.1120045,
+    "service": "active",
+    "pid": "1234242",
+    "status": {
+      "VmSize": "8329120 kB",
+      "VmRSS": "1533996 kB",
+      "Threads": "295"
+    },
+    "fds": 57,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 4,
+        "heapmemoryused": 433792000,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 276,
+        "collectiontime": "2026-10-14T02:55:26+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "c4109d66eb005348c1a0af5b5def62b39bcc9f4a027fe4ac83f99913ae676e6a",
+    "indexSha256": "d07ff7a2e9713391777718396561ded2d549330ae5e9bc6598f81b3b03ade4bf",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T18:00:36.064030+00:00",
+    "epoch": 1791914436.0640497,
+    "service": "active",
+    "pid": "1234242",
+    "status": {
+      "VmSize": "8329120 kB",
+      "VmRSS": "1427912 kB",
+      "Threads": "293"
+    },
+    "fds": 57,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 4,
+        "heapmemoryused": 450214760,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 277,
+        "collectiontime": "2026-10-14T03:00:26+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "c4109d66eb005348c1a0af5b5def62b39bcc9f4a027fe4ac83f99913ae676e6a",
+    "indexSha256": "d07ff7a2e9713391777718396561ded2d549330ae5e9bc6598f81b3b03ade4bf",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T18:05:36.056390+00:00",
+    "epoch": 1791914736.0564115,
+    "service": "active",
+    "pid": "1234242",
+    "status": {
+      "VmSize": "8330148 kB",
+      "VmRSS": "1318444 kB",
+      "Threads": "297"
+    },
+    "fds": 58,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 6,
+        "heapmemoryused": 361136992,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 279,
+        "collectiontime": "2026-10-14T03:05:26+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "c4109d66eb005348c1a0af5b5def62b39bcc9f4a027fe4ac83f99913ae676e6a",
+    "indexSha256": "d07ff7a2e9713391777718396561ded2d549330ae5e9bc6598f81b3b03ade4bf",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T18:10:36.060908+00:00",
+    "epoch": 1791915036.0609267,
+    "service": "active",
+    "pid": "1234242",
+    "status": {
+      "VmSize": "8354296 kB",
+      "VmRSS": "1427568 kB",
+      "Threads": "301"
+    },
+    "fds": 62,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 11,
+        "heapmemoryused": 654867576,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 285,
+        "collectiontime": "2026-10-14T03:10:26+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "c4109d66eb005348c1a0af5b5def62b39bcc9f4a027fe4ac83f99913ae676e6a",
+    "indexSha256": "38ede9e983f69e9e8a9d5f4b62e82fb2c206d4e9801459a7da1fe648ec67e5aa",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T18:15:36.058156+00:00",
+    "epoch": 1791915336.0581746,
+    "service": "active",
+    "pid": "1234242",
+    "status": {
+      "VmSize": "8354100 kB",
+      "VmRSS": "1476908 kB",
+      "Threads": "293"
+    },
+    "fds": 57,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 12,
+        "heapmemoryused": 656693632,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 279,
+        "collectiontime": "2026-10-14T03:15:26+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "c4109d66eb005348c1a0af5b5def62b39bcc9f4a027fe4ac83f99913ae676e6a",
+    "indexSha256": "38ede9e983f69e9e8a9d5f4b62e82fb2c206d4e9801459a7da1fe648ec67e5aa",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T18:20:36.056296+00:00",
+    "epoch": 1791915636.0563152,
+    "service": "active",
+    "pid": "1234242",
+    "status": {
+      "VmSize": "8354100 kB",
+      "VmRSS": "1568536 kB",
+      "Threads": "297"
+    },
+    "fds": 57,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 11,
+        "heapmemoryused": 478887616,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 281,
+        "collectiontime": "2026-10-14T03:20:26+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "c4109d66eb005348c1a0af5b5def62b39bcc9f4a027fe4ac83f99913ae676e6a",
+    "indexSha256": "38ede9e983f69e9e8a9d5f4b62e82fb2c206d4e9801459a7da1fe648ec67e5aa",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T18:25:36.072562+00:00",
+    "epoch": 1791915936.0725799,
+    "service": "active",
+    "pid": "1234242",
+    "status": {
+      "VmSize": "8354100 kB",
+      "VmRSS": "1521256 kB",
+      "Threads": "294"
+    },
+    "fds": 57,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 13,
+        "heapmemoryused": 543208440,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 278,
+        "collectiontime": "2026-10-14T03:25:26+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "c4109d66eb005348c1a0af5b5def62b39bcc9f4a027fe4ac83f99913ae676e6a",
+    "indexSha256": "38ede9e983f69e9e8a9d5f4b62e82fb2c206d4e9801459a7da1fe648ec67e5aa",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T18:30:36.111935+00:00",
+    "epoch": 1791916236.1119528,
+    "service": "active",
+    "pid": "1234242",
+    "status": {
+      "VmSize": "8354240 kB",
+      "VmRSS": "1466004 kB",
+      "Threads": "294"
+    },
+    "fds": 60,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 8,
+        "heapmemoryused": 416374208,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 278,
+        "collectiontime": "2026-10-14T03:30:26+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "c4109d66eb005348c1a0af5b5def62b39bcc9f4a027fe4ac83f99913ae676e6a",
+    "indexSha256": "38ede9e983f69e9e8a9d5f4b62e82fb2c206d4e9801459a7da1fe648ec67e5aa",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T18:35:36.096409+00:00",
+    "epoch": 1791916536.096428,
+    "service": "active",
+    "pid": "1234242",
+    "status": {
+      "VmSize": "8354240 kB",
+      "VmRSS": "1513068 kB",
+      "Threads": "296"
+    },
+    "fds": 57,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 10,
+        "heapmemoryused": 538266824,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 281,
+        "collectiontime": "2026-10-14T03:35:26+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "c4109d66eb005348c1a0af5b5def62b39bcc9f4a027fe4ac83f99913ae676e6a",
+    "indexSha256": "38ede9e983f69e9e8a9d5f4b62e82fb2c206d4e9801459a7da1fe648ec67e5aa",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T18:40:36.025849+00:00",
+    "epoch": 1791916836.0258663,
+    "service": "active",
+    "pid": "1234242",
+    "status": {
+      "VmSize": "8354240 kB",
+      "VmRSS": "1497928 kB",
+      "Threads": "298"
+    },
+    "fds": 65,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 13,
+        "heapmemoryused": 458479648,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 281,
+        "collectiontime": "2026-10-14T03:40:26+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "c4109d66eb005348c1a0af5b5def62b39bcc9f4a027fe4ac83f99913ae676e6a",
+    "indexSha256": "38ede9e983f69e9e8a9d5f4b62e82fb2c206d4e9801459a7da1fe648ec67e5aa",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T18:45:35.982606+00:00",
+    "epoch": 1791917135.9826236,
+    "service": "active",
+    "pid": "1234242",
+    "status": {
+      "VmSize": "8354240 kB",
+      "VmRSS": "1505632 kB",
+      "Threads": "293"
+    },
+    "fds": 57,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 14,
+        "heapmemoryused": 463781744,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 278,
+        "collectiontime": "2026-10-14T03:45:26+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "c4109d66eb005348c1a0af5b5def62b39bcc9f4a027fe4ac83f99913ae676e6a",
+    "indexSha256": "38ede9e983f69e9e8a9d5f4b62e82fb2c206d4e9801459a7da1fe648ec67e5aa",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T18:50:36.158583+00:00",
+    "epoch": 1791917436.158603,
+    "service": "active",
+    "pid": "1234242",
+    "status": {
+      "VmSize": "8372744 kB",
+      "VmRSS": "1700392 kB",
+      "Threads": "319"
+    },
+    "fds": 57,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 12,
+        "heapmemoryused": 691657056,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 303,
+        "collectiontime": "2026-10-14T03:50:26+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "c4109d66eb005348c1a0af5b5def62b39bcc9f4a027fe4ac83f99913ae676e6a",
+    "indexSha256": "38ede9e983f69e9e8a9d5f4b62e82fb2c206d4e9801459a7da1fe648ec67e5aa",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T18:55:36.104505+00:00",
+    "epoch": 1791917736.1045237,
+    "service": "active",
+    "pid": "1234242",
+    "status": {
+      "VmSize": "8372744 kB",
+      "VmRSS": "1588108 kB",
+      "Threads": "319"
+    },
+    "fds": 57,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 12,
+        "heapmemoryused": 518045856,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 14,
+        "threadstotalcount": 302,
+        "collectiontime": "2026-10-14T03:55:26+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "c4109d66eb005348c1a0af5b5def62b39bcc9f4a027fe4ac83f99913ae676e6a",
+    "indexSha256": "38ede9e983f69e9e8a9d5f4b62e82fb2c206d4e9801459a7da1fe648ec67e5aa",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T19:00:36.043830+00:00",
+    "epoch": 1791918036.0438504,
+    "service": "active",
+    "pid": "1234242",
+    "status": {
+      "VmSize": "8374800 kB",
+      "VmRSS": "1490564 kB",
+      "Threads": "320"
+    },
+    "fds": 57,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 4,
+        "heapmemoryused": 599682512,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 303,
+        "collectiontime": "2026-10-14T04:00:26+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "c4109d66eb005348c1a0af5b5def62b39bcc9f4a027fe4ac83f99913ae676e6a",
+    "indexSha256": "38ede9e983f69e9e8a9d5f4b62e82fb2c206d4e9801459a7da1fe648ec67e5aa",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T19:05:36.103733+00:00",
+    "epoch": 1791918336.1037552,
+    "service": "active",
+    "pid": "1234242",
+    "status": {
+      "VmSize": "8374800 kB",
+      "VmRSS": "1425064 kB",
+      "Threads": "320"
+    },
+    "fds": 57,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 4,
+        "heapmemoryused": 432758824,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 304,
+        "collectiontime": "2026-10-14T04:05:26+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "c4109d66eb005348c1a0af5b5def62b39bcc9f4a027fe4ac83f99913ae676e6a",
+    "indexSha256": "38ede9e983f69e9e8a9d5f4b62e82fb2c206d4e9801459a7da1fe648ec67e5aa",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T19:10:36.009620+00:00",
+    "epoch": 1791918636.009638,
+    "service": "active",
+    "pid": "1234242",
+    "status": {
+      "VmSize": "8377884 kB",
+      "VmRSS": "1472620 kB",
+      "Threads": "325"
+    },
+    "fds": 58,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 6,
+        "heapmemoryused": 318213696,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 309,
+        "collectiontime": "2026-10-14T04:10:26+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "c4109d66eb005348c1a0af5b5def62b39bcc9f4a027fe4ac83f99913ae676e6a",
+    "indexSha256": "e9c9a58cc5cae918c77b6fa72bcd88ceb2886e924f4ddbda418bd57699237391",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T19:15:36.078435+00:00",
+    "epoch": 1791918936.0784545,
+    "service": "active",
+    "pid": "1234242",
+    "status": {
+      "VmSize": "8378912 kB",
+      "VmRSS": "1451140 kB",
+      "Threads": "321"
+    },
+    "fds": 57,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 7,
+        "heapmemoryused": 489902936,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 305,
+        "collectiontime": "2026-10-14T04:15:26+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "c4109d66eb005348c1a0af5b5def62b39bcc9f4a027fe4ac83f99913ae676e6a",
+    "indexSha256": "e9c9a58cc5cae918c77b6fa72bcd88ceb2886e924f4ddbda418bd57699237391",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T19:20:36.077762+00:00",
+    "epoch": 1791919236.0777814,
+    "service": "active",
+    "pid": "1234242",
+    "status": {
+      "VmSize": "8398904 kB",
+      "VmRSS": "1446948 kB",
+      "Threads": "321"
+    },
+    "fds": 57,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 7,
+        "heapmemoryused": 370892624,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 305,
+        "collectiontime": "2026-10-14T04:20:26+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "c4109d66eb005348c1a0af5b5def62b39bcc9f4a027fe4ac83f99913ae676e6a",
+    "indexSha256": "e9c9a58cc5cae918c77b6fa72bcd88ceb2886e924f4ddbda418bd57699237391",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T19:25:36.069516+00:00",
+    "epoch": 1791919536.0695353,
+    "service": "active",
+    "pid": "1234242",
+    "status": {
+      "VmSize": "8398936 kB",
+      "VmRSS": "1378136 kB",
+      "Threads": "322"
+    },
+    "fds": 57,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 7,
+        "heapmemoryused": 340143616,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 305,
+        "collectiontime": "2026-10-14T04:25:26+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "c4109d66eb005348c1a0af5b5def62b39bcc9f4a027fe4ac83f99913ae676e6a",
+    "indexSha256": "98c0eb596683793a180f2052ea5ad8cd4e93e78ef11fc8502d51fff0f2e38934",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T19:30:36.047023+00:00",
+    "epoch": 1791919836.0470426,
+    "service": "active",
+    "pid": "1234242",
+    "status": {
+      "VmSize": "8418932 kB",
+      "VmRSS": "1416800 kB",
+      "Threads": "323"
+    },
+    "fds": 57,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 4,
+        "heapmemoryused": 395800952,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 308,
+        "collectiontime": "2026-10-14T04:30:26+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "c4109d66eb005348c1a0af5b5def62b39bcc9f4a027fe4ac83f99913ae676e6a",
+    "indexSha256": "98c0eb596683793a180f2052ea5ad8cd4e93e78ef11fc8502d51fff0f2e38934",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  },
+  {
+    "at": "2026-10-13T19:35:36.089394+00:00",
+    "epoch": 1791920136.089415,
+    "service": "active",
+    "pid": "1234242",
+    "status": {
+      "VmSize": "8418932 kB",
+      "VmRSS": "1421172 kB",
+      "Threads": "321"
+    },
+    "fds": 57,
+    "jstatGc": {
+      "unavailable": true
+    },
+    "jvmMetrics": [
+      {
+        "sessions": 4,
+        "heapmemoryused": 419114792,
+        "heapmemorytotal": 1908932608,
+        "threadsblockedcount": 0,
+        "threadsrunnablecount": 13,
+        "threadstotalcount": 305,
+        "collectiontime": "2026-10-14T04:35:26+0900",
+        "name": "ccvm-mngt",
+        "state": "Up"
+      }
+    ],
+    "jvmMetricsAvailable": true,
+    "jarSha256": "c4109d66eb005348c1a0af5b5def62b39bcc9f4a027fe4ac83f99913ae676e6a",
+    "indexSha256": "98c0eb596683793a180f2052ea5ad8cd4e93e78ef11fc8502d51fff0f2e38934",
+    "asClassCount": 90,
+    "asClassesUnchanged": true
+  }
+]

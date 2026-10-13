@@ -1,0 +1,11 @@
+[
+  {
+    "at": "2026-10-13T09:13:46.993519+00:00",
+    "epoch": 1791882826.993528,
+    "code": "APPLICATION_HTTP_FAILURE",
+    "target": "31-AS04",
+    "ok": false,
+    "error": "timeout",
+    "latencyMs": 3006.06
+  }
+]

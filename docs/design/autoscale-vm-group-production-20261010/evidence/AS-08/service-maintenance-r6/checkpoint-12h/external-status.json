@@ -1,0 +1,27 @@
+{
+  "phase": "OBSERVING",
+  "pid": 273,
+  "startEpoch": 1791875733.985727,
+  "deadlineEpoch": 1791962133.985727,
+  "http": {
+    "31-AS04": {
+      "requests": 8922,
+      "ok": 8921,
+      "failed": 1
+    },
+    "32-AS04": {
+      "requests": 8922,
+      "ok": 8922,
+      "failed": 0
+    },
+    "32-VPC": {
+      "requests": 8922,
+      "ok": 8922,
+      "failed": 0
+    }
+  },
+  "maxGapSeconds": 5.089,
+  "anomalyCount": 1,
+  "origin": "WSL rocky outside management servers",
+  "updatedAt": "2026-10-13T19:38:58.994296+00:00"
+}
