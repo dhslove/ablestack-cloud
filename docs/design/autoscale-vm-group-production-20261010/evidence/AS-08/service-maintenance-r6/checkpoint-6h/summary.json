@@ -1,0 +1,159 @@
+{
+  "at": "2026-10-13T14:13:21.248816+00:00",
+  "mode": "APPLICATION_SERVICE_CONTINUITY_WITH_MANAGEMENT_MAINTENANCE",
+  "fixtures": {
+    "31": {
+      "originalGroups": 3,
+      "originalVmCount": 3,
+      "preserved": true,
+      "allGroupHttp200": true
+    },
+    "32": {
+      "originalGroups": 4,
+      "originalVmCount": 4,
+      "preserved": true,
+      "allGroupHttp200": true
+    }
+  },
+  "evidence": "/home/ablecloud/work/epic1346-implementation/as08/service-checks/20261013T141319Z",
+  "elapsedSeconds": 25065.02545452118,
+  "hardIssues": [
+    "31-AS04 external HTTP failure",
+    "cluster31 HTTP_FAILURE"
+  ],
+  "reviewItems": [],
+  "combinedHttpCoverage": {
+    "31-AS04": {
+      "samples": 10028,
+      "firstEpoch": 1791875733.9920793,
+      "lastEpoch": 1791900798.9901242,
+      "maxUnobservedSeconds": 7.999,
+      "firstDelaySeconds": 0.006,
+      "lastAgeSeconds": 0.021
+    },
+    "32-AS04": {
+      "samples": 10028,
+      "firstEpoch": 1791875733.9942205,
+      "lastEpoch": 1791900798.9919982,
+      "maxUnobservedSeconds": 5.001,
+      "firstDelaySeconds": 0.008,
+      "lastAgeSeconds": 0.019
+    },
+    "32-VPC": {
+      "samples": 10028,
+      "firstEpoch": 1791875733.994329,
+      "lastEpoch": 1791900798.99312,
+      "maxUnobservedSeconds": 5.001,
+      "firstDelaySeconds": 0.009,
+      "lastAgeSeconds": 0.018
+    }
+  },
+  "external": {
+    "phase": "OBSERVING",
+    "pid": 273,
+    "startEpoch": 1791875733.985727,
+    "deadlineEpoch": 1791962133.985727,
+    "http": {
+      "31-AS04": {
+        "requests": 5014,
+        "ok": 5013,
+        "failed": 1
+      },
+      "32-AS04": {
+        "requests": 5014,
+        "ok": 5014,
+        "failed": 0
+      },
+      "32-VPC": {
+        "requests": 5014,
+        "ok": 5014,
+        "failed": 0
+      }
+    },
+    "maxGapSeconds": 5.089,
+    "anomalyCount": 1,
+    "origin": "WSL rocky outside management servers",
+    "updatedAt": "2026-10-13T14:13:18.993171+00:00"
+  },
+  "latestProcess": {
+    "31": {
+      "service": "active",
+      "pid": "706254",
+      "status": {
+        "VmSize": "10253620 kB",
+        "VmRSS": "1533296 kB",
+        "Threads": "286"
+      },
+      "fds": 72,
+      "jstatGc": {
+        "unavailable": true
+      },
+      "jvmMetrics": [
+        {
+          "sessions": 4,
+          "heapmemoryused": 552470104,
+          "heapmemorytotal": 1908932608,
+          "threadsblockedcount": 0,
+          "threadsrunnablecount": 13,
+          "threadstotalcount": 266,
+          "collectiontime": "2026-10-13T23:09:44+0900",
+          "name": "ccvm-mngt",
+          "state": "Up"
+        }
+      ],
+      "jvmMetricsAvailable": true,
+      "jarSha256": "a4a136db94729a8f14b8d4a781235d54b8260415c139222c3f34588b1c574393",
+      "indexSha256": "868459d007db7145b51e7d23475a6ba7ff8830a1787a03bc9de096a217b52463",
+      "asClassCount": 90,
+      "asClassesUnchanged": true
+    },
+    "32": {
+      "service": "active",
+      "pid": "1202380",
+      "status": {
+        "VmSize": "8357016 kB",
+        "VmRSS": "1172240 kB",
+        "Threads": "302"
+      },
+      "fds": 56,
+      "jstatGc": {
+        "unavailable": true
+      },
+      "jvmMetrics": [
+        {
+          "sessions": 3,
+          "heapmemoryused": 288459104,
+          "heapmemorytotal": 1908932608,
+          "threadsblockedcount": 0,
+          "threadsrunnablecount": 13,
+          "threadstotalcount": 286,
+          "collectiontime": "2026-10-13T23:10:21+0900",
+          "name": "ccvm-mngt",
+          "state": "Up"
+        }
+      ],
+      "jvmMetricsAvailable": true,
+      "jarSha256": "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+      "indexSha256": "868459d007db7145b51e7d23475a6ba7ff8830a1787a03bc9de096a217b52463",
+      "asClassCount": 90,
+      "asClassesUnchanged": true
+    }
+  },
+  "environmentEventCounts": {
+    "31": {
+      "DEPLOYMENT_CHANGED": 5,
+      "API_READ_FAILURE": 3,
+      "API_COLLECTION_GAP": 3,
+      "MANAGEMENT_PROCESS_CHANGED": 3
+    },
+    "32": {
+      "DEPLOYMENT_CHANGED": 3,
+      "API_READ_FAILURE": 1,
+      "API_COLLECTION_GAP": 1,
+      "MANAGEMENT_PROCESS_CHANGED": 1
+    }
+  },
+  "checkpointsDue": [
+    6
+  ]
+}

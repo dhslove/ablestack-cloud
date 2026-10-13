@@ -1,0 +1,81 @@
+{
+  "31": {
+    "pid": "706254",
+    "rssKiB": "1533296 kB",
+    "threads": "286",
+    "fds": 72,
+    "jvm": [
+      {
+        "heapmemoryused": 552470104,
+        "collectiontime": "2026-10-13T23:09:44+0900"
+      }
+    ],
+    "stats": [
+      {
+        "group": "bf0f5385-ae2c-4da4-aec4-eb985dbdeba4",
+        "rows": 1408,
+        "oldest": "2026-10-13 12:10:05.000000",
+        "newest": "2026-10-13 14:10:34.000000",
+        "oldestAgeSeconds": 7229.1
+      }
+    ]
+  },
+  "32": {
+    "pid": "1202380",
+    "rssKiB": "1172240 kB",
+    "threads": "302",
+    "fds": 56,
+    "jvm": [
+      {
+        "heapmemoryused": 288459104,
+        "collectiontime": "2026-10-13T23:10:21+0900"
+      }
+    ],
+    "stats": [
+      {
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "rows": 1408,
+        "oldest": "2026-10-13 12:09:45.000000",
+        "newest": "2026-10-13 14:10:29.000000",
+        "oldestAgeSeconds": 7249.207
+      },
+      {
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "rows": 478,
+        "oldest": "2026-10-13 12:09:53.000000",
+        "newest": "2026-10-13 14:10:30.000000",
+        "oldestAgeSeconds": 7241.207
+      }
+    ]
+  },
+  "failureCounts": {
+    "server31": 3,
+    "server32AS04": 0,
+    "server32VPC": 0,
+    "external31": 1,
+    "external32AS04": 0,
+    "external32VPC": 0
+  },
+  "newFailureCounts": {},
+  "counterDecrease": {},
+  "fixtures": {
+    "31": {
+      "originalGroups": 3,
+      "originalVmCount": 3,
+      "preserved": true,
+      "allGroupHttp200": true
+    },
+    "32": {
+      "originalGroups": 4,
+      "originalVmCount": 4,
+      "preserved": true,
+      "allGroupHttp200": true
+    }
+  },
+  "cumulativeHardIssues": [
+    "31-AS04 external HTTP failure",
+    "cluster31 HTTP_FAILURE"
+  ],
+  "reviewItems": [],
+  "evidence": "/home/ablecloud/work/epic1346-implementation/as08/service-checks/20261013T141319Z"
+}

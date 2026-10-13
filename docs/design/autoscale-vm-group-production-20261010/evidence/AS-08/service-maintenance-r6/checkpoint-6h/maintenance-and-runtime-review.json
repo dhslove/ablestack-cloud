@@ -1,0 +1,852 @@
+{
+  "at": "2026-10-13T14:13:21.248816+00:00",
+  "startedAt": "2026-10-13T07:15:33.985727+00:00",
+  "deadlineAt": "2026-10-14T07:15:33.985727+00:00",
+  "elapsedSeconds": 25065.02545452118,
+  "combinedHttpCoverage": {
+    "31-AS04": {
+      "samples": 10028,
+      "firstEpoch": 1791875733.9920793,
+      "lastEpoch": 1791900798.9901242,
+      "maxUnobservedSeconds": 7.999,
+      "firstDelaySeconds": 0.006,
+      "lastAgeSeconds": 0.021
+    },
+    "32-AS04": {
+      "samples": 10028,
+      "firstEpoch": 1791875733.9942205,
+      "lastEpoch": 1791900798.9919982,
+      "maxUnobservedSeconds": 5.001,
+      "firstDelaySeconds": 0.008,
+      "lastAgeSeconds": 0.019
+    },
+    "32-VPC": {
+      "samples": 10028,
+      "firstEpoch": 1791875733.994329,
+      "lastEpoch": 1791900798.99312,
+      "maxUnobservedSeconds": 5.001,
+      "firstDelaySeconds": 0.009,
+      "lastAgeSeconds": 0.018
+    }
+  },
+  "incidents": [
+    {
+      "id": "31-AS04-20261013T091346Z",
+      "firstFailureAt": "2026-10-13T09:13:46.991450+00:00",
+      "serverHttpFailures": 3,
+      "externalHttpFailures": 1,
+      "externalFirstRecoveryAt": "2026-10-13T09:13:49.657549+00:00",
+      "lbBackendDownAt": "2026-10-13T09:13:50+00:00",
+      "lbBackendUpAt": "2026-10-13T09:13:54+00:00",
+      "currentRecovered": true,
+      "confirmedPath": "HAProxy sole backend L4 timeout/no available server; then UP",
+      "rootCauseConfirmed": false,
+      "rootCause": "Underlying guest/host/network delay unresolved; no proven AS code/config/resource change or management restart",
+      "evidence": "/home/ablecloud/work/epic1346-implementation/as08/service-checks/20261013T093842Z",
+      "lastRecoveryCheck": "2026-10-13T14:13:21.248816+00:00",
+      "reportComment": "https://github.com/ablecloud-team/ablestack-cloud/issues/1354#issuecomment-6142967293",
+      "publicEvidenceCommit": "5b60e1d7b2f09421606a93709f37fd18bef0d33a",
+      "reportedAt": "2026-10-13T09:54:23.704772+00:00"
+    }
+  ],
+  "fixtures": {
+    "31": {
+      "originalGroups": 3,
+      "originalVmCount": 3,
+      "preserved": true,
+      "allGroupHttp200": true
+    },
+    "32": {
+      "originalGroups": 4,
+      "originalVmCount": 4,
+      "preserved": true,
+      "allGroupHttp200": true
+    }
+  },
+  "clusters": {
+    "31": {
+      "maintenance": [
+        {
+          "id": "31-management-20261013T112226Z",
+          "cluster": "31",
+          "stopRequestedAt": "2026-10-13T20:22:26+09:00",
+          "newProcessStartedAt": "2026-10-13T20:22:28+09:00",
+          "previousPid": "646030",
+          "currentPid": "693189",
+          "apiFailure": {
+            "at": "2026-10-13T11:22:34.047729+00:00",
+            "epoch": 1791890554.0477326,
+            "code": "API_READ_FAILURE",
+            "error": "URLError",
+            "message": "<urlopen error [Errno 111] Connection refused>"
+          },
+          "apiRecoveredAt": "2026-10-13T11:23:34.149467+00:00",
+          "apiSuccessfulSampleGapSeconds": 120.055904,
+          "recoveredEvaluation": {
+            "AS-PROD-31-AS04-CONCURRENCY": "WAITING"
+          },
+          "httpWindowStartAt": "2026-10-13T20:20:56+09:00",
+          "httpWindowEndAt": "2026-10-13T20:28:28+09:00",
+          "http": {
+            "31-AS04": {
+              "server": {
+                "samples": 90,
+                "failed": 0,
+                "firstAt": "2026-10-13T11:20:58.989357+00:00",
+                "lastAt": "2026-10-13T11:28:23.989380+00:00",
+                "maxIntervalSeconds": 5.001
+              },
+              "external": {
+                "samples": 90,
+                "failed": 0,
+                "firstAt": "2026-10-13T11:20:58.993297+00:00",
+                "lastAt": "2026-10-13T11:28:23.990343+00:00",
+                "maxIntervalSeconds": 5.004
+              }
+            }
+          },
+          "as90UnchangedAtNextProcessSample": true,
+          "firstNewPidJvmCollectionTime": "2026-10-13T20:24:58+0900",
+          "evidence": "/home/ablecloud/work/epic1346-implementation/as08/service-checks/20261013T141319Z/maintenance-and-runtime-review.json",
+          "reportedAsEnvironmentOnly": true
+        },
+        {
+          "id": "31-management-20261013T122347Z",
+          "cluster": "31",
+          "stopRequestedAt": "2026-10-13T21:23:47+09:00",
+          "newProcessStartedAt": "2026-10-13T21:23:49+09:00",
+          "previousPid": "693189",
+          "currentPid": "702484",
+          "apiFailure": {
+            "at": "2026-10-13T12:24:34.033426+00:00",
+            "epoch": 1791894274.033429,
+            "code": "API_READ_FAILURE",
+            "error": "RuntimeError",
+            "message": "listAutoScaleVmGroups: API error 401 unable to verify user credentials and/or request signature"
+          },
+          "apiRecoveredAt": "2026-10-13T12:25:34.120455+00:00",
+          "apiSuccessfulSampleGapSeconds": 120.032495,
+          "recoveredEvaluation": {
+            "AS-PROD-31-AS04-CONCURRENCY": "MIN_MEMBERS"
+          },
+          "httpWindowStartAt": "2026-10-13T21:22:17+09:00",
+          "httpWindowEndAt": "2026-10-13T21:29:49+09:00",
+          "http": {
+            "31-AS04": {
+              "server": {
+                "samples": 91,
+                "failed": 0,
+                "firstAt": "2026-10-13T12:22:18.989647+00:00",
+                "lastAt": "2026-10-13T12:29:48.989277+00:00",
+                "maxIntervalSeconds": 5.001
+              },
+              "external": {
+                "samples": 91,
+                "failed": 0,
+                "firstAt": "2026-10-13T12:22:18.992206+00:00",
+                "lastAt": "2026-10-13T12:29:48.991864+00:00",
+                "maxIntervalSeconds": 5.015
+              }
+            }
+          },
+          "as90UnchangedAtNextProcessSample": true,
+          "firstNewPidJvmCollectionTime": "2026-10-13T21:25:19+0900",
+          "evidence": "/home/ablecloud/work/epic1346-implementation/as08/service-checks/20261013T141319Z/maintenance-and-runtime-review.json",
+          "reportedAsEnvironmentOnly": true
+        },
+        {
+          "id": "31-management-20261013T124212Z",
+          "cluster": "31",
+          "stopRequestedAt": "2026-10-13T21:42:12+09:00",
+          "newProcessStartedAt": "2026-10-13T21:42:15+09:00",
+          "previousPid": "702484",
+          "currentPid": "706254",
+          "apiFailure": {
+            "at": "2026-10-13T12:42:34.047763+00:00",
+            "epoch": 1791895354.047766,
+            "code": "API_READ_FAILURE",
+            "error": "URLError",
+            "message": "<urlopen error [Errno 111] Connection refused>"
+          },
+          "apiRecoveredAt": "2026-10-13T12:43:34.060005+00:00",
+          "apiSuccessfulSampleGapSeconds": 119.973319,
+          "recoveredEvaluation": {
+            "AS-PROD-31-AS04-CONCURRENCY": "WAITING"
+          },
+          "httpWindowStartAt": "2026-10-13T21:40:42+09:00",
+          "httpWindowEndAt": "2026-10-13T21:48:15+09:00",
+          "http": {
+            "31-AS04": {
+              "server": {
+                "samples": 91,
+                "failed": 0,
+                "firstAt": "2026-10-13T12:40:43.989303+00:00",
+                "lastAt": "2026-10-13T12:48:13.989332+00:00",
+                "maxIntervalSeconds": 5.001
+              },
+              "external": {
+                "samples": 91,
+                "failed": 0,
+                "firstAt": "2026-10-13T12:40:43.989732+00:00",
+                "lastAt": "2026-10-13T12:48:13.990322+00:00",
+                "maxIntervalSeconds": 5.015
+              }
+            }
+          },
+          "as90UnchangedAtNextProcessSample": true,
+          "firstNewPidJvmCollectionTime": "2026-10-13T21:44:44+0900",
+          "evidence": "/home/ablecloud/work/epic1346-implementation/as08/service-checks/20261013T141319Z/maintenance-and-runtime-review.json",
+          "reportedAsEnvironmentOnly": true
+        }
+      ],
+      "lifecycle": [
+        "2026-10-13T20:22:26+0900 ccvm systemd[1]: Stopping Mold Management Server...",
+        "2026-10-13T20:22:28+0900 ccvm systemd[1]: mold.service: Main process exited, code=exited, status=143/n/a",
+        "2026-10-13T20:22:28+0900 ccvm systemd[1]: mold.service: Failed with result 'exit-code'.",
+        "2026-10-13T20:22:28+0900 ccvm systemd[1]: Stopped Mold Management Server.",
+        "2026-10-13T20:22:28+0900 ccvm systemd[1]: mold.service: Consumed 16min 25.156s CPU time, 2.0G memory peak.",
+        "2026-10-13T20:22:28+0900 ccvm systemd[1]: Starting Mold Management Server...",
+        "2026-10-13T20:22:28+0900 ccvm systemd[1]: Started Mold Management Server.",
+        "2026-10-13T21:23:47+0900 ccvm systemd[1]: Stopping Mold Management Server...",
+        "2026-10-13T21:23:49+0900 ccvm systemd[1]: mold.service: Main process exited, code=exited, status=143/n/a",
+        "2026-10-13T21:23:49+0900 ccvm systemd[1]: mold.service: Failed with result 'exit-code'.",
+        "2026-10-13T21:23:49+0900 ccvm systemd[1]: Stopped Mold Management Server.",
+        "2026-10-13T21:23:49+0900 ccvm systemd[1]: mold.service: Consumed 3min 5.744s CPU time, 1.4G memory peak.",
+        "2026-10-13T21:23:49+0900 ccvm systemd[1]: Starting Mold Management Server...",
+        "2026-10-13T21:23:49+0900 ccvm systemd[1]: Started Mold Management Server.",
+        "2026-10-13T21:42:12+0900 ccvm systemd[1]: Stopping Mold Management Server...",
+        "2026-10-13T21:42:14+0900 ccvm systemd[1]: mold.service: Main process exited, code=exited, status=143/n/a",
+        "2026-10-13T21:42:14+0900 ccvm systemd[1]: mold.service: Failed with result 'exit-code'.",
+        "2026-10-13T21:42:14+0900 ccvm systemd[1]: Stopped Mold Management Server.",
+        "2026-10-13T21:42:14+0900 ccvm systemd[1]: mold.service: Consumed 1min 58.376s CPU time, 1.4G memory peak.",
+        "2026-10-13T21:42:14+0900 ccvm systemd[1]: Starting Mold Management Server...",
+        "2026-10-13T21:42:15+0900 ccvm systemd[1]: Started Mold Management Server."
+      ],
+      "environment": [
+        {
+          "at": "2026-10-13T07:55:34.416617+00:00",
+          "epoch": 1791878134.4166386,
+          "code": "DEPLOYMENT_CHANGED",
+          "previous": [
+            "5d47fc82e18064a6570c92962eef0dc88495001b0979006dcd8eac451550caec",
+            "e963669cee81f29f532837d515e2352ff35cdc4a4eef6544089ed83e3976fb6f"
+          ],
+          "current": [
+            "5d47fc82e18064a6570c92962eef0dc88495001b0979006dcd8eac451550caec",
+            "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6"
+          ]
+        },
+        {
+          "at": "2026-10-13T11:22:34.047729+00:00",
+          "epoch": 1791890554.0477326,
+          "code": "API_READ_FAILURE",
+          "error": "URLError",
+          "message": "<urlopen error [Errno 111] Connection refused>"
+        },
+        {
+          "at": "2026-10-13T11:23:34.149376+00:00",
+          "epoch": 1791890614.1493866,
+          "code": "API_COLLECTION_GAP",
+          "gapSeconds": 120.05582308769226
+        },
+        {
+          "at": "2026-10-13T11:25:34.133682+00:00",
+          "epoch": 1791890734.1336956,
+          "code": "MANAGEMENT_PROCESS_CHANGED",
+          "previous": [
+            "active",
+            "646030"
+          ],
+          "service": "active",
+          "pid": "693189"
+        },
+        {
+          "at": "2026-10-13T11:25:34.380589+00:00",
+          "epoch": 1791890734.380603,
+          "code": "DEPLOYMENT_CHANGED",
+          "previous": [
+            "5d47fc82e18064a6570c92962eef0dc88495001b0979006dcd8eac451550caec",
+            "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6"
+          ],
+          "current": [
+            "dfea069aa70cc25a337b1ce060700768d2a1c9fa44947861dcc8dec86000db66",
+            "d113d980a86de8a5f31569992ee45356b2e6862617426e44595d2b6e9ecf1cac"
+          ]
+        },
+        {
+          "at": "2026-10-13T12:24:34.033426+00:00",
+          "epoch": 1791894274.033429,
+          "code": "API_READ_FAILURE",
+          "error": "RuntimeError",
+          "message": "listAutoScaleVmGroups: API error 401 unable to verify user credentials and/or request signature"
+        },
+        {
+          "at": "2026-10-13T12:25:34.120374+00:00",
+          "epoch": 1791894334.1203856,
+          "code": "API_COLLECTION_GAP",
+          "gapSeconds": 120.03243207931519
+        },
+        {
+          "at": "2026-10-13T12:25:34.145543+00:00",
+          "epoch": 1791894334.1455574,
+          "code": "MANAGEMENT_PROCESS_CHANGED",
+          "previous": [
+            "active",
+            "693189"
+          ],
+          "service": "active",
+          "pid": "702484"
+        },
+        {
+          "at": "2026-10-13T12:25:34.429128+00:00",
+          "epoch": 1791894334.4291458,
+          "code": "DEPLOYMENT_CHANGED",
+          "previous": [
+            "dfea069aa70cc25a337b1ce060700768d2a1c9fa44947861dcc8dec86000db66",
+            "d113d980a86de8a5f31569992ee45356b2e6862617426e44595d2b6e9ecf1cac"
+          ],
+          "current": [
+            "5af2c32e72851fb041909233fd9bf5d73cf179011985cb87b22a662f4f8d9167",
+            "63799352dd0b8509e6dc84655be5a4606650a2f994970df3b350378fd51a5880"
+          ]
+        },
+        {
+          "at": "2026-10-13T12:42:34.047763+00:00",
+          "epoch": 1791895354.047766,
+          "code": "API_READ_FAILURE",
+          "error": "URLError",
+          "message": "<urlopen error [Errno 111] Connection refused>"
+        },
+        {
+          "at": "2026-10-13T12:43:34.059929+00:00",
+          "epoch": 1791895414.0599396,
+          "code": "API_COLLECTION_GAP",
+          "gapSeconds": 119.9732346534729
+        },
+        {
+          "at": "2026-10-13T12:45:34.114498+00:00",
+          "epoch": 1791895534.1145124,
+          "code": "MANAGEMENT_PROCESS_CHANGED",
+          "previous": [
+            "active",
+            "702484"
+          ],
+          "service": "active",
+          "pid": "706254"
+        },
+        {
+          "at": "2026-10-13T12:45:34.401784+00:00",
+          "epoch": 1791895534.4018,
+          "code": "DEPLOYMENT_CHANGED",
+          "previous": [
+            "5af2c32e72851fb041909233fd9bf5d73cf179011985cb87b22a662f4f8d9167",
+            "63799352dd0b8509e6dc84655be5a4606650a2f994970df3b350378fd51a5880"
+          ],
+          "current": [
+            "a4a136db94729a8f14b8d4a781235d54b8260415c139222c3f34588b1c574393",
+            "bcf271f110d39f59fceec8cb7d4ce2316995e77e23de80f063277ef56bf6529f"
+          ]
+        },
+        {
+          "at": "2026-10-13T14:00:34.435901+00:00",
+          "epoch": 1791900034.4359195,
+          "code": "DEPLOYMENT_CHANGED",
+          "previous": [
+            "a4a136db94729a8f14b8d4a781235d54b8260415c139222c3f34588b1c574393",
+            "bcf271f110d39f59fceec8cb7d4ce2316995e77e23de80f063277ef56bf6529f"
+          ],
+          "current": [
+            "a4a136db94729a8f14b8d4a781235d54b8260415c139222c3f34588b1c574393",
+            "868459d007db7145b51e7d23475a6ba7ff8830a1787a03bc9de096a217b52463"
+          ]
+        }
+      ],
+      "http": {
+        "31-AS04": {
+          "samples": 5014,
+          "failed": 3,
+          "firstAt": "2026-10-13T07:15:33.992069+00:00",
+          "lastAt": "2026-10-13T14:13:18.989377+00:00",
+          "maxIntervalSeconds": 9.158
+        }
+      },
+      "apiSuccessfulSamples": 415,
+      "apiErrors": 3,
+      "dbSamples": 84,
+      "processSamples": 84,
+      "as90AllProcessSamplesMatch": true,
+      "pids": [
+        {
+          "pid": "646030",
+          "samples": 50,
+          "firstAt": "2026-10-13T07:15:35.394212+00:00",
+          "lastAt": "2026-10-13T11:20:35.389610+00:00",
+          "rssKiB": {
+            "min": 1484940,
+            "max": 2008148,
+            "last": 1493208
+          },
+          "osThreads": {
+            "min": 325,
+            "max": 401,
+            "last": 401
+          },
+          "fds": {
+            "min": 74,
+            "max": 99,
+            "last": 85
+          },
+          "actualHeapBytes": {
+            "min": 299982408,
+            "max": 863717672,
+            "last": 482563392
+          },
+          "heapSamplesExcludedAsStaleOrBeforePidStart": 0
+        },
+        {
+          "pid": "693189",
+          "samples": 12,
+          "firstAt": "2026-10-13T11:25:35.349993+00:00",
+          "lastAt": "2026-10-13T12:20:35.396439+00:00",
+          "rssKiB": {
+            "min": 1180544,
+            "max": 1509228,
+            "last": 1453080
+          },
+          "osThreads": {
+            "min": 249,
+            "max": 275,
+            "last": 267
+          },
+          "fds": {
+            "min": 59,
+            "max": 72,
+            "last": 67
+          },
+          "actualHeapBytes": {
+            "min": 274922624,
+            "max": 668716480,
+            "last": 668716480
+          },
+          "heapSamplesExcludedAsStaleOrBeforePidStart": 0
+        },
+        {
+          "pid": "702484",
+          "samples": 4,
+          "firstAt": "2026-10-13T12:25:35.484398+00:00",
+          "lastAt": "2026-10-13T12:40:35.364649+00:00",
+          "rssKiB": {
+            "min": 1242336,
+            "max": 1482628,
+            "last": 1242336
+          },
+          "osThreads": {
+            "min": 243,
+            "max": 261,
+            "last": 261
+          },
+          "fds": {
+            "min": 59,
+            "max": 60,
+            "last": 59
+          },
+          "actualHeapBytes": {
+            "min": 376774840,
+            "max": 635167216,
+            "last": 376774840
+          },
+          "heapSamplesExcludedAsStaleOrBeforePidStart": 0
+        },
+        {
+          "pid": "706254",
+          "samples": 18,
+          "firstAt": "2026-10-13T12:45:35.397107+00:00",
+          "lastAt": "2026-10-13T14:10:35.450458+00:00",
+          "rssKiB": {
+            "min": 1295616,
+            "max": 1621552,
+            "last": 1533296
+          },
+          "osThreads": {
+            "min": 259,
+            "max": 286,
+            "last": 286
+          },
+          "fds": {
+            "min": 63,
+            "max": 72,
+            "last": 72
+          },
+          "actualHeapBytes": {
+            "min": 319228720,
+            "max": 573491064,
+            "last": 552470104
+          },
+          "heapSamplesExcludedAsStaleOrBeforePidStart": 0
+        }
+      ],
+      "retention": {
+        "bf0f5385-ae2c-4da4-aec4-eb985dbdeba4": {
+          "samples": 84,
+          "rowsMin": 1340,
+          "rowsMax": 1422,
+          "oldestAgeMin": 7193.111,
+          "oldestAgeMax": 7250.116,
+          "first": {
+            "kind": "statistics",
+            "rows": 1348,
+            "group": "bf0f5385-ae2c-4da4-aec4-eb985dbdeba4",
+            "newest": "2026-10-13 07:15:33.000000",
+            "oldest": "2026-10-13 05:14:49.000000",
+            "at": "2026-10-13T07:15:34.070090+00:00",
+            "oldestAgeSeconds": 7245.07
+          },
+          "last": {
+            "kind": "statistics",
+            "rows": 1408,
+            "group": "bf0f5385-ae2c-4da4-aec4-eb985dbdeba4",
+            "newest": "2026-10-13 14:10:34.000000",
+            "oldest": "2026-10-13 12:10:05.000000",
+            "at": "2026-10-13T14:10:34.100073+00:00",
+            "oldestAgeSeconds": 7229.1
+          },
+          "oldestMovedForward": true
+        }
+      },
+      "orphansMax": {
+        "vmMaps": 0,
+        "volumeRows": 0
+      },
+      "apiGroupErrors": 0,
+      "currentGroups": [
+        {
+          "name": "AS-PROD-31-AS04-CONCURRENCY",
+          "state": "ENABLED",
+          "minmembers": 1,
+          "maxmembers": 3,
+          "lastcheckedat": 1791900745000,
+          "evaluationerror": false,
+          "operationinprogress": false
+        }
+      ]
+    },
+    "32": {
+      "maintenance": [
+        {
+          "id": "32-management-20261013T124640Z",
+          "cluster": "32",
+          "stopRequestedAt": "2026-10-13T21:46:40+09:00",
+          "newProcessStartedAt": "2026-10-13T21:46:43+09:00",
+          "previousPid": "1158028",
+          "currentPid": "1202380",
+          "apiFailure": {
+            "at": "2026-10-13T12:47:34.050351+00:00",
+            "epoch": 1791895654.0503561,
+            "code": "API_READ_FAILURE",
+            "error": "RuntimeError",
+            "message": "listAutoScaleVmGroups: API error 401 unable to verify user credentials and/or request signature"
+          },
+          "apiRecoveredAt": "2026-10-13T12:48:34.174477+00:00",
+          "apiSuccessfulSampleGapSeconds": 120.020009,
+          "recoveredEvaluation": {
+            "AS-PROD-32-AS04-CONCURRENCY": "WAITING",
+            "AS-PROD-32-AS01-VPC": "NO_ACTION"
+          },
+          "httpWindowStartAt": "2026-10-13T21:45:10+09:00",
+          "httpWindowEndAt": "2026-10-13T21:52:43+09:00",
+          "http": {
+            "32-AS04": {
+              "server": {
+                "samples": 90,
+                "failed": 0,
+                "firstAt": "2026-10-13T12:45:13.990737+00:00",
+                "lastAt": "2026-10-13T12:52:38.991153+00:00",
+                "maxIntervalSeconds": 5.001
+              },
+              "external": {
+                "samples": 90,
+                "failed": 0,
+                "firstAt": "2026-10-13T12:45:13.992228+00:00",
+                "lastAt": "2026-10-13T12:52:38.992714+00:00",
+                "maxIntervalSeconds": 5.016
+              }
+            },
+            "32-VPC": {
+              "server": {
+                "samples": 90,
+                "failed": 0,
+                "firstAt": "2026-10-13T12:45:13.990862+00:00",
+                "lastAt": "2026-10-13T12:52:38.991272+00:00",
+                "maxIntervalSeconds": 5.0
+              },
+              "external": {
+                "samples": 90,
+                "failed": 0,
+                "firstAt": "2026-10-13T12:45:13.992842+00:00",
+                "lastAt": "2026-10-13T12:52:38.992793+00:00",
+                "maxIntervalSeconds": 5.016
+              }
+            }
+          },
+          "as90UnchangedAtNextProcessSample": true,
+          "firstNewPidJvmCollectionTime": "2026-10-13T21:50:21+0900",
+          "evidence": "/home/ablecloud/work/epic1346-implementation/as08/service-checks/20261013T141319Z/maintenance-and-runtime-review.json",
+          "reportedAsEnvironmentOnly": true
+        }
+      ],
+      "lifecycle": [
+        "2026-10-13T21:46:40+0900 ccvm systemd[1]: Stopping Mold Management Server...",
+        "2026-10-13T21:46:43+0900 ccvm systemd[1]: mold.service: Main process exited, code=exited, status=143/n/a",
+        "2026-10-13T21:46:43+0900 ccvm systemd[1]: mold.service: Failed with result 'exit-code'.",
+        "2026-10-13T21:46:43+0900 ccvm systemd[1]: Stopped Mold Management Server.",
+        "2026-10-13T21:46:43+0900 ccvm systemd[1]: mold.service: Consumed 13min 56.042s CPU time, 1.6G memory peak.",
+        "2026-10-13T21:46:43+0900 ccvm systemd[1]: Starting Mold Management Server...",
+        "2026-10-13T21:46:43+0900 ccvm systemd[1]: Started Mold Management Server."
+      ],
+      "environment": [
+        {
+          "at": "2026-10-13T08:00:34.582155+00:00",
+          "epoch": 1791878434.582176,
+          "code": "DEPLOYMENT_CHANGED",
+          "previous": [
+            "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+            "e963669cee81f29f532837d515e2352ff35cdc4a4eef6544089ed83e3976fb6f"
+          ],
+          "current": [
+            "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+            "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6"
+          ]
+        },
+        {
+          "at": "2026-10-13T12:47:34.050351+00:00",
+          "epoch": 1791895654.0503561,
+          "code": "API_READ_FAILURE",
+          "error": "RuntimeError",
+          "message": "listAutoScaleVmGroups: API error 401 unable to verify user credentials and/or request signature"
+        },
+        {
+          "at": "2026-10-13T12:48:34.174374+00:00",
+          "epoch": 1791895714.174387,
+          "code": "API_COLLECTION_GAP",
+          "gapSeconds": 120.0199077129364
+        },
+        {
+          "at": "2026-10-13T12:50:34.221066+00:00",
+          "epoch": 1791895834.221082,
+          "code": "MANAGEMENT_PROCESS_CHANGED",
+          "previous": [
+            "active",
+            "1158028"
+          ],
+          "service": "active",
+          "pid": "1202380"
+        },
+        {
+          "at": "2026-10-13T12:50:34.607321+00:00",
+          "epoch": 1791895834.6073394,
+          "code": "DEPLOYMENT_CHANGED",
+          "previous": [
+            "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+            "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6"
+          ],
+          "current": [
+            "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+            "bcf271f110d39f59fceec8cb7d4ce2316995e77e23de80f063277ef56bf6529f"
+          ]
+        },
+        {
+          "at": "2026-10-13T14:10:34.609255+00:00",
+          "epoch": 1791900634.6092753,
+          "code": "DEPLOYMENT_CHANGED",
+          "previous": [
+            "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+            "bcf271f110d39f59fceec8cb7d4ce2316995e77e23de80f063277ef56bf6529f"
+          ],
+          "current": [
+            "fc9430a0c26fb6b7245d68a38dec9cee1bbe4b21a4283d7afaebc7722d6d2fd5",
+            "868459d007db7145b51e7d23475a6ba7ff8830a1787a03bc9de096a217b52463"
+          ]
+        }
+      ],
+      "http": {
+        "32-VPC": {
+          "samples": 5014,
+          "failed": 0,
+          "firstAt": "2026-10-13T07:15:33.994324+00:00",
+          "lastAt": "2026-10-13T14:13:18.990813+00:00",
+          "maxIntervalSeconds": 5.004
+        },
+        "32-AS04": {
+          "samples": 5014,
+          "failed": 0,
+          "firstAt": "2026-10-13T07:15:33.994209+00:00",
+          "lastAt": "2026-10-13T14:13:18.990696+00:00",
+          "maxIntervalSeconds": 5.004
+        }
+      },
+      "apiSuccessfulSamples": 417,
+      "apiErrors": 1,
+      "dbSamples": 84,
+      "processSamples": 84,
+      "as90AllProcessSamplesMatch": true,
+      "pids": [
+        {
+          "pid": "1158028",
+          "samples": 67,
+          "firstAt": "2026-10-13T07:15:36.035348+00:00",
+          "lastAt": "2026-10-13T12:45:36.047414+00:00",
+          "rssKiB": {
+            "min": 1254348,
+            "max": 1667008,
+            "last": 1353476
+          },
+          "osThreads": {
+            "min": 308,
+            "max": 383,
+            "last": 383
+          },
+          "fds": {
+            "min": 54,
+            "max": 72,
+            "last": 65
+          },
+          "actualHeapBytes": {
+            "min": 243350080,
+            "max": 627463656,
+            "last": 302872760
+          },
+          "heapSamplesExcludedAsStaleOrBeforePidStart": 0
+        },
+        {
+          "pid": "1202380",
+          "samples": 17,
+          "firstAt": "2026-10-13T12:50:36.081807+00:00",
+          "lastAt": "2026-10-13T14:10:36.071732+00:00",
+          "rssKiB": {
+            "min": 1172240,
+            "max": 1474540,
+            "last": 1172240
+          },
+          "osThreads": {
+            "min": 279,
+            "max": 304,
+            "last": 302
+          },
+          "fds": {
+            "min": 50,
+            "max": 63,
+            "last": 56
+          },
+          "actualHeapBytes": {
+            "min": 253704216,
+            "max": 744369136,
+            "last": 288459104
+          },
+          "heapSamplesExcludedAsStaleOrBeforePidStart": 0
+        }
+      ],
+      "retention": {
+        "18bef25a-4053-4454-bc85-f6d777b9391d": {
+          "samples": 84,
+          "rowsMin": 1404,
+          "rowsMax": 1416,
+          "oldestAgeMin": 7225.174,
+          "oldestAgeMax": 7258.207,
+          "first": {
+            "kind": "statistics",
+            "rows": 1406,
+            "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+            "newest": "2026-10-13 07:15:32.000000",
+            "oldest": "2026-10-13 05:14:48.000000",
+            "at": "2026-10-13T07:15:34.158715+00:00",
+            "oldestAgeSeconds": 7246.159
+          },
+          "last": {
+            "kind": "statistics",
+            "rows": 1408,
+            "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+            "newest": "2026-10-13 14:10:29.000000",
+            "oldest": "2026-10-13 12:09:45.000000",
+            "at": "2026-10-13T14:10:34.207444+00:00",
+            "oldestAgeSeconds": 7249.207
+          },
+          "oldestMovedForward": true
+        },
+        "85fabab7-7992-4292-bad3-a43c4bd85cdc": {
+          "samples": 84,
+          "rowsMin": 476,
+          "rowsMax": 480,
+          "oldestAgeMin": 7204.145,
+          "oldestAgeMax": 7254.19,
+          "first": {
+            "kind": "statistics",
+            "rows": 478,
+            "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+            "newest": "2026-10-13 07:15:31.000000",
+            "oldest": "2026-10-13 05:14:49.000000",
+            "at": "2026-10-13T07:15:34.158715+00:00",
+            "oldestAgeSeconds": 7245.159
+          },
+          "last": {
+            "kind": "statistics",
+            "rows": 478,
+            "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+            "newest": "2026-10-13 14:10:30.000000",
+            "oldest": "2026-10-13 12:09:53.000000",
+            "at": "2026-10-13T14:10:34.207444+00:00",
+            "oldestAgeSeconds": 7241.207
+          },
+          "oldestMovedForward": true
+        }
+      },
+      "orphansMax": {
+        "vmMaps": 0,
+        "volumeRows": 0
+      },
+      "apiGroupErrors": 0,
+      "currentGroups": [
+        {
+          "name": "AS-PROD-32-AS04-CONCURRENCY",
+          "state": "ENABLED",
+          "minmembers": 1,
+          "maxmembers": 3,
+          "lastcheckedat": 1791900752000,
+          "evaluationerror": false,
+          "operationinprogress": false
+        },
+        {
+          "name": "AS-PROD-32-AS01-VPC",
+          "state": "ENABLED",
+          "minmembers": 1,
+          "maxmembers": 1,
+          "lastcheckedat": 1791900751000,
+          "evaluationerror": false,
+          "operationinprogress": false
+        }
+      ]
+    }
+  },
+  "externalHttp": {
+    "31-AS04": {
+      "samples": 5014,
+      "failed": 1,
+      "firstAt": "2026-10-13T07:15:34.000981+00:00",
+      "lastAt": "2026-10-13T14:13:18.990107+00:00",
+      "maxIntervalSeconds": 8.001
+    },
+    "32-VPC": {
+      "samples": 5014,
+      "failed": 0,
+      "firstAt": "2026-10-13T07:15:34.001175+00:00",
+      "lastAt": "2026-10-13T14:13:18.993107+00:00",
+      "maxIntervalSeconds": 8.001
+    },
+    "32-AS04": {
+      "samples": 5014,
+      "failed": 0,
+      "firstAt": "2026-10-13T07:15:34.001110+00:00",
+      "lastAt": "2026-10-13T14:13:18.991983+00:00",
+      "maxIntervalSeconds": 8.001
+    }
+  }
+}

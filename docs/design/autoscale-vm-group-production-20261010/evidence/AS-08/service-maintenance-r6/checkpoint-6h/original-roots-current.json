@@ -1,0 +1,121 @@
+{
+  "at": "2026-10-13T14:39:21.414131+00:00",
+  "clusters": {
+    "31": [
+      {
+        "group": "bf0f5385-ae2c-4da4-aec4-eb985dbdeba4",
+        "vmId": "bc00f070-797a-40b0-9785-c965dc50fc63",
+        "instance": "i-35-397-VM",
+        "roots": [
+          {
+            "id": "7d97eaef-5619-494b-92a4-ddddb13cfa11",
+            "type": "ROOT",
+            "size": 107374182400,
+            "state": "Ready",
+            "storage": "Primary",
+            "provisioningtype": "sparse",
+            "virtualmachineid": "bc00f070-797a-40b0-9785-c965dc50fc63"
+          }
+        ]
+      },
+      {
+        "group": "3b532b36-1a5f-431f-976a-50caf26fb8ac",
+        "vmId": "72f7e443-e684-49d1-9dce-58ca7233c7d4",
+        "instance": "i-35-396-VM",
+        "roots": [
+          {
+            "id": "16afe561-d12d-467b-a463-bef331c75e43",
+            "type": "ROOT",
+            "size": 107374182400,
+            "state": "Ready",
+            "storage": "Primary",
+            "provisioningtype": "sparse",
+            "virtualmachineid": "72f7e443-e684-49d1-9dce-58ca7233c7d4"
+          }
+        ]
+      },
+      {
+        "group": "0ddcc917-8a80-409a-9d41-9cc81d1df7b4",
+        "vmId": "8c6b6500-8f1f-4bb6-96ec-e2e9abccff16",
+        "instance": "i-35-394-VM",
+        "roots": [
+          {
+            "id": "d787c808-662c-45b7-be3d-2f41f3abc835",
+            "type": "ROOT",
+            "size": 107374182400,
+            "state": "Ready",
+            "storage": "Primary",
+            "provisioningtype": "sparse",
+            "virtualmachineid": "8c6b6500-8f1f-4bb6-96ec-e2e9abccff16"
+          }
+        ]
+      }
+    ],
+    "32": [
+      {
+        "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "vmId": "6f9bd71b-1745-48c5-9c88-cc0cccd9d1ff",
+        "instance": "i-6-73-VM",
+        "roots": [
+          {
+            "id": "d38a9172-aa7f-4ab5-80c8-cff68a74ab28",
+            "type": "ROOT",
+            "size": 107374182400,
+            "state": "Ready",
+            "storage": "Primary",
+            "provisioningtype": "thin",
+            "virtualmachineid": "6f9bd71b-1745-48c5-9c88-cc0cccd9d1ff"
+          }
+        ]
+      },
+      {
+        "group": "7cfc210d-169a-43ac-b10f-7a0ed385272f",
+        "vmId": "3ffff2f4-50d1-4fa9-976a-4a391a01758c",
+        "instance": "i-6-72-VM",
+        "roots": [
+          {
+            "id": "6de31aec-667e-45a4-87a9-386e17e5c79e",
+            "type": "ROOT",
+            "size": 107374182400,
+            "state": "Ready",
+            "storage": "Primary",
+            "provisioningtype": "thin",
+            "virtualmachineid": "3ffff2f4-50d1-4fa9-976a-4a391a01758c"
+          }
+        ]
+      },
+      {
+        "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "vmId": "14635a86-3bc8-4a4e-bd35-485afe1f30b5",
+        "instance": "i-6-71-VM",
+        "roots": [
+          {
+            "id": "0509cc46-bd45-457d-8eae-05392888b03a",
+            "type": "ROOT",
+            "size": 107374182400,
+            "state": "Ready",
+            "storage": "Primary",
+            "provisioningtype": "thin",
+            "virtualmachineid": "14635a86-3bc8-4a4e-bd35-485afe1f30b5"
+          }
+        ]
+      },
+      {
+        "group": "a34d28f5-d903-45d6-b546-aabc670d3abc",
+        "vmId": "3fb1df28-1bf9-4e40-8991-54e547a13dc7",
+        "instance": "i-6-68-VM",
+        "roots": [
+          {
+            "id": "b7172d8e-f635-4524-89b4-9c4c1db4088b",
+            "type": "ROOT",
+            "size": 107374182400,
+            "state": "Ready",
+            "storage": "Primary",
+            "provisioningtype": "thin",
+            "virtualmachineid": "3fb1df28-1bf9-4e40-8991-54e547a13dc7"
+          }
+        ]
+      }
+    ]
+  }
+}
