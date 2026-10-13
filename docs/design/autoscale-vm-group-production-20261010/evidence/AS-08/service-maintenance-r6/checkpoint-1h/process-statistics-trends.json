@@ -1,0 +1,163 @@
+{
+  "31": {
+    "processSegments": {
+      "646030": {
+        "samples": 18,
+        "firstAt": "2026-10-13T07:15:35.394212+00:00",
+        "lastAt": "2026-10-13T08:40:35.472320+00:00",
+        "rssKiB": {
+          "first": 1640432,
+          "last": 1722996,
+          "min": 1488112,
+          "max": 2008148
+        },
+        "threads": {
+          "first": 346,
+          "last": 344,
+          "min": 325,
+          "max": 352
+        },
+        "fds": {
+          "first": 97,
+          "last": 81,
+          "min": 74,
+          "max": 99
+        },
+        "heapBytes": {
+          "first": 299982408,
+          "last": 416988904,
+          "min": 299982408,
+          "max": 863717672
+        },
+        "jvmUnavailableSamples": 0,
+        "staleJvmSamples": 0
+      }
+    },
+    "statistics": {
+      "bf0f5385-ae2c-4da4-aec4-eb985dbdeba4": {
+        "samples": 18,
+        "first": {
+          "kind": "statistics",
+          "rows": 1348,
+          "group": "bf0f5385-ae2c-4da4-aec4-eb985dbdeba4",
+          "newest": "2026-10-13 07:15:33.000000",
+          "oldest": "2026-10-13 05:14:49.000000"
+        },
+        "last": {
+          "kind": "statistics",
+          "rows": 1418,
+          "group": "bf0f5385-ae2c-4da4-aec4-eb985dbdeba4",
+          "newest": "2026-10-13 08:40:30.000000",
+          "oldest": "2026-10-13 06:39:56.000000"
+        },
+        "rows": {
+          "first": 1348,
+          "last": 1418,
+          "min": 1340,
+          "max": 1418
+        },
+        "oldestAgeSeconds": {
+          "first": 7245.07,
+          "last": 7238.105,
+          "min": 7237.094,
+          "max": 7250.116
+        }
+      }
+    }
+  },
+  "32": {
+    "processSegments": {
+      "1158028": {
+        "samples": 18,
+        "firstAt": "2026-10-13T07:15:36.035348+00:00",
+        "lastAt": "2026-10-13T08:40:36.100857+00:00",
+        "rssKiB": {
+          "first": 1309100,
+          "last": 1436868,
+          "min": 1309100,
+          "max": 1667008
+        },
+        "threads": {
+          "first": 308,
+          "last": 338,
+          "min": 308,
+          "max": 343
+        },
+        "fds": {
+          "first": 59,
+          "last": 64,
+          "min": 56,
+          "max": 70
+        },
+        "heapBytes": {
+          "first": 441393176,
+          "last": 322754248,
+          "min": 308213040,
+          "max": 627463656
+        },
+        "jvmUnavailableSamples": 0,
+        "staleJvmSamples": 0
+      }
+    },
+    "statistics": {
+      "18bef25a-4053-4454-bc85-f6d777b9391d": {
+        "samples": 18,
+        "first": {
+          "kind": "statistics",
+          "rows": 1406,
+          "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+          "newest": "2026-10-13 07:15:32.000000",
+          "oldest": "2026-10-13 05:14:48.000000"
+        },
+        "last": {
+          "kind": "statistics",
+          "rows": 1414,
+          "group": "18bef25a-4053-4454-bc85-f6d777b9391d",
+          "newest": "2026-10-13 08:40:24.000000",
+          "oldest": "2026-10-13 06:39:51.000000"
+        },
+        "rows": {
+          "first": 1406,
+          "last": 1414,
+          "min": 1404,
+          "max": 1416
+        },
+        "oldestAgeSeconds": {
+          "first": 7246.159,
+          "last": 7243.181,
+          "min": 7238.35,
+          "max": 7250.141
+        }
+      },
+      "85fabab7-7992-4292-bad3-a43c4bd85cdc": {
+        "samples": 18,
+        "first": {
+          "kind": "statistics",
+          "rows": 478,
+          "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+          "newest": "2026-10-13 07:15:31.000000",
+          "oldest": "2026-10-13 05:14:49.000000"
+        },
+        "last": {
+          "kind": "statistics",
+          "rows": 478,
+          "group": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+          "newest": "2026-10-13 08:40:12.000000",
+          "oldest": "2026-10-13 06:40:13.000000"
+        },
+        "rows": {
+          "first": 478,
+          "last": 478,
+          "min": 476,
+          "max": 480
+        },
+        "oldestAgeSeconds": {
+          "first": 7245.159,
+          "last": 7221.181,
+          "min": 7221.181,
+          "max": 7245.159
+        }
+      }
+    }
+  }
+}
