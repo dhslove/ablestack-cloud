@@ -1,0 +1,358 @@
+{
+  "at": "2026-10-13T09:50:41.026655+00:00",
+  "elapsedSeconds": 9304.808235406876,
+  "hardIssues": [
+    "31-AS04 external HTTP failure",
+    "cluster31 HTTP_FAILURE"
+  ],
+  "reviewItems": [],
+  "fixtures": {
+    "31": {
+      "originalGroups": 3,
+      "originalVmCount": 3,
+      "preserved": true,
+      "allGroupHttp200": true
+    },
+    "32": {
+      "originalGroups": 4,
+      "originalVmCount": 4,
+      "preserved": true,
+      "allGroupHttp200": true
+    }
+  },
+  "combinedHttpCoverage": {
+    "31-AS04": {
+      "samples": 3724,
+      "firstEpoch": 1791875733.9920793,
+      "lastEpoch": 1791885038.9920678,
+      "maxUnobservedSeconds": 7.999,
+      "firstDelaySeconds": 0.006,
+      "lastAgeSeconds": 0
+    },
+    "32-AS04": {
+      "samples": 3724,
+      "firstEpoch": 1791875733.9942205,
+      "lastEpoch": 1791885038.992395,
+      "maxUnobservedSeconds": 5.0,
+      "firstDelaySeconds": 0.008,
+      "lastAgeSeconds": 0
+    },
+    "32-VPC": {
+      "samples": 3724,
+      "firstEpoch": 1791875733.994329,
+      "lastEpoch": 1791885038.993251,
+      "maxUnobservedSeconds": 5.001,
+      "firstDelaySeconds": 0.009,
+      "lastAgeSeconds": 0
+    }
+  },
+  "environmentEventCounts": {
+    "31": {
+      "DEPLOYMENT_CHANGED": 1
+    },
+    "32": {
+      "DEPLOYMENT_CHANGED": 1
+    }
+  },
+  "clusters": {
+    "31": {
+      "http": {
+        "31-AS04": {
+          "requests": 1862,
+          "ok": 1859,
+          "failed": 3
+        }
+      },
+      "apiSamples": 156,
+      "apiErrors": 0,
+      "dbSamples": 32,
+      "dbErrors": 0,
+      "latestGroups": [
+        {
+          "id": "bf0f5385-ae2c-4da4-aec4-eb985dbdeba4",
+          "state": "ENABLED",
+          "members": 1,
+          "lbMembers": 1,
+          "operation": false,
+          "lastcheckedat": 1791885024000,
+          "evaluation": {
+            "evaluatedat": 1791884992059,
+            "cooldownuntil": 1791859022329,
+            "policies": [
+              {
+                "id": "36d98f38-55e0-473d-8a6b-e009f50ae757",
+                "action": "SCALEUP",
+                "duration": 60,
+                "conditions": [
+                  {
+                    "id": "a20fc96c-640b-4858-a9e1-d13ff10575cc",
+                    "countername": "VM CPU - average percentage",
+                    "source": "CPU",
+                    "unit": "%",
+                    "operator": "GT",
+                    "threshold": 20,
+                    "value": 0.31262789600039237,
+                    "samples": 7,
+                    "resources": 1,
+                    "collectedat": 1791884983000,
+                    "matched": false
+                  }
+                ],
+                "status": "NOT_MATCHED"
+              },
+              {
+                "id": "64cfc4bd-7665-4670-bf99-1c93b742f66a",
+                "action": "SCALEDOWN",
+                "duration": 60,
+                "conditions": [
+                  {
+                    "id": "f638d3ce-f6be-41b5-9b08-e36ccacf7817",
+                    "countername": "VM CPU - average percentage",
+                    "source": "CPU",
+                    "unit": "%",
+                    "operator": "LT",
+                    "threshold": 10,
+                    "value": 0.31262789600039237,
+                    "samples": 7,
+                    "resources": 1,
+                    "collectedat": 1791884983000,
+                    "matched": true
+                  }
+                ],
+                "status": "MATCHED"
+              }
+            ],
+            "collectedat": 1791884983000,
+            "status": "MIN_MEMBERS",
+            "reason": "MIN_MEMBERS"
+          }
+        }
+      ],
+      "latestProcess": {
+        "service": "active",
+        "pid": "646030",
+        "status": {
+          "VmSize": "10443744 kB",
+          "VmRSS": "1613168 kB",
+          "Threads": "397"
+        },
+        "fds": 82,
+        "jstatGc": {
+          "unavailable": true
+        },
+        "jvmMetrics": [
+          {
+            "sessions": 13,
+            "heapmemoryused": 384559008,
+            "heapmemorytotal": 1908932608,
+            "threadsblockedcount": 0,
+            "threadsrunnablecount": 14,
+            "threadstotalcount": 378,
+            "collectiontime": "2026-10-13T18:49:45+0900",
+            "name": "ccvm-mngt",
+            "state": "Up"
+          }
+        ],
+        "jvmMetricsAvailable": true,
+        "jarSha256": "5d47fc82e18064a6570c92962eef0dc88495001b0979006dcd8eac451550caec",
+        "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+        "asClassCount": 90,
+        "asClassesUnchanged": true
+      }
+    },
+    "32": {
+      "http": {
+        "32-AS04": {
+          "requests": 1862,
+          "ok": 1862,
+          "failed": 0
+        },
+        "32-VPC": {
+          "requests": 1862,
+          "ok": 1862,
+          "failed": 0
+        }
+      },
+      "apiSamples": 156,
+      "apiErrors": 0,
+      "dbSamples": 32,
+      "dbErrors": 0,
+      "latestGroups": [
+        {
+          "id": "18bef25a-4053-4454-bc85-f6d777b9391d",
+          "state": "ENABLED",
+          "members": 1,
+          "lbMembers": 1,
+          "operation": false,
+          "lastcheckedat": 1791885024000,
+          "evaluation": {
+            "evaluatedat": 1791884991826,
+            "cooldownuntil": 1791859030551,
+            "policies": [
+              {
+                "id": "37417d80-35d9-41d4-b751-5d46fc6af23a",
+                "action": "SCALEUP",
+                "duration": 60,
+                "conditions": [
+                  {
+                    "id": "4a8fdf72-6fee-4a24-80a0-c0544651c5ea",
+                    "countername": "VM CPU - average percentage",
+                    "source": "CPU",
+                    "unit": "%",
+                    "operator": "GT",
+                    "threshold": 5,
+                    "value": 0.38845568309398576,
+                    "samples": 7,
+                    "resources": 1,
+                    "collectedat": 1791884983000,
+                    "matched": false
+                  }
+                ],
+                "status": "NOT_MATCHED"
+              },
+              {
+                "id": "7639559c-63ad-4235-bbb4-462dfaba5261",
+                "action": "SCALEDOWN",
+                "duration": 60,
+                "conditions": [
+                  {
+                    "id": "2ec799ba-1c5f-4a5b-9ac5-709d10ddde48",
+                    "countername": "VM CPU - average percentage",
+                    "source": "CPU",
+                    "unit": "%",
+                    "operator": "LT",
+                    "threshold": 1,
+                    "value": 0.38845568309398576,
+                    "samples": 7,
+                    "resources": 1,
+                    "collectedat": 1791884983000,
+                    "matched": false
+                  }
+                ],
+                "status": "NOT_MATCHED"
+              }
+            ],
+            "collectedat": 1791884983000,
+            "status": "NO_ACTION"
+          }
+        },
+        {
+          "id": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+          "state": "ENABLED",
+          "members": 1,
+          "lbMembers": 1,
+          "operation": false,
+          "lastcheckedat": 1791885015000,
+          "evaluation": {
+            "evaluatedat": 1791884991825,
+            "cooldownuntil": 0,
+            "policies": [
+              {
+                "id": "56db5e4b-2910-430f-a61b-d3f312a73e13",
+                "action": "SCALEUP",
+                "duration": 30,
+                "conditions": [
+                  {
+                    "id": "3747c65b-6c37-4170-8c7e-f3b4cea1dc72",
+                    "countername": "VM CPU - average percentage",
+                    "source": "CPU",
+                    "unit": "%",
+                    "operator": "GT",
+                    "threshold": 1000,
+                    "value": 0.21228089493736574,
+                    "samples": 2,
+                    "resources": 1,
+                    "collectedat": 1791884985000,
+                    "matched": false
+                  }
+                ],
+                "status": "NOT_MATCHED"
+              },
+              {
+                "id": "ad933e5c-1f55-49bb-9ba5-3c5c37ef6cfa",
+                "action": "SCALEDOWN",
+                "duration": 30,
+                "conditions": [
+                  {
+                    "id": "34c650dc-8ed5-4a8d-8ac1-e5c4350eca48",
+                    "countername": "VM CPU - average percentage",
+                    "source": "CPU",
+                    "unit": "%",
+                    "operator": "LT",
+                    "threshold": 0,
+                    "value": 0.21228089493736574,
+                    "samples": 2,
+                    "resources": 1,
+                    "collectedat": 1791884985000,
+                    "matched": false
+                  }
+                ],
+                "status": "NOT_MATCHED"
+              }
+            ],
+            "collectedat": 1791884985000,
+            "status": "NO_ACTION"
+          }
+        }
+      ],
+      "latestProcess": {
+        "service": "active",
+        "pid": "1158028",
+        "status": {
+          "VmSize": "8469320 kB",
+          "VmRSS": "1412124 kB",
+          "Threads": "378"
+        },
+        "fds": 66,
+        "jstatGc": {
+          "unavailable": true
+        },
+        "jvmMetrics": [
+          {
+            "sessions": 5,
+            "heapmemoryused": 305205872,
+            "heapmemorytotal": 1908932608,
+            "threadsblockedcount": 0,
+            "threadsrunnablecount": 13,
+            "threadstotalcount": 360,
+            "collectiontime": "2026-10-13T18:50:23+0900",
+            "name": "ccvm-mngt",
+            "state": "Up"
+          }
+        ],
+        "jvmMetricsAvailable": true,
+        "jarSha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+        "indexSha256": "4748fe529f40851728dba56f770e67b8313e3b6ac3c015ef39ef476d293645c6",
+        "asClassCount": 90,
+        "asClassesUnchanged": true
+      }
+    }
+  },
+  "external": {
+    "http": {
+      "31-AS04": {
+        "requests": 1862,
+        "ok": 1861,
+        "failed": 1
+      },
+      "32-AS04": {
+        "requests": 1862,
+        "ok": 1862,
+        "failed": 0
+      },
+      "32-VPC": {
+        "requests": 1862,
+        "ok": 1862,
+        "failed": 0
+      }
+    },
+    "maxGapSeconds": 5.089,
+    "anomalyCount": 1
+  },
+  "assessment": {
+    "serviceIncidentObserved": true,
+    "recovered": true,
+    "rootCauseConfirmed": false,
+    "zeroFailure24hPass": false
+  }
+}

@@ -1,0 +1,238 @@
+{
+  "server": [
+    {
+      "at": "2026-10-13T09:13:23.147580+00:00",
+      "epoch": 1791882803.1475961,
+      "target": "31-AS04",
+      "status": 200,
+      "length": 13,
+      "sha256": "16ec0dd98a646f4832245e4a13a625b6c5cfcad3e6a7be1ec07aa0f8ceab4cf3",
+      "ok": true,
+      "latencyMs": 2.78
+    },
+    {
+      "at": "2026-10-13T09:13:23.989630+00:00",
+      "epoch": 1791882803.9896438,
+      "target": "31-AS04",
+      "status": 200,
+      "length": 13,
+      "sha256": "16ec0dd98a646f4832245e4a13a625b6c5cfcad3e6a7be1ec07aa0f8ceab4cf3",
+      "ok": true,
+      "latencyMs": 2.31
+    },
+    {
+      "at": "2026-10-13T09:13:28.989515+00:00",
+      "epoch": 1791882808.989529,
+      "target": "31-AS04",
+      "status": 200,
+      "length": 13,
+      "sha256": "16ec0dd98a646f4832245e4a13a625b6c5cfcad3e6a7be1ec07aa0f8ceab4cf3",
+      "ok": true,
+      "latencyMs": 2.2
+    },
+    {
+      "at": "2026-10-13T09:13:33.989515+00:00",
+      "epoch": 1791882813.989527,
+      "target": "31-AS04",
+      "status": 200,
+      "length": 13,
+      "sha256": "16ec0dd98a646f4832245e4a13a625b6c5cfcad3e6a7be1ec07aa0f8ceab4cf3",
+      "ok": true,
+      "latencyMs": 2.26
+    },
+    {
+      "at": "2026-10-13T09:13:38.989586+00:00",
+      "epoch": 1791882818.9896004,
+      "target": "31-AS04",
+      "status": 200,
+      "length": 13,
+      "sha256": "16ec0dd98a646f4832245e4a13a625b6c5cfcad3e6a7be1ec07aa0f8ceab4cf3",
+      "ok": true,
+      "latencyMs": 2.27
+    },
+    {
+      "at": "2026-10-13T09:13:46.991275+00:00",
+      "epoch": 1791882826.9912906,
+      "target": "31-AS04",
+      "ok": false,
+      "error": "timeout",
+      "latencyMs": 3003.89
+    },
+    {
+      "at": "2026-10-13T09:13:50.483571+00:00",
+      "epoch": 1791882830.4835858,
+      "target": "31-AS04",
+      "ok": false,
+      "error": "RemoteDisconnected",
+      "latencyMs": 0.74
+    },
+    {
+      "at": "2026-10-13T09:13:53.988157+00:00",
+      "epoch": 1791882833.988169,
+      "target": "31-AS04",
+      "ok": false,
+      "error": "RemoteDisconnected",
+      "latencyMs": 0.95
+    },
+    {
+      "at": "2026-10-13T09:13:58.989683+00:00",
+      "epoch": 1791882838.989697,
+      "target": "31-AS04",
+      "status": 200,
+      "length": 13,
+      "sha256": "16ec0dd98a646f4832245e4a13a625b6c5cfcad3e6a7be1ec07aa0f8ceab4cf3",
+      "ok": true,
+      "latencyMs": 2.33
+    },
+    {
+      "at": "2026-10-13T09:14:03.989300+00:00",
+      "epoch": 1791882843.989312,
+      "target": "31-AS04",
+      "status": 200,
+      "length": 13,
+      "sha256": "16ec0dd98a646f4832245e4a13a625b6c5cfcad3e6a7be1ec07aa0f8ceab4cf3",
+      "ok": true,
+      "latencyMs": 2.01
+    },
+    {
+      "at": "2026-10-13T09:14:08.989439+00:00",
+      "epoch": 1791882848.989451,
+      "target": "31-AS04",
+      "status": 200,
+      "length": 13,
+      "sha256": "16ec0dd98a646f4832245e4a13a625b6c5cfcad3e6a7be1ec07aa0f8ceab4cf3",
+      "ok": true,
+      "latencyMs": 2.2
+    },
+    {
+      "at": "2026-10-13T09:14:13.989367+00:00",
+      "epoch": 1791882853.9893782,
+      "target": "31-AS04",
+      "status": 200,
+      "length": 13,
+      "sha256": "16ec0dd98a646f4832245e4a13a625b6c5cfcad3e6a7be1ec07aa0f8ceab4cf3",
+      "ok": true,
+      "latencyMs": 2.09
+    }
+  ],
+  "external": [
+    {
+      "at": "2026-10-13T09:13:18.992350+00:00",
+      "epoch": 1791882798.9923644,
+      "target": "31-AS04",
+      "status": 200,
+      "length": 13,
+      "sha256": "16ec0dd98a646f4832245e4a13a625b6c5cfcad3e6a7be1ec07aa0f8ceab4cf3",
+      "ok": true,
+      "latencyMs": 4.69
+    },
+    {
+      "at": "2026-10-13T09:13:23.992246+00:00",
+      "epoch": 1791882803.9922595,
+      "target": "31-AS04",
+      "status": 200,
+      "length": 13,
+      "sha256": "16ec0dd98a646f4832245e4a13a625b6c5cfcad3e6a7be1ec07aa0f8ceab4cf3",
+      "ok": true,
+      "latencyMs": 4.89
+    },
+    {
+      "at": "2026-10-13T09:13:28.991610+00:00",
+      "epoch": 1791882808.9916239,
+      "target": "31-AS04",
+      "status": 200,
+      "length": 13,
+      "sha256": "16ec0dd98a646f4832245e4a13a625b6c5cfcad3e6a7be1ec07aa0f8ceab4cf3",
+      "ok": true,
+      "latencyMs": 4.17
+    },
+    {
+      "at": "2026-10-13T09:13:33.992225+00:00",
+      "epoch": 1791882813.9922397,
+      "target": "31-AS04",
+      "status": 200,
+      "length": 13,
+      "sha256": "16ec0dd98a646f4832245e4a13a625b6c5cfcad3e6a7be1ec07aa0f8ceab4cf3",
+      "ok": true,
+      "latencyMs": 4.78
+    },
+    {
+      "at": "2026-10-13T09:13:38.992195+00:00",
+      "epoch": 1791882818.9922094,
+      "target": "31-AS04",
+      "status": 200,
+      "length": 13,
+      "sha256": "16ec0dd98a646f4832245e4a13a625b6c5cfcad3e6a7be1ec07aa0f8ceab4cf3",
+      "ok": true,
+      "latencyMs": 4.76
+    },
+    {
+      "at": "2026-10-13T09:13:46.993185+00:00",
+      "epoch": 1791882826.9932034,
+      "target": "31-AS04",
+      "ok": false,
+      "error": "timeout",
+      "latencyMs": 3006.06
+    },
+    {
+      "at": "2026-10-13T09:13:49.657549+00:00",
+      "epoch": 1791882829.657564,
+      "target": "31-AS04",
+      "status": 200,
+      "length": 13,
+      "sha256": "16ec0dd98a646f4832245e4a13a625b6c5cfcad3e6a7be1ec07aa0f8ceab4cf3",
+      "ok": true,
+      "latencyMs": 670.55
+    },
+    {
+      "at": "2026-10-13T09:13:53.991922+00:00",
+      "epoch": 1791882833.9919364,
+      "target": "31-AS04",
+      "status": 200,
+      "length": 13,
+      "sha256": "16ec0dd98a646f4832245e4a13a625b6c5cfcad3e6a7be1ec07aa0f8ceab4cf3",
+      "ok": true,
+      "latencyMs": 5.06
+    },
+    {
+      "at": "2026-10-13T09:13:58.992259+00:00",
+      "epoch": 1791882838.9922724,
+      "target": "31-AS04",
+      "status": 200,
+      "length": 13,
+      "sha256": "16ec0dd98a646f4832245e4a13a625b6c5cfcad3e6a7be1ec07aa0f8ceab4cf3",
+      "ok": true,
+      "latencyMs": 5.14
+    },
+    {
+      "at": "2026-10-13T09:14:03.992266+00:00",
+      "epoch": 1791882843.9922793,
+      "target": "31-AS04",
+      "status": 200,
+      "length": 13,
+      "sha256": "16ec0dd98a646f4832245e4a13a625b6c5cfcad3e6a7be1ec07aa0f8ceab4cf3",
+      "ok": true,
+      "latencyMs": 4.12
+    },
+    {
+      "at": "2026-10-13T09:14:08.992351+00:00",
+      "epoch": 1791882848.9923658,
+      "target": "31-AS04",
+      "status": 200,
+      "length": 13,
+      "sha256": "16ec0dd98a646f4832245e4a13a625b6c5cfcad3e6a7be1ec07aa0f8ceab4cf3",
+      "ok": true,
+      "latencyMs": 4.66
+    },
+    {
+      "at": "2026-10-13T09:14:13.989938+00:00",
+      "epoch": 1791882853.989951,
+      "target": "31-AS04",
+      "status": 200,
+      "length": 13,
+      "sha256": "16ec0dd98a646f4832245e4a13a625b6c5cfcad3e6a7be1ec07aa0f8ceab4cf3",
+      "ok": true,
+      "latencyMs": 3.04
+    }
+  ]
+}

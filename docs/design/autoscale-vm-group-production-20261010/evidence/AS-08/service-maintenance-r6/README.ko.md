@@ -40,3 +40,8 @@
 ## R6 1시간 체크포인트
 
 [17:38 수집·최신 UI·메모리/통계 중간 확인](checkpoint-1h/README.ko.md). 24시간 최종 판정은 미완료다.
+
+
+## R6 18:13 HTTP 서비스 실패
+
+31-AS04의 서버/외부 timeout 및 HAProxy backend L4 실패/복구를 확인했다. [실패·복구·원인 미확정 기록](incident-20261013-1813/README.ko.md). 현재 복구됐으나 무실패24시간 PASS 판정은 하지 않는다.

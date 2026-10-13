@@ -1,0 +1,21 @@
+{
+  "date": "2026-10-13T09:47:43+00:00",
+  "uptime": "190342.18 179892.09",
+  "service": "NRestarts=0\nExecMainStartTimestamp=Sun 2026-10-11 04:55:25 UTC\nExecMainPID=1033\nId=haproxy.service\nActiveState=active\nSubState=running\nActiveEnterTimestamp=Sun 2026-10-11 04:55:25 UTC\n",
+  "journal": "2026-10-13T09:13:50+0000 r-395-VM haproxy[1619697]: [WARNING]  (1619697) : Server 10_10_31_104-8084/10_10_31_104-8084_0 is DOWN, reason: Layer4 timeout, check duration: 2001ms. 0 active and 0 backup servers left. 5 sessions active, 0 requeued, 0 remaining in queue.\n2026-10-13T09:13:50+0000 r-395-VM haproxy[1619697]: [ALERT]    (1619697) : proxy '10_10_31_104-8084' has no server available!\n2026-10-13T09:13:54+0000 r-395-VM haproxy[1619697]: [WARNING]  (1619697) : Server 10_10_31_104-8084/10_10_31_104-8084_0 is UP, reason: Layer4 check passed, check duration: 0ms. 1 active and 0 backup servers online. 0 sessions requeued, 0 total in queue.\n",
+  "processes": [
+    {
+      "pid": "1033",
+      "start": "Sun Oct 11 04:55:25 2026"
+    },
+    {
+      "pid": "1619697",
+      "start": "Tue Oct 13 02:35:42 2026"
+    }
+  ],
+  "targetConfig": [
+    "bind 10.10.31.104:8084",
+    "server 10_10_31_104-8084_0 172.29.31.184:8080 check"
+  ],
+  "configMtime": 1791858943.569491
+}
