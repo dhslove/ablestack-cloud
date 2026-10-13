@@ -1,0 +1,175 @@
+{
+  "classification": "OBSERVATION_INTERRUPTED_BY_RUNTIME_AND_DEPLOYMENT_CHANGE",
+  "eligibleFor24hPass": false,
+  "originalStart": "2026-10-13 11:44:15 KST",
+  "originalDeadline": "2026-10-14 11:44:15 KST",
+  "auditAt": "2026-10-13T06:22:53.814986+00:00",
+  "original7VmPreserved": true,
+  "all7GroupHttp200": true,
+  "executionActor": "not established",
+  "clusters": {
+    "31": {
+      "expectedManagementPid": "628863",
+      "expectedJarSha256": "036f448a93ff0c6c156a3dafebd3b26af6621203c60a6caf98b43ff10ef179ac",
+      "currentService": {
+        "returncode": 0,
+        "stdout": "MainPID=646030\nNRestarts=0\nExecMainStartTimestamp=Tue 2026-10-13 14:50:15 KST\nActiveState=active\nActiveEnterTimestamp=Tue 2026-10-13 14:50:15 KST",
+        "stderr": ""
+      },
+      "currentJar": {
+        "path": "/usr/share/cloudstack-management/lib/cloudstack-4.23.0.0-ABLESTACK.Mold.jar",
+        "sha256": "5d47fc82e18064a6570c92962eef0dc88495001b0979006dcd8eac451550caec",
+        "mtimeUTC": "2026-10-13T05:50:10.348754+00:00"
+      },
+      "currentIndex": {
+        "path": "/usr/share/cloudstack-management/webapp/index.html",
+        "sha256": "e963669cee81f29f532837d515e2352ff35cdc4a4eef6544089ed83e3976fb6f",
+        "mtimeUTC": "2026-10-13T05:46:55.226294+00:00"
+      },
+      "serviceLifecycle": [
+        "2026-10-13T14:50:12+0900 ccvm systemd[1]: Stopping Mold Management Server...",
+        "2026-10-13T14:50:14+0900 ccvm systemd[1]: mold.service: Main process exited, code=exited, status=143/n/a",
+        "2026-10-13T14:50:14+0900 ccvm systemd[1]: mold.service: Failed with result 'exit-code'.",
+        "2026-10-13T14:50:14+0900 ccvm systemd[1]: Stopped Mold Management Server.",
+        "2026-10-13T14:50:14+0900 ccvm systemd[1]: mold.service: Consumed 11min 44.491s CPU time, 1.6G memory peak.",
+        "2026-10-13T14:50:15+0900 ccvm systemd[1]: Starting Mold Management Server...",
+        "2026-10-13T14:50:15+0900 ccvm systemd[1]: Started Mold Management Server."
+      ],
+      "firstAnomalyByCode": {
+        "API_READ_FAILURE": {
+          "at": "2026-10-13T05:50:15.807612+00:00",
+          "epoch": 1791870615.8076155,
+          "code": "API_READ_FAILURE",
+          "error": "URLError",
+          "message": "<urlopen error [Errno 111] Connection refused>"
+        },
+        "API_COLLECTION_GAP": {
+          "at": "2026-10-13T05:51:15.884599+00:00",
+          "epoch": 1791870675.8846095,
+          "code": "API_COLLECTION_GAP",
+          "gapSeconds": 120.02528977394104
+        },
+        "MANAGEMENT_PROCESS_CHANGED": {
+          "at": "2026-10-13T05:54:15.901633+00:00",
+          "epoch": 1791870855.901646,
+          "code": "MANAGEMENT_PROCESS_CHANGED",
+          "service": "active",
+          "pid": "646030"
+        },
+        "DEPLOYMENT_CHANGED": {
+          "at": "2026-10-13T05:54:16.159694+00:00",
+          "epoch": 1791870856.1597133,
+          "code": "DEPLOYMENT_CHANGED"
+        },
+        "HTTP_COLLECTION_GAP": {
+          "at": "2026-10-13T06:04:24.734739+00:00",
+          "epoch": 1791871464.7347574,
+          "code": "HTTP_COLLECTION_GAP",
+          "gapSeconds": 18.986957788467407
+        }
+      },
+      "anomalyCounts": {
+        "API_READ_FAILURE": 1,
+        "API_COLLECTION_GAP": 1,
+        "MANAGEMENT_PROCESS_CHANGED": 7,
+        "DEPLOYMENT_CHANGED": 7,
+        "HTTP_COLLECTION_GAP": 8
+      },
+      "http": {
+        "31-AS04": {
+          "requests": 2625,
+          "ok": 2625,
+          "failed": 0
+        }
+      },
+      "apiErrors": 1,
+      "dbErrors": 0,
+      "maxApiGapSeconds": 120.025,
+      "maxHttpGapSeconds": 55.939
+    },
+    "32": {
+      "expectedManagementPid": "938882",
+      "expectedJarSha256": "dce0e50d4b0193202ee7c6522434814065d8f4c2ebd3fe74fd42d84373818e19",
+      "currentService": {
+        "returncode": 0,
+        "stdout": "MainPID=1158028\nNRestarts=0\nExecMainStartTimestamp=Tue 2026-10-13 14:58:45 KST\nActiveState=active\nActiveEnterTimestamp=Tue 2026-10-13 14:58:45 KST",
+        "stderr": ""
+      },
+      "currentJar": {
+        "path": "/usr/share/cloudstack-management/lib/cloudstack-4.23.0.0.jar",
+        "sha256": "4e2c97126c1865c7048d15b8d8f0833745f76ad20516a6cf4860c918d8c34863",
+        "mtimeUTC": "2026-10-13T05:58:38.353782+00:00"
+      },
+      "currentIndex": {
+        "path": "/usr/share/cloudstack-management/webapp/index.html",
+        "sha256": "e963669cee81f29f532837d515e2352ff35cdc4a4eef6544089ed83e3976fb6f",
+        "mtimeUTC": "2026-10-13T05:46:55.226294+00:00"
+      },
+      "serviceLifecycle": [
+        "2026-10-13T14:58:40+0900 ccvm systemd[1]: Stopping Mold Management Server...",
+        "2026-10-13T14:58:43+0900 ccvm systemd[1]: mold.service: Main process exited, code=exited, status=143/n/a",
+        "2026-10-13T14:58:43+0900 ccvm systemd[1]: mold.service: Failed with result 'exit-code'.",
+        "2026-10-13T14:58:43+0900 ccvm systemd[1]: Stopped Mold Management Server.",
+        "2026-10-13T14:58:43+0900 ccvm systemd[1]: mold.service: Consumed 50min 9.700s CPU time, 2.4G memory peak.",
+        "2026-10-13T14:58:45+0900 ccvm systemd[1]: Starting Mold Management Server...",
+        "2026-10-13T14:58:45+0900 ccvm systemd[1]: Started Mold Management Server."
+      ],
+      "firstAnomalyByCode": {
+        "API_READ_FAILURE": {
+          "at": "2026-10-13T05:59:15.808056+00:00",
+          "epoch": 1791871155.8080618,
+          "code": "API_READ_FAILURE",
+          "error": "URLError",
+          "message": "<urlopen error [Errno 111] Connection refused>"
+        },
+        "MANAGEMENT_PROCESS_CHANGED": {
+          "at": "2026-10-13T05:59:15.840016+00:00",
+          "epoch": 1791871155.8400345,
+          "code": "MANAGEMENT_PROCESS_CHANGED",
+          "service": "active",
+          "pid": "1158028"
+        },
+        "PROCESS_READ_FAILURE": {
+          "at": "2026-10-13T05:59:15.840903+00:00",
+          "epoch": 1791871155.840912,
+          "code": "PROCESS_READ_FAILURE",
+          "error": "AttributeError"
+        },
+        "API_COLLECTION_GAP": {
+          "at": "2026-10-13T06:00:16.043480+00:00",
+          "epoch": 1791871216.043494,
+          "code": "API_COLLECTION_GAP",
+          "gapSeconds": 120.16335988044739
+        },
+        "DEPLOYMENT_CHANGED": {
+          "at": "2026-10-13T06:04:16.402751+00:00",
+          "epoch": 1791871456.4027696,
+          "code": "DEPLOYMENT_CHANGED"
+        }
+      },
+      "anomalyCounts": {
+        "API_READ_FAILURE": 1,
+        "MANAGEMENT_PROCESS_CHANGED": 6,
+        "PROCESS_READ_FAILURE": 1,
+        "API_COLLECTION_GAP": 1,
+        "DEPLOYMENT_CHANGED": 5
+      },
+      "http": {
+        "32-AS04": {
+          "requests": 2625,
+          "ok": 2625,
+          "failed": 0
+        },
+        "32-VPC": {
+          "requests": 2625,
+          "ok": 2625,
+          "failed": 0
+        }
+      },
+      "apiErrors": 1,
+      "dbErrors": 0,
+      "maxApiGapSeconds": 120.163,
+      "maxHttpGapSeconds": 5.0
+    }
+  }
+}
