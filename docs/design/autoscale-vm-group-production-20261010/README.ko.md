@@ -23,7 +23,7 @@ under the License.
 
 ## Epic 및 하위 이슈 추적
 
-Epic: [#1346](https://github.com/ablecloud-team/ablestack-cloud/issues/1346). 하위 이슈 9개에 GitHub의 실제 부모/하위 이슈 및 blocked-by 관계를 연결했다. AS-01/AS-02/AS-03/AS-04/AS-05/AS-06/AS-07/AS-09는 완료했다. 2026-10-13 사용자 병합 승인에 따라 PR #1356으로 구현 기준을 확정하고 Epic #1346은 구현 완료로 닫는다. AS-08 (#1354) 최종 운영 확인만 Open으로 유지하며 24시간 결과는 아직 미완료다. 이 문서는 현재 이슈 범위를 기준으로 구현·검증 결과를 갱신하는 계획이다.
+Epic: [#1346](https://github.com/ablecloud-team/ablestack-cloud/issues/1346). 하위 이슈 9개에 GitHub의 실제 부모/하위 이슈 및 blocked-by 관계를 연결했다. AS-01/AS-02/AS-03/AS-04/AS-05/AS-06/AS-07/AS-09는 완료했다. 2026-10-13 사용자 병합 승인에 따라 PR #1356으로 구현 기준을 확정하고 Epic #1346은 구현 완료로 닫는다. 2026-10-14 사용자 승인으로 AS-08 (#1354)의24시간 기능 운영도 성공 판정했으며 전체9/9 완료·Epic 최종 성공 Closed다. [최종 운영 승인·원복 증거](evidence/AS-08/service-maintenance-r6/user-accepted-success-20261014/README.ko.md). 관리 서버 내부 중단·미관측과 원시 계측 이력은 보존한다. 이 문서는 현재 이슈 범위를 기준으로 구현·검증 결과를 갱신하는 계획이다.
 
 | 순서/키 | 이슈 | 우선순위 | 범위 | 직접 선행 이슈 | 상태 |
 |---|---|---|---|---|---|
@@ -35,7 +35,7 @@ Epic: [#1346](https://github.com/ablecloud-team/ablestack-cloud/issues/1346). �
 | AS-06 | [#1352](https://github.com/ablecloud-team/ablestack-cloud/issues/1352) | P1 | 정책·프로필·예약 변경 계약 | [#1349](https://github.com/ablecloud-team/ablestack-cloud/issues/1349), [#1350](https://github.com/ablecloud-team/ablestack-cloud/issues/1350) | 완료 / 검증 기록 참조 |
 | AS-07 | [#1353](https://github.com/ablecloud-team/ablestack-cloud/issues/1353) | P1 | 멤버·최근 평가·실패 운영 가시성 | [#1348](https://github.com/ablecloud-team/ablestack-cloud/issues/1348), [#1349](https://github.com/ablecloud-team/ablestack-cloud/issues/1349), [#1351](https://github.com/ablecloud-team/ablestack-cloud/issues/1351) | 완료 / [검증 기록](AS-07-validation.ko.md) |
 | AS-09 | [#1355](https://github.com/ablecloud-team/ablestack-cloud/issues/1355) | P1 | 마지막 구현 단계: 현재 Mold VM UI 표준 통합 | [#1352](https://github.com/ablecloud-team/ablestack-cloud/issues/1352), [#1353](https://github.com/ablecloud-team/ablestack-cloud/issues/1353) | 완료 / [AS-09 최종 검증](AS-09-row-actions-and-readability-validation.ko.md) |
-| AS-08 | [#1354](https://github.com/ablecloud-team/ablestack-cloud/issues/1354) | P1 | GFS2/krbd 최종 UI E2E·프로덕션 판정 | [#1355](https://github.com/ablecloud-team/ablestack-cloud/issues/1355) | 진행 / [AS-08 최종 UI 게이트·24시간 관찰](AS-08-validation.ko.md) |
+| AS-08 | [#1354](https://github.com/ablecloud-team/ablestack-cloud/issues/1354) | P1 | GFS2/krbd 최종 UI E2E·프로덕션 판정 | [#1355](https://github.com/ablecloud-team/ablestack-cloud/issues/1355) | 완료 / [AS-08 최종 운영 성공 판정](AS-08-validation.ko.md) |
 
 직접 선행 관계 13개로 전이 선행 작업을 포함한 전체 순서를 관리한다. 실제 작업은 아래 단일 이슈 절차를 따르며 AS-08 최종 기능 검증은 AS-09 UI 통합 이후, 장시간 운영 확인은 모든 기능 검증 통과 이후 수행한다. 각 이슈에 문제 근거·개선 방향·검증 범위·완료 체크리스트를 기록했다.
 

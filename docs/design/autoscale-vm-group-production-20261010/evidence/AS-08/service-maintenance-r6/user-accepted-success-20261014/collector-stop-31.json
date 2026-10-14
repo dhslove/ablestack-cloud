@@ -1,0 +1,18 @@
+{
+  "at": "2026-10-14T05:39:31.828735+00:00",
+  "pid": 655853,
+  "aliveBefore": true,
+  "cmdlineMatched": true,
+  "statusDirectoryPidMatched": true,
+  "script": "/home/ablecloud/epic1346-as08-r6-stage/as08-service-collector.py",
+  "output": "/root/epic1346-as08-soak-r6-service-20261013",
+  "cmdlineSha256": "989a1cb658a6d97e50e806eddfa51ee4e342a3070a653fad33fab88de4cb46e7",
+  "stopReason": "USER_ACCEPTED_FINAL_OPERATIONAL_SUCCESS",
+  "lifecycle": [],
+  "currentService": "dedicated observer only",
+  "aliveAfter": false,
+  "signalSent": "SIGTERM",
+  "finishedAt": "2026-10-14T05:39:31.929000+00:00",
+  "windowStartEpoch": 1791954276.445905,
+  "windowEndEpoch": 1791956201.966341
+}

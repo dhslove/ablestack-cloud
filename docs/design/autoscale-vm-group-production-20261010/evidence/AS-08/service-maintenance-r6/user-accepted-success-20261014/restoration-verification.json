@@ -1,0 +1,217 @@
+{
+  "at": "2026-10-14T05:43:49.006494+00:00",
+  "clusters": {
+    "31": [
+      {
+        "id": "bf0f5385-ae2c-4da4-aec4-eb985dbdeba4",
+        "name": "AS-PROD-31-AS04-CONCURRENCY",
+        "state": "DISABLED",
+        "min": 1,
+        "max": 3,
+        "vmProfileId": "13090328-2f59-4121-9316-bbb30da24c9b",
+        "members": [
+          {
+            "id": "bc00f070-797a-40b0-9785-c965dc50fc63",
+            "instance": "i-35-397-VM",
+            "state": "Running"
+          }
+        ],
+        "lbIds": [
+          "bc00f070-797a-40b0-9785-c965dc50fc63"
+        ],
+        "scheduleStates": [
+          {
+            "id": "7302e4d0-1336-4c42-a854-0c8828aed1bf",
+            "state": null,
+            "enabled": false
+          },
+          {
+            "id": "62255cda-45c1-46c6-8948-4f7b89b405d6",
+            "state": null,
+            "enabled": false
+          },
+          {
+            "id": "1b5b9e3a-4b72-418f-bcdd-ad3e14fc7bee",
+            "state": null,
+            "enabled": false
+          }
+        ],
+        "http": {
+          "url": "http://10.10.31.104:8084/",
+          "status": 200,
+          "bodySha256": "16ec0dd98a646f4832245e4a13a625b6c5cfcad3e6a7be1ec07aa0f8ceab4cf3"
+        }
+      },
+      {
+        "id": "3b532b36-1a5f-431f-976a-50caf26fb8ac",
+        "name": "AS-PROD-31-AS02-RECOVERY",
+        "state": "DISABLED",
+        "min": 1,
+        "max": 1,
+        "vmProfileId": "0e9dc5a7-abb3-4652-8d5d-8c8c74d0b183",
+        "members": [
+          {
+            "id": "72f7e443-e684-49d1-9dce-58ca7233c7d4",
+            "instance": "i-35-396-VM",
+            "state": "Running"
+          }
+        ],
+        "lbIds": [
+          "72f7e443-e684-49d1-9dce-58ca7233c7d4"
+        ],
+        "scheduleStates": [],
+        "http": {
+          "url": "http://10.10.31.104:8082/",
+          "status": 200,
+          "bodySha256": "16ec0dd98a646f4832245e4a13a625b6c5cfcad3e6a7be1ec07aa0f8ceab4cf3"
+        }
+      },
+      {
+        "id": "0ddcc917-8a80-409a-9d41-9cc81d1df7b4",
+        "name": "AS-PROD-31-AS01-PROJECT",
+        "state": "DISABLED",
+        "min": 1,
+        "max": 1,
+        "vmProfileId": "4b0cde51-2b62-42b5-b2c4-7c7749234381",
+        "members": [
+          {
+            "id": "8c6b6500-8f1f-4bb6-96ec-e2e9abccff16",
+            "instance": "i-35-394-VM",
+            "state": "Running"
+          }
+        ],
+        "lbIds": [
+          "8c6b6500-8f1f-4bb6-96ec-e2e9abccff16"
+        ],
+        "scheduleStates": [],
+        "http": {
+          "url": "http://10.10.31.104:8080/",
+          "status": 200,
+          "bodySha256": "16ec0dd98a646f4832245e4a13a625b6c5cfcad3e6a7be1ec07aa0f8ceab4cf3"
+        }
+      }
+    ],
+    "32": [
+      {
+        "id": "18bef25a-4053-4454-bc85-f6d777b9391d",
+        "name": "AS-PROD-32-AS04-CONCURRENCY",
+        "state": "DISABLED",
+        "min": 1,
+        "max": 3,
+        "vmProfileId": "9cf4661f-7eea-4445-b9dd-90ddd6f07f7b",
+        "members": [
+          {
+            "id": "6f9bd71b-1745-48c5-9c88-cc0cccd9d1ff",
+            "instance": "i-6-73-VM",
+            "state": "Running"
+          }
+        ],
+        "lbIds": [
+          "6f9bd71b-1745-48c5-9c88-cc0cccd9d1ff"
+        ],
+        "scheduleStates": [
+          {
+            "id": "1161f705-d9ce-4c75-837e-64dc0d53026d",
+            "state": null,
+            "enabled": false
+          },
+          {
+            "id": "db7bc07d-5da7-4963-9c1a-a50ee9475d2b",
+            "state": null,
+            "enabled": false
+          },
+          {
+            "id": "ae128ecc-7d34-4e61-ad3f-40dbf3ac1809",
+            "state": null,
+            "enabled": false
+          }
+        ],
+        "http": {
+          "url": "http://10.10.32.169:8084/",
+          "status": 200,
+          "bodySha256": "16ec0dd98a646f4832245e4a13a625b6c5cfcad3e6a7be1ec07aa0f8ceab4cf3"
+        }
+      },
+      {
+        "id": "7cfc210d-169a-43ac-b10f-7a0ed385272f",
+        "name": "AS-PROD-32-AS02-RECOVERY",
+        "state": "DISABLED",
+        "min": 1,
+        "max": 1,
+        "vmProfileId": "2d6e4e7f-30a9-451d-af8b-0e1bc87d11ff",
+        "members": [
+          {
+            "id": "3ffff2f4-50d1-4fa9-976a-4a391a01758c",
+            "instance": "i-6-72-VM",
+            "state": "Running"
+          }
+        ],
+        "lbIds": [
+          "3ffff2f4-50d1-4fa9-976a-4a391a01758c"
+        ],
+        "scheduleStates": [],
+        "http": {
+          "url": "http://10.10.32.169:8082/",
+          "status": 200,
+          "bodySha256": "16ec0dd98a646f4832245e4a13a625b6c5cfcad3e6a7be1ec07aa0f8ceab4cf3"
+        }
+      },
+      {
+        "id": "85fabab7-7992-4292-bad3-a43c4bd85cdc",
+        "name": "AS-PROD-32-AS01-VPC",
+        "state": "DISABLED",
+        "min": 1,
+        "max": 1,
+        "vmProfileId": "873ecbc4-ec0a-4d96-9fe0-10bf7ddd7ce7",
+        "members": [
+          {
+            "id": "14635a86-3bc8-4a4e-bd35-485afe1f30b5",
+            "instance": "i-6-71-VM",
+            "state": "Running"
+          }
+        ],
+        "lbIds": [
+          "14635a86-3bc8-4a4e-bd35-485afe1f30b5"
+        ],
+        "scheduleStates": [],
+        "http": {
+          "url": "http://10.10.32.102:8080/",
+          "status": 200,
+          "bodySha256": "16ec0dd98a646f4832245e4a13a625b6c5cfcad3e6a7be1ec07aa0f8ceab4cf3"
+        }
+      },
+      {
+        "id": "a34d28f5-d903-45d6-b546-aabc670d3abc",
+        "name": "AS-PROD-32-AS01-USER",
+        "state": "DISABLED",
+        "min": 1,
+        "max": 1,
+        "vmProfileId": "96f0dc21-5c9c-48ee-9adb-e4c9bd759904",
+        "members": [
+          {
+            "id": "3fb1df28-1bf9-4e40-8991-54e547a13dc7",
+            "instance": "i-6-68-VM",
+            "state": "Running"
+          }
+        ],
+        "lbIds": [
+          "3fb1df28-1bf9-4e40-8991-54e547a13dc7"
+        ],
+        "scheduleStates": [],
+        "http": {
+          "url": "http://10.10.32.169:8080/",
+          "status": 200,
+          "bodySha256": "16ec0dd98a646f4832245e4a13a625b6c5cfcad3e6a7be1ec07aa0f8ceab4cf3"
+        }
+      }
+    ]
+  },
+  "originalVMCount": 7,
+  "originalGroups": 7,
+  "restoredTargetStates": {
+    "bf0f5385-ae2c-4da4-aec4-eb985dbdeba4": "DISABLED",
+    "18bef25a-4053-4454-bc85-f6d777b9391d": "DISABLED",
+    "85fabab7-7992-4292-bad3-a43c4bd85cdc": "DISABLED"
+  },
+  "rootEvidence": "/home/ablecloud/work/epic1346-implementation/as08/service-checks/20261014T053638Z/original-roots-current.json"
+}

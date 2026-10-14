@@ -1,0 +1,23 @@
+[
+  {
+    "at": "2026-10-14T05:41:36.163Z",
+    "target": "31-AS04",
+    "context": "AS-PROD-31-AS01-project / admin",
+    "url": "http://10.10.31.10:8080/client/#/autoscalevmgroup/bf0f5385-ae2c-4da4-aec4-eb985dbdeba4?tab=details",
+    "text": "이름\n\nAS-PROD-31-AS04-CONCURRENCY\n아이디\n\nbf0f5385-ae2c-4da4-aec4-eb985dbdeba4\n도메인\n\nROOT\n연결된 네트워크 이름\n\nAS-PROD-31-AS01-projectNetwork\n연결된 네트워크 ID\n\n797d8d5e-efff-4364-a53c-c2ac90596fe8\n로드 밸런서 ID\n\n806cf32a-f632-4dc0-be52-0f85c19c7070\n로드 밸런서 제공자\n\nVirtualRouter\nPublic IP 주소\n\n10.10.31.104\nIP 주소 ID\n\n67ede107-b283-4b65-b16a-d675f7709aa4\n공인 포트\n\n8084\n게스트 포트\n\n8080\n최소 멤버 수\n\n1\n최대 멤버 수\n\n3\n조정 대상 VM 수\n\n1\n폴링 주기(초)\n\n10\n상태\n\nDISABLED\n생성일\n\n2026. 10. 11. 오전 10:19:39"
+  },
+  {
+    "at": "2026-10-14T05:41:55.679Z",
+    "target": "32-AS04",
+    "context": "epic1346-as01-user32 / 기본 보기",
+    "url": "http://10.10.32.10:8080/client/#/autoscalevmgroup/18bef25a-4053-4454-bc85-f6d777b9391d?tab=details",
+    "text": "이름\n\nAS-PROD-32-AS04-CONCURRENCY\n아이디\n\n18bef25a-4053-4454-bc85-f6d777b9391d\n계정\n\nepic1346-as01-user32\n도메인\n\nROOT\n연결된 네트워크 이름\n\nAS-PROD-32-AS01-userNetwork\n연결된 네트워크 ID\n\nf889cc7d-02c5-490b-b256-a289b73ff824\n로드 밸런서 ID\n\nd75900b6-4d7c-4082-97c5-f2b7d32e2826\n로드 밸런서 제공자\n\nVirtualRouter\nPublic IP 주소\n\n10.10.32.169\nIP 주소 ID\n\nd82e3f23-29e2-4b44-a85c-6c8821f2a4f6\n공인 포트\n\n8084\n게스트 포트\n\n8080\n최소 멤버 수\n\n1\n최대 멤버 수\n\n3\n조정 대상 VM 수\n\n1\n폴링 주기(초)\n\n10\n상태\n\nDISABLED\n생성일\n\n2026. 10. 11. 오전 10:19:26"
+  },
+  {
+    "at": "2026-10-14T05:42:15.092Z",
+    "target": "32-VPC",
+    "context": "epic1346-as01-user32 / 기본 보기",
+    "url": "http://10.10.32.10:8080/client/#/autoscalevmgroup/85fabab7-7992-4292-bad3-a43c4bd85cdc?tab=details",
+    "text": "이름\n\nAS-PROD-32-AS01-VPC\n아이디\n\n85fabab7-7992-4292-bad3-a43c4bd85cdc\n계정\n\nepic1346-as01-user32\n도메인\n\nROOT\n연결된 네트워크 이름\n\nAS-PROD-32-AS01-VPC-Tier\n연결된 네트워크 ID\n\n07f53267-063b-4975-ac47-5a5c10d57fb4\n로드 밸런서 ID\n\n073d6ae8-a668-4542-86cc-544fc9f6c204\n로드 밸런서 제공자\n\nVpcVirtualRouter\nPublic IP 주소\n\n10.10.32.102\nIP 주소 ID\n\n7f24ac97-2e82-40f9-8e8a-6264a1144038\n공인 포트\n\n8080\n게스트 포트\n\n8080\n최소 멤버 수\n\n1\n최대 멤버 수\n\n1\n조정 대상 VM 수\n\n1\n폴링 주기(초)\n\n30\n상태\n\nDISABLED\n생성일\n\n2026. 10. 11. 오전 1:33:16"
+  }
+]

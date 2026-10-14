@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-14T05:39:40.417018+00:00",
+  "pid": 273,
+  "aliveBefore": true,
+  "cmdlineMatched": true,
+  "statusDirectoryPidMatched": true,
+  "script": "/home/ablecloud/work/epic1346-implementation/as08/external-service-observer.py",
+  "output": "/home/ablecloud/work/epic1346-implementation/as08/service-external-soak-r6-20261013",
+  "cmdlineSha256": "6e1f2456dbcbe9058131109596a0d7624135a1d1c9e2eb9e84b6c5cc21f9145f",
+  "stopReason": "USER_ACCEPTED_FINAL_OPERATIONAL_SUCCESS",
+  "aliveAfter": false,
+  "signalSent": "SIGTERM"
+}

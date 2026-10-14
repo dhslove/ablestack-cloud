@@ -1,0 +1,42 @@
+{
+  "recordedAt": "2026-10-14T05:45:57.379349+00:00",
+  "decision": "PASS_USER_ACCEPTED",
+  "approvedBy": "user",
+  "userStatement": "24시간 운영 성공. 관리서버 중단 및 기존 미관측은 내부 이슈이며 개발한 기능의 이슈가 아니므로 #1354를 종료하고 Epic 전체를 성공 판정으로 닫는다.",
+  "basis": "Completed R5 24h operational record plus all implementation and representative validation evidence; user accepts internal environment interruptions outside developed-feature defects.",
+  "r5Window": {
+    "startedAt": "2026-10-13T02:44:15.746277+00:00",
+    "deadlineAt": "2026-10-14T02:44:15.746277+00:00",
+    "durationHours": 24,
+    "finished": true
+  },
+  "r6Snapshot": {
+    "at": "2026-10-14T05:36:41.966341+00:00",
+    "startedAt": "2026-10-13T07:15:33.985727+00:00",
+    "originalDeadlineAt": "2026-10-14T07:15:33.985727+00:00",
+    "windowDurationCompleted": false,
+    "endedOnUserAcceptance": true
+  },
+  "rawFailureCountsPreserved": {
+    "server31": 3,
+    "external31": 1,
+    "server32AS04": 0,
+    "server32VPC": 0,
+    "external32AS04": 0,
+    "external32VPC": 0
+  },
+  "strictZeroHttpFailureMeasured": false,
+  "underlyingCauseEvidenceChanged": false,
+  "internalIssueDisposition": "Accepted as internal operational/environment issues by user; not treated as defects of the developed feature for Epic acceptance.",
+  "groupsRestoredToDisabled": true,
+  "originalVmsAndRootsPreserved": true,
+  "dedicatedCollectorsStopped": true,
+  "automationAlreadyDeleted": true,
+  "priorReportPreserved": "https://github.com/dhslove/ablestack-cloud/blob/9a8615d1ee67310e65b39f68411c13edd712e090/docs/design/autoscale-vm-group-production-20261010/evidence/AS-08/service-maintenance-r6/operator-report-20261014/README.ko.md",
+  "expectedGitHubDisposition": {
+    "issue1354": "CLOSED_COMPLETED",
+    "epic1346": "CLOSED_COMPLETED",
+    "childrenCompleted": 9,
+    "pr1356": "MERGED"
+  }
+}
