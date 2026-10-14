@@ -1,0 +1,70 @@
+[
+  {
+    "id": "32-management-20261014T030159Z",
+    "cluster": "32",
+    "stopRequestedAt": "2026-10-14T12:01:59+09:00",
+    "newProcessStartedAt": "2026-10-14T12:02:02+09:00",
+    "previousPid": "1234242",
+    "currentPid": "1293012",
+    "apiFailure": {
+      "at": "2026-10-14T03:02:34.049338+00:00",
+      "epoch": 1791946954.049348,
+      "code": "API_READ_FAILURE",
+      "error": "URLError",
+      "message": "<urlopen error [Errno 111] Connection refused>"
+    },
+    "apiRecoveredAt": "2026-10-14T03:03:34.283739+00:00",
+    "apiSuccessfulSampleGapSeconds": 120.130961,
+    "firstRecoveredEvaluations": {
+      "AS-PROD-32-AS04-CONCURRENCY": "WAITING",
+      "AS-PROD-32-AS01-VPC": "WAITING"
+    },
+    "stableEvaluationsAgainAt": "2026-10-14T03:04:34.187665+00:00",
+    "as90UnchangedAtNextProcessSample": true,
+    "firstNewPidJvmCollectionTime": "2026-10-14T12:04:41+0900",
+    "httpProof": {
+      "observedAt": "2026-10-14T03:09:16.544732+00:00",
+      "windowStartAt": "2026-10-14T12:00:29+09:00",
+      "observedUntil": "2026-10-14T12:08:02+09:00",
+      "plannedEndAt": "2026-10-14T12:08:02+09:00",
+      "fullWindowObserved": true,
+      "http": {
+        "32-AS04": {
+          "server": {
+            "samples": 90,
+            "failed": 0,
+            "firstAt": "2026-10-14T03:00:33.991072+00:00",
+            "lastAt": "2026-10-14T03:07:58.991199+00:00",
+            "maxIntervalSeconds": 5.0
+          },
+          "external": {
+            "samples": 90,
+            "failed": 0,
+            "firstAt": "2026-10-14T03:00:33.992243+00:00",
+            "lastAt": "2026-10-14T03:07:58.992577+00:00",
+            "maxIntervalSeconds": 5.002
+          }
+        },
+        "32-VPC": {
+          "server": {
+            "samples": 90,
+            "failed": 0,
+            "firstAt": "2026-10-14T03:00:33.991225+00:00",
+            "lastAt": "2026-10-14T03:07:58.991325+00:00",
+            "maxIntervalSeconds": 5.001
+          },
+          "external": {
+            "samples": 90,
+            "failed": 0,
+            "firstAt": "2026-10-14T03:00:33.992456+00:00",
+            "lastAt": "2026-10-14T03:07:58.992658+00:00",
+            "maxIntervalSeconds": 5.003
+          }
+        }
+      },
+      "evidence": "/home/ablecloud/work/epic1346-implementation/as08/service-checks/20261014T030914Z/maintenance-followup-32.json"
+    },
+    "evidence": "/home/ablecloud/work/epic1346-implementation/as08/service-checks/20261014T030914Z/maintenance-followup-32.json",
+    "reportedAsEnvironmentOnly": true
+  }
+]

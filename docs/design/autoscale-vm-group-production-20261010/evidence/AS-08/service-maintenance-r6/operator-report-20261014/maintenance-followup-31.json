@@ -1,0 +1,53 @@
+[
+  {
+    "id": "31-management-20261014T025918Z",
+    "cluster": "31",
+    "stopRequestedAt": "2026-10-14T11:59:18+09:00",
+    "newProcessStartedAt": "2026-10-14T11:59:21+09:00",
+    "previousPid": "751698",
+    "currentPid": "834619",
+    "apiFailure": {
+      "at": "2026-10-14T02:59:34.038819+00:00",
+      "epoch": 1791946774.0388227,
+      "code": "API_READ_FAILURE",
+      "error": "URLError",
+      "message": "<urlopen error [Errno 111] Connection refused>"
+    },
+    "apiRecoveredAt": "2026-10-14T03:00:34.142497+00:00",
+    "apiSuccessfulSampleGapSeconds": 120.049878,
+    "firstRecoveredEvaluations": {
+      "AS-PROD-31-AS04-CONCURRENCY": "WAITING"
+    },
+    "stableEvaluationsAgainAt": "2026-10-14T03:01:34.086755+00:00",
+    "as90UnchangedAtNextProcessSample": true,
+    "firstNewPidJvmCollectionTime": "2026-10-14T11:59:51+0900",
+    "httpProof": {
+      "observedAt": "2026-10-14T03:09:16.544732+00:00",
+      "windowStartAt": "2026-10-14T11:57:48+09:00",
+      "observedUntil": "2026-10-14T12:05:21+09:00",
+      "plannedEndAt": "2026-10-14T12:05:21+09:00",
+      "fullWindowObserved": true,
+      "http": {
+        "31-AS04": {
+          "server": {
+            "samples": 91,
+            "failed": 0,
+            "firstAt": "2026-10-14T02:57:48.989468+00:00",
+            "lastAt": "2026-10-14T03:05:18.989756+00:00",
+            "maxIntervalSeconds": 5.001
+          },
+          "external": {
+            "samples": 91,
+            "failed": 0,
+            "firstAt": "2026-10-14T02:57:48.991870+00:00",
+            "lastAt": "2026-10-14T03:05:18.992320+00:00",
+            "maxIntervalSeconds": 5.003
+          }
+        }
+      },
+      "evidence": "/home/ablecloud/work/epic1346-implementation/as08/service-checks/20261014T030914Z/maintenance-followup-31.json"
+    },
+    "evidence": "/home/ablecloud/work/epic1346-implementation/as08/service-checks/20261014T030914Z/maintenance-followup-31.json",
+    "reportedAsEnvironmentOnly": true
+  }
+]

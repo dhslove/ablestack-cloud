@@ -1,0 +1,389 @@
+{
+  "initialUi": {
+    "at": "2026-10-13T23:09:14.090Z",
+    "evaluatedAtKst": "2026-10-14T08:08:59+09:00",
+    "status": "WAITING",
+    "samplesShown": 7,
+    "note": "UI stated collection failure or uncollected sample; exact cause not established"
+  },
+  "followupUi": {
+    "at": "2026-10-13T23:10:21.573Z",
+    "evaluatedAtKst": "2026-10-14T08:09:59+09:00",
+    "status": "MIN_MEMBERS",
+    "samplesShown": 7
+  },
+  "api": [
+    {
+      "at": "2026-10-13T23:07:34.129178+00:00",
+      "evaluation": {
+        "evaluatedat": 1791932819541,
+        "cooldownuntil": 1791859030551,
+        "policies": [
+          {
+            "id": "37417d80-35d9-41d4-b751-5d46fc6af23a",
+            "action": "SCALEUP",
+            "duration": 60,
+            "conditions": [
+              {
+                "id": "4a8fdf72-6fee-4a24-80a0-c0544651c5ea",
+                "countername": "VM CPU - average percentage",
+                "source": "CPU",
+                "unit": "%",
+                "operator": "GT",
+                "threshold": 5,
+                "value": 0.23715881028276686,
+                "samples": 7,
+                "resources": 1,
+                "collectedat": 1791932815000,
+                "matched": false
+              }
+            ],
+            "status": "NOT_MATCHED"
+          },
+          {
+            "id": "7639559c-63ad-4235-bbb4-462dfaba5261",
+            "action": "SCALEDOWN",
+            "duration": 60,
+            "conditions": [
+              {
+                "id": "2ec799ba-1c5f-4a5b-9ac5-709d10ddde48",
+                "countername": "VM CPU - average percentage",
+                "source": "CPU",
+                "unit": "%",
+                "operator": "LT",
+                "threshold": 1,
+                "value": 0.23715881028276686,
+                "samples": 7,
+                "resources": 1,
+                "collectedat": 1791932815000,
+                "matched": true
+              }
+            ],
+            "status": "MATCHED"
+          }
+        ],
+        "collectedat": 1791932815000,
+        "status": "MIN_MEMBERS",
+        "reason": "MIN_MEMBERS"
+      },
+      "evaluationerror": false,
+      "members": [
+        {
+          "id": "6f9bd71b-1745-48c5-9c88-cc0cccd9d1ff",
+          "instancename": "i-6-73-VM",
+          "state": "Running",
+          "hostid": "a7b3e91f-2248-436b-affb-e3b31b36ed62",
+          "hostname": "ablecube32-2"
+        }
+      ],
+      "lbIds": [
+        "6f9bd71b-1745-48c5-9c88-cc0cccd9d1ff"
+      ],
+      "errors": []
+    },
+    {
+      "at": "2026-10-13T23:08:34.156836+00:00",
+      "evaluation": {
+        "evaluatedat": 1791932879604,
+        "cooldownuntil": 1791859030551,
+        "policies": [
+          {
+            "id": "37417d80-35d9-41d4-b751-5d46fc6af23a",
+            "action": "SCALEUP",
+            "duration": 60,
+            "conditions": [
+              {
+                "id": "4a8fdf72-6fee-4a24-80a0-c0544651c5ea",
+                "countername": "VM CPU - average percentage",
+                "source": "CPU",
+                "unit": "%",
+                "operator": "GT",
+                "threshold": 5,
+                "value": 0.2558757985274922,
+                "samples": 7,
+                "resources": 1,
+                "collectedat": 1791932876000,
+                "matched": false
+              }
+            ],
+            "status": "NOT_MATCHED"
+          },
+          {
+            "id": "7639559c-63ad-4235-bbb4-462dfaba5261",
+            "action": "SCALEDOWN",
+            "duration": 60,
+            "conditions": [
+              {
+                "id": "2ec799ba-1c5f-4a5b-9ac5-709d10ddde48",
+                "countername": "VM CPU - average percentage",
+                "source": "CPU",
+                "unit": "%",
+                "operator": "LT",
+                "threshold": 1,
+                "value": 0.2558757985274922,
+                "samples": 7,
+                "resources": 1,
+                "collectedat": 1791932876000,
+                "matched": true
+              }
+            ],
+            "status": "MATCHED"
+          }
+        ],
+        "collectedat": 1791932876000,
+        "status": "MIN_MEMBERS",
+        "reason": "MIN_MEMBERS"
+      },
+      "evaluationerror": false,
+      "members": [
+        {
+          "id": "6f9bd71b-1745-48c5-9c88-cc0cccd9d1ff",
+          "instancename": "i-6-73-VM",
+          "state": "Running",
+          "hostid": "a7b3e91f-2248-436b-affb-e3b31b36ed62",
+          "hostname": "ablecube32-2"
+        }
+      ],
+      "lbIds": [
+        "6f9bd71b-1745-48c5-9c88-cc0cccd9d1ff"
+      ],
+      "errors": []
+    },
+    {
+      "at": "2026-10-13T23:09:34.150006+00:00",
+      "evaluation": {
+        "evaluatedat": 1791932939663,
+        "cooldownuntil": 1791859030551,
+        "policies": [
+          {
+            "id": "37417d80-35d9-41d4-b751-5d46fc6af23a",
+            "action": "SCALEUP",
+            "duration": 60,
+            "conditions": [
+              {
+                "id": "4a8fdf72-6fee-4a24-80a0-c0544651c5ea",
+                "countername": "VM CPU - average percentage",
+                "source": "CPU",
+                "unit": "%",
+                "operator": "GT",
+                "threshold": 5,
+                "value": 0.2512088056285844,
+                "samples": 7,
+                "resources": 1,
+                "collectedat": 1791932928000,
+                "matched": false
+              }
+            ],
+            "status": "BLOCKED",
+            "reason": "COLLECTION_UNAVAILABLE"
+          },
+          {
+            "id": "7639559c-63ad-4235-bbb4-462dfaba5261",
+            "action": "SCALEDOWN",
+            "duration": 60,
+            "conditions": [
+              {
+                "id": "2ec799ba-1c5f-4a5b-9ac5-709d10ddde48",
+                "countername": "VM CPU - average percentage",
+                "source": "CPU",
+                "unit": "%",
+                "operator": "LT",
+                "threshold": 1,
+                "value": 0.2512088056285844,
+                "samples": 7,
+                "resources": 1,
+                "collectedat": 1791932928000,
+                "matched": true
+              }
+            ],
+            "status": "BLOCKED",
+            "reason": "COLLECTION_UNAVAILABLE"
+          }
+        ],
+        "collectedat": 1791932928000,
+        "status": "WAITING"
+      },
+      "evaluationerror": false,
+      "members": [
+        {
+          "id": "6f9bd71b-1745-48c5-9c88-cc0cccd9d1ff",
+          "instancename": "i-6-73-VM",
+          "state": "Running",
+          "hostid": "a7b3e91f-2248-436b-affb-e3b31b36ed62",
+          "hostname": "ablecube32-2"
+        }
+      ],
+      "lbIds": [
+        "6f9bd71b-1745-48c5-9c88-cc0cccd9d1ff"
+      ],
+      "errors": []
+    }
+  ],
+  "currentService": "MainPID=1234242\nNRestarts=0\nExecMainStartTimestamp=Wed 2026-10-14 02:45:47 KST\nActiveState=active\n",
+  "lifecycle": [],
+  "http": {
+    "32-AS04": {
+      "samples": 52,
+      "failed": 0,
+      "firstAt": "2026-10-13T23:07:03.990409+00:00",
+      "lastAt": "2026-10-13T23:11:18.990568+00:00"
+    },
+    "32-VPC": {
+      "samples": 52,
+      "failed": 0,
+      "firstAt": "2026-10-13T23:07:03.990521+00:00",
+      "lastAt": "2026-10-13T23:11:18.990700+00:00"
+    }
+  },
+  "followupApi": [
+    {
+      "at": "2026-10-13T23:09:34.150006+00:00",
+      "evaluation": {
+        "evaluatedat": 1791932939663,
+        "cooldownuntil": 1791859030551,
+        "policies": [
+          {
+            "id": "37417d80-35d9-41d4-b751-5d46fc6af23a",
+            "action": "SCALEUP",
+            "duration": 60,
+            "conditions": [
+              {
+                "id": "4a8fdf72-6fee-4a24-80a0-c0544651c5ea",
+                "countername": "VM CPU - average percentage",
+                "source": "CPU",
+                "unit": "%",
+                "operator": "GT",
+                "threshold": 5,
+                "value": 0.2512088056285844,
+                "samples": 7,
+                "resources": 1,
+                "collectedat": 1791932928000,
+                "matched": false
+              }
+            ],
+            "status": "BLOCKED",
+            "reason": "COLLECTION_UNAVAILABLE"
+          },
+          {
+            "id": "7639559c-63ad-4235-bbb4-462dfaba5261",
+            "action": "SCALEDOWN",
+            "duration": 60,
+            "conditions": [
+              {
+                "id": "2ec799ba-1c5f-4a5b-9ac5-709d10ddde48",
+                "countername": "VM CPU - average percentage",
+                "source": "CPU",
+                "unit": "%",
+                "operator": "LT",
+                "threshold": 1,
+                "value": 0.2512088056285844,
+                "samples": 7,
+                "resources": 1,
+                "collectedat": 1791932928000,
+                "matched": true
+              }
+            ],
+            "status": "BLOCKED",
+            "reason": "COLLECTION_UNAVAILABLE"
+          }
+        ],
+        "collectedat": 1791932928000,
+        "status": "WAITING"
+      },
+      "evaluationerror": false,
+      "members": [
+        {
+          "id": "6f9bd71b-1745-48c5-9c88-cc0cccd9d1ff",
+          "instancename": "i-6-73-VM",
+          "state": "Running",
+          "hostid": "a7b3e91f-2248-436b-affb-e3b31b36ed62",
+          "hostname": "ablecube32-2"
+        }
+      ],
+      "lbIds": [
+        "6f9bd71b-1745-48c5-9c88-cc0cccd9d1ff"
+      ],
+      "errors": []
+    },
+    {
+      "at": "2026-10-13T23:10:34.138394+00:00",
+      "evaluation": {
+        "evaluatedat": 1791932999727,
+        "cooldownuntil": 1791859030551,
+        "policies": [
+          {
+            "id": "37417d80-35d9-41d4-b751-5d46fc6af23a",
+            "action": "SCALEUP",
+            "duration": 60,
+            "conditions": [
+              {
+                "id": "4a8fdf72-6fee-4a24-80a0-c0544651c5ea",
+                "countername": "VM CPU - average percentage",
+                "source": "CPU",
+                "unit": "%",
+                "operator": "GT",
+                "threshold": 5,
+                "value": 0.23018038356184106,
+                "samples": 7,
+                "resources": 1,
+                "collectedat": 1791932999000,
+                "matched": false
+              }
+            ],
+            "status": "NOT_MATCHED"
+          },
+          {
+            "id": "7639559c-63ad-4235-bbb4-462dfaba5261",
+            "action": "SCALEDOWN",
+            "duration": 60,
+            "conditions": [
+              {
+                "id": "2ec799ba-1c5f-4a5b-9ac5-709d10ddde48",
+                "countername": "VM CPU - average percentage",
+                "source": "CPU",
+                "unit": "%",
+                "operator": "LT",
+                "threshold": 1,
+                "value": 0.23018038356184106,
+                "samples": 7,
+                "resources": 1,
+                "collectedat": 1791932999000,
+                "matched": true
+              }
+            ],
+            "status": "MATCHED"
+          }
+        ],
+        "collectedat": 1791932999000,
+        "status": "MIN_MEMBERS",
+        "reason": "MIN_MEMBERS"
+      },
+      "evaluationerror": false,
+      "members": [
+        {
+          "id": "6f9bd71b-1745-48c5-9c88-cc0cccd9d1ff",
+          "instancename": "i-6-73-VM",
+          "state": "Running",
+          "hostid": "a7b3e91f-2248-436b-affb-e3b31b36ed62",
+          "hostname": "ablecube32-2"
+        }
+      ],
+      "lbIds": [
+        "6f9bd71b-1745-48c5-9c88-cc0cccd9d1ff"
+      ],
+      "errors": []
+    }
+  ],
+  "recovered": true,
+  "recordedAt": "2026-10-13T23:11:23.357696+00:00",
+  "externalHttp": {
+    "32-AS04": {
+      "samples": 52,
+      "failed": 0
+    },
+    "32-VPC": {
+      "samples": 52,
+      "failed": 0
+    }
+  }
+}

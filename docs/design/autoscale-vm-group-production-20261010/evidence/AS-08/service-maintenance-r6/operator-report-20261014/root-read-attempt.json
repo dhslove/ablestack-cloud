@@ -1,0 +1,7 @@
+{
+  "at": "2026-10-14T05:23:02.083401+00:00",
+  "helper": "read-original-roots.py",
+  "success": true,
+  "returncode": 0,
+  "stdout": "Original ROOT7 Ready/100GiB, same IDs; GFS2 Thin absent\n"
+}

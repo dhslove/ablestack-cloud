@@ -1,0 +1,89 @@
+{
+  "startedAt": "2026-10-13T02:44:15.746277+00:00",
+  "deadlineAt": "2026-10-14T02:44:15.746277+00:00",
+  "durationHours": 24,
+  "clusters": {
+    "31": {
+      "phase": "FINISHED",
+      "pid": 631379,
+      "startEpoch": 1791859455.7462769,
+      "deadlineEpoch": 1791945855.7462769,
+      "apiSamples": 1435,
+      "apiErrors": 6,
+      "dbSamples": 289,
+      "dbErrors": 0,
+      "maxHttpGapSeconds": 55.939,
+      "maxApiGapSeconds": 120.123,
+      "anomalyCount": 525,
+      "http": {
+        "31-AS04": {
+          "requests": 17281,
+          "ok": 17278,
+          "failed": 3,
+          "firstAt": "2026-10-13T02:44:15.752652+00:00",
+          "lastAt": "2026-10-14T02:44:15.749747+00:00",
+          "maxStartIntervalSeconds": 55.96,
+          "failures": [
+            {
+              "at": "2026-10-13T09:13:43.751906+00:00",
+              "epoch": 1791882823.7519279,
+              "target": "31-AS04",
+              "ok": false,
+              "error": "timeout",
+              "latencyMs": 3004.08
+            },
+            {
+              "at": "2026-10-13T09:13:48.751726+00:00",
+              "epoch": 1791882828.7517412,
+              "target": "31-AS04",
+              "ok": false,
+              "error": "timeout",
+              "latencyMs": 3003.86
+            },
+            {
+              "at": "2026-10-13T09:13:50.748979+00:00",
+              "epoch": 1791882830.7489963,
+              "target": "31-AS04",
+              "ok": false,
+              "error": "RemoteDisconnected",
+              "latencyMs": 1.08
+            }
+          ]
+        }
+      }
+    },
+    "32": {
+      "phase": "FINISHED",
+      "pid": 1137049,
+      "startEpoch": 1791859455.7462769,
+      "deadlineEpoch": 1791945855.7462769,
+      "apiSamples": 1438,
+      "apiErrors": 3,
+      "dbSamples": 289,
+      "dbErrors": 0,
+      "maxHttpGapSeconds": 5.001,
+      "maxApiGapSeconds": 120.163,
+      "anomalyCount": 506,
+      "http": {
+        "32-AS04": {
+          "requests": 17281,
+          "ok": 17281,
+          "failed": 0,
+          "firstAt": "2026-10-13T02:44:15.755056+00:00",
+          "lastAt": "2026-10-14T02:44:15.750708+00:00",
+          "maxStartIntervalSeconds": 5.009,
+          "failures": []
+        },
+        "32-VPC": {
+          "requests": 17281,
+          "ok": 17281,
+          "failed": 0,
+          "firstAt": "2026-10-13T02:44:15.755196+00:00",
+          "lastAt": "2026-10-14T02:44:15.750828+00:00",
+          "maxStartIntervalSeconds": 5.009,
+          "failures": []
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,21 @@
+31 {'phase': 'FINISHED', 'pid': 631379, 'http': {'31-AS04': {'requests': 17281, 'ok': 17278, 'failed': 3}}, 'apiSamples': 1435, 'apiErrors': 6, 'dbSamples': 289, 'dbErrors': 0, 'anomalyCount': 525, 'maxHttpGapSeconds': 55.939, 'maxApiGapSeconds': 120.123}
+31 process {'service': 'active', 'pid': '751698', 'status': {'VmSize': '10474724 kB', 'VmRSS': '1686432 kB', 'Threads': '444'}, 'fds': 105, 'jstatGc': {'unavailable': True}, 'jvmMetrics': [{'sessions': 10, 'heapmemoryused': 383485944, 'heapmemorytotal': 1908932608, 'threadsblockedcount': 0, 'threadsrunnablecount': 13, 'threadstotalcount': 429, 'collectiontime': '2026-10-14T11:44:02+0900', 'name': 'ccvm-mngt', 'state': 'Up'}], 'jarSha256': '391b97bf5ea7e56840ad1c4d9792407c3567b7af6ecbc68e4af1eace169082b7', 'indexSha256': '2f385265fad120e4829e3dd889ab4ceef6e5a251e6f40d7d4d46e21347a291c5'}
+{"at": "2026-10-14T02:29:15.881403+00:00", "epoch": 1791944955.8814173, "code": "MANAGEMENT_PROCESS_CHANGED", "service": "active", "pid": "751698"}
+{"at": "2026-10-14T02:29:16.199419+00:00", "epoch": 1791944956.1994357, "code": "DEPLOYMENT_CHANGED"}
+{"at": "2026-10-14T02:34:15.827909+00:00", "epoch": 1791945255.8279223, "code": "MANAGEMENT_PROCESS_CHANGED", "service": "active", "pid": "751698"}
+{"at": "2026-10-14T02:34:16.152120+00:00", "epoch": 1791945256.1521375, "code": "DEPLOYMENT_CHANGED"}
+{"at": "2026-10-14T02:39:15.875930+00:00", "epoch": 1791945555.875944, "code": "MANAGEMENT_PROCESS_CHANGED", "service": "active", "pid": "751698"}
+{"at": "2026-10-14T02:39:16.180419+00:00", "epoch": 1791945556.180436, "code": "DEPLOYMENT_CHANGED"}
+{"at": "2026-10-14T02:44:15.853802+00:00", "epoch": 1791945855.8538144, "code": "MANAGEMENT_PROCESS_CHANGED", "service": "active", "pid": "751698"}
+{"at": "2026-10-14T02:44:16.158552+00:00", "epoch": 1791945856.1585705, "code": "DEPLOYMENT_CHANGED"}
+
+32 {'phase': 'FINISHED', 'pid': 1137049, 'http': {'32-AS04': {'requests': 17281, 'ok': 17281, 'failed': 0}, '32-VPC': {'requests': 17281, 'ok': 17281, 'failed': 0}}, 'apiSamples': 1438, 'apiErrors': 3, 'dbSamples': 289, 'dbErrors': 0, 'anomalyCount': 506, 'maxHttpGapSeconds': 5.001, 'maxApiGapSeconds': 120.163}
+32 process {'service': 'active', 'pid': '1234242', 'status': {'VmSize': '8477416 kB', 'VmRSS': '1350744 kB', 'Threads': '402'}, 'fds': 60, 'jstatGc': {'unavailable': True}, 'jvmMetrics': [{'sessions': 11, 'heapmemoryused': 318684288, 'heapmemorytotal': 1908932608, 'threadsblockedcount': 0, 'threadsrunnablecount': 13, 'threadstotalcount': 385, 'collectiontime': '2026-10-14T11:43:26+0900', 'name': 'ccvm-mngt', 'state': 'Up'}], 'jarSha256': 'c4109d66eb005348c1a0af5b5def62b39bcc9f4a027fe4ac83f99913ae676e6a', 'indexSha256': '2f385265fad120e4829e3dd889ab4ceef6e5a251e6f40d7d4d46e21347a291c5'}
+{"at": "2026-10-14T02:29:15.964339+00:00", "epoch": 1791944955.9643636, "code": "MANAGEMENT_PROCESS_CHANGED", "service": "active", "pid": "1234242"}
+{"at": "2026-10-14T02:29:16.382613+00:00", "epoch": 1791944956.3826315, "code": "DEPLOYMENT_CHANGED"}
+{"at": "2026-10-14T02:34:15.916780+00:00", "epoch": 1791945255.9167974, "code": "MANAGEMENT_PROCESS_CHANGED", "service": "active", "pid": "1234242"}
+{"at": "2026-10-14T02:34:16.359518+00:00", "epoch": 1791945256.3595393, "code": "DEPLOYMENT_CHANGED"}
+{"at": "2026-10-14T02:39:15.947590+00:00", "epoch": 1791945555.947607, "code": "MANAGEMENT_PROCESS_CHANGED", "service": "active", "pid": "1234242"}
+{"at": "2026-10-14T02:39:16.383690+00:00", "epoch": 1791945556.3837087, "code": "DEPLOYMENT_CHANGED"}
+{"at": "2026-10-14T02:44:15.971695+00:00", "epoch": 1791945855.9717126, "code": "MANAGEMENT_PROCESS_CHANGED", "service": "active", "pid": "1234242"}
+{"at": "2026-10-14T02:44:16.402864+00:00", "epoch": 1791945856.402884, "code": "DEPLOYMENT_CHANGED"}

@@ -1,0 +1,26 @@
+{
+  "at": "2026-10-14T05:25:02.910747+00:00",
+  "automationId": "1354-31-32",
+  "action": "DELETE",
+  "deleteStatus": "deleted",
+  "tool": "mcp__codex_app__automation_update",
+  "configurationFileAbsent": true,
+  "requestedByUser": true,
+  "r5CollectorPhase": {
+    "31": "FINISHED",
+    "32": "FINISHED"
+  },
+  "r6CollectorPhase": {
+    "31": "OBSERVING",
+    "32": "OBSERVING"
+  },
+  "r6ScheduledDeadline": "2026-10-14T07:15:33.985727+00:00",
+  "assessment": "NO_ZERO_FAILURE_PASS; R5 complete with recorded incident; R6 incomplete at report cutoff",
+  "issue1354State": "OPEN",
+  "epic1346State": "CLOSED",
+  "pr1356State": "MERGED",
+  "prMergeCommit": "9fa65ce2a27b977e848440cb7c787411c11d585b",
+  "resourceRestorationPerformed": false,
+  "collectorTerminationPerformed": false,
+  "collectorNote": "Independent R6 collectors keep their existing automatic deadline; no new run or schedule created."
+}

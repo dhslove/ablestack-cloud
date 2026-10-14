@@ -1,0 +1,146 @@
+{
+  "id": "31-evaluation-waiting-20261014T050907Z",
+  "at": "2026-10-14T05:14:03.262650+00:00",
+  "target": "31-AS04",
+  "firstBlockedEvaluationAt": "2026-10-14T05:09:07.945000+00:00",
+  "recoveryEvaluationAt": "2026-10-14T05:11:07.986000+00:00",
+  "recoveryObservedByApiAt": "2026-10-14T05:11:34.054685+00:00",
+  "managementPid": "834619",
+  "currentRecovered": true,
+  "confirmedPath": "AutoScale group 5 GetVmStatsCommand received GetVmStatsAnswer after about 65ms; management warned empty VM statistics from ablecube31-1; policies blocked COLLECTION_UNAVAILABLE then MISSING_SAMPLE; later fresh samples recovered",
+  "underlyingCauseConfirmed": false,
+  "underlyingCause": "Why host returned empty VM statistics remains unresolved; unrelated NIC warnings do not establish cause and no association with earlier HTTP incident is proven",
+  "apiReadFailures": 0,
+  "evaluations": [
+    {
+      "apiAt": "2026-10-14T05:07:34.086933+00:00",
+      "evaluatedAt": "2026-10-14T05:07:07.904000+00:00",
+      "status": "MIN_MEMBERS",
+      "collectedAtEpochMs": 1791954423000,
+      "evaluationError": false,
+      "policyReasons": [
+        null,
+        null
+      ],
+      "samples": [
+        7,
+        7
+      ]
+    },
+    {
+      "apiAt": "2026-10-14T05:08:34.081922+00:00",
+      "evaluatedAt": "2026-10-14T05:08:07.923000+00:00",
+      "status": "MIN_MEMBERS",
+      "collectedAtEpochMs": 1791954484000,
+      "evaluationError": false,
+      "policyReasons": [
+        null,
+        null
+      ],
+      "samples": [
+        7,
+        7
+      ]
+    },
+    {
+      "apiAt": "2026-10-14T05:09:34.087621+00:00",
+      "evaluatedAt": "2026-10-14T05:09:07.945000+00:00",
+      "status": "WAITING",
+      "collectedAtEpochMs": 1791954534000,
+      "evaluationError": false,
+      "policyReasons": [
+        "COLLECTION_UNAVAILABLE",
+        "COLLECTION_UNAVAILABLE"
+      ],
+      "samples": [
+        7,
+        7
+      ]
+    },
+    {
+      "apiAt": "2026-10-14T05:10:34.099852+00:00",
+      "evaluatedAt": "2026-10-14T05:10:07.966000+00:00",
+      "status": "WAITING",
+      "collectedAtEpochMs": null,
+      "evaluationError": false,
+      "policyReasons": [
+        "MISSING_SAMPLE",
+        "MISSING_SAMPLE"
+      ],
+      "samples": [
+        0,
+        0
+      ]
+    },
+    {
+      "apiAt": "2026-10-14T05:11:34.054685+00:00",
+      "evaluatedAt": "2026-10-14T05:11:07.986000+00:00",
+      "status": "MIN_MEMBERS",
+      "collectedAtEpochMs": 1791954667000,
+      "evaluationError": false,
+      "policyReasons": [
+        null,
+        null
+      ],
+      "samples": [
+        7,
+        7
+      ]
+    },
+    {
+      "apiAt": "2026-10-14T05:12:34.072527+00:00",
+      "evaluatedAt": "2026-10-14T05:12:08.007000+00:00",
+      "status": "MIN_MEMBERS",
+      "collectedAtEpochMs": 1791954718000,
+      "evaluationError": false,
+      "policyReasons": [
+        null,
+        null
+      ],
+      "samples": [
+        7,
+        7
+      ]
+    },
+    {
+      "apiAt": "2026-10-14T05:13:34.078581+00:00",
+      "evaluatedAt": "2026-10-14T05:13:08.027000+00:00",
+      "status": "MIN_MEMBERS",
+      "collectedAtEpochMs": 1791954779000,
+      "evaluationError": false,
+      "policyReasons": [
+        null,
+        null
+      ],
+      "samples": [
+        7,
+        7
+      ]
+    }
+  ],
+  "serverHttp": {
+    "samples": 83,
+    "failed": 0,
+    "first": "2026-10-14T05:07:03.989303+00:00",
+    "last": "2026-10-14T05:13:53.990460+00:00",
+    "maxGapSeconds": 5.001
+  },
+  "externalHttp": {
+    "samples": 83,
+    "failed": 0,
+    "first": "2026-10-14T05:07:03.992235+00:00",
+    "last": "2026-10-14T05:13:53.992369+00:00",
+    "maxGapSeconds": 5.011
+  },
+  "managementLifecycleEvents": [],
+  "originalVmAndLbPreserved": true,
+  "AS90Unchanged": true,
+  "evidence": "/home/ablecloud/work/epic1346-implementation/as08/service-checks/20261014T050856Z",
+  "initialUiEvidence": "/home/ablecloud/work/epic1346-implementation/as08/service-checks/20261014T050856Z/ui31-initial-evaluation.json",
+  "initialRawEvidence": "/home/ablecloud/work/epic1346-implementation/as08/service-checks/20261014T050856Z/transient31-initial-window.json",
+  "followupRawEvidence": "/home/ablecloud/work/epic1346-implementation/as08/service-checks/20261014T050856Z/maintenance-window-31.json",
+  "requestEvidence": "/home/ablecloud/work/epic1346-implementation/as08/service-checks/20261014T050856Z/transient-evaluation-request-31.json",
+  "warningLines": [
+    "2026-10-14 14:09:05,070 WARN  [c.c.n.a.AutoScaleManagerImpl] (VmGroup-Monitor-5-1:[ctx-56c209fe]) (logid:aa58b99e) Got empty result for virtual machine statistics from host: Host {\"id\":1,\"name\":\"ablecube31-1\",\"type\":\"Routing\",\"uuid\":\"159baf9a-89ad-4a94-91dc-e7395a670bf4\"}"
+  ]
+}

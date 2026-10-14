@@ -1,0 +1,115 @@
+{
+  "id": "static-ui-20261014T035534Z",
+  "at": "2026-10-14T04:11:33.226242+00:00",
+  "evidence": "/home/ablecloud/work/epic1346-implementation/as08/service-checks/20261014T040854Z",
+  "scope": "UI index changed; management JAR/PID and AS90 unchanged",
+  "uiEvidence": "/home/ablecloud/work/epic1346-implementation/as08/service-checks/20261014T040854Z/ui-observations.json",
+  "loadedAssetEvidence": "/home/ablecloud/work/epic1346-implementation/as08/service-checks/20261014T040854Z/loaded-ui-assets.json",
+  "clusters": {
+    "31": {
+      "event": {
+        "at": "2026-10-14T03:55:34.387218+00:00",
+        "epoch": 1791950134.387241,
+        "code": "DEPLOYMENT_CHANGED",
+        "previous": [
+          "b7cb2cf969589e837466e4a1b22c2665cb0c6d107196fbfbba2aa015f266f65f",
+          "601e420e9605dd78a1f1f7f474193209d00eb840262e1dd0bcf5aa4e715e7304"
+        ],
+        "current": [
+          "b7cb2cf969589e837466e4a1b22c2665cb0c6d107196fbfbba2aa015f266f65f",
+          "7017481f75e3d75634399db6560f6b1db7d97a13fcf21b0a3cf5dcb6e2defce1"
+        ]
+      },
+      "journalLifecycleEvents": [],
+      "currentService": "MainPID=834619\nNRestarts=0\nExecMainStartTimestamp=Wed 2026-10-14 11:59:21 KST\nActiveState=active\n",
+      "AS90UnchangedAllSamples": true,
+      "managementPids": [
+        "834619"
+      ],
+      "httpAroundEvent": {
+        "31-AS04": {
+          "server": {
+            "samples": 156,
+            "failed": 0,
+            "first": "2026-10-14T03:50:38.989318+00:00",
+            "last": "2026-10-14T04:03:33.989618+00:00",
+            "maxGapSeconds": 5.002
+          },
+          "external": {
+            "samples": 156,
+            "failed": 0,
+            "first": "2026-10-14T03:50:38.992480+00:00",
+            "last": "2026-10-14T04:03:33.992584+00:00",
+            "maxGapSeconds": 5.03
+          }
+        }
+      },
+      "apiSamplesAroundEvent": 13,
+      "apiReadFailuresAroundEvent": 0,
+      "latestEvaluationStatuses": [
+        "MIN_MEMBERS"
+      ]
+    },
+    "32": {
+      "event": {
+        "at": "2026-10-14T03:55:34.608094+00:00",
+        "epoch": 1791950134.6081254,
+        "code": "DEPLOYMENT_CHANGED",
+        "previous": [
+          "626e11add02f429548df6d4ad366608dedebf2d878802f698d9fc274bf79e088",
+          "601e420e9605dd78a1f1f7f474193209d00eb840262e1dd0bcf5aa4e715e7304"
+        ],
+        "current": [
+          "626e11add02f429548df6d4ad366608dedebf2d878802f698d9fc274bf79e088",
+          "7017481f75e3d75634399db6560f6b1db7d97a13fcf21b0a3cf5dcb6e2defce1"
+        ]
+      },
+      "journalLifecycleEvents": [],
+      "currentService": "MainPID=1293012\nNRestarts=0\nExecMainStartTimestamp=Wed 2026-10-14 12:02:02 KST\nActiveState=active\n",
+      "AS90UnchangedAllSamples": true,
+      "managementPids": [
+        "1293012"
+      ],
+      "httpAroundEvent": {
+        "32-AS04": {
+          "server": {
+            "samples": 156,
+            "failed": 0,
+            "first": "2026-10-14T03:50:38.991317+00:00",
+            "last": "2026-10-14T04:03:33.990558+00:00",
+            "maxGapSeconds": 5.001
+          },
+          "external": {
+            "samples": 156,
+            "failed": 0,
+            "first": "2026-10-14T03:50:38.992785+00:00",
+            "last": "2026-10-14T04:03:33.992841+00:00",
+            "maxGapSeconds": 5.03
+          }
+        },
+        "32-VPC": {
+          "server": {
+            "samples": 156,
+            "failed": 0,
+            "first": "2026-10-14T03:50:38.991434+00:00",
+            "last": "2026-10-14T04:03:33.990684+00:00",
+            "maxGapSeconds": 5.0
+          },
+          "external": {
+            "samples": 156,
+            "failed": 0,
+            "first": "2026-10-14T03:50:38.992864+00:00",
+            "last": "2026-10-14T04:03:33.992916+00:00",
+            "maxGapSeconds": 5.03
+          }
+        }
+      },
+      "apiSamplesAroundEvent": 13,
+      "apiReadFailuresAroundEvent": 0,
+      "latestEvaluationStatuses": [
+        "MIN_MEMBERS",
+        "NO_ACTION"
+      ]
+    }
+  }
+}

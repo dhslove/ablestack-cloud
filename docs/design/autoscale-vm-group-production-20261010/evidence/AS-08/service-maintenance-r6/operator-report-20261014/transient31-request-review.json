@@ -1,0 +1,25 @@
+{
+  "at": "2026-10-14T05:12:55.847967+00:00",
+  "source": "/var/log/cloudstack/management/management-server.log",
+  "focusContext": "ctx-56c209fe / logid:aa58b99e",
+  "focusedLines": [
+    "2026-10-14 14:09:04,999 DEBUG [c.c.n.a.A.MonitorTask] (VmGroup-Monitor-5-1:[ctx-56c209fe]) (logid:aa58b99e) Start monitoring on AutoScale VmGroup AutoScaleVmGroup {\"id\":5,\"loadBalancerId\":768,\"name\":\"AS-PROD-31-AS04-CONCURRENCY\",\"profileId\":12,\"uuid\":\"bf0f5385-ae2c-4da4-aec4-eb985dbdeba4\"}.",
+    "2026-10-14 14:09:05,002 DEBUG [c.c.n.a.AutoScaleManagerImpl] (VmGroup-Monitor-5-1:[ctx-56c209fe]) (logid:aa58b99e) [AutoScale] Collecting performance data ...",
+    "2026-10-14 14:09:05,004 DEBUG [c.c.n.a.AutoScaleManagerImpl] (VmGroup-Monitor-5-1:[ctx-56c209fe]) (logid:aa58b99e) [AutoScale] Collecting performance data from hosts ...",
+    "2026-10-14 14:09:05,005 DEBUG [c.c.a.m.ClusteredAgentManagerImpl] (VmGroup-Monitor-5-1:[ctx-56c209fe]) (logid:aa58b99e) Wait time setting on com.cloud.agent.api.GetVmStatsCommand is 1800 seconds",
+    "2026-10-14 14:09:05,005 DEBUG [c.c.a.m.ClusteredAgentAttache] (VmGroup-Monitor-5-1:[ctx-56c209fe]) (logid:aa58b99e) Seq 1-4384817187198604363: Routed from 156788076863",
+    "2026-10-14 14:09:05,070 DEBUG [c.c.a.t.Request] (VmGroup-Monitor-5-1:[ctx-56c209fe]) (logid:aa58b99e) Seq 1-4384817187198604363: Received:  { Ans: , MgmtId: 156788076863, via: 1(ablecube31-1), Ver: v1, Flags: 10, { GetVmStatsAnswer } }",
+    "2026-10-14 14:09:05,070 WARN  [c.c.n.a.AutoScaleManagerImpl] (VmGroup-Monitor-5-1:[ctx-56c209fe]) (logid:aa58b99e) Got empty result for virtual machine statistics from host: Host {\"id\":1,\"name\":\"ablecube31-1\",\"type\":\"Routing\",\"uuid\":\"159baf9a-89ad-4a94-91dc-e7395a670bf4\"}"
+  ],
+  "requestSequences": [
+    "1-4384817187198604363"
+  ],
+  "sequenceLines": [
+    "2026-10-14 14:09:05,005 DEBUG [c.c.a.m.ClusteredAgentAttache] (VmGroup-Monitor-5-1:[ctx-56c209fe]) (logid:aa58b99e) Seq 1-4384817187198604363: Routed from 156788076863",
+    "2026-10-14 14:09:05,070 DEBUG [c.c.a.t.Request] (VmGroup-Monitor-5-1:[ctx-56c209fe]) (logid:aa58b99e) Seq 1-4384817187198604363: Received:  { Ans: , MgmtId: 156788076863, via: 1(ablecube31-1), Ver: v1, Flags: 10, { GetVmStatsAnswer } }"
+  ],
+  "lifecycle": [],
+  "currentService": "MainPID=834619\nNRestarts=0\nExecMainStartTimestamp=Wed 2026-10-14 11:59:21 KST\nActiveState=active\n",
+  "windowStartEpoch": 1791951842.793727,
+  "windowEndEpoch": 1791954539.613724
+}
