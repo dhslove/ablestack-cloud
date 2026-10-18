@@ -1,0 +1,382 @@
+Browser tab: 1, Title: "가상머신 - ABLESTACK-Mold", URL: "http://10.10.31.10:8080/client/#/vm/a3b50b22-7494-4d9b-beaf-86f504bb7894".
+0 AXWebArea 가상머신 - ABLESTACK-Mold, URL: 10.10.31.10:8080/client/#/vm/a3b50b22-7494-4d9b-beaf-86f504bb7894
+	1 container
+		2 container
+			3 image
+			4 menu
+				5 dashboard 대시보드
+					6 link Description: dashboard 대시보드, Value: 10.10.31.10:8080/client/#/dashboard
+				7 container
+					8 image cloud
+					9 text 컴퓨트
+				10 container
+					11 image hdd
+					12 text 스토리지
+				13 container
+					14 image wifi
+					15 text 네트워크
+				16 container
+					17 image picture
+					18 text 이미지
+				19 container
+					20 image lock
+					21 text 키 관리
+				22 schedule 이벤트
+					23 link Description: schedule 이벤트, Value: 10.10.31.10:8080/client/#/event
+				24 project 프로젝트
+					25 link Description: project 프로젝트, Value: 10.10.31.10:8080/client/#/project
+				26 idcard 역할
+					27 link Description: idcard 역할, Value: 10.10.31.10:8080/client/#/role
+				28 team 계정
+					29 link Description: team 계정, Value: 10.10.31.10:8080/client/#/account
+				30 block 도메인
+					31 link Description: block 도메인, Value: 10.10.31.10:8080/client/#/domain
+				32 container
+					33 image bank
+					34 text 인프라스트럭쳐
+				35 container
+					36 image shopping
+					37 text 서비스 오퍼링
+				38 container
+					39 image setting
+					40 text 구성
+				41 appstore-add 확장
+					42 link Description: appstore-add 확장, Value: 10.10.31.10:8080/client/#/extension
+				43 container
+					44 image tool
+					45 text 도구
+				46 read API 문서
+					47 link Description: read API 문서, Value: 10.10.31.10:8080/client/#/apidocs/
+		48 container
+			49 text 페이지 스타일 설정
+			50 button 닫기
+				51 image close
+			52 heading 페이지 스타일 설정, Value: 3
+				53 text 페이지 스타일 설정
+			54 container
+				55 container
+					56 image
+					57 container
+						58 radio button (settable, integer) Description:  , Value: 0
+				59 container
+					60 image
+					61 container
+						62 radio button (settable, integer) Description:  , Value: 1
+					63 image check
+			64 heading 테마 색상, Value: 3
+				65 text 테마 색상
+			66 container
+				67 container
+					68 radio button (settable, integer) Description:  , Value: 0
+					69 image check
+				70 container
+					71 radio button (settable, integer) Description:  , Value: 0
+				72 container
+					73 radio button (settable, integer) Description:  , Value: 0
+				74 container
+					75 radio button (settable, integer) Description:  , Value: 0
+				76 container
+					77 radio button (settable, integer) Description:  , Value: 0
+				78 container
+					79 radio button (settable, integer) Description:  , Value: 0
+				80 container
+					81 radio button (settable, integer) Description:  , Value: 0
+				82 container
+					83 radio button (settable, integer) Description:  , Value: 0
+			84 heading 네비게이션 설정, Value: 3
+				85 text 네비게이션 설정
+			86 container
+				87 container
+					88 text 배경색
+					89 color well (disabled, settable) #ffffff
+				90 container
+					91 text 텍스트 색상
+					92 color well (disabled, settable) #000000
+			93 container
+				94 image exclamation-circle
+				95 text 설정은 현재 브라우저에서만 볼 수 있습니다. 설정을 적용하려면 JSON 파일을 다운로드하고 경로 `/public/config.json` 아래의 `config.json` 파일의 `theme` 섹션에서 해당 콘텐츠를 교체하세요.
+			96 button download 세팅값 다운로드(json)
+				97 image download
+				98 text 세팅값 다운로드(json)
+			99 button undo 기본값으로 재설정
+				100 image undo
+				101 text 기본값으로 재설정
+		102 container
+			103 image menu-unfold
+			104 container
+				105 combo box (settable) rc_select_31
+				106 image project
+				107 text 기본 보기
+			108 image translation
+			885 container
+				886 image bell
+				887 container 14
+					888 text 1
+					1102 text 4
+			110 container
+				111 text AC admin cloud
+		112 container
+			113 container
+				114 link Description: home, Value: 10.10.31.10:8080/client/#/
+				115 text /
+				116 link Description: 가상머신, Value: 10.10.31.10:8080/client/#/vm
+				1103 text / E1367-VM-DETAIL-31
+				1104 link Description: question-circle, Value: docs.ablecloud.io/latest/adminguide/virtual_machines.html
+				1105 button reload 업데이트
+					1106 image reload
+					1107 text 업데이트
+			1108 button down 작업
+				1109 image down
+				1110 text 작업
+			1111 container
+				1112 image edit
+				1113 heading E1367-VM-DETAIL-31, Value: 4
+					1114 text E1367-VM-DETAIL-31
+				1115 text i-2-521-VM x86_64 KVM HA 활성화 동적으로 확장 가능
+				1116 link code
+					1117 button (disabled) code
+						1118 image code
+				1119 text 상태 정지된 상태 아이디
+				1120 button barcode
+					1121 image barcode
+				1122 link Description: a3b50b22-7494-4d9b-beaf-86f504bb7894 , Value: javascript:;
+				1123 text CPU 1 CPU x 2.00 GHz 
+				1124 image question-circle
+				1125 text x86_64 메모리 1024 MB 메모리 네트워크
+				1126 image wifi
+				1127 text 1 NIC(s)
+				1128 text eth0
+				1129 link Description:  , Value: javascript:;
+				1130 text 기본
+				1131 image apartment
+				1132 link Description: ADMIN-L2-Network, Value: 10.10.31.10:8080/client/#/guestnetwork/d2fb4fd9-e933-4862-8527-5c2d92bf8c71
+				1133 text 템플릿
+				1134 image save
+				1135 link Description: Rocky-Linux-9-5-x86-64-Server-Cloud-Image.qcow2, Value: 10.10.31.10:8080/client/#/template/8d692729-7565-4e92-965b-ebaadc1efcb0
+				1136 text 컴퓨트 오퍼링
+				1137 image cloud
+				1138 link Description: 1C1GB-TO-64C128GB-FR-GFS, Value: 10.10.31.10:8080/client/#/computeoffering/b1bad848-428f-4973-8c2b-26df2b7cca95
+				1139 text Zone
+				1140 image global
+				1141 link Description: Zone, Value: 10.10.31.10:8080/client/#/zone/7013f5a1-de59-4cea-a596-f4f58815f31c
+				1142 text 계정
+				1143 image user
+				1144 link Description: admin, Value: 10.10.31.10:8080/client/#/account?name=admin&domainid=7ef6b29a-b253-11f1-a895-0024814c313f
+				1145 text 도메인
+				1146 image block
+				1147 link Description: ROOT, Value: 10.10.31.10:8080/client/#/domain/7ef6b29a-b253-11f1-a895-0024814c313f?tab=details
+				1148 text 생성일
+				1149 image calendar
+				1150 text 2026. 10. 14. 오후 6:43:23
+				1151 container
+					1152 text 태그
+					1153 container
+						1154 image plus
+						1155 text  새 태그
+			1156 container
+				1157 tab group
+					1158 container
+						1159 tab (selected, settable, boolean) 상세, Value: 1, ID: rc-tabs-8-tab-details
+						1160 tab (selectable, settable, boolean) IP 구성, Value: 0, ID: rc-tabs-8-tab-guestnetwork
+						1161 tab (selectable, settable, boolean) 메트릭, Value: 0, ID: rc-tabs-8-tab-stats
+						1162 tab (selectable, settable, boolean) 프로세스, Value: 0, ID: rc-tabs-8-tab-processes
+						1163 tab (selectable, settable, boolean) 스케줄, Value: 0, ID: rc-tabs-8-tab-schedules
+						1164 tab (selectable, settable, boolean) ISO, Value: 0, ID: rc-tabs-8-tab-cdrom
+						1165 tab (selectable, settable, boolean) 볼륨, Value: 0, ID: rc-tabs-8-tab-volumes
+						1166 tab (selectable, settable, boolean) NIC, Value: 0, ID: rc-tabs-8-tab-nics
+						1167 tab (selectable, settable, boolean) 설정, Value: 0, ID: rc-tabs-8-tab-settings
+						1168 tab (selectable, settable, boolean) 호스트 장치, Value: 0, ID: rc-tabs-8-tab-hostdevices
+						1169 tab (selectable, settable, boolean) VM 스냅샷, Value: 0, ID: rc-tabs-8-tab-vmsnapshots
+						1170 tab (selectable, settable, boolean) 이벤트, Value: 0, ID: rc-tabs-8-tab-events
+						1171 tab (selectable, settable, boolean) 코멘트, Value: 0, ID: rc-tabs-8-tab-comments
+				1172 container Description: 상세, ID: rc-tabs-8-panel-details
+					1173 content list
+						1174 container
+							1175 text VM 호스트 명
+							1176 text E1367-VM-DETAIL-31
+						1177 container
+							1178 text VM 표시 명
+							1179 text E1367-VM-DETAIL-31
+						1180 container
+							1181 text 아이디
+							1182 text a3b50b22-7494-4d9b-beaf-86f504bb7894
+						1183 container
+							1184 text 상태
+							1185 text Stopped
+						1186 container
+							1187 text 템플릿
+							1188 text Rocky-Linux-9-5-x86-64-Server-Cloud-Image.qcow2
+						1189 container
+							1190 text 템플릿 형식
+							1191 text USER
+						1192 container
+							1193 text 컴퓨트 오퍼링
+							1194 text 1C1GB-TO-64C128GB-FR-GFS
+						1195 container
+							1196 text 동적으로 확장 가능
+							1197 text true
+						1198 container
+							1199 text HA 활성화
+							1200 text true
+						1201 container
+							1202 text 하이퍼바이저
+							1203 text KVM
+						1204 container
+							1205 text CPU 아키텍처
+							1206 text x86_64
+						1207 container
+							1208 text 계정
+							1209 text admin
+						1210 container
+							1211 text 도메인
+							1212 text ROOT
+						1213 container
+							1214 text Zone
+							1215 text Zone
+						1216 container
+							1217 text VBMC 포트
+							1218 text 미할당
+						1219 container
+							1220 text 삭제 보호
+							1221 text false
+	239 container
+		240 image info-circle
+		241 text Wall 모니터링을 사용할 수 없습니다. 기존 알림은 최신 정보가 아닐 수 있으며 Mold는 계속 사용할 수 있습니다. 비활성
+	1222 container
+		1223 container Affinity 변경question-circle
+			1224 container
+				1225 button Close
+					1226 image close
+				1227 container vcDialogTitle10
+					1228 text Affinity 변경
+					1229 link Description: question-circle, Value: docs.ablecloud.io/latest/adminguide/virtual_machines.html#change-affinity-group-for-an-existing-vm
+				1230 container
+					1231 text 이 VM이 속할 Affinity 그룹을 선택하십시오.
+					1232 container
+						1233 text field (settable)
+						1234 button search
+							1235 image search
+					1236 container
+						1237 table
+							1238 row
+								1239 cell
+									1240 container
+										1241 checkbox (settable, integer) Description:  , Value: 0
+								1242 cell
+									1243 container
+										1244 text 이름
+										1245 image caret-up
+										1246 image caret-down
+								1247 cell
+									1248 container
+										1249 text 유형
+										1250 image caret-up
+										1251 image caret-down
+								1252 cell
+									1253 container
+										1254 text 설명
+										1255 image caret-up
+										1256 image caret-down
+							1358 row
+								1359 cell
+									1360 container
+										1361 checkbox (settable, integer) Description:  , Value: 0
+								1362 cell
+									1363 text rt1230-r17-ha-control-spread
+								1364 cell
+									1365 text host anti-affinity
+								1366 cell
+									1367 text Cloud #1230 isolated r17 HA controls across three hosts
+							1368 row
+								1369 cell
+									1370 container
+										1371 checkbox (settable, integer) Description:  , Value: 0
+								1372 cell
+									1373 text rt1230-r18-control-spread
+								1374 cell
+									1375 text host anti-affinity
+								1376 cell
+									1377 text Cloud #1230 isolated r18 control across hosts
+							1378 row
+								1379 cell
+									1380 container
+										1381 checkbox (settable, integer) Description:  , Value: 0
+								1382 cell
+									1383 text rt1230-r18-etcd-spread
+								1384 cell
+									1385 text host anti-affinity
+								1386 cell
+									1387 text Cloud #1230 isolated r18 etcd across hosts
+							1388 row
+								1389 cell
+									1390 container
+										1391 checkbox (settable, integer) Description:  , Value: 0
+								1392 cell
+									1393 text qa-affinity-20261019-replay-0
+								1394 cell
+									1395 text host affinity
+							1396 row
+								1397 cell
+									1398 container
+										1399 checkbox (settable, integer) Description:  , Value: 0
+								1400 cell
+									1401 text qa-affinity-20261019-replay-1
+								1402 cell
+									1403 text host affinity
+							1404 row
+								1405 cell
+									1406 container
+										1407 checkbox (settable, integer) Description:  , Value: 0
+								1408 cell
+									1409 text qa-affinity-20261019-replay-2
+								1410 cell
+									1411 text host affinity
+							1412 row
+								1413 cell
+									1414 container
+										1415 checkbox (settable, integer) Description:  , Value: 0
+								1416 cell
+									1417 text qa-affinity-20261019-replay-3
+								1418 cell
+									1419 text host affinity
+							1420 row
+								1421 cell
+									1422 container
+										1423 checkbox (settable, integer) Description:  , Value: 0
+								1424 cell
+									1425 text qa-affinity-20261019-replay-4
+								1426 cell
+									1427 text host affinity
+							1428 row
+								1429 cell
+									1430 container
+										1431 checkbox (settable, integer) Description:  , Value: 0
+								1432 cell
+									1433 text qa-affinity-20261019-replay-5
+								1434 cell
+									1435 text host affinity
+							1436 row
+								1437 cell
+									1438 container
+										1439 checkbox (settable, integer) Description:  , Value: 0
+								1440 cell
+									1441 text qa-affinity-20261019-replay-6
+								1442 cell
+									1443 text host affinity
+						1444 content list
+							1445 container 이전 페이지
+								1446 button (disabled) left
+									1447 image left
+							1448 text 1
+							1449 text 2
+							1450 container 다음 페이지
+								1451 button right
+									1452 image right
+							1453 container
+								1454 combo box (settable) rc_select_37
+								1455 text 10 / 쪽
+					1355 button 취소
+					1356 button 확인
+						1357 text 확인
+
+The focused UI element is 0 AXWebArea 가상머신 - ABLESTACK-Mold, URL: 10.10.31.10:8080/client/#/vm/a3b50b22-7494-4d9b-beaf-86f504bb7894

@@ -1,0 +1,1439 @@
+{
+  "date": "2026-10-19",
+  "sourceCommit": "d9f068bbbba048313b6d38539651d19444c4d7c7",
+  "cluster": "31",
+  "apiTypes": {
+    "request": {
+      "command": "listAffinityGroupTypes"
+    },
+    "response": {
+      "listaffinitygrouptypesresponse": {
+        "count": 4,
+        "affinityGroupType": [
+          {
+            "type": "host anti-affinity"
+          },
+          {
+            "type": "host affinity"
+          },
+          {
+            "type": "non-strict host anti-affinity"
+          },
+          {
+            "type": "non-strict host affinity"
+          }
+        ]
+      }
+    }
+  },
+  "apiSchemas": [
+    {
+      "request": {
+        "command": "listApis",
+        "name": "listAffinityGroups"
+      },
+      "response": {
+        "listapisresponse": {
+          "count": 1,
+          "api": [
+            {
+              "name": "listAffinityGroups",
+              "isasync": false,
+              "params": [
+                {
+                  "name": "keyword",
+                  "type": "string",
+                  "required": false
+                },
+                {
+                  "name": "account",
+                  "type": "string",
+                  "required": false
+                },
+                {
+                  "name": "type",
+                  "type": "string",
+                  "required": false
+                },
+                {
+                  "name": "listall",
+                  "type": "boolean",
+                  "required": false
+                },
+                {
+                  "name": "id",
+                  "type": "uuid",
+                  "required": false
+                },
+                {
+                  "name": "isrecursive",
+                  "type": "boolean",
+                  "required": false
+                },
+                {
+                  "name": "virtualmachineid",
+                  "type": "uuid",
+                  "required": false
+                },
+                {
+                  "name": "domainid",
+                  "type": "uuid",
+                  "required": false
+                },
+                {
+                  "name": "page",
+                  "type": "integer",
+                  "required": false
+                },
+                {
+                  "name": "pagesize",
+                  "type": "integer",
+                  "required": false
+                },
+                {
+                  "name": "name",
+                  "type": "string",
+                  "required": false
+                },
+                {
+                  "name": "projectid",
+                  "type": "uuid",
+                  "required": false
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "command": "listApis",
+        "name": "updateVMAffinityGroup"
+      },
+      "response": {
+        "listapisresponse": {
+          "count": 1,
+          "api": [
+            {
+              "name": "updateVMAffinityGroup",
+              "isasync": true,
+              "params": [
+                {
+                  "name": "affinitygroupnames",
+                  "type": "list",
+                  "required": false
+                },
+                {
+                  "name": "id",
+                  "type": "uuid",
+                  "required": true
+                },
+                {
+                  "name": "affinitygroupids",
+                  "type": "list",
+                  "required": false
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "command": "listApis",
+        "name": "createAffinityGroup"
+      },
+      "response": {
+        "listapisresponse": {
+          "count": 1,
+          "api": [
+            {
+              "name": "createAffinityGroup",
+              "isasync": true,
+              "params": [
+                {
+                  "name": "type",
+                  "type": "string",
+                  "required": true
+                },
+                {
+                  "name": "projectid",
+                  "type": "uuid",
+                  "required": false
+                },
+                {
+                  "name": "name",
+                  "type": "string",
+                  "required": true
+                },
+                {
+                  "name": "account",
+                  "type": "string",
+                  "required": false
+                },
+                {
+                  "name": "domainid",
+                  "type": "uuid",
+                  "required": false
+                },
+                {
+                  "name": "description",
+                  "type": "string",
+                  "required": false
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "command": "listApis",
+        "name": "deleteAffinityGroup"
+      },
+      "response": {
+        "listapisresponse": {
+          "count": 1,
+          "api": [
+            {
+              "name": "deleteAffinityGroup",
+              "isasync": true,
+              "params": [
+                {
+                  "name": "account",
+                  "type": "string",
+                  "required": false
+                },
+                {
+                  "name": "name",
+                  "type": "string",
+                  "required": false
+                },
+                {
+                  "name": "id",
+                  "type": "uuid",
+                  "required": false
+                },
+                {
+                  "name": "domainid",
+                  "type": "uuid",
+                  "required": false
+                },
+                {
+                  "name": "projectid",
+                  "type": "uuid",
+                  "required": false
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "command": "listApis",
+        "name": "listAffinityGroupTypes"
+      },
+      "response": {
+        "listapisresponse": {
+          "count": 1,
+          "api": [
+            {
+              "name": "listAffinityGroupTypes",
+              "isasync": false,
+              "params": [
+                {
+                  "name": "pagesize",
+                  "type": "integer",
+                  "required": false
+                },
+                {
+                  "name": "page",
+                  "type": "integer",
+                  "required": false
+                },
+                {
+                  "name": "keyword",
+                  "type": "string",
+                  "required": false
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "filterComparisons": [
+    {
+      "request": {
+        "command": "listAffinityGroups",
+        "listall": "true",
+        "projectid": "-1",
+        "page": "1",
+        "pagesize": "500"
+      },
+      "response": {
+        "listaffinitygroupsresponse": {
+          "count": 19,
+          "affinitygroup": [
+            {
+              "id": "ac508d0e-c80b-4c66-9bd0-8cbb896ca7e0",
+              "name": "rt1230-r17-ha-control-spread",
+              "account": "k1230-20261006",
+              "projectid": null,
+              "type": "host anti-affinity"
+            },
+            {
+              "id": "966bf870-a046-4c76-bfce-7c78f62c0ecb",
+              "name": "rt1230-r18-control-spread",
+              "account": "k1230-20261006",
+              "projectid": null,
+              "type": "host anti-affinity"
+            },
+            {
+              "id": "42f65110-108a-4831-8403-14500cc7f5fa",
+              "name": "rt1230-r18-etcd-spread",
+              "account": "k1230-20261006",
+              "projectid": null,
+              "type": "host anti-affinity"
+            },
+            {
+              "id": "875da298-7315-4e05-b1fc-f78cbdafe262",
+              "name": "AS-PROD-AS06-AFFINITY",
+              "account": null,
+              "projectid": "fb318714-bc01-4be5-9e33-0f49a7013127",
+              "type": "host anti-affinity"
+            },
+            {
+              "id": "ca6c51a6-7e34-496a-9ce4-f0cc58a139f1",
+              "name": "qa-affinity-20261019-ui",
+              "account": "admin",
+              "projectid": null,
+              "type": "host affinity"
+            },
+            {
+              "id": "c27cf9c8-d9e8-4c75-8c00-64530985fcc2",
+              "name": "qa-affinity-20261019-anti",
+              "account": "admin",
+              "projectid": null,
+              "type": "host anti-affinity"
+            },
+            {
+              "id": "55ef0bac-39b9-40f5-acbb-de34b04c1db6",
+              "name": "qa-affinity-20261019-soft",
+              "account": "admin",
+              "projectid": null,
+              "type": "non-strict host affinity"
+            },
+            {
+              "id": "928bbce6-4920-4d00-91b0-b326c007fe94",
+              "name": "qa-affinity-20261019-soft-anti",
+              "account": "admin",
+              "projectid": null,
+              "type": "non-strict host anti-affinity"
+            },
+            {
+              "id": "2fc14f53-a1be-4309-872d-71761848ac4c",
+              "name": "qa-affinity-20261019-page-00",
+              "account": "admin",
+              "projectid": null,
+              "type": "host affinity"
+            },
+            {
+              "id": "c2f24a90-f0a4-40f5-a74c-9951d93d420c",
+              "name": "qa-affinity-20261019-page-01",
+              "account": "admin",
+              "projectid": null,
+              "type": "host affinity"
+            },
+            {
+              "id": "9665687b-7b86-4de5-a35d-b10ce999c6b4",
+              "name": "qa-affinity-20261019-page-02",
+              "account": "admin",
+              "projectid": null,
+              "type": "host affinity"
+            },
+            {
+              "id": "10e3db90-a98e-4ef7-8bc6-019683b09337",
+              "name": "qa-affinity-20261019-page-03",
+              "account": "admin",
+              "projectid": null,
+              "type": "host affinity"
+            },
+            {
+              "id": "b6469e5b-bf8f-44b7-94fb-8f55fce099ae",
+              "name": "qa-affinity-20261019-page-04",
+              "account": "admin",
+              "projectid": null,
+              "type": "host affinity"
+            },
+            {
+              "id": "eca99e59-ad5f-47d5-b6d4-1c97505efd89",
+              "name": "qa-affinity-20261019-page-05",
+              "account": "admin",
+              "projectid": null,
+              "type": "host affinity"
+            },
+            {
+              "id": "754ac738-8a85-4884-b2ee-0241c49cc82c",
+              "name": "qa-affinity-20261019-page-06",
+              "account": "admin",
+              "projectid": null,
+              "type": "host affinity"
+            },
+            {
+              "id": "aae88441-5e64-45a3-a1d9-7f182c6e7d4e",
+              "name": "qa-affinity-20261019-page-07",
+              "account": "admin",
+              "projectid": null,
+              "type": "host affinity"
+            },
+            {
+              "id": "d8f3e65f-43f7-4444-945c-a357efe40ee3",
+              "name": "qa-affinity-20261019-page-08",
+              "account": "admin",
+              "projectid": null,
+              "type": "host affinity"
+            },
+            {
+              "id": "b3e4323b-e88c-4204-bf3e-1c1851eddc53",
+              "name": "qa-affinity-20261019-user-owned",
+              "account": "qa-affinity-20261019-user",
+              "projectid": null,
+              "type": "host affinity"
+            },
+            {
+              "id": "7f93c31d-b5e7-4d8d-bc19-aa610584a087",
+              "name": "qa-affinity-20261019-project",
+              "account": null,
+              "projectid": "94bc0ded-ace2-4dd8-b1d6-dab52fe07af5",
+              "type": "host affinity"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "command": "listAffinityGroups",
+        "domainid": "7ef6b29a-b253-11f1-a895-0024814c313f",
+        "accountid": "2e39acd7-2e07-472c-835e-f34796fe25b1",
+        "page": "1",
+        "pagesize": "500"
+      },
+      "response": {
+        "listaffinitygroupsresponse": {
+          "count": 17,
+          "affinitygroup": [
+            {
+              "id": "ac508d0e-c80b-4c66-9bd0-8cbb896ca7e0",
+              "name": "rt1230-r17-ha-control-spread",
+              "account": "k1230-20261006",
+              "projectid": null,
+              "type": "host anti-affinity"
+            },
+            {
+              "id": "966bf870-a046-4c76-bfce-7c78f62c0ecb",
+              "name": "rt1230-r18-control-spread",
+              "account": "k1230-20261006",
+              "projectid": null,
+              "type": "host anti-affinity"
+            },
+            {
+              "id": "42f65110-108a-4831-8403-14500cc7f5fa",
+              "name": "rt1230-r18-etcd-spread",
+              "account": "k1230-20261006",
+              "projectid": null,
+              "type": "host anti-affinity"
+            },
+            {
+              "id": "ca6c51a6-7e34-496a-9ce4-f0cc58a139f1",
+              "name": "qa-affinity-20261019-ui",
+              "account": "admin",
+              "projectid": null,
+              "type": "host affinity"
+            },
+            {
+              "id": "c27cf9c8-d9e8-4c75-8c00-64530985fcc2",
+              "name": "qa-affinity-20261019-anti",
+              "account": "admin",
+              "projectid": null,
+              "type": "host anti-affinity"
+            },
+            {
+              "id": "55ef0bac-39b9-40f5-acbb-de34b04c1db6",
+              "name": "qa-affinity-20261019-soft",
+              "account": "admin",
+              "projectid": null,
+              "type": "non-strict host affinity"
+            },
+            {
+              "id": "928bbce6-4920-4d00-91b0-b326c007fe94",
+              "name": "qa-affinity-20261019-soft-anti",
+              "account": "admin",
+              "projectid": null,
+              "type": "non-strict host anti-affinity"
+            },
+            {
+              "id": "2fc14f53-a1be-4309-872d-71761848ac4c",
+              "name": "qa-affinity-20261019-page-00",
+              "account": "admin",
+              "projectid": null,
+              "type": "host affinity"
+            },
+            {
+              "id": "c2f24a90-f0a4-40f5-a74c-9951d93d420c",
+              "name": "qa-affinity-20261019-page-01",
+              "account": "admin",
+              "projectid": null,
+              "type": "host affinity"
+            },
+            {
+              "id": "9665687b-7b86-4de5-a35d-b10ce999c6b4",
+              "name": "qa-affinity-20261019-page-02",
+              "account": "admin",
+              "projectid": null,
+              "type": "host affinity"
+            },
+            {
+              "id": "10e3db90-a98e-4ef7-8bc6-019683b09337",
+              "name": "qa-affinity-20261019-page-03",
+              "account": "admin",
+              "projectid": null,
+              "type": "host affinity"
+            },
+            {
+              "id": "b6469e5b-bf8f-44b7-94fb-8f55fce099ae",
+              "name": "qa-affinity-20261019-page-04",
+              "account": "admin",
+              "projectid": null,
+              "type": "host affinity"
+            },
+            {
+              "id": "eca99e59-ad5f-47d5-b6d4-1c97505efd89",
+              "name": "qa-affinity-20261019-page-05",
+              "account": "admin",
+              "projectid": null,
+              "type": "host affinity"
+            },
+            {
+              "id": "754ac738-8a85-4884-b2ee-0241c49cc82c",
+              "name": "qa-affinity-20261019-page-06",
+              "account": "admin",
+              "projectid": null,
+              "type": "host affinity"
+            },
+            {
+              "id": "aae88441-5e64-45a3-a1d9-7f182c6e7d4e",
+              "name": "qa-affinity-20261019-page-07",
+              "account": "admin",
+              "projectid": null,
+              "type": "host affinity"
+            },
+            {
+              "id": "d8f3e65f-43f7-4444-945c-a357efe40ee3",
+              "name": "qa-affinity-20261019-page-08",
+              "account": "admin",
+              "projectid": null,
+              "type": "host affinity"
+            },
+            {
+              "id": "b3e4323b-e88c-4204-bf3e-1c1851eddc53",
+              "name": "qa-affinity-20261019-user-owned",
+              "account": "qa-affinity-20261019-user",
+              "projectid": null,
+              "type": "host affinity"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "command": "listAffinityGroups",
+        "domainid": "7ef6b29a-b253-11f1-a895-0024814c313f",
+        "account": "qa-affinity-20261019-user",
+        "page": "1",
+        "pagesize": "500"
+      },
+      "response": {
+        "listaffinitygroupsresponse": {
+          "count": 1,
+          "affinitygroup": [
+            {
+              "id": "b3e4323b-e88c-4204-bf3e-1c1851eddc53",
+              "name": "qa-affinity-20261019-user-owned",
+              "account": "qa-affinity-20261019-user",
+              "projectid": null,
+              "type": "host affinity"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "command": "listAffinityGroups",
+        "type": "host anti-affinity",
+        "listall": "true"
+      },
+      "response": {
+        "listaffinitygroupsresponse": {
+          "count": 4,
+          "affinitygroup": [
+            {
+              "id": "ac508d0e-c80b-4c66-9bd0-8cbb896ca7e0",
+              "name": "rt1230-r17-ha-control-spread",
+              "account": "k1230-20261006",
+              "projectid": null,
+              "type": "host anti-affinity"
+            },
+            {
+              "id": "966bf870-a046-4c76-bfce-7c78f62c0ecb",
+              "name": "rt1230-r18-control-spread",
+              "account": "k1230-20261006",
+              "projectid": null,
+              "type": "host anti-affinity"
+            },
+            {
+              "id": "42f65110-108a-4831-8403-14500cc7f5fa",
+              "name": "rt1230-r18-etcd-spread",
+              "account": "k1230-20261006",
+              "projectid": null,
+              "type": "host anti-affinity"
+            },
+            {
+              "id": "c27cf9c8-d9e8-4c75-8c00-64530985fcc2",
+              "name": "qa-affinity-20261019-anti",
+              "account": "admin",
+              "projectid": null,
+              "type": "host anti-affinity"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "command": "listAffinityGroups",
+        "zoneid": "00000000-0000-0000-0000-000000000000",
+        "listall": "true"
+      },
+      "response": {
+        "listaffinitygroupsresponse": {
+          "count": 17,
+          "affinitygroup": [
+            {
+              "id": "ac508d0e-c80b-4c66-9bd0-8cbb896ca7e0",
+              "name": "rt1230-r17-ha-control-spread",
+              "account": "k1230-20261006",
+              "projectid": null,
+              "type": "host anti-affinity"
+            },
+            {
+              "id": "966bf870-a046-4c76-bfce-7c78f62c0ecb",
+              "name": "rt1230-r18-control-spread",
+              "account": "k1230-20261006",
+              "projectid": null,
+              "type": "host anti-affinity"
+            },
+            {
+              "id": "42f65110-108a-4831-8403-14500cc7f5fa",
+              "name": "rt1230-r18-etcd-spread",
+              "account": "k1230-20261006",
+              "projectid": null,
+              "type": "host anti-affinity"
+            },
+            {
+              "id": "ca6c51a6-7e34-496a-9ce4-f0cc58a139f1",
+              "name": "qa-affinity-20261019-ui",
+              "account": "admin",
+              "projectid": null,
+              "type": "host affinity"
+            },
+            {
+              "id": "c27cf9c8-d9e8-4c75-8c00-64530985fcc2",
+              "name": "qa-affinity-20261019-anti",
+              "account": "admin",
+              "projectid": null,
+              "type": "host anti-affinity"
+            },
+            {
+              "id": "55ef0bac-39b9-40f5-acbb-de34b04c1db6",
+              "name": "qa-affinity-20261019-soft",
+              "account": "admin",
+              "projectid": null,
+              "type": "non-strict host affinity"
+            },
+            {
+              "id": "928bbce6-4920-4d00-91b0-b326c007fe94",
+              "name": "qa-affinity-20261019-soft-anti",
+              "account": "admin",
+              "projectid": null,
+              "type": "non-strict host anti-affinity"
+            },
+            {
+              "id": "2fc14f53-a1be-4309-872d-71761848ac4c",
+              "name": "qa-affinity-20261019-page-00",
+              "account": "admin",
+              "projectid": null,
+              "type": "host affinity"
+            },
+            {
+              "id": "c2f24a90-f0a4-40f5-a74c-9951d93d420c",
+              "name": "qa-affinity-20261019-page-01",
+              "account": "admin",
+              "projectid": null,
+              "type": "host affinity"
+            },
+            {
+              "id": "9665687b-7b86-4de5-a35d-b10ce999c6b4",
+              "name": "qa-affinity-20261019-page-02",
+              "account": "admin",
+              "projectid": null,
+              "type": "host affinity"
+            },
+            {
+              "id": "10e3db90-a98e-4ef7-8bc6-019683b09337",
+              "name": "qa-affinity-20261019-page-03",
+              "account": "admin",
+              "projectid": null,
+              "type": "host affinity"
+            },
+            {
+              "id": "b6469e5b-bf8f-44b7-94fb-8f55fce099ae",
+              "name": "qa-affinity-20261019-page-04",
+              "account": "admin",
+              "projectid": null,
+              "type": "host affinity"
+            },
+            {
+              "id": "eca99e59-ad5f-47d5-b6d4-1c97505efd89",
+              "name": "qa-affinity-20261019-page-05",
+              "account": "admin",
+              "projectid": null,
+              "type": "host affinity"
+            },
+            {
+              "id": "754ac738-8a85-4884-b2ee-0241c49cc82c",
+              "name": "qa-affinity-20261019-page-06",
+              "account": "admin",
+              "projectid": null,
+              "type": "host affinity"
+            },
+            {
+              "id": "aae88441-5e64-45a3-a1d9-7f182c6e7d4e",
+              "name": "qa-affinity-20261019-page-07",
+              "account": "admin",
+              "projectid": null,
+              "type": "host affinity"
+            },
+            {
+              "id": "d8f3e65f-43f7-4444-945c-a357efe40ee3",
+              "name": "qa-affinity-20261019-page-08",
+              "account": "admin",
+              "projectid": null,
+              "type": "host affinity"
+            },
+            {
+              "id": "b3e4323b-e88c-4204-bf3e-1c1851eddc53",
+              "name": "qa-affinity-20261019-user-owned",
+              "account": "qa-affinity-20261019-user",
+              "projectid": null,
+              "type": "host affinity"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "command": "listAffinityGroups",
+        "keyword": "qa-affinity-20261019-ui",
+        "listall": "true"
+      },
+      "response": {
+        "listaffinitygroupsresponse": {
+          "count": 1,
+          "affinitygroup": [
+            {
+              "id": "ca6c51a6-7e34-496a-9ce4-f0cc58a139f1",
+              "name": "qa-affinity-20261019-ui",
+              "account": "admin",
+              "projectid": null,
+              "type": "host affinity"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "vmInitiallyStopped": {
+    "request": {
+      "command": "listVirtualMachines",
+      "id": "f46fad13-7d36-4b21-900c-4bf715c03d6e",
+      "details": "all"
+    },
+    "response": {
+      "listvirtualmachinesresponse": {
+        "count": 1,
+        "virtualmachine": [
+          {
+            "id": "f46fad13-7d36-4b21-900c-4bf715c03d6e",
+            "name": "qa-affinity-20261019-vm",
+            "state": "Stopped",
+            "account": "admin",
+            "affinitygroup": []
+          }
+        ]
+      }
+    }
+  },
+  "foreignAssignmentJob": {
+    "request": {
+      "command": "queryAsyncJobResult",
+      "jobid": "764d1387-4966-4863-8ee7-e9ca9e3e96f5"
+    },
+    "response": {
+      "queryasyncjobresultresponse": {
+        "accountid": "a75c97c6-b253-11f1-a895-0024814c313f",
+        "account": "admin",
+        "domainid": "7ef6b29a-b253-11f1-a895-0024814c313f",
+        "domainpath": "ROOT",
+        "userid": "a75cdd55-b253-11f1-a895-0024814c313f",
+        "cmd": "org.apache.cloudstack.api.command.admin.affinitygroup.UpdateVMAffinityGroupCmdByAdmin",
+        "jobprocstatus": 0,
+        "jobresultcode": 530,
+        "jobresulttype": "object",
+        "jobresult": {
+          "errorcode": 530,
+          "errortext": "Entity AffinityGroup {\"id\":1,\"name\":\"rt1230-r17-ha-control-spread\",\"uuid\":\"ac508d0e-c80b-4c66-9bd0-8cbb896ca7e0\"} and entity Account [{\"accountName\":\"admin\",\"id\":2,\"uuid\":\"a75c97c6-b253-11f1-a895-0024814c313f\"}] belong to different accounts"
+        },
+        "created": "2026-10-19T00:38:09+0900",
+        "completed": "2026-10-19T00:38:09+0900",
+        "jobid": "764d1387-4966-4863-8ee7-e9ca9e3e96f5",
+        "jobstatus": 2
+      }
+    }
+  },
+  "foreignAssignmentUnchangedVm": {
+    "request": {
+      "command": "listVirtualMachines",
+      "id": "f46fad13-7d36-4b21-900c-4bf715c03d6e",
+      "details": "affgrp"
+    },
+    "response": {
+      "listvirtualmachinesresponse": {
+        "count": 1,
+        "virtualmachine": [
+          {
+            "id": "f46fad13-7d36-4b21-900c-4bf715c03d6e",
+            "name": "qa-affinity-20261019-vm",
+            "state": "Stopped",
+            "account": "admin",
+            "affinitygroup": []
+          }
+        ]
+      }
+    }
+  },
+  "uiAssignmentAndGroupReads": [
+    {
+      "request": {
+        "command": "listVirtualMachines",
+        "id": "f46fad13-7d36-4b21-900c-4bf715c03d6e",
+        "details": "affgrp"
+      },
+      "response": {
+        "listvirtualmachinesresponse": {
+          "count": 1,
+          "virtualmachine": [
+            {
+              "id": "f46fad13-7d36-4b21-900c-4bf715c03d6e",
+              "name": "qa-affinity-20261019-vm",
+              "state": "Stopped",
+              "account": "admin",
+              "affinitygroup": [
+                {
+                  "id": "ca6c51a6-7e34-496a-9ce4-f0cc58a139f1",
+                  "name": "qa-affinity-20261019-ui",
+                  "description": "31번 Affinity 기능 검증 전용 — 한글 설명",
+                  "account": "admin"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "command": "listAffinityGroups",
+        "id": "ca6c51a6-7e34-496a-9ce4-f0cc58a139f1"
+      },
+      "response": {
+        "listaffinitygroupsresponse": {
+          "count": 1,
+          "affinitygroup": [
+            {
+              "id": "ca6c51a6-7e34-496a-9ce4-f0cc58a139f1",
+              "name": "qa-affinity-20261019-ui",
+              "description": "31번 Affinity 기능 검증 전용 — 한글 설명",
+              "account": "admin",
+              "domainid": "7ef6b29a-b253-11f1-a895-0024814c313f",
+              "domain": "ROOT",
+              "domainpath": "ROOT",
+              "type": "host affinity",
+              "virtualmachineIds": [
+                "f46fad13-7d36-4b21-900c-4bf715c03d6e"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "command": "listVirtualMachines",
+        "affinitygroupid": "ca6c51a6-7e34-496a-9ce4-f0cc58a139f1",
+        "details": "min"
+      },
+      "response": {
+        "listvirtualmachinesresponse": {
+          "count": 1,
+          "virtualmachine": [
+            {
+              "id": "f46fad13-7d36-4b21-900c-4bf715c03d6e",
+              "name": "qa-affinity-20261019-vm",
+              "state": "Stopped",
+              "account": "admin",
+              "affinitygroup": []
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "command": "listAffinityGroups",
+        "virtualmachineid": "f46fad13-7d36-4b21-900c-4bf715c03d6e"
+      },
+      "response": {
+        "listaffinitygroupsresponse": {
+          "count": 1,
+          "affinitygroup": [
+            {
+              "id": "ca6c51a6-7e34-496a-9ce4-f0cc58a139f1",
+              "name": "qa-affinity-20261019-ui",
+              "description": "31번 Affinity 기능 검증 전용 — 한글 설명",
+              "account": "admin",
+              "domainid": "7ef6b29a-b253-11f1-a895-0024814c313f",
+              "domain": "ROOT",
+              "domainpath": "ROOT",
+              "type": "host affinity",
+              "virtualmachineIds": [
+                "f46fad13-7d36-4b21-900c-4bf715c03d6e"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "command": "listAffinityGroups",
+        "name": "qa-affinity-20261019-ui"
+      },
+      "response": {
+        "listaffinitygroupsresponse": {
+          "count": 1,
+          "affinitygroup": [
+            {
+              "id": "ca6c51a6-7e34-496a-9ce4-f0cc58a139f1",
+              "name": "qa-affinity-20261019-ui",
+              "description": "31번 Affinity 기능 검증 전용 — 한글 설명",
+              "account": "admin",
+              "domainid": "7ef6b29a-b253-11f1-a895-0024814c313f",
+              "domain": "ROOT",
+              "domainpath": "ROOT",
+              "type": "host affinity",
+              "virtualmachineIds": [
+                "f46fad13-7d36-4b21-900c-4bf715c03d6e"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "command": "listAffinityGroups",
+        "projectid": "94bc0ded-ace2-4dd8-b1d6-dab52fe07af5"
+      },
+      "response": {
+        "listaffinitygroupsresponse": {
+          "count": 1,
+          "affinitygroup": [
+            {
+              "id": "7f93c31d-b5e7-4d8d-bc19-aa610584a087",
+              "name": "qa-affinity-20261019-project",
+              "domainid": "7ef6b29a-b253-11f1-a895-0024814c313f",
+              "domain": "ROOT",
+              "domainpath": "ROOT",
+              "projectid": "94bc0ded-ace2-4dd8-b1d6-dab52fe07af5",
+              "project": "E1335-Permission-31",
+              "type": "host affinity"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "invalidType": {
+    "request": {
+      "command": "createAffinityGroup",
+      "name": "qa-affinity-20261019-invalid",
+      "type": "invalid-qa-type"
+    },
+    "response": {
+      "createaffinitygroupresponse": {
+        "uuidList": [],
+        "errorcode": 431,
+        "cserrorcode": 4350,
+        "errortext": "Unable to create affinity group, invalid affinity group type: invalid-qa-type. Valid values are non-strict host affinity,host affinity,host anti-affinity,ExplicitDedication,non-strict host anti-affinity"
+      }
+    }
+  },
+  "ordinaryUserScope": [
+    {
+      "request": {
+        "command": "listAffinityGroups",
+        "listall": "true"
+      },
+      "response": {
+        "listaffinitygroupsresponse": {
+          "count": 1,
+          "affinitygroup": [
+            {
+              "id": "b3e4323b-e88c-4204-bf3e-1c1851eddc53",
+              "name": "qa-affinity-20261019-user-owned",
+              "account": "qa-affinity-20261019-user",
+              "domainid": "7ef6b29a-b253-11f1-a895-0024814c313f",
+              "domain": "ROOT",
+              "domainpath": "ROOT",
+              "type": "host affinity"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "command": "listAffinityGroups",
+        "id": "ca6c51a6-7e34-496a-9ce4-f0cc58a139f1"
+      },
+      "response": {
+        "listaffinitygroupsresponse": {}
+      }
+    },
+    {
+      "request": {
+        "command": "createAffinityGroup",
+        "name": "qa-affinity-20261019-user-created",
+        "type": "host anti-affinity"
+      },
+      "response": {
+        "createaffinitygroupresponse": {
+          "id": "f4f146c3-d91c-4fb8-bff5-b6fd29cbcf39",
+          "jobid": "e937dc3e-b8a7-417e-9924-82dae0d4a6dc"
+        }
+      }
+    },
+    {
+      "request": {
+        "command": "deleteAffinityGroup",
+        "id": "ca6c51a6-7e34-496a-9ce4-f0cc58a139f1"
+      },
+      "response": {
+        "deleteaffinitygroupresponse": {
+          "uuidList": [],
+          "errorcode": 531,
+          "cserrorcode": 4365,
+          "errortext": "Account [{\"accountName\":\"qa-affinity-20261019-user\",\"id\":188,\"uuid\":\"2e39acd7-2e07-472c-835e-f34796fe25b1\"}] does not have permission to operate with resource AffinityGroup {\"id\":5,\"name\":\"qa-affinity-20261019-ui\",\"uuid\":\"ca6c51a6-7e34-496a-9ce4-f0cc58a139f1\"}"
+        }
+      }
+    }
+  ],
+  "uiClearVerification": [
+    {
+      "request": {
+        "command": "listVirtualMachines",
+        "id": "f46fad13-7d36-4b21-900c-4bf715c03d6e",
+        "details": "affgrp"
+      },
+      "response": {
+        "listvirtualmachinesresponse": {
+          "count": 1,
+          "virtualmachine": [
+            {
+              "id": "f46fad13-7d36-4b21-900c-4bf715c03d6e",
+              "name": "qa-affinity-20261019-vm",
+              "state": "Stopped",
+              "account": "admin",
+              "affinitygroup": []
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "command": "listAffinityGroups",
+        "id": "f4f146c3-d91c-4fb8-bff5-b6fd29cbcf39"
+      },
+      "response": {
+        "listaffinitygroupsresponse": {
+          "uuidList": [],
+          "errorcode": 431,
+          "cserrorcode": 9999,
+          "errortext": "Unable to execute API command listaffinitygroups due to invalid value. Invalid parameter id value=f4f146c3-d91c-4fb8-bff5-b6fd29cbcf39 due to incorrect long value format, or entity does not exist or due to incorrect parameter annotation for the field in api cmd class."
+        }
+      }
+    },
+    {
+      "request": {
+        "command": "listAffinityGroups",
+        "virtualmachineid": "f46fad13-7d36-4b21-900c-4bf715c03d6e"
+      },
+      "response": {
+        "listaffinitygroupsresponse": {}
+      }
+    }
+  ],
+  "cleanupJobs": [
+    {
+      "request": {
+        "command": "queryAsyncJobResult",
+        "jobid": "f39156c0-3972-4f19-a370-9919b47574e8"
+      },
+      "response": {
+        "queryasyncjobresultresponse": {
+          "jobid": "f39156c0-3972-4f19-a370-9919b47574e8",
+          "jobstatus": 1,
+          "jobresultcode": 0,
+          "cmd": "org.apache.cloudstack.api.command.user.affinitygroup.DeleteAffinityGroupCmd"
+        }
+      }
+    },
+    {
+      "request": {
+        "command": "queryAsyncJobResult",
+        "jobid": "45f643f3-19a1-4f4c-91c7-2101acd37419"
+      },
+      "response": {
+        "queryasyncjobresultresponse": {
+          "jobid": "45f643f3-19a1-4f4c-91c7-2101acd37419",
+          "jobstatus": 1,
+          "jobresultcode": 0,
+          "cmd": "org.apache.cloudstack.api.command.admin.vm.DestroyVMCmdByAdmin"
+        }
+      }
+    },
+    {
+      "request": {
+        "command": "queryAsyncJobResult",
+        "jobid": "61d5a96c-f206-4886-bda6-1b2da63066a8"
+      },
+      "response": {
+        "queryasyncjobresultresponse": {
+          "jobid": "61d5a96c-f206-4886-bda6-1b2da63066a8",
+          "jobstatus": 1,
+          "jobresultcode": 0,
+          "cmd": "org.apache.cloudstack.api.command.admin.account.DeleteAccountCmd"
+        }
+      }
+    }
+  ],
+  "replayCleanupJobs": [
+    {
+      "request": {
+        "command": "queryAsyncJobResult",
+        "jobid": "2e2132fe-4dd5-4093-962e-79463a9b733e"
+      },
+      "response": {
+        "queryasyncjobresultresponse": {
+          "jobid": "2e2132fe-4dd5-4093-962e-79463a9b733e",
+          "jobstatus": 1,
+          "jobresultcode": 0,
+          "cmd": "org.apache.cloudstack.api.command.user.affinitygroup.DeleteAffinityGroupCmd"
+        }
+      }
+    },
+    {
+      "request": {
+        "command": "queryAsyncJobResult",
+        "jobid": "d46455fd-956b-4a00-a162-90b342bac642"
+      },
+      "response": {
+        "queryasyncjobresultresponse": {
+          "jobid": "d46455fd-956b-4a00-a162-90b342bac642",
+          "jobstatus": 1,
+          "jobresultcode": 0,
+          "cmd": "org.apache.cloudstack.api.command.user.affinitygroup.DeleteAffinityGroupCmd"
+        }
+      }
+    },
+    {
+      "request": {
+        "command": "queryAsyncJobResult",
+        "jobid": "e207608d-7d21-4d05-a8e2-366d564bbbe8"
+      },
+      "response": {
+        "queryasyncjobresultresponse": {
+          "jobid": "e207608d-7d21-4d05-a8e2-366d564bbbe8",
+          "jobstatus": 1,
+          "jobresultcode": 0,
+          "cmd": "org.apache.cloudstack.api.command.user.affinitygroup.DeleteAffinityGroupCmd"
+        }
+      }
+    },
+    {
+      "request": {
+        "command": "queryAsyncJobResult",
+        "jobid": "8d3ece31-17f4-4684-88f4-ed3a3f24bf96"
+      },
+      "response": {
+        "queryasyncjobresultresponse": {
+          "jobid": "8d3ece31-17f4-4684-88f4-ed3a3f24bf96",
+          "jobstatus": 1,
+          "jobresultcode": 0,
+          "cmd": "org.apache.cloudstack.api.command.user.affinitygroup.DeleteAffinityGroupCmd"
+        }
+      }
+    },
+    {
+      "request": {
+        "command": "queryAsyncJobResult",
+        "jobid": "0a0ef2a7-2f08-4fb7-b11c-caa7fc6df538"
+      },
+      "response": {
+        "queryasyncjobresultresponse": {
+          "jobid": "0a0ef2a7-2f08-4fb7-b11c-caa7fc6df538",
+          "jobstatus": 1,
+          "jobresultcode": 0,
+          "cmd": "org.apache.cloudstack.api.command.user.affinitygroup.DeleteAffinityGroupCmd"
+        }
+      }
+    },
+    {
+      "request": {
+        "command": "queryAsyncJobResult",
+        "jobid": "001a4c2d-2d39-478c-bd12-d04579d76dc2"
+      },
+      "response": {
+        "queryasyncjobresultresponse": {
+          "jobid": "001a4c2d-2d39-478c-bd12-d04579d76dc2",
+          "jobstatus": 1,
+          "jobresultcode": 0,
+          "cmd": "org.apache.cloudstack.api.command.user.affinitygroup.DeleteAffinityGroupCmd"
+        }
+      }
+    },
+    {
+      "request": {
+        "command": "queryAsyncJobResult",
+        "jobid": "63a43dd1-0ddc-4b61-a891-69631e8795cc"
+      },
+      "response": {
+        "queryasyncjobresultresponse": {
+          "jobid": "63a43dd1-0ddc-4b61-a891-69631e8795cc",
+          "jobstatus": 1,
+          "jobresultcode": 0,
+          "cmd": "org.apache.cloudstack.api.command.user.affinitygroup.DeleteAffinityGroupCmd"
+        }
+      }
+    },
+    {
+      "request": {
+        "command": "queryAsyncJobResult",
+        "jobid": "5f480b0b-6786-490c-9570-c52b5366dd85"
+      },
+      "response": {
+        "queryasyncjobresultresponse": {
+          "jobid": "5f480b0b-6786-490c-9570-c52b5366dd85",
+          "jobstatus": 1,
+          "jobresultcode": 0,
+          "cmd": "org.apache.cloudstack.api.command.user.affinitygroup.DeleteAffinityGroupCmd"
+        }
+      }
+    }
+  ],
+  "cleanup": {
+    "fixtureAffinityGroupCount": 0,
+    "fixtureAccountActiveCount": 0,
+    "fixtureVmActiveCount": 0,
+    "fixtureVolumeActiveCount": 0,
+    "orphanOrFixtureMappingsCount": 0,
+    "originalGroupsBefore": [
+      {
+        "id": "ac508d0e-c80b-4c66-9bd0-8cbb896ca7e0",
+        "name": "rt1230-r17-ha-control-spread",
+        "description": "Cloud #1230 isolated r17 HA controls across three hosts",
+        "account": "k1230-20261006",
+        "domainid": "7ef6b29a-b253-11f1-a895-0024814c313f",
+        "domain": "ROOT",
+        "domainpath": "ROOT",
+        "type": "host anti-affinity"
+      },
+      {
+        "id": "966bf870-a046-4c76-bfce-7c78f62c0ecb",
+        "name": "rt1230-r18-control-spread",
+        "description": "Cloud #1230 isolated r18 control across hosts",
+        "account": "k1230-20261006",
+        "domainid": "7ef6b29a-b253-11f1-a895-0024814c313f",
+        "domain": "ROOT",
+        "domainpath": "ROOT",
+        "type": "host anti-affinity"
+      },
+      {
+        "id": "42f65110-108a-4831-8403-14500cc7f5fa",
+        "name": "rt1230-r18-etcd-spread",
+        "description": "Cloud #1230 isolated r18 etcd across hosts",
+        "account": "k1230-20261006",
+        "domainid": "7ef6b29a-b253-11f1-a895-0024814c313f",
+        "domain": "ROOT",
+        "domainpath": "ROOT",
+        "type": "host anti-affinity"
+      },
+      {
+        "id": "875da298-7315-4e05-b1fc-f78cbdafe262",
+        "name": "AS-PROD-AS06-AFFINITY",
+        "description": "Epic 1346 AS06 future VM profile validation",
+        "domainid": "7ef6b29a-b253-11f1-a895-0024814c313f",
+        "domain": "ROOT",
+        "domainpath": "ROOT",
+        "projectid": "fb318714-bc01-4be5-9e33-0f49a7013127",
+        "project": "AS-PROD-31-AS01-project",
+        "type": "host anti-affinity"
+      }
+    ],
+    "originalGroupsAfter": [
+      {
+        "id": "ac508d0e-c80b-4c66-9bd0-8cbb896ca7e0",
+        "name": "rt1230-r17-ha-control-spread",
+        "description": "Cloud #1230 isolated r17 HA controls across three hosts",
+        "account": "k1230-20261006",
+        "domainid": "7ef6b29a-b253-11f1-a895-0024814c313f",
+        "domain": "ROOT",
+        "domainpath": "ROOT",
+        "type": "host anti-affinity"
+      },
+      {
+        "id": "966bf870-a046-4c76-bfce-7c78f62c0ecb",
+        "name": "rt1230-r18-control-spread",
+        "description": "Cloud #1230 isolated r18 control across hosts",
+        "account": "k1230-20261006",
+        "domainid": "7ef6b29a-b253-11f1-a895-0024814c313f",
+        "domain": "ROOT",
+        "domainpath": "ROOT",
+        "type": "host anti-affinity"
+      },
+      {
+        "id": "42f65110-108a-4831-8403-14500cc7f5fa",
+        "name": "rt1230-r18-etcd-spread",
+        "description": "Cloud #1230 isolated r18 etcd across hosts",
+        "account": "k1230-20261006",
+        "domainid": "7ef6b29a-b253-11f1-a895-0024814c313f",
+        "domain": "ROOT",
+        "domainpath": "ROOT",
+        "type": "host anti-affinity"
+      },
+      {
+        "id": "875da298-7315-4e05-b1fc-f78cbdafe262",
+        "name": "AS-PROD-AS06-AFFINITY",
+        "description": "Epic 1346 AS06 future VM profile validation",
+        "domainid": "7ef6b29a-b253-11f1-a895-0024814c313f",
+        "domain": "ROOT",
+        "domainpath": "ROOT",
+        "projectid": "fb318714-bc01-4be5-9e33-0f49a7013127",
+        "project": "AS-PROD-31-AS01-project",
+        "type": "host anti-affinity"
+      }
+    ],
+    "originalGroupsIdentical": true,
+    "originalVmCountBefore": 119,
+    "originalVmCountAfter": 119,
+    "originalVmIdNameAffinityProjectionIdentical": true,
+    "fixtureVm": {
+      "id": 646,
+      "uuid": "f46fad13-7d36-4b21-900c-4bf715c03d6e",
+      "state": "Expunging",
+      "removed": true,
+      "host_id": null
+    },
+    "fixtureRootVolume": {
+      "id": 722,
+      "state": "Destroy",
+      "removed": true,
+      "pool_id": null,
+      "path": null
+    },
+    "readonlyReplayVm": {
+      "request": {
+        "command": "listVirtualMachines",
+        "id": "a3b50b22-7494-4d9b-beaf-86f504bb7894",
+        "details": "affgrp"
+      },
+      "response": {
+        "listvirtualmachinesresponse": {
+          "count": 1,
+          "virtualmachine": [
+            {
+              "id": "a3b50b22-7494-4d9b-beaf-86f504bb7894",
+              "name": "E1367-VM-DETAIL-31",
+              "state": "Stopped",
+              "account": "admin",
+              "affinitygroup": []
+            }
+          ]
+        }
+      }
+    }
+  },
+  "runtime": {
+    "mold": "active",
+    "WEB_INF_PRESENT": true,
+    "clientHttp": 200,
+    "indexSha256Before": "96034ffd66057b3411783b5091a6e808abb5c4ac0505aecdb4605ef3803612e6",
+    "indexSha256After": "96034ffd66057b3411783b5091a6e808abb5c4ac0505aecdb4605ef3803612e6",
+    "deploymentPerformed": false
+  },
+  "uiObservations": {
+    "falseSuccessText": "Affinity 그룹을 변경했습니다.",
+    "falseSuccessEvidenceKind": "observed accessibility output during UI submit, correlated with recorded async job; screenshot not captured before notice timeout",
+    "selectionLossSequence": [
+      "Page 1 replay-0 checked=1",
+      "Page 2 replay-7 checked=1",
+      "Return page 1 replay-0 checked=0",
+      "Cancel; no submit on existing VM"
+    ],
+    "selectionScreenshots": [
+      "16-selection-before.png",
+      "17-selection-after.png"
+    ]
+  },
+  "notTested": [
+    "real host affinity/anti-affinity placement or forced-host failures",
+    "running VM group-change UI state gating",
+    "new VM wizard affinity selection",
+    "multi-zone separation",
+    "domain admin and restricted custom role UI",
+    "mobile and full light/dark accessibility matrix",
+    "full Cloud build or CI"
+  ]
+}
