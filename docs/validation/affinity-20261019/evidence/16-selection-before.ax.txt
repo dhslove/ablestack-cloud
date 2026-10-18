@@ -140,7 +140,7 @@ Browser tab: 1, Title: "가상머신 - ABLESTACK-Mold", URL: "http://10.10.31.10
 				1120 button barcode
 					1121 image barcode
 				1122 link Description: a3b50b22-7494-4d9b-beaf-86f504bb7894 , Value: javascript:;
-				1123 text CPU 1 CPU x 2.00 GHz 
+				1123 text CPU 1 CPU x 2.00 GHz
 				1124 image question-circle
 				1125 text x86_64 메모리 1024 MB 메모리 네트워크
 				1126 image wifi

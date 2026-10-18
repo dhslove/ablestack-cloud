@@ -132,4 +132,3 @@ Affinity도 공통 목록·상세 레이아웃, UUID 복사, 소유자 링크, �
 - [조회 API 정의](https://github.com/dhslove/ablestack-cloud/blob/d9f068bbbba048313b6d38539651d19444c4d7c7/api/src/main/java/org/apache/cloudstack/api/command/user/affinitygroup/ListAffinityGroupsCmd.java#L30), [비동기 변경 API](https://github.com/dhslove/ablestack-cloud/blob/d9f068bbbba048313b6d38539651d19444c4d7c7/api/src/main/java/org/apache/cloudstack/api/command/user/affinitygroup/UpdateVMAffinityGroupCmd.java#L48)
 - [Stopped 및 소유권 백엔드 검증](https://github.com/dhslove/ablestack-cloud/blob/d9f068bbbba048313b6d38539651d19444c4d7c7/server/src/main/java/org/apache/cloudstack/affinity/AffinityGroupServiceImpl.java#L433)
 - [가상머신 탭 표준](https://github.com/dhslove/ablestack-cloud/blob/d9f068bbbba048313b6d38539651d19444c4d7c7/ui/src/views/compute/InstanceTab.vue#L18)
-
