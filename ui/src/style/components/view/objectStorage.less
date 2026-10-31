@@ -33,3 +33,23 @@
   .ant-drawer-title { overflow-wrap: anywhere; }
   .ant-drawer-content, .ant-drawer-body { background: var(--ui-bg-surface); color: var(--ui-text-primary); }
 }
+
+// Use the VM dialog action tokens for readable text in both themes and all states.
+.object-storage-ui, .object-storage-dialog {
+  .ant-btn-primary:not(:disabled) {
+    color: var(--ui-action-primary-text) !important;
+    background: var(--ui-action-primary-bg) !important;
+    border-color: var(--ui-action-primary-bg) !important;
+    &:hover, &:focus {
+      background: var(--ui-action-primary-hover) !important;
+      border-color: var(--ui-action-primary-hover) !important;
+    }
+    &.ant-btn-dangerous {
+      background: var(--ui-action-danger-bg) !important;
+      border-color: var(--ui-action-danger-bg) !important;
+    }
+  }
+  .ant-btn:not(.ant-btn-primary):not(.ant-btn-dangerous):not(:disabled) {
+    &:hover, &:focus { color: var(--ui-link) !important; border-color: var(--ui-link) !important; }
+  }
+}
