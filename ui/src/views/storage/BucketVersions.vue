@@ -78,7 +78,7 @@ export default {
       try {
         await postAPI('manageBucketObjectVersion', { id: this.resource.id, key: this.selected.key, versionid: this.selected.versionid, action: this.action }, { preserveOnFailure: true })
         if (generation !== this.generation) return
-        this.selected = null; this.$notification.success({ message: this.$t('message.update.success') }); this.cursor = {}; this.history = []; await this.load()
+        this.selected = null; this.$notification.success({ message: this.$t('label.success.updated') }); this.cursor = {}; this.history = []; await this.load()
       } catch (_) { if (generation === this.generation) this.mutationError = true } finally { if (generation === this.generation || !this.selected) this.busy = false }
     }
   }

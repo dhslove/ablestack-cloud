@@ -9991,7 +9991,7 @@
   "message.bucket.purge.warning": "Permanently removes all object versions and delete markers. This cannot be undone. New external uploads may also be removed while running. Closing this dialog does not stop the server task.",
   "message.bucket.purge.include.versions": "Explicitly include all historical versions and delete markers.",
   "message.bucket.purge.acknowledge": "I checked the target and consent to permanent deletion.",
-  "message.bucket.purge.partial.failure": "Some items may already be deleted. Bucket metadata and allocation are retained. Check remaining items and permissions, then retry this operation.",
+  "message.bucket.purge.partial.failure": "Some items may already be deleted. Bucket metadata and allocation are retained. Check remaining items and permissions, then retry this operation. Up to 20 failed entries are shown; retry scans all remaining versions.",
   "message.bucket.purge.unknown.progress": "A lost response or restart may make the acknowledged deletion count lower than the actual count. Remaining versions are rescanned without skipping items.",
   "message.bucket.delete.inspect.failed": "Unable to inspect deletion impact. This does not mean the bucket is empty. Check the connection and permissions, then retry.",
   "message.bucket.delete.rejected": "Deletion was rejected. Check new uploads, versions, delete markers, active operations and permissions.",
