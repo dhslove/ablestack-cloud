@@ -27,7 +27,7 @@ import org.apache.cloudstack.engine.subsystem.api.storage.ObjectStoreCredentialP
 import java.util.List;
 import java.util.Map;
 
-public interface ObjectStoreDriver extends DataStoreDriver, ObjectStoreCredentialProvider {
+public interface ObjectStoreDriver extends DataStoreDriver, ObjectStoreCredentialProvider, BucketProtectionProvider {
     Bucket createBucket(Bucket bucket, boolean objectLock);
 
     List<Bucket> listBuckets(long storeId);

@@ -133,6 +133,8 @@ public class CephObjectStoreDriverImplTest {
         cephObjectStoreDriverImpl.getBucketPolicy(transfer, 12);
         cephObjectStoreDriverImpl.deleteBucketPolicy(transfer, 12);
         cephObjectStoreDriverImpl.setBucketVersioning(transfer, 12);
+        var missingLock = new com.amazonaws.services.s3.model.AmazonS3Exception("no lock configuration"); missingLock.setStatusCode(404); missingLock.setErrorCode("ObjectLockConfigurationNotFoundError");
+        org.mockito.Mockito.doThrow(missingLock).when(rgwClient).getObjectLockConfiguration(org.mockito.ArgumentMatchers.any(com.amazonaws.services.s3.model.GetObjectLockConfigurationRequest.class));
         cephObjectStoreDriverImpl.deleteBucketVersioning(transfer, 12);
         verify(cephObjectStoreDriverImpl, times(5)).getS3Client(12L, 77L);
     }

@@ -6429,6 +6429,13 @@ public class QueryManagerImpl extends MutualExclusiveIdsManagerBase implements Q
         ListResponse<ObjectStoreResponse> response = new ListResponse<ObjectStoreResponse>();
 
         List<ObjectStoreResponse> poolResponses = ViewResponseHelper.createObjectStoreResponse(result.first().toArray(new ObjectStoreVO[0]));
+        for (ObjectStoreResponse pool : poolResponses) {
+            pool.setCapabilities(java.util.Map.of("encryption", "Unknown", "versioning", "Unknown", "objectlocking", "Unknown", "reason", "PROVIDER_NOT_VERIFIED"));
+            ObjectStoreVO store = result.first().stream().filter(item -> item.getUuid().equals(pool.getId())).findFirst().orElse(null);
+            if (store != null) try {
+                pool.setCapabilities(((org.apache.cloudstack.storage.object.ObjectStoreEntity)dataStoreManager.getDataStore(store.getId(), com.cloud.storage.DataStoreRole.Object)).protectionCapabilities());
+            } catch (RuntimeException unavailable) { /* Capability failure is Unknown, never a successful option. */ }
+        }
         response.setResponses(poolResponses, result.second());
         return response;
     }

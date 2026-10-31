@@ -5639,6 +5639,10 @@ public class ApiResponseHelper implements ResponseGenerator, ResourceIdSupport {
         objectStoreResponse.setId(os.getUuid());
         objectStoreResponse.setName(os.getName());
         objectStoreResponse.setProviderName(os.getProviderName());
+        objectStoreResponse.setCapabilities(java.util.Map.of("encryption", "Unknown", "versioning", "Unknown", "objectlocking", "Unknown", "reason", "PROVIDER_NOT_VERIFIED"));
+        try {
+            objectStoreResponse.setCapabilities(((org.apache.cloudstack.storage.object.ObjectStoreEntity)_dataStoreMgr.getDataStore(os.getId(), DataStoreRole.Object)).protectionCapabilities());
+        } catch (RuntimeException unavailable) { /* fail closed, with no provider error or credential details */ }
         objectStoreResponse.setObjectName("objectstore");
         return objectStoreResponse;
     }
@@ -5658,6 +5662,12 @@ public class ApiResponseHelper implements ResponseGenerator, ResourceIdSupport {
         bucketResponse.setEncryption(bucket.isEncryption());
         bucketResponse.setObjectLock(bucket.isObjectLock());
         bucketResponse.setPolicy(bucket.getPolicy());
+        org.apache.cloudstack.api.response.BucketProtectionResponse protection = new org.apache.cloudstack.api.response.BucketProtectionResponse();
+        try {
+            if (bucket.getProtectionSnapshot() != null) protection = new com.google.gson.Gson().fromJson(bucket.getProtectionSnapshot(), org.apache.cloudstack.api.response.BucketProtectionResponse.class);
+        } catch (RuntimeException invalid) { /* legacy or unreadable snapshots remain Unknown */ }
+        protection.compare(bucket.isEncryption(), bucket.isVersioning(), bucket.isObjectLock());
+        bucketResponse.setProtection(protection);
         ObjectStoreVO objectStoreVO = _objectStoreDao.findById(bucket.getObjectStoreId());
         bucketResponse.setBucketURL("Glue".equals(objectStoreVO.getProviderName())
                 ? objectStoreVO.getUrl().replaceAll("/+$", "") + "/" + bucket.getName() : bucket.getBucketURL());

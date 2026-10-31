@@ -364,13 +364,25 @@ public class CephObjectStoreDriverImpl extends BaseObjectStoreDriverImpl impleme
     }
 
     @Override
+    public Map<String, String> protectionCapabilities(long storeId) {
+        // S3 has no read-only KMS readiness discovery. Never infer encryption readiness from the Glue release.
+        boolean tls = _storeDao.findById(storeId).getUrl().toLowerCase(java.util.Locale.ROOT).startsWith("https://");
+        return Map.of("encryption", tls ? "Unknown" : "Unsupported", "encryptionreason", tls ? "ENCRYPTION_KMS_NOT_VERIFIED" : "ENCRYPTION_REQUIRES_HTTPS",
+                "versioning", "Supported", "objectlocking", "Supported", "objectlockconstraint", "CREATE_ONLY_REQUIRES_VERSIONING");
+    }
+    @Override
+    public org.apache.cloudstack.api.response.BucketProtectionResponse readBucketProtection(Bucket bucket) {
+        return new CephBucketProtectionClient(getS3Client(bucket.getObjectStoreId(), bucket.getAccountId()), bucket.getName()).read();
+    }
+    @Override
     public boolean setBucketEncryption(BucketTO bucket, long storeId) {
-        return false;
+        if (!"Supported".equals(protectionCapabilities(storeId).get("encryption"))) throw new CloudRuntimeException(protectionCapabilities(storeId).get("encryptionreason"));
+        return new CephBucketProtectionClient(getS3Client(storeId, bucket.getAccountId()), bucket.getName()).encryption(true);
     }
 
     @Override
     public boolean deleteBucketEncryption(BucketTO bucket, long storeId) {
-        return false;
+        return new CephBucketProtectionClient(getS3Client(storeId, bucket.getAccountId()), bucket.getName()).encryption(false);
     }
 
     @Override
@@ -392,6 +404,7 @@ public class CephObjectStoreDriverImpl extends BaseObjectStoreDriverImpl impleme
     @Override
     public boolean deleteBucketVersioning(BucketTO bucket, long storeId) {
         AmazonS3 client = getS3Client(storeId, bucket.getAccountId());
+        if (new CephBucketObjectClient(client, bucket.getName()).locked()) throw new CloudRuntimeException("OBJECT_LOCK_REQUIRES_VERSIONING");
         try {
             BucketVersioningConfiguration configuration =
                     new BucketVersioningConfiguration().withStatus("Suspended");

@@ -110,5 +110,7 @@ public interface BucketApiService {
     org.apache.cloudstack.api.response.BucketObjectResponse manageObjectVersion(String id, Account caller, String key, String version, String action);
     org.apache.cloudstack.api.response.BucketObjectResponse purgeBucket(String id, Account caller, String operation, String name, boolean includeVersions, String externalId, boolean retry);
     org.apache.cloudstack.api.response.BucketObjectResponse getPurgeStatus(String id, Account caller, String operation);
+    org.apache.cloudstack.api.response.BucketProtectionResponse getProtection(String id, Account caller);
+    org.apache.cloudstack.api.response.BucketProtectionResponse reconcileProtection(String id, Account caller, String operation, boolean acceptActual);
     void getBucketUsage();
 }

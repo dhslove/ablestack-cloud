@@ -17,6 +17,7 @@
 
 <template>
   <div class="form-layout bucket-quota-form" v-ctrl-enter="handleSubmit">
+    <a-alert v-if="protectionError" type="error" show-icon :message="protectionError" class="protection-error" />
     <a-spin :spinning="loading">
       <a-form
         :ref="formRef"
@@ -31,7 +32,7 @@
         <a-form-item name="objectstore" ref="objectstore" :label="$t('label.object.storage')">
           <a-select
             v-model:value="form.objectstore"
-            @change="val => { form.objectstore = val; quotaError = '' }"
+            @change="storeChanged"
             showSearch
             optionFilterProp="value"
             :filterOption="(input, option) => {
@@ -43,6 +44,7 @@
           </a-select>
         </a-form-item>
         <BucketQuotaContext :store-id="form.objectstore || ''" />
+        <BucketProtectionCapabilities :capabilities="capabilities" />
         <a-form-item name="quota" ref="quota" :label="$t('label.quotagib')" :validate-status="quotaError ? 'error' : undefined" :help="quotaError || undefined">
           <a-input
             v-model:value="form.quota"
@@ -55,20 +57,18 @@ autocomplete="off"
         <a-form-item name="encryption" ref="encryption" :label="$t('label.encryption')">
           <a-switch
             v-model:checked="form.encryption"
-            :checked="encryption"
-            @change="val => { encryption = val }"/>
+            :disabled="capabilities.encryption !== 'Supported'"/>
         </a-form-item>
         <a-form-item name="versioning" ref="versioning" :label="$t('label.versioning')">
           <a-switch
             v-model:checked="form.versioning"
-            :checked="versioning"
-            @change="val => { versioning = val }"/>
+            :disabled="form.objectlocking || capabilities.versioning !== 'Supported'"/>
         </a-form-item>
         <a-form-item name="objectlocking" ref="objectlocking" :label="$t('label.objectlocking')">
           <a-switch
             v-model:checked="form.objectlocking"
-            :checked="objectlocking"
-            @change="val => { objectlocking = val }"/>
+            :disabled="capabilities.objectlocking !== 'Supported'"
+            @change="value => { if (value) form.versioning = true }"/>
         </a-form-item>
         <a-form-item name="Bucket Policy" ref="policy" :label="$t('label.bucket.policy')">
           <a-select
@@ -98,6 +98,7 @@ import { ref, reactive, toRaw } from 'vue'
 import { getAPI, postAPI } from '@/api'
 import { mixinForm } from '@/utils/mixin'
 import BucketQuotaContext from '@/components/view/BucketQuotaContext'
+import BucketProtectionCapabilities from '@/components/view/BucketProtectionCapabilities'
 import { validBucketQuota, quotaErrorField } from '@/utils/bucketQuota'
 
 export default {
@@ -110,14 +111,19 @@ export default {
     }
   },
   components: {
-    BucketQuotaContext
+    BucketQuotaContext, BucketProtectionCapabilities
   },
   inject: ['parentFetchData'],
   data () {
     return {
       loading: false,
-      quotaError: ''
+      quotaError: '',
+      protectionError: '',
+      objectstores: []
     }
+  },
+  computed: {
+    capabilities () { return this.objectstores.find(store => store.id === this.form.objectstore)?.capabilities || {} }
   },
   created () {
     this.initForm()
@@ -125,10 +131,13 @@ export default {
     this.fetchData()
   },
   methods: {
+    storeChanged (value) {
+      this.form.objectstore = value; this.quotaError = ''; this.protectionError = ''
+      for (const key of ['encryption', 'versioning', 'objectlocking']) if (this.capabilities[key] !== 'Supported') this.form[key] = false
+    },
     initForm () {
       this.formRef = ref()
-      this.form = reactive({
-      })
+      this.form = reactive({ encryption: false, versioning: false, objectlocking: false, policy: 'Private' })
       this.rules = reactive({
         name: [{ required: true, message: this.$t('label.required') }],
         objectstore: [{ required: true, message: this.$t('label.required') }],
@@ -145,7 +154,7 @@ export default {
         if (this.objectstores.length > 0) {
           this.form.objectstore = this.objectstores[0].id
         }
-      }).finally(() => {
+      }).catch(() => { this.protectionError = this.$t('message.bucket.protection.capabilities.failed') }).finally(() => {
         this.loading = false
       })
     },
@@ -169,6 +178,8 @@ export default {
           objectlocking: values.objectlocking,
           policy: values.policy
         }
+        if (data.objectlocking && !data.versioning) { this.protectionError = this.$t('message.bucket.protection.lock.versioning'); return }
+        if (data.encryption && this.capabilities?.encryption !== 'Supported') { this.protectionError = this.$t('message.bucket.protection.encryption.unknown'); return }
         this.loading = true
         postAPI('createBucket', data).then(response => {
           this.$pollJob({
@@ -197,6 +208,7 @@ export default {
 </script>
 <style lang="scss" scoped>
 .form-layout { width: 100%; min-width: 0; }
+.protection-error { margin-bottom: 16px; overflow-wrap: anywhere; }
 .bucket-quota-form {
   :deep(.ant-input:not([disabled])),
   :deep(.ant-select:not(.ant-select-disabled) .ant-select-selector) {

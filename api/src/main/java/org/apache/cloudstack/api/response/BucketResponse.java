@@ -140,6 +140,15 @@ public class BucketResponse extends BaseResponseWithTagInformation implements Co
     public String getCredentialState() { return credentialState; }
     public void setCredentialChecked(Date value) { credentialChecked = value; }
 
+    @SerializedName("protectionverificationstate") @Param(description = "Verified, Mismatch or Unknown; legacy values are never implicitly verified")
+    private String protectionVerificationState = "Unknown";
+    @SerializedName("protectionverifiedat") @Param(description = "Last successful actual protection verification")
+    private Date protectionVerifiedAt;
+    @SerializedName("protection") @Param(description = "Requested and verified actual protection configuration")
+    private BucketProtectionResponse protection;
+    public void setProtection(BucketProtectionResponse value) {
+        protection = value; protectionVerificationState = value.getVerificationState(); protectionVerifiedAt = value.getVerifiedAt();
+    }
     public BucketResponse() {
         tags = new LinkedHashSet<ResourceTagResponse>();
     }

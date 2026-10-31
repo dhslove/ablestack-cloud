@@ -17,7 +17,8 @@
 
 <template>
   <div class="form-layout bucket-quota-form" v-ctrl-enter="handleSubmit">
-    <a-alert v-if="pending" type="warning" show-icon class="quota-message">
+    <BucketProtection :resource="resource" @state="value => { protectionState = value }" @reconciled="protectionReconciled" />
+    <a-alert v-if="quotaPending" type="warning" show-icon class="quota-message">
       <template #message>{{ $t('message.bucket.quota.pending') }}</template>
       <template #description>
         <Status text="Pending" :display-label="$t('state.bucket.quota.' + resource.quotaoperationstate.toLowerCase())" display-text />
@@ -49,14 +50,12 @@ autocomplete="off"
       <a-form-item name="encryption" ref="encryption" :label="$t('label.encryption')">
         <a-switch
           v-model:checked="form.encryption"
-          :checked="encryption"
-          @change="val => { encryption = val }"/>
+          :disabled="!canChangeProtection || protectionState.capabilities?.encryption !== 'Supported'"/>
       </a-form-item>
       <a-form-item name="versioning" ref="versioning" :label="$t('label.versioning')">
         <a-switch
           v-model:checked="form.versioning"
-          :checked="versioning"
-          @change="val => { versioning = val }"/>
+          :disabled="!canChangeProtection || protectionState.effectiveobjectlocking || protectionState.capabilities?.versioning !== 'Supported'"/>
       </a-form-item>
       <a-form-item name="Bucket Policy" ref="policy" :label="$t('label.bucket.policy')">
         <a-select
@@ -85,22 +84,25 @@ import { ref, reactive } from 'vue'
 import { postAPI } from '@/api'
 import { mixinForm } from '@/utils/mixin'
 import BucketQuotaContext from '@/components/view/BucketQuotaContext'
+import BucketProtection from '@/views/storage/BucketProtection'
 import Status from '@/components/widgets/Status'
 import { validBucketQuota, pendingBucketQuota, bucketChanges, quotaErrorField } from '@/utils/bucketQuota'
 
 export default {
   name: 'updateBucket',
   mixins: [mixinForm],
-  components: { BucketQuotaContext, Status },
+  components: { BucketQuotaContext, Status, BucketProtection },
   props: {
     resource: {
       type: Object,
       required: true
     }
   },
-  data () { return { loading: false, quotaTouched: false, errorText: '', quotaError: '' } },
+  data () { return { loading: false, quotaTouched: false, errorText: '', quotaError: '', protectionState: { protectionverificationstate: 'Unknown' } } },
   computed: {
-    pending () { return pendingBucketQuota(this.resource) },
+    quotaPending () { return pendingBucketQuota(this.resource) && this.resource.quotaoperationtype !== 'PROTECTION' },
+    canChangeProtection () { return this.protectionState.protectionverificationstate === 'Verified' && !this.pending },
+    pending () { return pendingBucketQuota(this.resource) || (!!this.protectionState.operationid && !['Succeeded', 'Failed'].includes(this.protectionState.operationstate)) },
     canReconcile () { return !!this.$getApiParams('updateBucket')?.reconcile },
     legacy () { return !validBucketQuota(this.resource.quota) }
   },
@@ -110,6 +112,10 @@ export default {
     this.fetchData()
   },
   methods: {
+    protectionReconciled (value) {
+      this.form.encryption = value.requestedencryption; this.form.versioning = value.requestedversioning
+      this.$emit('refresh-data')
+    },
     initForm () {
       this.formRef = ref()
       this.form = reactive({})
@@ -142,7 +148,11 @@ export default {
       this.quotaError = ''
       this.formRef.value.validate().then(async () => {
         const changes = bucketChanges(this.form, this.resource, this.quotaTouched)
-        if (changes.quota !== undefined && Object.keys(changes).some(key => key !== 'quota')) {
+        const protection = Object.keys(changes).some(key => ['encryption', 'versioning'].includes(key))
+        if (protection && (!this.canChangeProtection || this.protectionState.effectiveobjectlocking && changes.versioning === false)) {
+          this.errorText = this.$t('message.bucket.protection.verify.required'); return
+        }
+        if ((changes.quota !== undefined ? 1 : 0) + (protection ? 1 : 0) + (changes.policy !== undefined ? 1 : 0) > 1) {
           this.errorText = this.$t('message.bucket.quota.separate')
           return
         }

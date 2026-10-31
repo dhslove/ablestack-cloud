@@ -768,7 +768,7 @@ export default {
       icon: 'funnel-plot-outlined',
       permission: ['listBuckets'],
       columns: ['name', 'state', 'objectstore', { field: 'size', customTitle: 'used.capacity' }, { field: 'quota', customTitle: 'total.allocated.capacity' }, 'account'],
-      details: ['id', 'name', 'state', 'objectstore', 'credentialstate', 'credentialchecked', 'quotaoperationtype', 'quotaoperationstate', 'quotaoperationid', 'quotaoperationupdated', { field: 'size', customTitle: 'used.capacity' }, 'url', 'credentialrevision', 'account', 'domain', 'created', { field: 'quota', customTitle: 'total.allocated.capacity' }, 'encryption', 'versioning', 'objectlocking', 'policy'],
+      details: ['id', 'name', 'state', 'objectstore', 'credentialstate', 'credentialchecked', 'quotaoperationtype', 'quotaoperationstate', 'quotaoperationid', 'quotaoperationupdated', { field: 'size', customTitle: 'used.capacity' }, 'url', 'credentialrevision', 'account', 'domain', 'created', { field: 'quota', customTitle: 'total.allocated.capacity' }, 'protectionverificationstate', 'protectionverifiedat', 'policy'],
       tabs: [
         {
           name: 'details',
@@ -780,6 +780,11 @@ export default {
           component: shallowRef(defineAsyncComponent(() => import('@/components/view/ObjectStoreBrowser.vue'))),
           show: (record) => { return record.provider !== 'Simulator' }
 
+        },
+        {
+          name: 'protection',
+          component: shallowRef(defineAsyncComponent(() => import('@/views/storage/BucketProtection.vue'))),
+          show: record => !!store.getters.apis.getBucketProtection
         },
         {
           name: 'versions',

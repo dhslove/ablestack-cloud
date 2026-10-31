@@ -39,6 +39,7 @@ public interface Bucket extends ControlledEntity, Identity, InternalIdentity {
     boolean isVersioning();
 
     boolean isEncryption();
+    default String getProtectionSnapshot() { return null; }
 
     boolean isObjectLock();
 

@@ -82,6 +82,17 @@ public class BucketApiServiceImpl extends ManagerBase implements BucketApiServic
 
     @Inject private org.apache.cloudstack.storage.datastore.db.ObjectStoreAccountCredentialDao objectCredentials;
 
+    private BucketProtectionCoordinator protectionCoordinator() {
+        return new BucketProtectionCoordinator(_bucketDao, _objectStoreDao, quotaOperations, _dataStoreMgr, objectCredentials);
+    }
+    @Override public org.apache.cloudstack.api.response.BucketProtectionResponse getProtection(String id, Account caller) {
+        return protectionCoordinator().get(objectBucket(id, caller, false));
+    }
+    @Override
+    @ActionEvent(eventType = EventTypes.EVENT_BUCKET_UPDATE, eventDescription = "explicit protection verification reconciliation")
+    public org.apache.cloudstack.api.response.BucketProtectionResponse reconcileProtection(String id, Account caller, String operation, boolean acceptActual) {
+        return protectionCoordinator().reconcile(objectBucket(id, caller, false), operation, acceptActual);
+    }
     private BucketQuotaCoordinator quotaCoordinator() {
         return new BucketQuotaCoordinator(_objectStoreDao, _bucketDao, quotaOperations, _dataStoreMgr,
                 _accountMgr, resourceLimitManager, reservationDao, objectCredentials);
@@ -109,6 +120,7 @@ public class BucketApiServiceImpl extends ManagerBase implements BucketApiServic
                 CallContext.registerSystemCallContextOnceOnly();
                 try {
                     quotaCoordinator().recover();
+                    protectionCoordinator().recoverInterrupted();
                     for (ObjectStoreVO store : _objectStoreDao.listObjectStores()) {
                         if ("Glue".equals(store.getProviderName())) {
                             BucketQuotaCoordinator.withStoreLock(store.getId(), () -> {
@@ -224,35 +236,24 @@ public class BucketApiServiceImpl extends ManagerBase implements BucketApiServic
             }
             return quotaCoordinator().reconcile(bucket, cmd.getExpectedQuotaOperationId());
         }
-        boolean otherChange = cmd.getEncryption() != null && cmd.getEncryption() != bucket.isEncryption()
-                || cmd.getVersioning() != null && cmd.getVersioning() != bucket.isVersioning()
-                || cmd.getPolicy() != null && !Objects.equals(cmd.getPolicy(), bucket.getPolicy());
-        boolean quotaChange = cmd.getQuota() != null && !Objects.equals(cmd.getQuota(), bucket.getQuota());
-        if (cmd.getQuota() != null) { BucketQuotaCoordinator.quotaBytes(cmd.getQuota()); }
-        if (quotaChange && otherChange) {
-            throw new InvalidParameterValueException("Apply quota changes separately from other bucket properties");
-        }
-        if (quotaChange) { return quotaCoordinator().update(bucket, cmd.getQuota()); }
+        boolean protectionProvided = cmd.getEncryption() != null || cmd.getVersioning() != null;
+        boolean protection = cmd.getEncryption() != null && cmd.getEncryption() != bucket.isEncryption()
+                || cmd.getVersioning() != null && cmd.getVersioning() != bucket.isVersioning();
+        boolean policy = cmd.getPolicy() != null && !Objects.equals(cmd.getPolicy(), bucket.getPolicy());
+        boolean quota = cmd.getQuota() != null && !Objects.equals(cmd.getQuota(), bucket.getQuota());
+        if (cmd.getQuota() != null) BucketQuotaCoordinator.quotaBytes(cmd.getQuota());
+        if ((quota ? 1 : 0) + (protection ? 1 : 0) + (policy ? 1 : 0) > 1) throw new InvalidParameterValueException("Apply quota, protection and policy changes separately");
+        if (quota) return quotaCoordinator().update(bucket, cmd.getQuota());
+        if (protectionProvided && !policy) return protectionCoordinator().update(bucket, cmd.getEncryption(), cmd.getVersioning());
         return BucketQuotaCoordinator.withStoreLock(bucket.getObjectStoreId(), () -> {
-            org.apache.cloudstack.storage.datastore.db.BucketQuotaOperationVO pending = quotaOperations.findActiveByBucket(bucket.getId());
-            if (pending != null) { throw new BucketQuotaException(pending.getUuid(), true); }
-            ObjectStoreEntity objectStore = (ObjectStoreEntity)_dataStoreMgr.getDataStore(bucket.getObjectStoreId(), DataStoreRole.Object);
-            BucketTO to = new BucketTO(_bucketDao.findById(bucket.getId()));
-            BucketVO update = _bucketDao.createForUpdate(bucket.getId());
-            if (cmd.getEncryption() != null && cmd.getEncryption() != bucket.isEncryption()) {
-                boolean ok = cmd.getEncryption() ? objectStore.setBucketEncryption(to) : objectStore.deleteBucketEncryption(to);
-                if (!ok) { throw new CloudRuntimeException("Unable to update bucket encryption"); }
-                update.setEncryption(cmd.getEncryption());
+            var active = quotaOperations.findActiveByBucket(bucket.getId());
+            if (active != null) throw new BucketQuotaException(active.getUuid(), true);
+            if (policy) {
+                ObjectStoreEntity store = (ObjectStoreEntity)_dataStoreMgr.getDataStore(bucket.getObjectStoreId(), DataStoreRole.Object);
+                store.setBucketPolicy(new BucketTO(bucket), cmd.getPolicy());
+                BucketVO update = _bucketDao.createForUpdate(bucket.getId()); update.setPolicy(cmd.getPolicy());
+                if (!_bucketDao.update(bucket.getId(), update)) throw new CloudRuntimeException("Unable to update bucket policy");
             }
-            if (cmd.getVersioning() != null && cmd.getVersioning() != bucket.isVersioning()) {
-                boolean ok = cmd.getVersioning() ? objectStore.setBucketVersioning(to) : objectStore.deleteBucketVersioning(to);
-                if (!ok) { throw new CloudRuntimeException("Unable to update bucket versioning"); }
-                update.setVersioning(cmd.getVersioning());
-            }
-            if (cmd.getPolicy() != null && !Objects.equals(cmd.getPolicy(), bucket.getPolicy())) {
-                objectStore.setBucketPolicy(to, cmd.getPolicy()); update.setPolicy(cmd.getPolicy());
-            }
-            if (otherChange && !_bucketDao.update(bucket.getId(), update)) { throw new CloudRuntimeException("Unable to update bucket properties"); }
             return true;
         });
     }

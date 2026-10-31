@@ -198,6 +198,11 @@ public class BucketVO implements Bucket {
         this.versioning = versioning;
     }
 
+    @Column(name = "protection_snapshot", length = 16777215)
+    private String protectionSnapshot;
+    @Override public String getProtectionSnapshot() { return protectionSnapshot; }
+    public void setProtectionSnapshot(String value) { protectionSnapshot = value; }
+
     public boolean isEncryption() {
         return encryption;
     }

@@ -129,6 +129,12 @@ public class BucketQuotaCoordinatorTest {
         when(ops.findByUuid(anyString())).thenAnswer(i -> rows.values().stream().filter(x -> x.getUuid().equals(i.getArgument(0))).findFirst().map(this::copy).orElse(null));
         doAnswer(i -> { live = i.getArgument(1); return null; }).when(provider).writeBucketQuota(any(), any());
         doAnswer(i -> { live = BucketQuotaState.missing(); return null; }).when(provider).deleteEmptyBucket(any());
+        when(entity.protectionCapabilities()).thenReturn(Map.of("encryption", "Supported", "versioning", "Supported", "objectlocking", "Supported"));
+        when(entity.readBucketProtection(any())).thenAnswer(i -> {
+            var r = new org.apache.cloudstack.api.response.BucketProtectionResponse();
+            r.setEncryption(bucket.isEncryption()); r.setVersioning(bucket.isVersioning()); r.setObjectLock(bucket.isObjectLock());
+            r.setAlgorithm(bucket.isEncryption() ? "AES256" : "None"); r.setVersioningStatus(bucket.isVersioning() ? "Enabled" : "Off"); return r;
+        });
         when(entity.createUser(7L)).thenReturn(true);
         when(entity.createBucket(any(), anyBoolean())).thenAnswer(i -> { live = new BucketQuotaState(true, "new-id", false, -1, -1, 0, false); return bucket; });
         when(entity.deleteBucket(any())).thenAnswer(i -> { live = BucketQuotaState.missing(); return true; });

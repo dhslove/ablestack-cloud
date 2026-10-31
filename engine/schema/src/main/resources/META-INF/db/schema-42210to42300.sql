@@ -1586,3 +1586,9 @@ SET @ddl = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schem
 PREPARE bkt_purge_ddl FROM @ddl;
 EXECUTE bkt_purge_ddl;
 DEALLOCATE PREPARE bkt_purge_ddl;
+
+-- #1530: requested flags remain unchanged; no legacy row is automatically verified.
+SET @ddl = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='cloud' AND table_name='bucket' AND column_name='protection_snapshot')=0, 'ALTER TABLE cloud.bucket ADD COLUMN protection_snapshot MEDIUMTEXT DEFAULT NULL', 'SELECT 1');
+PREPARE bucket_protection_stmt FROM @ddl;
+EXECUTE bucket_protection_stmt;
+DEALLOCATE PREPARE bucket_protection_stmt;

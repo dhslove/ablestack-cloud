@@ -60,6 +60,9 @@ public class ObjectStoreResponse extends BaseResponseWithAnnotations {
     public Long getStorageReserved() { return storageReserved; }
     public void setStorageReserved(Long value) { storageReserved = value; }
 
+    @SerializedName("capabilities") @Param(description = "Verified provider features: Supported, Unsupported or Unknown, and constraints")
+    private java.util.Map<String, String> capabilities;
+    public void setCapabilities(java.util.Map<String, String> value) { capabilities = value; }
     public ObjectStoreResponse() {
     }
 

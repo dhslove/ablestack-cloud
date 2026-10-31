@@ -65,4 +65,28 @@ public class BucketApiServiceImplTest {
         try { service.updateBucket(cmd, null); fail(); } catch (InvalidParameterValueException expected) { }
         verify(buckets, never()).update(anyLong(), any());
     }
+    @Test public void unchangedExplicitProtectionFlagsDoNotBreakLegacyPolicyUpdates() throws Exception {
+        var bucket = new BucketVO(1, 1, 1, "bucket", 1, false, false, false, "Private");
+        ReflectionTestUtils.setField(bucket, "id", 1L);
+        when(buckets.findById(1L)).thenReturn(bucket); when(buckets.createForUpdate(1L)).thenReturn(new BucketVO("patch"));
+        when(buckets.update(anyLong(), any())).thenReturn(true);
+        var operations = mock(org.apache.cloudstack.storage.datastore.db.BucketQuotaOperationDao.class);
+        var manager = mock(org.apache.cloudstack.engine.subsystem.api.storage.DataStoreManager.class);
+        var entity = mock(ObjectStoreEntity.class);
+        when(manager.getDataStore(1L, com.cloud.storage.DataStoreRole.Object)).thenReturn(entity);
+        ReflectionTestUtils.setField(service, "quotaOperations", operations); ReflectionTestUtils.setField(service, "_dataStoreMgr", manager);
+        when(cmd.getEncryption()).thenReturn(false); when(cmd.getVersioning()).thenReturn(false); when(cmd.getQuota()).thenReturn(1); when(cmd.getPolicy()).thenReturn("Public");
+        try (var lock = org.mockito.Mockito.mockStatic(com.cloud.utils.db.DbUtil.class)) {
+            lock.when(() -> com.cloud.utils.db.DbUtil.getGlobalLock(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyInt())).thenReturn(true);
+            org.junit.Assert.assertTrue(service.updateBucket(cmd, null));
+        }
+        verify(entity).setBucketPolicy(any(), org.mockito.ArgumentMatchers.eq("Public"));
+        verify(entity, never()).setBucketVersioning(any()); verify(entity, never()).setBucketEncryption(any());
+    }
+    @Test public void changedProtectionAndPolicyAreRejectedBeforeAnyWrite() throws Exception {
+        when(buckets.findById(1L)).thenReturn(new BucketVO(1, 1, 1, "bucket", 1, false, false, false, "Private"));
+        when(cmd.getVersioning()).thenReturn(true); when(cmd.getPolicy()).thenReturn("Public");
+        try { service.updateBucket(cmd, null); fail(); } catch (InvalidParameterValueException expected) { }
+        verify(buckets, never()).update(anyLong(), any());
+    }
 }

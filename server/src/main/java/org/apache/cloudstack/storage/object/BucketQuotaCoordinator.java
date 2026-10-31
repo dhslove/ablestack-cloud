@@ -159,6 +159,7 @@ public class BucketQuotaCoordinator {
                      quotaBytes(cmd.getQuota()), reservations, limits)) {
             return withStoreLock(cmd.getObjectStoragePoolId(), () -> {
                 ObjectStoreVO store = store(cmd.getObjectStoragePoolId());
+                BucketProtectionCoordinator.validateCreate(entity(store.getId()), cmd.isEncryption(), cmd.isVersioning(), cmd.isObjectLocking());
                 capacity(store, quotaBytes(cmd.getQuota()));
                 BucketVO candidate = new BucketVO(owner.getId(), owner.getDomainId(), store.getId(), cmd.getBucketName(),
                         cmd.getQuota(), cmd.isVersioning(), cmd.isEncryption(), cmd.isObjectLocking(), cmd.getPolicy());
@@ -393,7 +394,7 @@ public class BucketQuotaCoordinator {
 
     public void recover() {
         for (BucketQuotaOperationVO item : operations.listActive()) {
-            if ("NeedsReconcile".equals(item.getState())) { continue; }
+            if ("PROTECTION".equals(item.getOperationType()) || "NeedsReconcile".equals(item.getState())) { continue; }
             try {
                 withStoreLock(item.getObjectStoreId(), () -> {
                     BucketQuotaOperationVO current = operations.findById(item.getId());
@@ -422,6 +423,7 @@ public class BucketQuotaCoordinator {
     }
 
     private void execute(BucketQuotaOperationVO op, boolean manual) {
+        if ("PROTECTION".equals(op.getOperationType())) throw new InvalidParameterValueException("Use explicit protection reconciliation");
         if ("PURGE".equals(op.getOperationType())) { executePurge(op); return; }
         if ("NeedsReconcile".equals(op.getState()) && !manual) { throw new BucketQuotaException(op.getUuid(), true); }
         BucketVO bucket = buckets.findById(op.getBucketId());
@@ -464,8 +466,10 @@ public class BucketQuotaCoordinator {
                 save(op, "Applying");
                 if ("CREATE".equals(op.getOperationType())) {
                     BucketTO to = new BucketTO(buckets.findById(bucket.getId()));
-                    if (bucket.isVersioning() && !store.setBucketVersioning(to)) { throw new CloudRuntimeException("Unable to set bucket versioning"); }
-                    if (bucket.isEncryption() && !store.setBucketEncryption(to)) { throw new CloudRuntimeException("Unable to set bucket encryption"); }
+                    var protection = BucketProtectionCoordinator.initialize(store, bucket);
+                    BucketVO snapshot = buckets.createForUpdate(bucket.getId());
+                    snapshot.setProtectionSnapshot(gson.toJson(protection));
+                    if (!buckets.update(bucket.getId(), snapshot)) throw new CloudRuntimeException("Unable to persist verified bucket protection");
                     if (bucket.getPolicy() != null) { store.setBucketPolicy(to, bucket.getPolicy()); }
                 }
                 if (!live.sameQuota(target)) { provider.writeBucketQuota(bucket, target); }
