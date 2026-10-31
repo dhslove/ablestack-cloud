@@ -471,15 +471,15 @@
         <br />
       </component>
       <component
-        :is="isStorageUi ? 'MoldDialog' : 'a-modal'"
-        :size="isStorageUi ? 'md' : undefined"
+        :is="(isStorageUi || isBucketGroupDelete) ? 'MoldDialog' : 'a-modal'"
+        :size="(isStorageUi || isBucketGroupDelete) ? 'md' : undefined"
         class="mold-dialog"
-        :class="{ 'storage-standard-dialog': isStorageUi, 'autoscale-dialog': $route.meta?.name === 'autoscalevmgroup' }"
+        :class="{ 'storage-standard-dialog': isStorageUi || isBucketGroupDelete, 'object-storage-dialog': isBucketGroupDelete, 'autoscale-dialog': $route.meta?.name === 'autoscalevmgroup' }"
           v-else
         :visible="showAction"
         :closable="true"
         :maskClosable="false"
-        :width="currentAction.invokedAsGroupAction ? modalWidth : 760"
+        :width="isBucketGroupDelete ? 'min(720px, calc(100vw - 32px))' : (currentAction.invokedAsGroupAction ? modalWidth : 760)"
         :ok-button-props="getOkProps()"
         ok-text="111"
         :cancel-button-props="getCancelProps()"
@@ -542,6 +542,7 @@
                 :dataSource="selectedItems"
                 :rowKey="(record, idx) => record.id || record.name || record.usageType || idx + '-' + Math.random()"
                 :pagination="true"
+                :scroll="isBucketGroupDelete ? { x: 760 } : undefined"
                 style="overflow-y: auto"
               >
                 <template #bodyCell="{ column, text }">
@@ -1300,6 +1301,7 @@ export default {
   },
   computed: {
     snapshotOperationCompletions () { return scopedSnapshotOperations(storageSnapshotSecurityScope(this.$store)).map(entry => ({ ...entry })) },
+    isBucketGroupDelete () { return this.$route.path === '/buckets' && this.currentAction?.api === 'deleteBucket' && !!this.currentAction.invokedAsGroupAction },
     isObjectStorageUi () { return ['buckets', 'objectstore'].includes(this.$route.meta?.name) },
     isStorageUi () { return storageUiRoute(this.$route) },
     isSnapshotList () { return snapshotListRoute(this.$route) },

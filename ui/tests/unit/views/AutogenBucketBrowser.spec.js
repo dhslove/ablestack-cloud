@@ -22,7 +22,6 @@ import * as Vue from 'vue'
 import { mount, shallowMount, flushPromises } from '@vue/test-utils'
 import { compile as compileTemplate } from 'vue/dist/vue.cjs.js'
 import ResourceView from '@/components/view/ResourceView'
-import BulkActionView from '@/components/view/BulkActionView'
 import BulkActionProgress from '@/components/view/BulkActionProgress'
 
 jest.mock('@/components/view/InfoCard', () => ({ render: () => null }))
@@ -98,7 +97,7 @@ test('mixed selected buckets expose the explicitly named empty-only group deleti
 })
 
 
-describe.each([['confirmation', BulkActionView], ['progress', BulkActionProgress]])('bucket bulk %s dialog', (_, component) => {
+describe.each([['progress', BulkActionProgress]])('bucket bulk %s dialog', (_, component) => {
   const Modal = { name: 'BucketModalProbe', props: ['width', 'wrapClassName'], render () { return Vue.h('section', this.$slots.default?.()) } }
   const Table = { name: 'BucketTableProbe', props: ['scroll'], render () { return Vue.h('div') } }
   const open = routePath => shallowMount(component, {
@@ -117,6 +116,33 @@ describe.each([['confirmation', BulkActionView], ['progress', BulkActionProgress
     expect(view.findComponent(Modal).props('width')).toBe('50vw')
     expect(view.findComponent(Modal).attributes('class') || '').not.toContain('object-storage-dialog')
     expect(view.findComponent(Table).props('scroll')).toBeUndefined()
+    view.unmount()
+  })
+})
+
+
+describe('actual Autogen bucket group confirmation', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../../../src/views/AutogenView.vue'), 'utf8')
+  const marker = source.indexOf(':width="isBucketGroupDelete ?')
+  const start = source.lastIndexOf('<component', marker)
+  const end = source.indexOf('      >', marker) + '      >'.length
+  const opening = source.slice(start, end).replace(/\s+v-else(?=\s|>)/, '')
+  const tableStart = source.indexOf('<a-table', end)
+  const tableEnd = source.indexOf('\n              >', tableStart) + '\n              >'.length
+  const table = source.slice(tableStart, tableEnd)
+  const Modal = { name: 'ActualGenericDialogProbe', props: ['width', 'size'], render () { return Vue.h('section', this.$slots.default?.()) } }
+  const Table = { name: 'ActualGenericTableProbe', props: ['scroll'], render () { return Vue.h('div') } }
+  const Host = { data: () => ({ isStorageUi: false, currentAction: { api: 'deleteBucket', invokedAsGroupAction: true }, showAction: true, modalWidth: '50vw', actionLoading: false, selectedRowKeys: ['fixture'], selectedItems: [{ id: 'fixture' }], chosenColumns: [] }),
+    computed: { isBucketGroupDelete: Autogen.computed.isBucketGroupDelete },
+    methods: { getOkProps: () => ({}), getCancelProps: () => ({}), cancelAction () {} },
+    render: compileTemplate(opening + table + '</a-table></component>') }
+  test.each(['/buckets', '/vm'])('actual generic popup bindings follow %s scope', routePath => {
+    const view = mount(Host, { global: { mocks: { $route: { path: routePath, meta: {} } }, stubs: { MoldDialog: Modal, 'a-modal': Modal, 'a-table': Table } } })
+    const bucket = routePath === '/buckets'
+    expect(view.findComponent(Modal).props('width')).toBe(bucket ? 'min(720px, calc(100vw - 32px))' : '50vw')
+    expect(view.findComponent(Modal).props('size')).toBe(bucket ? 'md' : undefined)
+    expect(view.findComponent(Modal).attributes('class') || '').toContain(bucket ? 'object-storage-dialog' : 'mold-dialog')
+    expect(view.findComponent(Table).props('scroll')).toEqual(bucket ? { x: 760 } : undefined)
     view.unmount()
   })
 })

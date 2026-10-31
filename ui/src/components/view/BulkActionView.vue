@@ -24,10 +24,8 @@
       :maskClosable="false"
       :okText="$t('label.ok')"
       :cancelText="$t('label.cancel')"
-      :style="$route.path === '/buckets' ? undefined : { top: '20px' }"
-      :width="$route.path === '/buckets' ? 'min(720px, calc(100vw - 32px))' : '50vw'"
-      :class="$route.path === '/buckets' ? 'mold-dialog mold-dialog-standard object-storage-dialog' : undefined"
-      :wrap-class-name="$route.path === '/buckets' ? 'mold-dialog-standard-wrap' : undefined"
+      style="top: 20px;"
+      width="50vw"
       @ok="groupAction"
       @cancel="closeModal"
       :ok-button-props="{props: { type: 'default' } }"
@@ -59,7 +57,6 @@
           :dataSource="selectedItems"
           :rowKey="record => $route.path.includes('/iso/') ? record.zoneid : record.id"
           :pagination="true"
-          :scroll="$route.path === '/buckets' ? { x: 760 } : undefined"
           style="overflow-y: auto">
           <template #bodyCell="{ column, text, record }">
             <template v-if="column.key === 'algorithm'">
