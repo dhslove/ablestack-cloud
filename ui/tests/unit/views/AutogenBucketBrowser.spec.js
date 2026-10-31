@@ -102,7 +102,7 @@ describe.each([['confirmation', BulkActionView], ['progress', BulkActionProgress
   const Modal = { name: 'BucketModalProbe', props: ['width', 'wrapClassName'], render () { return Vue.h('section', this.$slots.default?.()) } }
   const Table = { name: 'BucketTableProbe', props: ['scroll'], render () { return Vue.h('div') } }
   const open = routePath => shallowMount(component, {
-    props: { showConfirmationAction: true, showGroupActionModal: true, action: 'deleteBucket', message: { title: 'label.bucket.delete', confirmMessage: 'message.bucket.delete' }, selectedItems: [], selectedRowKeys: [], selectedColumns: [] },
+    props: { showConfirmationAction: true, showGroupActionModal: true, action: 'deleteBucket', message: { title: 'label.bucket.delete', confirmMessage: 'message.bucket.delete' }, selectedItems: [{ id: 'fixture', name: 'fixture', status: 'failed' }], selectedRowKeys: ['fixture'], selectedColumns: [] },
     global: { mocks: { $route: { path: routePath, meta: routePath === '/buckets' ? {} : { name: 'buckets' } }, $t: key => key, $config: {} }, provide: { parentFetchData: jest.fn(() => Promise.resolve()) }, stubs: { 'a-modal': Modal, 'a-table': Table } }
   })
   test('uses responsive VM dialog styling for the actual bucket path even without meta.name', () => {
