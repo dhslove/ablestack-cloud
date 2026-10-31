@@ -1,6 +1,6 @@
 # [Europa][BKT-03][P1] 빈 버킷 삭제 보장과 버전·강제 정리 경로 분리
 
-상위 Epic: #1527. 상태: 해결 설계, 미구현. 소스 기준: `1c5b169cd6283da23cc3e155d4b6d14e39e42793`.
+상위 Epic: #1527. 상태: 구현·31/32 배포·UI/S3 검증 완료. 최초 감사 소스 기준: `1c5b169cd6283da23cc3e155d4b6d14e39e42793`.
 
 ## 문제와 재현
 
@@ -29,13 +29,13 @@ DeleteBucketCmd/BucketApiServiceImpl, ObjectStoreDriver/Glue driver, 비동기 �
 
 ## 완료 기준
 
-- [ ] 빈 버킷만 일반 삭제 성공; 객체/버전/표식이 하나라도 있으면 데이터 변화 없이 거부.
-- [ ] 확인과 실행 사이 새 업로드, 1000개 초과, 배치 부분 오류, 재기동/중복 요청 검증.
-- [ ] 잠금·보존·권한 거부·조회 실패 시 강제 purge로 우회하지 않음.
-- [ ] 버전 조회/복구/선택 삭제와 강제 정리의 영향을 실제 S3 GET/버전 목록으로 확인.
-- [ ] 31/32에서 보호된 기본 삭제와 명시적 전용 자원 purge, 최종 원장 정리 검증.
+- [x] 빈 버킷만 일반 삭제 성공; 객체/버전/표식이 하나라도 있으면 데이터 변화 없이 거부.
+- [x] 확인과 실행 사이 새 업로드, 1000개 초과, 배치 부분 오류, 재기동/중복 요청 검증.
+- [x] 잠금·보존·권한 거부·조회 실패 시 강제 purge로 우회하지 않음.
+- [x] 버전 조회/복구/선택 삭제와 강제 정리의 영향을 실제 S3 GET/버전 목록으로 확인.
+- [x] 31/32에서 보호된 기본 삭제와 명시적 전용 자원 purge, 최종 원장 정리 검증.
 
-근거: Epic BKT-03의 실제 파일 삭제, `s3-32-versions-after-ui-delete.xml`, `versioned-bucket-ui-delete-result.txt`. 이 이슈는 설계이며 현재 운영 자원 purge를 지시하지 않는다. 구현/실측은 dhslove 소스와 전용 자원을 사용한다.
+근거: Epic BKT-03의 실제 파일 삭제, `s3-32-versions-after-ui-delete.xml`, `versioned-bucket-ui-delete-result.txt`. 최초 설계와 재현은 이력으로 보존한다. 구현·실측은 dhslove 소스와 전용 QA 자원을 사용했고 원래 확인용 버킷은 유지했다.
 
 
 <!-- source-links -->
@@ -50,3 +50,7 @@ DeleteBucketCmd/BucketApiServiceImpl, ObjectStoreDriver/Glue driver, 비동기 �
 - 선행 반영: 필수 선행 이슈 없음. 본문의 안전한 실측 순서는 따른다.
 - 인터페이스 조율·통합 검증: [BKT-05 #1533](https://github.com/ablecloud-team/ablestack-cloud/issues/1533), [BKT-13 #1528](https://github.com/ablecloud-team/ablestack-cloud/issues/1528), [BKT-01 #1530](https://github.com/ablecloud-team/ablestack-cloud/issues/1530).
 - 상위 Epic: [#1527](https://github.com/ablecloud-team/ablestack-cloud/issues/1527). 구현 완료 표시는 해당 이슈의 완료 기준과 실제 검증 후 별도로 갱신한다.
+
+## 구현·실측 완료
+
+#1532의 empty-only 삭제, 버전 UI와 영속 명시적 purge를 구현하고 31/32+Glue에서 검증했다. [최종 설계](1532-safe-deletion.ko.md) · [검증·배포·정리 보고서](../../validation/bucket-1532-20261031/REPORT.ko.md). 최초 재현과 제안은 위 이력으로 보존한다.
