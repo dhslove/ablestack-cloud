@@ -10219,5 +10219,7 @@
   "message.storage.path.preserve": "Existing owner, mode and ACL are preserved. Missing directories require explicit creation below.",
   "message.storage.path.parent.access": "Parent share access can reach child paths. Child share ACLs do not isolate access through a parent share.",
   "message.storage.path.children": "Child NFS or SMB shares block deletion or path changes:",
-  "label.storage.path.status": "Path verification"
+  "label.storage.path.status": "Path verification",
+  "label.storage.nfs.external.check": "Verify access from an authorized client",
+  "message.storage.nfs.external.check": "The ACL excludes the server itself, so the local mount check is not applicable. The ACL was preserved. Verify actual access from an authorized client."
 }
