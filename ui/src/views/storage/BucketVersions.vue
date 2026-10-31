@@ -38,7 +38,7 @@
         </template>
       </template>
     </a-table>
-    <MoldDialog size="md" :visible="!!selected" :destroy-on-close="true" :closable="!busy" :title="$t(action === 'delete' ? 'label.bucket.version.delete' : selected?.deletemarker ? 'label.bucket.marker.remove' : 'label.bucket.version.restore')" @cancel="selected=null">
+    <MoldDialog class="bucket-version-dialog" size="md" :visible="!!selected" :destroy-on-close="true" :closable="!busy" :title="$t(action === 'delete' ? 'label.bucket.version.delete' : selected?.deletemarker ? 'label.bucket.marker.remove' : 'label.bucket.version.restore')" @cancel="selected=null">
       <a-alert :type="action === 'delete' ? 'warning' : 'info'" show-icon :message="$t(action === 'delete' ? 'message.bucket.version.delete' : selected?.deletemarker ? 'message.bucket.marker.remove' : 'message.bucket.version.restore')" />
       <p v-if="selected" class="version-key">{{ selected.key }} / {{ selected.versionid }}</p>
       <a-alert v-if="mutationError" type="error" :message="$t('message.bucket.version.mutation.failed')" />
@@ -84,6 +84,15 @@ export default {
   }
 }
 </script>
+<style>
+.bucket-versions .ant-btn:not(.ant-btn-primary):not(:disabled):hover,
+.bucket-versions .ant-btn:not(.ant-btn-primary):not(:disabled):focus,
+.bucket-version-dialog .ant-btn:not(.ant-btn-primary):not(:disabled):hover,
+.bucket-version-dialog .ant-btn:not(.ant-btn-primary):not(:disabled):focus {
+  color: var(--ui-link) !important;
+  border-color: var(--ui-link) !important;
+}
+</style>
 <style scoped>
 .bucket-versions { min-width: 0; }
 .bucket-version-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:16px; }

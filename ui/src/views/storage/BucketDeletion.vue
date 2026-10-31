@@ -144,6 +144,11 @@ export default {
   .ant-checkbox-wrapper { display: flex; margin: 12px 0; }
   .bucket-purge-progress { margin: 16px 0; overflow-wrap: anywhere; }
   code, li { overflow-wrap: anywhere; }
+  :deep(.ant-btn:not(.ant-btn-primary):not(:disabled):hover),
+  :deep(.ant-btn:not(.ant-btn-primary):not(:disabled):focus) {
+    color: var(--ui-link) !important;
+    border-color: var(--ui-link) !important;
+  }
   :deep(.ant-input) { background: var(--ui-bg-input); color: var(--ui-text-primary); border-color: var(--ui-border); }
   :deep(.ant-descriptions-item-label) { background: var(--ui-bg-elevated); color: var(--ui-text-secondary); }
   :deep(.ant-descriptions-item-content) { background: var(--ui-bg-surface); color: var(--ui-text-primary); }
