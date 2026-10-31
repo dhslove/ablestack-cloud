@@ -94,7 +94,7 @@ export default {
         this.confirm = ''; await this.fetchState(); if (this.disposed || context !== this.context) return; this.$emit('reconciled', this.state); this.$emit('refresh')
       } catch (error) {
         if (this.disposed || context !== this.context) return
-        this.confirm = ''; await this.fetchState(); this.errorText = this.$t('message.bucket.protection.restore.failed')
+        this.confirm = ''; await this.fetchState(); if (this.disposed || context !== this.context) return; this.errorText = this.$t('message.bucket.protection.restore.failed')
       } finally { if (!this.disposed && context === this.context) this.busy = false }
     }
   }
