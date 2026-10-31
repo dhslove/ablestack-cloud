@@ -36,6 +36,8 @@
 
 JPEG 원본을 편집하지 않았다. CSS viewport와 native capture의 실제 pixel 치수는 다를 수 있으며 JSON의 viewport와 decoded dimensions를 별도 기록했다. 과거 r2 UI에서 수행한 생성/legacy 수용/timeout/복원 이력은 source를 구분하고, 최종 갱신/반응형 증거는 최종 bundle로 확인했다.
 
+공개 텍스트 로그는 줄끝 공백만 정규화했다. 실행 당시 원본 로그와 native JPEG 원본은 별도로 보존했다.
+
 ## 빌드·배포
 
 - WSL ext4에서 api, engine/api, engine/schema, engine/storage 계약과 server, Ceph 변경 모듈만 빌드. backend 150건(server 92/Ceph 58)·Java 30개 Checkstyle 통과.

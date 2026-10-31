@@ -54,8 +54,8 @@ Browserslist: caniuse-lite is outdated. Please run:
     [Vue warn]: Component "LaptopOutlined" has already been registered in target app.
 
   console.warn ../../ablestack-cloud-europa-release/ui/node_modules/@vue/runtime-core/dist/runtime-core.cjs.js:40
-    [Vue warn]: injection "parentFetchData" not found. 
-      at <CreateBucket resource= {} ref="VTU_COMPONENT" > 
+    [Vue warn]: injection "parentFetchData" not found.
+      at <CreateBucket resource= {} ref="VTU_COMPONENT" >
       at <VTUROOT>
 
   console.warn ../../ablestack-cloud-europa-release/ui/node_modules/@vue/runtime-core/dist/runtime-core.cjs.js:40
@@ -106,4 +106,3 @@ Ran all test suites matching /tests\/unit\/views\/storage\/BucketProtection.spec
 
   console.warn ../../ablestack-cloud-europa-release/ui/node_modules/@vue/runtime-core/dist/runtime-core.cjs.js:40
     [Vue warn]: Component "LaptopOutlined" has already been registered in target app.
-
