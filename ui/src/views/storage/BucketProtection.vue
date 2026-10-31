@@ -54,17 +54,18 @@ export default {
   name: 'BucketProtection',
   components: { MoldDialog, BucketProtectionCapabilities },
   props: { resource: { type: Object, required: true } },
-  emits: ['state', 'reconciled'],
-  data () { return { state: { protectionverificationstate: 'Unknown' }, loading: false, busy: false, errorText: '', confirm: '', generation: 0 } },
+  emits: ['state', 'reconciled', 'refresh'],
+  data () { return { state: { protectionverificationstate: 'Unknown' }, loading: false, busy: false, errorText: '', confirm: '', generation: 0, activeContext: '', disposed: false } },
   computed: {
-    scope () { return [this.resource.id, this.$store?.getters?.project?.id, this.$store?.getters?.userInfo?.domainid].join(':') },
+    context () { return [this.resource.id, this.$store?.getters?.project?.id, this.$store?.getters?.userInfo?.id, this.$store?.getters?.userInfo?.domainid].join(':') },
+    scope () { return JSON.stringify([this.context, ...['objectstorageid', 'credentialrevision', 'encryption', 'versioning', 'objectlocking', 'quotaoperationid', 'quotaoperationstate'].map(key => this.resource[key])]) },
     pending () { return !!this.state.operationid && !['Succeeded', 'Failed'].includes(this.state.operationstate) },
     known () { return ['effectiveencryption', 'effectiveversioning', 'effectiveobjectlocking'].every(k => typeof this.state[k] === 'boolean') },
     columns () { return [{ title: this.$t('label.bucket.protection.option'), dataIndex: 'label' }, { title: this.$t('label.bucket.protection.requested'), dataIndex: 'requested' }, { title: this.$t('label.bucket.protection.actual'), dataIndex: 'actual' }] },
     rows () { return ['encryption', 'versioning', 'objectlocking'].map(key => ({ key, label: this.$t('label.' + key), requested: this.display(this.state['requested' + key] ?? this.resource[key]), actual: this.display(this.state['effective' + key]) })) }
   },
-  watch: { scope: { immediate: true, handler () { this.confirm = ''; this.busy = false; this.loading = false; this.errorText = ''; this.state = { protectionverificationstate: 'Unknown' }; this.fetchState() } } },
-  beforeUnmount () { ++this.generation },
+  watch: { scope: { immediate: true, handler () { this.confirm = ''; if (this.activeContext !== this.context) this.busy = false; this.activeContext = this.context; this.loading = false; this.errorText = ''; this.state = { protectionverificationstate: 'Unknown' }; this.fetchState() } } },
+  beforeUnmount () { this.disposed = true; ++this.generation },
   methods: {
     display (value) { return typeof value !== 'boolean' ? this.$t('state.bucket.protection.unknown') : this.$t(value ? 'label.enabled' : 'label.disabled') },
     async fetchState () {
@@ -85,16 +86,16 @@ export default {
     },
     async reconcile () {
       if (this.busy || !this.confirm) return
-      const scope = this.scope; const id = this.resource.id; const action = this.confirm
+      const context = this.context; const id = this.resource.id; const action = this.confirm
       this.busy = true; this.errorText = ''
       try {
         await postAPI('reconcileBucketProtection', { id, operationid: this.state.operationid, acceptactual: action === 'adopt' })
-        if (scope !== this.scope) return
-        this.confirm = ''; await this.fetchState(); this.$emit('reconciled', this.state)
+        if (this.disposed || context !== this.context) return
+        this.confirm = ''; await this.fetchState(); if (this.disposed || context !== this.context) return; this.$emit('reconciled', this.state); this.$emit('refresh')
       } catch (error) {
-        if (scope !== this.scope) return
+        if (this.disposed || context !== this.context) return
         this.confirm = ''; await this.fetchState(); this.errorText = this.$t('message.bucket.protection.restore.failed')
-      } finally { if (scope === this.scope) this.busy = false }
+      } finally { if (!this.disposed && context === this.context) this.busy = false }
     }
   }
 }

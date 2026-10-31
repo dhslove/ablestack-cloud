@@ -76,3 +76,30 @@ it('blocks the actual update form from a protection operation before the parent 
   const w = mount(Update, { props: { resource: { id: 'A', quota: 1, encryption: false, versioning: false } }, global: { ...globals, mocks: { ...globals.mocks, $getApiParams: () => ({ reconcile: {} }) }, stubs: { ...globals.stubs, BucketQuotaContext: true, BucketProtection: { emits: ['state'], mounted () { this.$emit('state', { operationid: 'op', operationstate: 'NeedsReconcile', protectionverificationstate: 'Unknown' }) }, template: '<div />' }, 'a-form': { props: ['disabled'], template: '<fieldset :disabled="disabled"><slot /></fieldset>' }, 'a-form-item': { template: '<label><slot /></label>' }, 'a-input': true, 'a-select': { template: '<div><slot /></div>' }, 'a-select-option': true, 'a-switch': true } } })
   await flushPromises(); expect(w.find('fieldset').attributes('disabled')).toBeDefined(); expect(w.vm.quotaPending).toBe(false); w.unmount()
 })
+
+it('reverifies changed protection metadata for the same bucket without reloading the tab', async () => {
+  postAPI.mockResolvedValueOnce(response(actual())).mockResolvedValueOnce(response(actual({ requestedversioning: true, effectiveversioning: true })))
+  const w = view({ id: 'A', versioning: false }); await flushPromises()
+  await w.setProps({ resource: { id: 'A', versioning: true } }); await flushPromises()
+  expect(postAPI).toHaveBeenCalledTimes(2); expect(w.vm.rows[1].requested).toBe('label.enabled'); expect(w.vm.rows[1].actual).toBe('label.enabled')
+  await w.setProps({ resource: { id: 'A', versioning: true, protectionverifiedat: 'later' } }); await flushPromises()
+  expect(postAPI).toHaveBeenCalledTimes(2); w.unmount()
+})
+it('replaces a stale Verified panel when the same bucket gains a pending operation', async () => {
+  let resolvePending
+  postAPI.mockResolvedValueOnce(response(actual())).mockImplementationOnce(() => new Promise(resolve => { resolvePending = resolve }))
+  const w = view({ id: 'A' }); await flushPromises()
+  await w.setProps({ resource: { id: 'A', quotaoperationid: 'op', quotaoperationstate: 'NeedsReconcile' } })
+  expect(w.vm.known).toBe(false); expect(w.vm.state.protectionverificationstate).toBe('Unknown')
+  resolvePending(response(actual({ operationid: 'op', operationstate: 'NeedsReconcile' }))); await flushPromises()
+  expect(w.vm.pending).toBe(true); expect(w.text()).toContain('label.bucket.protection.restore'); w.unmount()
+})
+it('refreshes the parent after adopting actual settings and ignores late mutation completion after unmount', async () => {
+  postAPI.mockResolvedValueOnce(response(actual({ operationid: 'op', operationstate: 'NeedsReconcile' }))).mockResolvedValueOnce({}).mockResolvedValueOnce(response(actual()))
+  const w = view(); await flushPromises(); w.vm.confirm = 'adopt'; await w.vm.reconcile()
+  expect(w.emitted('refresh')).toHaveLength(1); w.unmount()
+  let resolveMutation
+  postAPI.mockResolvedValueOnce(response(actual({ operationid: 'next', operationstate: 'NeedsReconcile' }))).mockImplementationOnce(() => new Promise(resolve => { resolveMutation = resolve }))
+  const gone = view(); await flushPromises(); gone.vm.confirm = 'restore'; const work = gone.vm.reconcile(); gone.unmount(); resolveMutation({}); await work
+  expect(gone.emitted('reconciled')).toBeUndefined(); expect(gone.emitted('refresh')).toBeUndefined()
+})
