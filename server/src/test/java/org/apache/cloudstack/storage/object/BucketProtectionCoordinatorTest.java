@@ -177,14 +177,18 @@ public class BucketProtectionCoordinatorTest {
     }
     @Test public void freshPersistedOperationIsReloadedBeforeGenericDaoUpdates() {
         var plain = new java.util.concurrent.atomic.AtomicReference<BucketQuotaOperationVO>();
-        when(ops.persist(any())).thenAnswer(i -> {
+        org.mockito.Mockito.doAnswer(i -> {
             BucketQuotaOperationVO created = i.getArgument(0); created.setId(1L); plain.set(created);
             rows.put(1L, copy(created, BucketQuotaOperationVO.class)); return created;
-        });
-        when(ops.update(anyLong(), any())).thenAnswer(i -> {
+        }).when(ops).persist(any());
+        org.mockito.Mockito.doAnswer(i -> {
             if (i.getArgument(1) == plain.get()) throw new ClassCastException("Plain entities are not DAO enhanced");
             rows.put(i.getArgument(0), copy(i.getArgument(1), BucketQuotaOperationVO.class)); return true;
-        });
+        }).when(ops).update(anyLong(), any());
         assertTrue(service.update(bucket, null, true)); assertTrue(bucket.isVersioning()); assertEquals("Succeeded", rows.get(1L).getState());
+    }
+    @Test public void creationCannotConfirmAFalseVersioningWrite() {
+        bucket.setVersioning(true); doReturn(false).when(entity).setBucketVersioning(any());
+        assertThrows(RuntimeException.class, () -> BucketProtectionCoordinator.initialize(entity, bucket));
     }
 }

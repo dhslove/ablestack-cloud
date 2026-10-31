@@ -53,6 +53,10 @@ public class UpdateBucketCmd extends BaseCmd {
     @Parameter(name = ApiConstants.ENCRYPTION, type = CommandType.BOOLEAN, description = "Enable/Disable Bucket encryption")
     private Boolean encryption;
 
+    @Parameter(name = "objectlocking", type = CommandType.BOOLEAN, description = "Creation-only object lock value; an existing bucket may only repeat its unchanged value")
+    private Boolean objectLocking;
+    public Boolean getObjectLocking() { return objectLocking; }
+
     @Parameter(name = ApiConstants.POLICY, type = CommandType.STRING, description = "Bucket Access Policy")
     private String policy;
 

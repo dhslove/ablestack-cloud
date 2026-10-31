@@ -230,6 +230,7 @@ public class BucketApiServiceImpl extends ManagerBase implements BucketApiServic
         BucketVO bucket = _bucketDao.findById(cmd.getId());
         if (bucket == null) { throw new InvalidParameterValueException("Unable to find bucket"); }
         _accountMgr.checkAccess(caller, null, true, bucket);
+        if (cmd.getObjectLocking() != null && cmd.getObjectLocking() != bucket.isObjectLock()) throw new InvalidParameterValueException("OBJECT_LOCK_CREATE_ONLY");
         if (cmd.isReconcile()) {
             if (cmd.getQuota() != null || cmd.getEncryption() != null || cmd.getVersioning() != null || cmd.getPolicy() != null) {
                 throw new InvalidParameterValueException("Reconciliation cannot be combined with property changes");

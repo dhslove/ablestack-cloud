@@ -89,4 +89,10 @@ public class BucketApiServiceImplTest {
         try { service.updateBucket(cmd, null); fail(); } catch (InvalidParameterValueException expected) { }
         verify(buckets, never()).update(anyLong(), any());
     }
+    @Test public void objectLockCannotBeImplicitlyAddedOrRemovedOnAnExistingBucket() throws Exception {
+        when(buckets.findById(1L)).thenReturn(new BucketVO(1, 1, 1, "bucket", 1, false, false, false, "Private"));
+        when(cmd.getObjectLocking()).thenReturn(true);
+        try { service.updateBucket(cmd, null); fail(); } catch (InvalidParameterValueException expected) { }
+        verify(buckets, never()).update(anyLong(), any());
+    }
 }
