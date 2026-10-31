@@ -136,6 +136,8 @@ public class UpdateBucketCmd extends BaseCmd {
             throw new ServerApiException(ApiErrorCode.PARAM_ERROR, e.getMessage(), e);
         } catch (com.cloud.exception.ResourceAllocationException e) {
             throw new ServerApiException(ApiErrorCode.RESOURCE_ALLOCATION_ERROR, "Bucket quota exceeds account, project or domain resource limit", e);
+        } catch (org.apache.cloudstack.storage.object.BucketProtectionException e) {
+            throw new ServerApiException(ApiErrorCode.INTERNAL_ERROR, e.getMessage(), e);
         } catch (org.apache.cloudstack.storage.object.BucketQuotaException e) {
             throw new ServerApiException(ApiErrorCode.INTERNAL_ERROR, e.getMessage(), e);
         } catch (Exception e) {

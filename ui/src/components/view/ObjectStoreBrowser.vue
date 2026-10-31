@@ -387,7 +387,7 @@ export default {
     }
   },
   computed: {
-    bucketPurgeActive () { return this.resource.quotaoperationtype === 'PURGE' && !['Succeeded', 'Failed'].includes(this.resource.quotaoperationstate) },
+    bucketPurgeActive () { return ['PURGE', 'PROTECTION'].includes(this.resource.quotaoperationtype) && !['Succeeded', 'Failed'].includes(this.resource.quotaoperationstate) },
     columns () {
       return [
         {

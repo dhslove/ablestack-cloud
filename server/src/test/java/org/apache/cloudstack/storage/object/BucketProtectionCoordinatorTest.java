@@ -175,4 +175,16 @@ public class BucketProtectionCoordinatorTest {
     @Test public void creationVerifiesActualObjectLockRatherThanTrustingRequestedTrue() {
         bucket.setObjectLock(true); bucket.setVersioning(true); assertThrows(RuntimeException.class, () -> BucketProtectionCoordinator.initialize(entity, bucket));
     }
+    @Test public void freshPersistedOperationIsReloadedBeforeGenericDaoUpdates() {
+        var plain = new java.util.concurrent.atomic.AtomicReference<BucketQuotaOperationVO>();
+        when(ops.persist(any())).thenAnswer(i -> {
+            BucketQuotaOperationVO created = i.getArgument(0); created.setId(1L); plain.set(created);
+            rows.put(1L, copy(created, BucketQuotaOperationVO.class)); return created;
+        });
+        when(ops.update(anyLong(), any())).thenAnswer(i -> {
+            if (i.getArgument(1) == plain.get()) throw new ClassCastException("Plain entities are not DAO enhanced");
+            rows.put(i.getArgument(0), copy(i.getArgument(1), BucketQuotaOperationVO.class)); return true;
+        });
+        assertTrue(service.update(bucket, null, true)); assertTrue(bucket.isVersioning()); assertEquals("Succeeded", rows.get(1L).getState());
+    }
 }

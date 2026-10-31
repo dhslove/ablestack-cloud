@@ -351,4 +351,19 @@ describe('bucket browser request lifecycle', () => {
     })
   })
 
+  it.each(['Applying', 'NeedsReconcile'])('blocks actual upload, folder and delete buttons while protection is %s and releases them after recovery', async state => {
+    await open({ tab: 'browser', browserPath: '' }, Browser)
+    await complete(streams[0], [{ name: 'preserve.txt', size: 32 }])
+    await wrapper.setData({ selectedRows: [{ name: 'preserve.txt' }] })
+    await wrapper.setProps({ resource: { ...resource(), quotaoperationtype: 'PROTECTION', quotaoperationstate: state } })
+    await flushPromises()
+    const button = key => wrapper.findAll('button').find(item => item.text().trim() === key)
+    expect(wrapper.vm.fetching).toBe(false)
+    for (const key of ['label.upload', 'label.objectstore.create.folder', 'label.delete']) expect(button(key).attributes('disabled')).toBeDefined()
+    await wrapper.setProps({ resource: { ...resource(), quotaoperationtype: 'PROTECTION', quotaoperationstate: 'Failed' } })
+    await flushPromises()
+    expect(button('label.upload').attributes('disabled')).toBeUndefined()
+    expect(wrapper.vm.records.map(item => item.name)).toEqual(['preserve.txt'])
+  })
+
 })

@@ -176,12 +176,14 @@ public class BucketProtectionCoordinator {
             String data = gson.toJson(change); if (data.length() > 1000) throw new InvalidParameterValueException("PROTECTION_SNAPSHOT_TOO_LARGE");
             var live = ((ObjectStoreQuotaProvider)store.getDriver()).readBucketQuota(bucket);
             if (!live.exists() || live.getExternalId() == null) throw new InvalidParameterValueException("PROTECTION_IDENTITY_UNKNOWN");
-            BucketQuotaOperationVO op = new BucketQuotaOperationVO();
-            op.setOperationType("PROTECTION"); op.setBucketId(bucket.getId()); op.setActiveBucketId(bucket.getId());
-            op.setAccountId(bucket.getAccountId()); op.setDomainId(bucket.getDomainId()); op.setObjectStoreId(bucket.getObjectStoreId());
-            op.setStoreUrl(stores.findById(bucket.getObjectStoreId()).getUrl()); op.setExternalId(live.getExternalId());
-            op.setPreviousSnapshot(data); op.setPreviousQuota(bucket.getQuota()); op.setRequestedQuota(bucket.getQuota());
-            operations.persist(op);
+            BucketQuotaOperationVO prepared = new BucketQuotaOperationVO();
+            prepared.setOperationType("PROTECTION"); prepared.setBucketId(bucket.getId()); prepared.setActiveBucketId(bucket.getId());
+            prepared.setAccountId(bucket.getAccountId()); prepared.setDomainId(bucket.getDomainId()); prepared.setObjectStoreId(bucket.getObjectStoreId());
+            prepared.setStoreUrl(stores.findById(bucket.getObjectStoreId()).getUrl()); prepared.setExternalId(live.getExternalId());
+            prepared.setPreviousSnapshot(data); prepared.setPreviousQuota(bucket.getQuota()); prepared.setRequestedQuota(bucket.getQuota());
+            operations.persist(prepared);
+            // GenericDao updates require a DAO-enhanced object, not the plain constructor argument.
+            final BucketQuotaOperationVO op = operations.findById(prepared.getId());
             try {
                 save(op, "Applying"); identity(bucket, op); apply(store, bucket, before, enc, ver);
                 BucketProtectionResponse verified = known(store, bucket);
@@ -199,7 +201,7 @@ public class BucketProtectionCoordinator {
                 if (!durable.isActive() && "Succeeded".equals(durable.getState())) return true;
                 try { save(durable, "Compensating"); restore(buckets.findById(bucket.getId()), durable); }
                 catch (RuntimeException restoreFailure) { durable = operations.findById(op.getId()); durable.setErrorCode("PROTECTION_RECONCILIATION_REQUIRED"); save(durable, "NeedsReconcile"); }
-                throw new CloudRuntimeException("PROTECTION_CHANGE_FAILED operation=" + durable.getUuid() + " state=" + durable.getState());
+                throw new BucketProtectionException(durable.getUuid(), durable.getState());
             }
         });
     }
