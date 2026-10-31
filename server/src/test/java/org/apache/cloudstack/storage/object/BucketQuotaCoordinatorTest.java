@@ -79,7 +79,7 @@ public class BucketQuotaCoordinatorTest {
     private final ResourceLimitManagerImpl limits = mock(ResourceLimitManagerImpl.class);
     private final ReservationDao reservations = mock(ReservationDao.class);
     private final ObjectStoreEntity entity = mock(ObjectStoreEntity.class);
-    private final DataStoreDriver driver = mock(DataStoreDriver.class, withSettings().extraInterfaces(ObjectStoreQuotaProvider.class));
+    private final DataStoreDriver driver = mock(DataStoreDriver.class, withSettings().extraInterfaces(ObjectStoreQuotaProvider.class, org.apache.cloudstack.engine.subsystem.api.storage.BucketObjectStoreProvider.class));
     private final ObjectStoreQuotaProvider provider = (ObjectStoreQuotaProvider)driver;
     private final ObjectStoreVO store = mock(ObjectStoreVO.class);
     private final AccountVO owner = mock(AccountVO.class);
@@ -124,6 +124,9 @@ public class BucketQuotaCoordinatorTest {
         when(ops.reservedBytesForStore(3L)).thenAnswer(i -> rows.values().stream().filter(BucketQuotaOperationVO::isActive).mapToLong(BucketQuotaOperationVO::getReservedBytes).sum());
         when(dataStores.getDataStore(3L, DataStoreRole.Object)).thenReturn(entity); when(entity.getDriver()).thenReturn(driver);
         when(provider.readBucketQuota(any())).thenAnswer(i -> live);
+        var emptyPage = new org.apache.cloudstack.api.response.BucketObjectResponse(); emptyPage.setVersions(new ArrayList<>());
+        when(((org.apache.cloudstack.engine.subsystem.api.storage.BucketObjectStoreProvider)driver).objectVersions(any(), any(), any(), anyInt())).thenReturn(emptyPage);
+        when(ops.findByUuid(anyString())).thenAnswer(i -> rows.values().stream().filter(x -> x.getUuid().equals(i.getArgument(0))).findFirst().map(this::copy).orElse(null));
         doAnswer(i -> { live = i.getArgument(1); return null; }).when(provider).writeBucketQuota(any(), any());
         doAnswer(i -> { live = BucketQuotaState.missing(); return null; }).when(provider).deleteEmptyBucket(any());
         when(entity.createUser(7L)).thenReturn(true);
@@ -237,4 +240,98 @@ public class BucketQuotaCoordinatorTest {
         verify(entity, never()).createUser(anyLong()); verify(entity, never()).createBucket(any(), anyBoolean());
         service.create(result.getId()); assertEquals(2 * G, allocated.get()); assertEquals(2 * G, ledger.get()); assertEquals("Succeeded", last().getState());
     }
+    private org.apache.cloudstack.engine.subsystem.api.storage.BucketObjectStoreProvider objectProvider() {
+        return (org.apache.cloudstack.engine.subsystem.api.storage.BucketObjectStoreProvider)driver;
+    }
+    private org.apache.cloudstack.api.response.BucketObjectResponse batch(long deleted, boolean complete) {
+        var result = new org.apache.cloudstack.api.response.BucketObjectResponse(); result.setDeletedCount(deleted); result.setComplete(complete); result.setProgressKnown(true); return result;
+    }
+    private String preparePurge() {
+        var impact = new org.apache.cloudstack.api.response.BucketObjectResponse(); impact.setComplete(true); impact.setExists(true);
+        when(objectProvider().deletionImpact(any())).thenReturn(impact);
+        String id = java.util.UUID.randomUUID().toString();
+        assertEquals("Prepared", service.startPurge(bucket, id, bucket.getName(), true, "external-id", false).getState()); return id;
+    }
+    @Test public void normalDeleteRejectsAnyVersionBeforeCreatingAnOperation() {
+        var page = new org.apache.cloudstack.api.response.BucketObjectResponse(); page.setVersions(java.util.List.of(new org.apache.cloudstack.api.response.BucketObjectVersion()));
+        when(objectProvider().objectVersions(any(), any(), any(), anyInt())).thenReturn(page);
+        org.junit.Assert.assertThrows(InvalidParameterValueException.class, () -> service.delete(bucket));
+        assertTrue(rows.isEmpty()); assertEquals(G, allocated.get()); verify(entity, never()).deleteBucket(any());
+    }
+    @Test public void normalDeleteNeverFallsBackWhenUploadRaces() {
+        doThrow(new CloudRuntimeException("BUCKET_NOT_EMPTY")).when(provider).deleteEmptyBucket(any());
+        failed(() -> service.delete(bucket), "Failed"); assertTrue(live.exists()); assertEquals(G, allocated.get());
+        verify(objectProvider(), never()).purgeVersionBatch(any()); verify(entity, never()).deleteBucket(any());
+    }
+    @Test public void purgeRequiresExactNameAndExplicitVersionConsent() {
+        String id = java.util.UUID.randomUUID().toString();
+        org.junit.Assert.assertThrows(InvalidParameterValueException.class, () -> service.startPurge(bucket, id, "wrong", true, "external-id", false));
+        org.junit.Assert.assertThrows(InvalidParameterValueException.class, () -> service.startPurge(bucket, id, bucket.getName(), false, "external-id", false));
+        assertTrue(rows.isEmpty()); verify(objectProvider(), never()).purgeVersionBatch(any());
+    }
+    @Test public void purgeRejectsStaleExternalIdentityAndIncompleteOrLockedImpact() {
+        var impact = new org.apache.cloudstack.api.response.BucketObjectResponse(); impact.setComplete(true);
+        when(objectProvider().deletionImpact(any())).thenReturn(impact);
+        org.junit.Assert.assertThrows(InvalidParameterValueException.class, () -> service.startPurge(bucket, java.util.UUID.randomUUID().toString(), bucket.getName(), true, "other", false));
+        impact.setComplete(false);
+        org.junit.Assert.assertThrows(InvalidParameterValueException.class, () -> service.startPurge(bucket, java.util.UUID.randomUUID().toString(), bucket.getName(), true, "external-id", false));
+        impact.setComplete(true); impact.setObjectLock(true);
+        org.junit.Assert.assertThrows(InvalidParameterValueException.class, () -> service.startPurge(bucket, java.util.UUID.randomUUID().toString(), bucket.getName(), true, "external-id", false));
+        assertTrue(rows.isEmpty());
+    }
+    @Test public void purgeIsDurableAsynchronousAndDuplicateIntentDoesNotCreateAnotherJob() {
+        String id = preparePurge(); assertEquals(1, rows.size()); verify(objectProvider(), never()).purgeVersionBatch(any());
+        assertEquals(id, service.startPurge(bucket, id, bucket.getName(), true, "external-id", false).getOperationId()); assertEquals(1, rows.size());
+        org.junit.Assert.assertThrows(BucketQuotaException.class, () -> service.delete(bucket));
+        org.junit.Assert.assertThrows(InvalidParameterValueException.class, () -> service.reconcile(bucket, id));
+    }
+    @Test public void purgeMultipleBatchesRetainCountersUntilAtomicFinalRemovalAndReplayIsHarmless() {
+        String id = preparePurge(); BucketVO target = bucket;
+        when(objectProvider().purgeVersionBatch(any())).thenReturn(batch(1000, false), batch(105, false), batch(0, true));
+        service.recover(); assertEquals(1000, service.purgeStatus(bucket, id).getDeletedCount()); assertEquals(G, allocated.get()); assertTrue(bucket != null);
+        service.recover(); assertEquals(1105, service.purgeStatus(bucket, id).getDeletedCount()); assertEquals(G, ledger.get());
+        service.recover(); assertNull(bucket); assertEquals(0, allocated.get()); assertEquals(0, ledger.get());
+        assertEquals("Succeeded", service.purgeStatus(target, id).getState());
+        assertEquals("Succeeded", service.startPurge(target, id, target.getName(), true, null, false).getState());
+        service.recover(); assertEquals(0, ledger.get()); verify(entity, never()).deleteBucket(any());
+    }
+    @Test public void partialPurgePersistsProgressAndRequiresExplicitSameJobRetry() {
+        String id = preparePurge();
+        var partial = batch(7, false); partial.setErrorCode("PARTIAL_DELETE");
+        when(objectProvider().purgeVersionBatch(any())).thenReturn(partial, batch(0, true));
+        service.recover(); assertEquals("NeedsReconcile", last().getState()); assertEquals(7, service.purgeStatus(bucket, id).getDeletedCount()); assertEquals(G, ledger.get());
+        service.recover(); verify(objectProvider(), org.mockito.Mockito.times(1)).purgeVersionBatch(any());
+        service.startPurge(bucket, id, bucket.getName(), true, null, true); service.recover();
+        assertEquals("Succeeded", last().getState()); assertEquals(0, ledger.get());
+    }
+    @Test public void lostBatchResponseNeverReleasesMetadataAndMarksProgressAsUncertain() {
+        String id = preparePurge();
+        when(objectProvider().purgeVersionBatch(any())).thenThrow(new CloudRuntimeException("PRIVATE_S3_RESPONSE"));
+        service.recover(); assertEquals("NeedsReconcile", last().getState()); assertFalse(service.purgeStatus(bucket, id).getProgressKnown());
+        assertEquals("PURGE_RETRY_REQUIRED", last().getErrorCode()); assertEquals(G, allocated.get()); assertTrue(bucket != null);
+    }
+    @Test public void restartDuringApplyingUsesDurableCheckpointAndOnlyRemainingVersions() {
+        String id = preparePurge(); last().setState("Applying");
+        when(objectProvider().purgeVersionBatch(any())).thenReturn(batch(3, false), batch(0, true));
+        var restarted = new BucketQuotaCoordinator(stores, buckets, ops, dataStores, accounts, limits, reservations) {
+            @Override protected <T> T inTransaction(Supplier<T> action) { return action.get(); }
+        };
+        restarted.recover(); assertEquals(3, restarted.purgeStatus(bucket, id).getDeletedCount()); assertFalse(restarted.purgeStatus(bucket, id).getProgressKnown());
+        restarted.recover(); assertEquals("Succeeded", last().getState()); assertEquals(0, allocated.get());
+    }
+    @Test public void purgeDbFailureAfterExternalDeletionRetainsLedgerAndRetryCommitsOnce() {
+        String id = preparePurge(); when(objectProvider().purgeVersionBatch(any())).thenReturn(batch(0, true));
+        doThrow(new CloudRuntimeException("db failure")).when(limits).decrementBucketResourceCount(eq(7L), eq(ResourceType.bucket), eq(1L));
+        service.recover(); assertEquals("NeedsReconcile", last().getState()); assertFalse(live.exists()); assertTrue(bucket != null); assertEquals(G, allocated.get());
+        org.mockito.Mockito.doNothing().when(limits).decrementBucketResourceCount(eq(7L), eq(ResourceType.bucket), eq(1L));
+        service.startPurge(bucket, id, bucket.getName(), true, null, true); service.recover();
+        assertNull(bucket); assertEquals("Succeeded", last().getState()); assertEquals(0, allocated.get()); assertEquals(0, ledger.get());
+    }
+    @Test public void foreignOperationIdCannotBeRetriedForAnotherBucket() {
+        String id = preparePurge();
+        BucketVO foreign = new BucketVO(7, 1, 3, "other", 1, false, false, false, "Private"); ReflectionTestUtils.setField(foreign, "id", 99L);
+        org.junit.Assert.assertThrows(InvalidParameterValueException.class, () -> service.startPurge(foreign, id, "other", true, null, true));
+        org.junit.Assert.assertThrows(InvalidParameterValueException.class, () -> service.purgeStatus(foreign, id));
+    }
+
 }

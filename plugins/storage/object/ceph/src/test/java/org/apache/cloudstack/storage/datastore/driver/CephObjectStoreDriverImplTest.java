@@ -109,17 +109,19 @@ public class CephObjectStoreDriverImplTest {
         Bucket bucketRet = cephObjectStoreDriverImpl.createBucket(bucket, false);
         assertEquals(bucketRet.getName(), bucket.getName());
         verify(rgwClient, times(1)).doesBucketExistV2(anyString());
-        verify(rgwClient, times(1)).createBucket(anyString());
+        verify(rgwClient, times(1)).createBucket(org.mockito.ArgumentMatchers.any(com.amazonaws.services.s3.model.CreateBucketRequest.class));
     }
 
     @Test
     public void testDeleteBucket() throws Exception {
         String bucketName = "test-bucket";
         BucketTO bucket = new BucketTO(bucketName);
-        doReturn(rgwAdmin).when(cephObjectStoreDriverImpl).getRgwAdminClient(anyLong());
+        doReturn(rgwClient).when(cephObjectStoreDriverImpl).getS3Client(anyLong(), anyLong());
+        when(rgwClient.listVersions(org.mockito.ArgumentMatchers.any(com.amazonaws.services.s3.model.ListVersionsRequest.class))).thenReturn(new com.amazonaws.services.s3.model.VersionListing());
         boolean success = cephObjectStoreDriverImpl.deleteBucket(bucket, 1L);
         assertTrue(success);
-        verify(rgwAdmin, times(1)).removeBucket(anyString());
+        verify(rgwAdmin, org.mockito.Mockito.never()).removeBucket(anyString());
+        verify(rgwClient).deleteBucket(bucketName);
     }
     @Test
     public void policiesAndVersioningResolveTheStoreAccountPair() {

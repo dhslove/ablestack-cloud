@@ -5670,6 +5670,7 @@ public class ApiResponseHelper implements ResponseGenerator, ResourceIdSupport {
             if (operation != null) {
                 bucketResponse.setQuotaOperationId(operation.getUuid());
                 bucketResponse.setQuotaOperationState(operation.getState());
+            bucketResponse.setQuotaOperationType(operation.getOperationType());
                 bucketResponse.setQuotaOperationUpdated(operation.getUpdated());
             }
         }

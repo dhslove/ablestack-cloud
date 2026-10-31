@@ -1580,3 +1580,9 @@ SET @bkt_credential_ddl = IF((SELECT COUNT(*) FROM information_schema.columns WH
 PREPARE bkt_credential_stmt FROM @bkt_credential_ddl;
 EXECUTE bkt_credential_stmt;
 DEALLOCATE PREPARE bkt_credential_stmt;
+
+-- #1532 durable purge checkpoint and acknowledged progress
+SET @ddl = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='cloud' AND table_name='bucket_quota_operation' AND column_name='purge_progress')=0, 'ALTER TABLE cloud.bucket_quota_operation ADD COLUMN purge_progress MEDIUMTEXT DEFAULT NULL', 'SELECT 1');
+PREPARE bkt_purge_ddl FROM @ddl;
+EXECUTE bkt_purge_ddl;
+DEALLOCATE PREPARE bkt_purge_ddl;

@@ -80,9 +80,11 @@ public class BucketApiServiceImpl extends ManagerBase implements BucketApiServic
     @Inject
     private BucketQuotaOperationDao quotaOperations;
 
+    @Inject private org.apache.cloudstack.storage.datastore.db.ObjectStoreAccountCredentialDao objectCredentials;
+
     private BucketQuotaCoordinator quotaCoordinator() {
         return new BucketQuotaCoordinator(_objectStoreDao, _bucketDao, quotaOperations, _dataStoreMgr,
-                _accountMgr, resourceLimitManager, reservationDao);
+                _accountMgr, resourceLimitManager, reservationDao, objectCredentials);
     }
 
     private ScheduledExecutorService _executor = null;
@@ -174,6 +176,40 @@ public class BucketApiServiceImpl extends ManagerBase implements BucketApiServic
         }
         _accountMgr.checkAccess(caller, null, true, bucket);
         return quotaCoordinator().delete((BucketVO)bucket);
+    }
+
+    private BucketVO objectBucket(String id, Account caller, boolean includeRemoved) {
+        BucketVO bucket = includeRemoved ? _bucketDao.findByUuidIncludingRemoved(id) : _bucketDao.findByUuid(id);
+        if (bucket == null) throw new InvalidParameterValueException("Bucket is unavailable");
+        _accountMgr.checkAccess(caller, null, true, bucket);
+        return bucket;
+    }
+    @Override public org.apache.cloudstack.api.response.BucketObjectResponse getDeletionImpact(String id, Account caller) {
+        return quotaCoordinator().impact(objectBucket(id, caller, false));
+    }
+    @Override public org.apache.cloudstack.api.response.BucketObjectResponse listObjectVersions(String id, Account caller, String key, String version, int limit) {
+        return quotaCoordinator().versions(objectBucket(id, caller, false), key, version, limit);
+    }
+    @Override
+    @ActionEvent(eventType = EventTypes.EVENT_BUCKET_UPDATE, eventDescription = "explicit object version mutation")
+    public org.apache.cloudstack.api.response.BucketObjectResponse manageObjectVersion(String id, Account caller, String key, String version, String action) {
+        return quotaCoordinator().mutateVersion(objectBucket(id, caller, false), key, version, action);
+    }
+    @Override
+    @ActionEvent(eventType = EventTypes.EVENT_BUCKET_DELETE, eventDescription = "explicit durable bucket purge")
+    public org.apache.cloudstack.api.response.BucketObjectResponse purgeBucket(String id, Account caller, String operation, String name, boolean versions, String external, boolean retry) {
+        var result = quotaCoordinator().startPurge(objectBucket(id, caller, true), operation, name, versions, external, retry);
+        _executor.execute(new ManagedContextRunnable() {
+            @Override protected void runInContext() {
+                CallContext.registerSystemCallContextOnceOnly();
+                try { quotaCoordinator().recoverPurge(operation); }
+                finally { CallContext.unregister(); }
+            }
+        });
+        return result;
+    }
+    @Override public org.apache.cloudstack.api.response.BucketObjectResponse getPurgeStatus(String id, Account caller, String operation) {
+        return quotaCoordinator().purgeStatus(objectBucket(id, caller, true), operation);
     }
 
     @Override

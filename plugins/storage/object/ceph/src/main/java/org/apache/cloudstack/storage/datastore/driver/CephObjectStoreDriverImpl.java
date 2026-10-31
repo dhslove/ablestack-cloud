@@ -68,7 +68,8 @@ import org.twonote.rgwadmin4j.model.BucketInfo;
 import org.twonote.rgwadmin4j.RgwAdmin;
 import org.twonote.rgwadmin4j.RgwAdminBuilder;
 
-public class CephObjectStoreDriverImpl extends BaseObjectStoreDriverImpl implements org.apache.cloudstack.storage.object.ObjectStoreQuotaProvider {
+public class CephObjectStoreDriverImpl extends BaseObjectStoreDriverImpl implements org.apache.cloudstack.storage.object.ObjectStoreQuotaProvider,
+        org.apache.cloudstack.engine.subsystem.api.storage.BucketObjectStoreProvider {
 
     @Inject
     AccountDao _accountDao;
@@ -116,7 +117,7 @@ public class CephObjectStoreDriverImpl extends BaseObjectStoreDriverImpl impleme
             throw new CloudRuntimeException(e);
         }
         try {
-            s3client.createBucket(bucketName);
+            s3client.createBucket(new com.amazonaws.services.s3.model.CreateBucketRequest(bucketName).withObjectLockEnabledForBucket(objectLock));
             ObjectStoreAccountCredentialVO credential = credentialResolver().resolve(accountId, storeId, false);
             String accessKey = credential.getAccessKey();
             String secretKey = credential.getSecretKey();
@@ -194,13 +195,8 @@ public class CephObjectStoreDriverImpl extends BaseObjectStoreDriverImpl impleme
 
     @Override
     public boolean deleteBucket(BucketTO bucket, long storeId) {
-        RgwAdmin rgwAdmin = getRgwAdminClient(storeId);
-
-        try {
-            rgwAdmin.removeBucket(bucket.getName());
-        } catch (Exception e) {
-            throw new CloudRuntimeException(e);
-        }
+        // All ordinary callers, including account cleanup, use the non-purge S3 contract.
+        safeObjectAction(() -> { new CephBucketObjectClient(getS3Client(storeId, bucket.getAccountId()), bucket.getName()).deleteEmpty(); return null; });
         return true;
     }
 
@@ -281,8 +277,27 @@ public class CephObjectStoreDriverImpl extends BaseObjectStoreDriverImpl impleme
     @Override
     public void deleteEmptyBucket(Bucket bucket) {
         // Standard S3 delete refuses live objects, versions and delete markers. Never use admin purge here.
-        getS3Client(bucket.getObjectStoreId(), bucket.getAccountId()).deleteBucket(bucket.getName());
+        safeObjectAction(() -> { objects(bucket).deleteEmpty(); return null; });
     }
+
+    private <T> T safeObjectAction(java.util.function.Supplier<T> action) {
+        try { return action.get(); }
+        catch (RuntimeException failure) {
+            String code = failure.getMessage();
+            java.util.Set<String> codes = java.util.Set.of("INVALID_PAGE", "VERSION_READ_FAILED", "INVALID_CURSOR",
+                    "LOCK_STATE_UNKNOWN", "LOCK_READ_FAILED", "OBJECT_LOCK_ENABLED", "BUCKET_NOT_EMPTY",
+                    "INVALID_VERSION", "VERSION_NOT_FOUND", "AMBIGUOUS_BATCH", "INCOMPLETE_SCAN");
+            throw new CloudRuntimeException(code != null && codes.contains(code) ? code : "S3_VERSION_OPERATION_FAILED");
+        }
+    }
+
+    protected CephBucketObjectClient objects(Bucket bucket) {
+        return new CephBucketObjectClient(getS3Client(bucket.getObjectStoreId(), bucket.getAccountId()), bucket.getName());
+    }
+    @Override public org.apache.cloudstack.api.response.BucketObjectResponse deletionImpact(Bucket bucket) { return safeObjectAction(() -> objects(bucket).impact()); }
+    @Override public org.apache.cloudstack.api.response.BucketObjectResponse objectVersions(Bucket bucket, String key, String version, int limit) { return safeObjectAction(() -> objects(bucket).page(key, version, limit)); }
+    @Override public void mutateVersion(Bucket bucket, String key, String version, String action) { safeObjectAction(() -> { objects(bucket).mutate(key, version, action); return null; }); }
+    @Override public org.apache.cloudstack.api.response.BucketObjectResponse purgeVersionBatch(Bucket bucket) { return safeObjectAction(() -> objects(bucket).purgeBatch()); }
 
     protected CephObjectStoreCredentialResolver credentialResolver() {
         return new CephObjectStoreCredentialResolver(_accountDao, _accountDetailsDao, _bucketDao, credentialDao, this::getRgwAdminClient);
@@ -453,6 +468,7 @@ public class CephObjectStoreDriverImpl extends BaseObjectStoreDriverImpl impleme
     protected AmazonS3 getS3Client(String url, String accessKey, String secretKey) {
         AmazonS3 client = AmazonS3ClientBuilder.standard()
                 .enablePathStyleAccess()
+                .withClientConfiguration(new com.amazonaws.ClientConfiguration().withConnectionTimeout(5000).withSocketTimeout(15000).withRequestTimeout(20000).withClientExecutionTimeout(25000))
                 .withCredentials(
                         new AWSStaticCredentialsProvider(
                                 new BasicAWSCredentials(accessKey, secretKey)))

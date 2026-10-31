@@ -30,6 +30,11 @@ import java.util.Set;
 @EntityReference(value = Bucket.class)
 @SuppressWarnings("unused")
 public class BucketResponse extends BaseResponseWithTagInformation implements ControlledViewEntityResponse, ControlledEntityResponse {
+    @com.google.gson.annotations.SerializedName("quotaoperationtype")
+    @com.cloud.serializer.Param(description = "CREATE/UPDATE/DELETE/PURGE durable operation kind")
+    private String quotaOperationType;
+    public void setQuotaOperationType(String value) { quotaOperationType = value; }
+
     @SerializedName("quotaoperationid")
     @Param(description = "last quota operation reference")
     private String quotaOperationId;

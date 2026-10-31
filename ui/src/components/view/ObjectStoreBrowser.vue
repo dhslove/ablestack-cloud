@@ -221,13 +221,13 @@
       </a-row>
       <div class="object-store-toolbar">
         <div class="object-store-actions">
-          <a-button type="primary" :disabled="!client || loading || fetching || objectListScopeChanged" @click="openCreateFolderModal">
+          <a-button type="primary" :disabled="!client || loading || fetching || objectListScopeChanged || bucketPurgeActive" @click="openCreateFolderModal">
             <template #icon><folder-add-outlined /></template>{{ $t('label.objectstore.create.folder') }}
           </a-button>
-          <a-button :disabled="!client || loading || fetching || objectListScopeChanged" @click="openUploadModal">
+          <a-button :disabled="!client || loading || fetching || objectListScopeChanged || bucketPurgeActive" @click="openUploadModal">
             <template #icon><upload-outlined /></template>{{ $t('label.upload') }}
           </a-button>
-          <a-button v-if="selectedRows.length > 0" danger :disabled="loading || fetching || objectListScopeChanged" @click="removeObjects()">
+          <a-button v-if="selectedRows.length > 0" danger :disabled="loading || fetching || objectListScopeChanged || bucketPurgeActive" @click="removeObjects()">
             <template #icon><delete-outlined /></template>{{ $t('label.delete') }}
           </a-button>
           <a-button v-if="fetching" @click="cancelObjectListing">{{ $t('label.cancel') }}</a-button>
@@ -387,6 +387,7 @@ export default {
     }
   },
   computed: {
+    bucketPurgeActive () { return this.resource.quotaoperationtype === 'PURGE' && !['Succeeded', 'Failed'].includes(this.resource.quotaoperationstate) },
     columns () {
       return [
         {

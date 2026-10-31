@@ -49,6 +49,9 @@ public class BucketQuotaOperationVO {
     @Column(name = "account_hold_bytes") private long accountHoldBytes;
     @Column(name = "reserved_bytes") private long reservedBytes;
     @Column(name = "attempts") private int attempts;
+    @Column(name = "purge_progress", length = 16777215) private String purgeProgress;
+    public String getPurgeProgress() { return purgeProgress; }
+    public void setPurgeProgress(String value) { purgeProgress = value; }
     @Column(name = "error_code") private String errorCode;
     @Temporal(TemporalType.TIMESTAMP)
     @Column(name = "created") private Date created;

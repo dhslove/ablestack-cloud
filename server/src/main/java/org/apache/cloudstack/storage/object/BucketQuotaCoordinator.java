@@ -17,6 +17,9 @@
 package org.apache.cloudstack.storage.object;
 
 import java.util.Date;
+import java.util.UUID;
+import org.apache.cloudstack.api.response.BucketObjectResponse;
+import org.apache.cloudstack.engine.subsystem.api.storage.BucketObjectStoreProvider;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -55,12 +58,27 @@ public class BucketQuotaCoordinator {
     private final AccountManager accounts;
     private final ResourceLimitManagerImpl limits;
     private final ReservationDao reservations;
+    private org.apache.cloudstack.storage.datastore.db.ObjectStoreAccountCredentialDao credentials;
     private final Gson gson = new Gson();
 
     public BucketQuotaCoordinator(ObjectStoreDao stores, BucketDao buckets, BucketQuotaOperationDao operations,
             DataStoreManager dataStores, AccountManager accounts, ResourceLimitManagerImpl limits, ReservationDao reservations) {
         this.stores = stores; this.buckets = buckets; this.operations = operations; this.dataStores = dataStores;
         this.accounts = accounts; this.limits = limits; this.reservations = reservations;
+    }
+
+    public BucketQuotaCoordinator(ObjectStoreDao stores, BucketDao buckets, BucketQuotaOperationDao operations,
+            DataStoreManager dataStores, AccountManager accounts, ResourceLimitManagerImpl limits, ReservationDao reservations,
+            org.apache.cloudstack.storage.datastore.db.ObjectStoreAccountCredentialDao credentialDao) {
+        this(stores, buckets, operations, dataStores, accounts, limits, reservations); credentials = credentialDao;
+    }
+
+    private void noKeyRotation(BucketVO bucket) {
+        if (credentials == null) return;
+        var credential = credentials.findByAccountAndStore(bucket.getAccountId(), bucket.getObjectStoreId());
+        if (credential != null && credential.getRotationPhase() != null && !"Completed".equals(credential.getRotationPhase())) {
+            throw new InvalidParameterValueException("A credential rotation must complete before destructive bucket operations");
+        }
     }
 
     protected <T> T inTransaction(Supplier<T> action) {
@@ -223,7 +241,11 @@ public class BucketQuotaCoordinator {
     public boolean delete(BucketVO initial) {
         return withStoreLock(initial.getObjectStoreId(), () -> {
             BucketVO bucket = buckets.findById(initial.getId());
-            idle(bucket.getId());
+            if (bucket == null) return true;
+            idle(bucket.getId()); noKeyRotation(bucket);
+            if (!objectProvider(bucket).objectVersions(bucket, null, null, 1).getVersions().isEmpty()) {
+                throw new InvalidParameterValueException("Bucket is not empty: objects, versions or delete markers remain. Use explicit purge.");
+            }
             BucketQuotaState before = provider(entity(bucket.getObjectStoreId())).readBucketQuota(bucket);
             BucketQuotaOperationVO op = inTransaction(() ->
                     operations.persist(operation(bucket, "DELETE", null, before)));
@@ -232,17 +254,140 @@ public class BucketQuotaCoordinator {
         });
     }
 
+    private BucketObjectStoreProvider objectProvider(BucketVO bucket) {
+        Object driver = entity(bucket.getObjectStoreId()).getDriver();
+        if (!(driver instanceof BucketObjectStoreProvider)) throw new InvalidParameterValueException("Object version operations are not supported by this provider");
+        return (BucketObjectStoreProvider)driver;
+    }
+
+    public BucketObjectResponse impact(BucketVO bucket) {
+        return withStoreLock(bucket.getObjectStoreId(), () -> {
+            BucketQuotaState live = provider(entity(bucket.getObjectStoreId())).readBucketQuota(bucket);
+            BucketObjectResponse result;
+            if (live.exists()) result = objectProvider(bucket).deletionImpact(bucket);
+            else { result = new BucketObjectResponse(); result.setComplete(true); result.setChecked(new Date()); }
+            result.setExternalId(live.getExternalId()); result.setExists(live.exists());
+            BucketQuotaOperationVO active = operations.findActiveByBucket(bucket.getId());
+            if (active != null) {
+                result.setOperationId(active.getUuid()); result.setState(active.getState());
+                result.setBlockedReason("PURGE".equals(active.getOperationType()) ? "PURGE_RUNNING" : "QUOTA_OPERATION_RUNNING");
+            }
+            return result;
+        });
+    }
+
+    public BucketObjectResponse versions(BucketVO bucket, String key, String version, int limit) {
+        return withStoreLock(bucket.getObjectStoreId(), () -> objectProvider(bucket).objectVersions(bucket, key, version, limit));
+    }
+
+    public BucketObjectResponse mutateVersion(BucketVO bucket, String key, String version, String action) {
+        return withStoreLock(bucket.getObjectStoreId(), () -> {
+            idle(bucket.getId()); noKeyRotation(bucket);
+            objectProvider(bucket).mutateVersion(bucket, key, version, action);
+            BucketObjectResponse result = new BucketObjectResponse(); result.setState("Succeeded"); return result;
+        });
+    }
+
+    public BucketObjectResponse purgeStatus(BucketVO bucket, String operationId) {
+        BucketQuotaOperationVO op = operations.findByUuid(operationId);
+        if (op == null || !Objects.equals(op.getBucketId(), bucket.getId()) || !"PURGE".equals(op.getOperationType())) {
+            throw new InvalidParameterValueException("Purge operation is unavailable for this bucket");
+        }
+        return purgeResponse(op);
+    }
+
+    private BucketObjectResponse purgeProgress(BucketQuotaOperationVO op) {
+        BucketObjectResponse result = op.getPurgeProgress() == null ? new BucketObjectResponse() :
+                gson.fromJson(op.getPurgeProgress(), BucketObjectResponse.class);
+        if (op.getPurgeProgress() == null) result.setProgressKnown(true);
+        return result;
+    }
+
+    private BucketObjectResponse purgeResponse(BucketQuotaOperationVO op) {
+        BucketObjectResponse result = purgeProgress(op); result.setOperationId(op.getUuid());
+        result.setState(op.getState()); result.setComplete("Succeeded".equals(op.getState())); result.setErrorCode(op.getErrorCode()); result.setChecked(op.getUpdated());
+        return result;
+    }
+
+    public BucketObjectResponse startPurge(BucketVO initial, String operationId, String confirmName,
+            boolean includeVersions, String expectedExternalId, boolean retry) {
+        try { if (!UUID.fromString(operationId).toString().equals(operationId)) throw new IllegalArgumentException(); }
+        catch (RuntimeException invalid) { throw new InvalidParameterValueException("A canonical operation UUID is required"); }
+        if (!includeVersions || !initial.getName().equals(confirmName)) throw new InvalidParameterValueException("Exact bucket name and explicit version confirmation are required");
+        return withStoreLock(initial.getObjectStoreId(), () -> {
+            BucketQuotaOperationVO previous = operations.findByUuid(operationId);
+            if (previous != null) {
+                if (!Objects.equals(previous.getBucketId(), initial.getId()) || !"PURGE".equals(previous.getOperationType())) throw new InvalidParameterValueException("Operation belongs to another bucket");
+                if (retry && "NeedsReconcile".equals(previous.getState())) {
+                    noKeyRotation(initial); previous.setErrorCode(null); save(previous, "Prepared");
+                }
+                return purgeResponse(previous);
+            }
+            BucketVO bucket = buckets.findById(initial.getId());
+            if (bucket == null) throw new InvalidParameterValueException("Bucket is already removed");
+            idle(bucket.getId()); noKeyRotation(bucket);
+            BucketQuotaState live = provider(entity(bucket.getObjectStoreId())).readBucketQuota(bucket);
+            if (!live.exists() || expectedExternalId == null || !expectedExternalId.equals(live.getExternalId())) throw new InvalidParameterValueException("External bucket identity changed; refresh impact");
+            BucketObjectResponse check = objectProvider(bucket).deletionImpact(bucket);
+            if (check.getObjectLock() || !check.getComplete()) throw new InvalidParameterValueException("Object lock or incomplete inspection blocks purge");
+            BucketQuotaOperationVO operation = operation(bucket, "PURGE", null, live); operation.setUuid(operationId);
+            BucketObjectResponse progress = new BucketObjectResponse(); progress.setProgressKnown(true);
+            operation.setPurgeProgress(gson.toJson(progress));
+            BucketQuotaOperationVO persisted = inTransaction(() -> operations.persist(operation));
+            return purgeResponse(persisted);
+        });
+    }
+
+    private void executePurge(BucketQuotaOperationVO op) {
+        if (!op.isActive() || "NeedsReconcile".equals(op.getState())) return;
+        BucketVO bucket = buckets.findById(op.getBucketId());
+        BucketObjectResponse progress = purgeProgress(op);
+        try {
+            if (bucket == null || !Objects.equals(store(op.getObjectStoreId()).getUrl(), op.getStoreUrl())) throw new CloudRuntimeException("BUCKET_CONTEXT_CHANGED");
+            noKeyRotation(bucket);
+            BucketQuotaState live = provider(entity(bucket.getObjectStoreId())).readBucketQuota(bucket);
+            sameIdentity(live, op);
+            if (!live.exists()) { save(op, "Committing"); commit(op, bucket); return; }
+            if ("Applying".equals(op.getState())) progress.setProgressKnown(false);
+            save(op, "Applying");
+            BucketObjectResponse batch = objectProvider(bucket).purgeVersionBatch(bucket);
+            progress.setDeletedCount(Math.addExact(progress.getDeletedCount(), batch.getDeletedCount()));
+            progress.setLastKey(batch.getLastKey()); progress.setLastVersion(batch.getLastVersion());
+            progress.setFailures(batch.getFailures()); op.setPurgeProgress(gson.toJson(progress));
+            if (batch.getErrorCode() != null) { op.setErrorCode(batch.getErrorCode()); save(op, "NeedsReconcile"); return; }
+            if (!batch.getComplete()) { save(op, "Prepared"); return; }
+            // Re-read the external identity after listing; the final S3 delete still enforces emptiness.
+            sameIdentity(provider(entity(bucket.getObjectStoreId())).readBucketQuota(bucket), op);
+            provider(entity(bucket.getObjectStoreId())).deleteEmptyBucket(bucket);
+            if (provider(entity(bucket.getObjectStoreId())).readBucketQuota(bucket).exists()) throw new CloudRuntimeException("DELETE_NOT_VERIFIED");
+            save(op, "Committing"); commit(op, bucket);
+        } catch (Exception failure) {
+            BucketQuotaOperationVO durable = operations.findById(op.getId());
+            progress.setProgressKnown(false); durable.setPurgeProgress(gson.toJson(progress));
+            durable.setErrorCode("PURGE_RETRY_REQUIRED");
+            try { save(durable, "NeedsReconcile"); } catch (RuntimeException ignored) { /* Durable phase is resumed after restart. */ }
+        }
+    }
+
     public boolean reconcile(BucketVO bucket, String expectedOperation) {
         return withStoreLock(bucket.getObjectStoreId(), () -> {
             BucketQuotaOperationVO op = operations.findActiveByBucket(bucket.getId());
             if (op == null || !op.getUuid().equals(expectedOperation)) {
                 throw new InvalidParameterValueException("Quota operation changed; refresh and retry");
             }
+            if ("PURGE".equals(op.getOperationType())) throw new InvalidParameterValueException("Use explicit purge confirmation to retry this operation");
             execute(op, true);
             if (!"Succeeded".equals(operations.findById(op.getId()).getState())) {
                 throw new BucketQuotaException(op.getUuid(), false);
             }
             return true;
+        });
+    }
+
+    public void recoverPurge(String uuid) {
+        BucketQuotaOperationVO op = operations.findByUuid(uuid);
+        if (op != null && "PURGE".equals(op.getOperationType()) && op.isActive()) withStoreLock(op.getObjectStoreId(), () -> {
+            executePurge(operations.findById(op.getId())); return null;
         });
     }
 
@@ -277,6 +422,7 @@ public class BucketQuotaCoordinator {
     }
 
     private void execute(BucketQuotaOperationVO op, boolean manual) {
+        if ("PURGE".equals(op.getOperationType())) { executePurge(op); return; }
         if ("NeedsReconcile".equals(op.getState()) && !manual) { throw new BucketQuotaException(op.getUuid(), true); }
         BucketVO bucket = buckets.findById(op.getBucketId());
         if (bucket == null || !Objects.equals(store(op.getObjectStoreId()).getUrl(), op.getStoreUrl())) {
@@ -291,7 +437,7 @@ public class BucketQuotaCoordinator {
             sameIdentity(live, op);
             if ("DELETE".equals(op.getOperationType())) {
                 save(op, "Applying");
-                if (live.exists() && !store.deleteBucket(new BucketTO(bucket))) { throw new CloudRuntimeException("Provider refused bucket deletion"); }
+                if (live.exists()) { provider.deleteEmptyBucket(bucket); }
                 if (provider.readBucketQuota(bucket).exists()) { throw new CloudRuntimeException("Bucket deletion was not verified"); }
             } else {
                 if ("CREATE".equals(op.getOperationType()) && !op.getExternalCreated()) {
@@ -402,13 +548,13 @@ public class BucketQuotaCoordinator {
             if (!current.isActive()) { return null; }
             ObjectStoreVO store = store(op.getObjectStoreId());
             long old = "CREATE".equals(op.getOperationType()) ? 0 : legacyBytes(op.getPreviousQuota());
-            long next = "DELETE".equals(op.getOperationType()) ? 0 : quotaBytes(op.getRequestedQuota());
+            long next = ("DELETE".equals(op.getOperationType()) || "PURGE".equals(op.getOperationType())) ? 0 : quotaBytes(op.getRequestedQuota());
             long allocated = Objects.requireNonNullElse(store.getAllocatedSize(), 0L);
             long newAllocated = Math.addExact(allocated, next - old);
             if (newAllocated < 0 || !stores.compareAndSetAllocatedSize(store.getId(), allocated, newAllocated)) {
                 throw new CloudRuntimeException("Object store allocation changed; reconciliation required");
             }
-            if ("DELETE".equals(op.getOperationType())) {
+            if ("DELETE".equals(op.getOperationType()) || "PURGE".equals(op.getOperationType())) {
                 limits.decrementBucketResourceCount(bucket.getAccountId(), ResourceType.bucket, 1L);
                 if (old > 0) { limits.decrementBucketResourceCount(bucket.getAccountId(), ResourceType.object_storage, old); }
                 if (!buckets.remove(bucket.getId())) { throw new CloudRuntimeException("Unable to remove bucket metadata"); }

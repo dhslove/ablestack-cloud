@@ -768,7 +768,7 @@ export default {
       icon: 'funnel-plot-outlined',
       permission: ['listBuckets'],
       columns: ['name', 'state', 'objectstore', { field: 'size', customTitle: 'used.capacity' }, { field: 'quota', customTitle: 'total.allocated.capacity' }, 'account'],
-      details: ['id', 'name', 'state', 'objectstore', 'credentialstate', 'credentialchecked', 'quotaoperationstate', 'quotaoperationid', 'quotaoperationupdated', { field: 'size', customTitle: 'used.capacity' }, 'url', 'credentialrevision', 'account', 'domain', 'created', { field: 'quota', customTitle: 'total.allocated.capacity' }, 'encryption', 'versioning', 'objectlocking', 'policy'],
+      details: ['id', 'name', 'state', 'objectstore', 'credentialstate', 'credentialchecked', 'quotaoperationtype', 'quotaoperationstate', 'quotaoperationid', 'quotaoperationupdated', { field: 'size', customTitle: 'used.capacity' }, 'url', 'credentialrevision', 'account', 'domain', 'created', { field: 'quota', customTitle: 'total.allocated.capacity' }, 'encryption', 'versioning', 'objectlocking', 'policy'],
       tabs: [
         {
           name: 'details',
@@ -780,6 +780,11 @@ export default {
           component: shallowRef(defineAsyncComponent(() => import('@/components/view/ObjectStoreBrowser.vue'))),
           show: (record) => { return record.provider !== 'Simulator' }
 
+        },
+        {
+          name: 'versions',
+          component: shallowRef(defineAsyncComponent(() => import('@/views/storage/BucketVersions.vue'))),
+          show: record => record.provider === 'Glue' && !!store.getters.apis.listBucketObjectVersions
         },
         {
           name: 'events',
@@ -821,11 +826,31 @@ export default {
           show: (record) => { return record.state !== 'Destroyed' }
         },
         {
+          api: 'getBucketDeletionImpact',
+          icon: 'delete-outlined',
+          label: 'label.bucket.delete',
+          dataView: true,
+          popup: true,
+          dialogWidth: 'min(720px, calc(100vw - 32px))',
+          component: shallowRef(defineAsyncComponent(() => import('@/views/storage/BucketDeletion.vue'))),
+          show: record => record.provider === 'Glue'
+        },
+        {
+          api: 'purgeBucket',
+          icon: 'clear-outlined',
+          label: 'label.bucket.purge',
+          dataView: true,
+          popup: true,
+          dialogWidth: 'min(720px, calc(100vw - 32px))',
+          component: shallowRef(defineAsyncComponent(() => import('@/views/storage/PurgeBucket.vue'))),
+          show: record => record.provider === 'Glue'
+        },
+        {
           api: 'deleteBucket',
           icon: 'delete-outlined',
           label: 'label.bucket.delete',
           message: 'message.bucket.delete',
-          dataView: true,
+          dataView: false,
           show: (record) => { return record.state !== 'Destroyed' },
           groupAction: true,
           popup: true,

@@ -34,6 +34,7 @@ public final class EuropaSecuritySchemaUpgrade {
         ObjectStoreCredentialSchemaUpgrade.migrate(connection);
         BucketQuotaSchemaUpgrade.migrate(connection);
         BucketCredentialRotationSchemaUpgrade.migrate(connection);
+        BucketPurgeSchemaUpgrade.migrate(connection);
         try {
             long width = scalar(connection, "SELECT character_maximum_length FROM information_schema.columns "
                     + "WHERE table_schema='cloud' AND table_name='api_keypair' AND column_name='description'");
