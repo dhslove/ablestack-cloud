@@ -78,3 +78,19 @@ test.each(['buckets', 'vm'])('browser retry reaches metadata refresh only for %s
   } else expect(refresh).not.toHaveBeenCalled()
   wrapper.unmount()
 })
+
+
+test('mixed selected buckets expose the explicitly named empty-only group deletion', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../../../src/config/section/storage.js'), 'utf8')
+  // Exercise the real action configuration through the actual shared visibility logic.
+  const block = source.slice(source.indexOf("api: 'deleteBucket'"))
+  const action = {
+    api: 'deleteBucket',
+    toolbarLabel: block.match(/toolbarLabel: '([^']+)'/)[1],
+    groupAction: /groupAction: true/.test(block.split('groupMap:')[0])
+  }
+  const ctx = { actions: [action], dataView: false, selectedRowKeys: ['empty', 'nonempty'],
+    selectedItems: [{ id: 'empty' }, { id: 'nonempty' }], $store: { getters: { apis: { deleteBucket: {} } } } }
+  expect(Autogen.computed.visibleListActions.call(ctx)).toEqual([action])
+  expect(action.toolbarLabel).toBe('label.bucket.delete.empty')
+})

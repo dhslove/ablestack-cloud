@@ -847,6 +847,7 @@ export default {
         },
         {
           api: 'deleteBucket',
+          toolbarLabel: 'label.bucket.delete.empty',
           icon: 'delete-outlined',
           label: 'label.bucket.delete',
           message: 'message.bucket.delete',
