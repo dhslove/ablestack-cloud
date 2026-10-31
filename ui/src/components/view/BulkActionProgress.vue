@@ -23,10 +23,10 @@
     :maskClosable="false"
     :cancelText="$t('label.cancel')"
     @cancel="handleCancel"
-    :width="$route.meta.name === 'buckets' ? 'min(720px, calc(100vw - 32px))' : '50vw'"
-    :class="$route.meta.name === 'buckets' ? 'mold-dialog mold-dialog-standard object-storage-dialog' : undefined"
-    :wrap-class-name="$route.meta.name === 'buckets' ? 'mold-dialog-standard-wrap' : undefined"
-    :style="$route.meta.name === 'buckets' ? undefined : { top: '20px', overflowY: 'auto' }"
+    :width="$route.path === '/buckets' ? 'min(720px, calc(100vw - 32px))' : '50vw'"
+    :class="$route.path === '/buckets' ? 'mold-dialog mold-dialog-standard object-storage-dialog' : undefined"
+    :wrap-class-name="$route.path === '/buckets' ? 'mold-dialog-standard-wrap' : undefined"
+    :style="$route.path === '/buckets' ? undefined : { top: '20px', overflowY: 'auto' }"
     centered
   >
     <template #title>
@@ -57,7 +57,7 @@
         :rowKey="record => ($route.path.includes('/template') || $route.path.includes('/iso')) ? record.zoneid: record.id"
         :pagination="true"
         @change="handleTableChange"
-        :scroll="$route.meta.name === 'buckets' ? { x: 760 } : undefined"
+        :scroll="$route.path === '/buckets' ? { x: 760 } : undefined"
           style="overflow-y: auto">
         <template #bodyCell="{ column, text, record }">
           <template v-if="column.key === 'status'">

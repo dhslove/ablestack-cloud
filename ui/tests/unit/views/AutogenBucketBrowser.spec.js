@@ -19,9 +19,11 @@ import Autogen from '@/views/AutogenView'
 import fs from 'fs'
 import path from 'path'
 import * as Vue from 'vue'
-import { mount, flushPromises } from '@vue/test-utils'
+import { mount, shallowMount, flushPromises } from '@vue/test-utils'
 import { compile as compileTemplate } from 'vue/dist/vue.cjs.js'
 import ResourceView from '@/components/view/ResourceView'
+import BulkActionView from '@/components/view/BulkActionView'
+import BulkActionProgress from '@/components/view/BulkActionProgress'
 
 jest.mock('@/components/view/InfoCard', () => ({ render: () => null }))
 
@@ -93,4 +95,28 @@ test('mixed selected buckets expose the explicitly named empty-only group deleti
     selectedItems: [{ id: 'empty' }, { id: 'nonempty' }], $store: { getters: { apis: { deleteBucket: {} } } } }
   expect(Autogen.computed.visibleListActions.call(ctx)).toEqual([action])
   expect(action.toolbarLabel).toBe('label.bucket.delete.empty')
+})
+
+
+describe.each([['confirmation', BulkActionView], ['progress', BulkActionProgress]])('bucket bulk %s dialog', (_, component) => {
+  const Modal = { name: 'BucketModalProbe', props: ['width', 'wrapClassName'], render () { return Vue.h('section', this.$slots.default?.()) } }
+  const Table = { name: 'BucketTableProbe', props: ['scroll'], render () { return Vue.h('div') } }
+  const open = routePath => shallowMount(component, {
+    props: { showConfirmationAction: true, showGroupActionModal: true, action: 'deleteBucket', message: { title: 'label.bucket.delete', confirmMessage: 'message.bucket.delete' }, selectedItems: [], selectedRowKeys: [], selectedColumns: [] },
+    global: { mocks: { $route: { path: routePath, meta: routePath === '/buckets' ? {} : { name: 'buckets' } }, $t: key => key, $config: {} }, provide: { parentFetchData: jest.fn(() => Promise.resolve()) }, stubs: { 'a-modal': Modal, 'a-table': Table } }
+  })
+  test('uses responsive VM dialog styling for the actual bucket path even without meta.name', () => {
+    const view = open('/buckets')
+    expect(view.findComponent(Modal).props('width')).toBe('min(720px, calc(100vw - 32px))')
+    expect(view.findComponent(Modal).attributes('class')).toContain('object-storage-dialog')
+    expect(view.findComponent(Table).props('scroll')).toEqual({ x: 760 })
+    view.unmount()
+  })
+  test('preserves the other menu presentation regardless of meta.name', () => {
+    const view = open('/vm')
+    expect(view.findComponent(Modal).props('width')).toBe('50vw')
+    expect(view.findComponent(Modal).attributes('class') || '').not.toContain('object-storage-dialog')
+    expect(view.findComponent(Table).props('scroll')).toBeUndefined()
+    view.unmount()
+  })
 })
