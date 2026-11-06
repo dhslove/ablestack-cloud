@@ -1,0 +1,148 @@
+{
+  "live1462": [
+    {
+      "vm": {
+        "id": "23ccd807-af30-360b-a8ef-c2c29b9bb833",
+        "name": "sharedfs-23ccd807-af30-360b-a8ef-c2c29b9bb833",
+        "instancename": "i-2-214-VM",
+        "hostname": "ablecube13-3",
+        "hostid": "52ca8321-c228-4234-8273-f19b0d1c6525",
+        "state": "Running"
+      },
+      "instance": [
+        {
+          "id": "0a647c9e-0bef-4c2d-8002-98ba44bccb36",
+          "name": "epic1438-1460-dual-online-20261105",
+          "state": "Running",
+          "configurationrevision": 8,
+          "configurationprotection": false,
+          "virtualmachineid": "23ccd807-af30-360b-a8ef-c2c29b9bb833"
+        }
+      ]
+    },
+    {
+      "backupRestore": [],
+      "configuration": [
+        "preflightStorageServiceRuntimeUpgrade",
+        "resumeStorageServiceConfigurationOperation",
+        "preflightStorageServiceConfiguration",
+        "getStorageServiceConfigurationOperation"
+      ]
+    }
+  ],
+  "mgmt1462": [
+    {
+      "sha256": "d5be6ed5b3d09b928742cf8f8355e48c7824576dc362054812a2fd716dfa8696",
+      "configCoordinator": true,
+      "backupApi": false,
+      "restoreApi": false
+    }
+  ],
+  "guestBaseline1462": [
+    {
+      "pid": 863664,
+      "exit": 0,
+      "stdout": {
+        "helper": "/opt/ablestack/storage-runtime/releases/1460.client.4/lib/ablestack-storage",
+        "root": "/opt/ablestack/storage-runtime/releases/1460.client.4/ablestack-storagectl",
+        "caps": {
+          "configurationTransactionVersion": 1,
+          "configurationPreflightVersion": 1,
+          "smbClientAccessPolicyVersion": 1,
+          "smbClientAccessPolicyProtectionVersion": 1,
+          "smbClientAccessAddressFamilies": [
+            "IPv4"
+          ],
+          "nfsClientPolicyVersion": 1,
+          "nfsClientPolicyPreflightVersion": 1,
+          "bootRecoveryVersion": 1,
+          "bootRecoveryProtectionVersion": 1,
+          "configurationObservationVersion": 1,
+          "smbListenerProfilesVersion": 1,
+          "nfsPosixIntentVersion": 1,
+          "nfsDeferredPosixVersion": 1,
+          "nestedFileSharePathVersion": 1,
+          "nestedFileSharePathProtectionVersion": 1,
+          "smbFileIdentityVersion": 1,
+          "smbFileIdentityProtectionVersion": 1,
+          "smbCreationPolicyVersion": 1,
+          "smbCreationPolicyProtectionVersion": 1,
+          "sharedDirectoryPolicyVersion": 1,
+          "adDomainTransactionVersion": 1,
+          "smbParentInheritanceVersion": 1,
+          "smbParentInheritanceProtectionVersion": 1,
+          "nfsIdentityMappingVersion": 1,
+          "nfsidentitymapping": {
+            "observationstatus": "APPLIED",
+            "endpoints": [
+              {
+                "port": 2049,
+                "endpoint": "0.0.0.0_2049",
+                "configuredmode": "NAME_DOMAIN",
+                "configuredrevision": 0,
+                "state": "APPLIED",
+                "effectivemode": "NAME_DOMAIN",
+                "observedrevision": 0,
+                "observeddomain": "localdomain",
+                "observedat": "1793850213.2458885"
+              }
+            ],
+            "observedat": "1793934370.1523504",
+            "observeddomain": "localdomain",
+            "effectivemode": "NAME_DOMAIN",
+            "policyrevision": 0
+          }
+        },
+        "mount": "/dev/sdb f887b8ec-6601-4bc6-83d7-dba7e247186d xfs    /",
+        "desiredShape": {
+          "nfs-export-apply.json": {
+            "keys": [
+              "enabled",
+              "exports",
+              "instanceId",
+              "instanceUuid",
+              "listeners",
+              "nfs4IdentityMappingMode",
+              "nfs4IdentityPolicyRevision",
+              "port",
+              "protocolMode"
+            ],
+            "bytes": 3009
+          }
+        },
+        "hashes": {
+          "configuration_transaction.py": "1e51e2642d89deb75da7f020e47cb41df4458517a9d1ded4c3cf783cda9ebc87",
+          "configuration_preflight.py": "89e058cdd6bb425e02d0c757f3407a9aa36dbfa2d4ddd41701457b73b94fc080",
+          "volume_identity.py": "7c54976b70e389abf7e25077412f7fd78cf52e34404d7f32bd9e5b83838b7371",
+          "boot_reconcile.py": "03fd617e478a304c3bfbce565812c65d81afb5b56de0cac6ff5ce3d9f35d852a"
+        }
+      },
+      "stderr": ""
+    }
+  ],
+  "injection1462": [
+    {
+      "pid": 864644,
+      "exit": 0,
+      "stdout": {
+        "serialSelectsDevice": true,
+        "unmappedRejected": true,
+        "wrongFilesystemStillResolvesBySerial": true,
+        "actualMount": {
+          "device": "/dev/sdb",
+          "filesystemUuid": "f887b8ec-6601-4bc6-83d7-dba7e247186d",
+          "fstype": "xfs"
+        },
+        "failedSecondStepRestoredBefore": true,
+        "sameRequestNoReplay": true,
+        "secretRemovedFromJournal": true,
+        "revisionOnlyAfterCommit": true,
+        "staleRevisionRejected": true,
+        "privateModeChecked": true,
+        "lastRunnerAloneDoesNotProveAllSteps": true,
+        "liveDesiredFilesUnchanged": 1
+      },
+      "stderr": ""
+    }
+  ]
+}
