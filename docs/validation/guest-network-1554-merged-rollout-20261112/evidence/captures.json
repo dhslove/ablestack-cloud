@@ -1,0 +1,1534 @@
+[
+  {
+    "label": "31-isolated-detail-1280-light",
+    "cluster": 31,
+    "badLinks": [],
+    "bodyClass": "",
+    "breadcrumb": {
+      "width": 980,
+      "x": 268
+    },
+    "dark": false,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-31-vpn-lb"
+    ],
+    "project": "qa-gn1569-31-shared-reg",
+    "url": "http://10.10.31.10:8080/client/#/guestnetwork/43c8f6f5-8893-4a1c-bfaa-a569acaf44bb",
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    },
+    "imageSize": {
+      "width": 1280,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "31-network-update-1280-light",
+    "cluster": 31,
+    "badLinks": [],
+    "bodyClass": "ant-scrolling-effect",
+    "breadcrumb": {
+      "width": 980,
+      "x": 268
+    },
+    "dark": false,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-31-vpn-lb"
+    ],
+    "project": "qa-gn1569-31-shared-reg",
+    "url": "http://10.10.31.10:8080/client/#/guestnetwork/43c8f6f5-8893-4a1c-bfaa-a569acaf44bb",
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    },
+    "imageSize": {
+      "width": 1280,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "31-ui-update-job-success-1280-light",
+    "cluster": 31,
+    "badLinks": [],
+    "bodyClass": "",
+    "breadcrumb": {
+      "width": 980,
+      "x": 268
+    },
+    "dark": false,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-31-vpn-lb"
+    ],
+    "project": "qa-gn1569-31-shared-reg",
+    "url": "http://10.10.31.10:8080/client/#/guestnetwork/43c8f6f5-8893-4a1c-bfaa-a569acaf44bb",
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    },
+    "imageSize": {
+      "width": 1280,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "31-egress-toolbar-1280-light",
+    "cluster": 31,
+    "badLinks": [],
+    "bodyClass": "",
+    "breadcrumb": {
+      "width": 980,
+      "x": 268
+    },
+    "dark": false,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-31-vpn-lb"
+    ],
+    "project": "qa-gn1569-31-shared-reg",
+    "url": "http://10.10.31.10:8080/client/#/guestnetwork/43c8f6f5-8893-4a1c-bfaa-a569acaf44bb?tab=egress.rules",
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    },
+    "imageSize": {
+      "width": 1280,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "31-egress-rule-dialog-1280-light",
+    "cluster": 31,
+    "badLinks": [],
+    "bodyClass": "ant-scrolling-effect",
+    "breadcrumb": {
+      "width": 980,
+      "x": 268
+    },
+    "dark": false,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-31-vpn-lb"
+    ],
+    "project": "qa-gn1569-31-shared-reg",
+    "url": "http://10.10.31.10:8080/client/#/guestnetwork/43c8f6f5-8893-4a1c-bfaa-a569acaf44bb?tab=egress.rules",
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    },
+    "imageSize": {
+      "width": 1280,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "31-egress-rule-dialog-390-light",
+    "cluster": 31,
+    "badLinks": [],
+    "bodyClass": "ant-scrolling-effect",
+    "breadcrumb": {
+      "width": 346,
+      "x": 12
+    },
+    "dark": false,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-31-vpn-lb"
+    ],
+    "project": "qa-gn1569-31-shared-reg",
+    "url": "http://10.10.31.10:8080/client/#/guestnetwork/43c8f6f5-8893-4a1c-bfaa-a569acaf44bb?tab=egress.rules",
+    "viewport": {
+      "height": 844,
+      "width": 390
+    },
+    "imageSize": {
+      "width": 390,
+      "height": 844
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "31-egress-rule-dialog-390-dark",
+    "cluster": 31,
+    "badLinks": [],
+    "bodyClass": "dark-mode ant-scrolling-effect",
+    "breadcrumb": {
+      "width": 346,
+      "x": 12
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-31-vpn-lb"
+    ],
+    "project": "qa-gn1569-31-shared-reg",
+    "url": "http://10.10.31.10:8080/client/#/guestnetwork/43c8f6f5-8893-4a1c-bfaa-a569acaf44bb?tab=egress.rules",
+    "viewport": {
+      "height": 844,
+      "width": 390
+    },
+    "imageSize": {
+      "width": 390,
+      "height": 844
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "31-vm-list-standard-1280-dark",
+    "cluster": 31,
+    "badLinks": [
+      "#/backupoffering/undefined",
+      "#/backupoffering/undefined"
+    ],
+    "bodyClass": "dark-mode",
+    "breadcrumb": {
+      "width": 990,
+      "x": 268
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [],
+    "project": "qa-gn1569-31-shared-reg",
+    "url": "http://10.10.31.10:8080/client/#/vm?networkid=43c8f6f5-8893-4a1c-bfaa-a569acaf44bb",
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    },
+    "imageSize": {
+      "width": 1280,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "31-vm-detail-standard-1280-dark",
+    "cluster": 31,
+    "badLinks": [],
+    "bodyClass": "dark-mode",
+    "breadcrumb": {
+      "width": 980,
+      "x": 268
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-31-vpn-lb-vm"
+    ],
+    "project": "qa-gn1569-31-shared-reg",
+    "url": "http://10.10.31.10:8080/client/#/vm/551067c6-fbfb-40df-8313-037e21de78cf",
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    },
+    "imageSize": {
+      "width": 1280,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "31-vm-nic-standard-1280-dark",
+    "cluster": 31,
+    "badLinks": [],
+    "bodyClass": "dark-mode",
+    "breadcrumb": {
+      "width": 980,
+      "x": 268
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-31-vpn-lb-vm"
+    ],
+    "project": "qa-gn1569-31-shared-reg",
+    "url": "http://10.10.31.10:8080/client/#/vm/551067c6-fbfb-40df-8313-037e21de78cf?tab=nics",
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    },
+    "imageSize": {
+      "width": 1280,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "31-vm-connect-dialog-1280-dark",
+    "cluster": 31,
+    "badLinks": [],
+    "bodyClass": "dark-mode ant-scrolling-effect",
+    "breadcrumb": {
+      "width": 980,
+      "x": 268
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-31-vpn-lb-vm"
+    ],
+    "project": "qa-gn1569-31-shared-reg",
+    "url": "http://10.10.31.10:8080/client/#/vm/551067c6-fbfb-40df-8313-037e21de78cf?tab=nics",
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    },
+    "imageSize": {
+      "width": 1280,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "31-vm-connect-dialog-390-dark",
+    "cluster": 31,
+    "badLinks": [],
+    "bodyClass": "dark-mode ant-scrolling-effect",
+    "breadcrumb": {
+      "width": 346,
+      "x": 12
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-31-vpn-lb-vm"
+    ],
+    "project": "qa-gn1569-31-shared-reg",
+    "url": "http://10.10.31.10:8080/client/#/vm/551067c6-fbfb-40df-8313-037e21de78cf?tab=nics",
+    "viewport": {
+      "height": 844,
+      "width": 390
+    },
+    "imageSize": {
+      "width": 390,
+      "height": 844
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "31-nic-attach-job-success-390-dark",
+    "cluster": 31,
+    "badLinks": [],
+    "bodyClass": "dark-mode ant-scrolling-effect",
+    "breadcrumb": {
+      "width": 346,
+      "x": 12
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-31-vpn-lb-vm"
+    ],
+    "project": "qa-gn1569-31-shared-reg",
+    "url": "http://10.10.31.10:8080/client/#/vm/551067c6-fbfb-40df-8313-037e21de78cf?tab=nics",
+    "viewport": {
+      "height": 844,
+      "width": 390
+    },
+    "imageSize": {
+      "width": 390,
+      "height": 844
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "31-ui-nic-attached-1280-dark",
+    "cluster": 31,
+    "badLinks": [],
+    "bodyClass": "dark-mode",
+    "breadcrumb": {
+      "width": 980,
+      "x": 268
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-31-vpn-lb-vm"
+    ],
+    "project": "qa-gn1569-31-shared-reg",
+    "url": "http://10.10.31.10:8080/client/#/vm/551067c6-fbfb-40df-8313-037e21de78cf?tab=nics",
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    },
+    "imageSize": {
+      "width": 1280,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "31-nic-detach-job-success-1280-dark",
+    "cluster": 31,
+    "badLinks": [],
+    "bodyClass": "dark-mode ant-scrolling-effect",
+    "breadcrumb": {
+      "width": 980,
+      "x": 268
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-31-vpn-lb-vm"
+    ],
+    "project": "qa-gn1569-31-shared-reg",
+    "url": "http://10.10.31.10:8080/client/#/vm/551067c6-fbfb-40df-8313-037e21de78cf?tab=nics",
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    },
+    "imageSize": {
+      "width": 1280,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "31-vm-nic-standard-768-dark",
+    "cluster": 31,
+    "badLinks": [],
+    "bodyClass": "dark-mode",
+    "breadcrumb": {
+      "width": 644,
+      "x": 92
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-31-vpn-lb-vm"
+    ],
+    "project": "qa-gn1569-31-shared-reg",
+    "url": "http://10.10.31.10:8080/client/#/vm/551067c6-fbfb-40df-8313-037e21de78cf?tab=nics",
+    "viewport": {
+      "height": 900,
+      "width": 768
+    },
+    "imageSize": {
+      "width": 768,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "31-vm-scroll-1600-dark",
+    "cluster": 31,
+    "badLinks": [],
+    "bodyClass": "dark-mode",
+    "breadcrumb": {
+      "width": 1300,
+      "x": 268
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-31-vpn-lb-vm"
+    ],
+    "project": "qa-gn1569-31-shared-reg",
+    "url": "http://10.10.31.10:8080/client/#/vm/551067c6-fbfb-40df-8313-037e21de78cf?tab=nics",
+    "viewport": {
+      "height": 900,
+      "width": 1600
+    },
+    "imageSize": {
+      "width": 1600,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "31-vm-reload-scroll-1600-dark",
+    "cluster": 31,
+    "badLinks": [],
+    "bodyClass": "dark-mode",
+    "breadcrumb": {
+      "width": 1300,
+      "x": 268
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-31-vpn-lb-vm"
+    ],
+    "project": "qa-gn1569-31-shared-reg",
+    "url": "http://10.10.31.10:8080/client/#/vm/551067c6-fbfb-40df-8313-037e21de78cf?tab=nics",
+    "viewport": {
+      "height": 900,
+      "width": 1600
+    },
+    "imageSize": {
+      "width": 1600,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "31-shared-detail-1280-dark",
+    "cluster": 31,
+    "badLinks": [],
+    "bodyClass": "dark-mode",
+    "breadcrumb": {
+      "width": 980,
+      "x": 268
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-31-shared-reg"
+    ],
+    "project": "qa-gn1569-31-shared-reg",
+    "url": "http://10.10.31.10:8080/client/#/guestnetwork/87601b32-f211-4609-819f-6d0f4810b788",
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    },
+    "imageSize": {
+      "width": 1280,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "32-isolated-detail-1280-light",
+    "cluster": 32,
+    "badLinks": [],
+    "bodyClass": "",
+    "breadcrumb": {
+      "width": 980,
+      "x": 268
+    },
+    "dark": false,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-32-vpn-lb"
+    ],
+    "project": "qa-gn1569-32-shared-reg",
+    "url": "http://10.10.32.10:8080/client/#/guestnetwork/b7cd0439-ed95-4e7d-8b31-eb0ebacbd711",
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    },
+    "imageSize": {
+      "width": 1280,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "31-shared-ip-addresses-1280-dark",
+    "cluster": 31,
+    "badLinks": [],
+    "bodyClass": "dark-mode",
+    "breadcrumb": {
+      "width": 980,
+      "x": 268
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-31-shared-reg"
+    ],
+    "project": "qa-gn1569-31-shared-reg",
+    "url": "http://10.10.31.10:8080/client/#/guestnetwork/87601b32-f211-4609-819f-6d0f4810b788?tab=public.ip.addresses",
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    },
+    "imageSize": {
+      "width": 1280,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "32-network-update-1280-light",
+    "cluster": 32,
+    "badLinks": [],
+    "bodyClass": "ant-scrolling-effect",
+    "breadcrumb": {
+      "width": 980,
+      "x": 268
+    },
+    "dark": false,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-32-vpn-lb"
+    ],
+    "project": "qa-gn1569-32-shared-reg",
+    "url": "http://10.10.32.10:8080/client/#/guestnetwork/b7cd0439-ed95-4e7d-8b31-eb0ebacbd711",
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    },
+    "imageSize": {
+      "width": 1280,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "31-shared-ip-ranges-1280-dark",
+    "cluster": 31,
+    "badLinks": [],
+    "bodyClass": "dark-mode",
+    "breadcrumb": {
+      "width": 980,
+      "x": 268
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-31-shared-reg"
+    ],
+    "project": "qa-gn1569-31-shared-reg",
+    "url": "http://10.10.31.10:8080/client/#/guestnetwork/87601b32-f211-4609-819f-6d0f4810b788?tab=guest.ip.range",
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    },
+    "imageSize": {
+      "width": 1280,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "32-ui-update-job-success-1280-light",
+    "cluster": 32,
+    "badLinks": [],
+    "bodyClass": "",
+    "breadcrumb": {
+      "width": 980,
+      "x": 268
+    },
+    "dark": false,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-32-vpn-lb"
+    ],
+    "project": "qa-gn1569-32-shared-reg",
+    "url": "http://10.10.32.10:8080/client/#/guestnetwork/b7cd0439-ed95-4e7d-8b31-eb0ebacbd711",
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    },
+    "imageSize": {
+      "width": 1280,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "32-egress-rule-dialog-1280-light",
+    "cluster": 32,
+    "badLinks": [],
+    "bodyClass": "ant-scrolling-effect",
+    "breadcrumb": {
+      "width": 980,
+      "x": 268
+    },
+    "dark": false,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-32-vpn-lb"
+    ],
+    "project": "qa-gn1569-32-shared-reg",
+    "url": "http://10.10.32.10:8080/client/#/guestnetwork/b7cd0439-ed95-4e7d-8b31-eb0ebacbd711?tab=egress.rules",
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    },
+    "imageSize": {
+      "width": 1280,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "32-egress-rule-dialog-390-light",
+    "cluster": 32,
+    "badLinks": [],
+    "bodyClass": "ant-scrolling-effect",
+    "breadcrumb": {
+      "width": 346,
+      "x": 12
+    },
+    "dark": false,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-32-vpn-lb"
+    ],
+    "project": "qa-gn1569-32-shared-reg",
+    "url": "http://10.10.32.10:8080/client/#/guestnetwork/b7cd0439-ed95-4e7d-8b31-eb0ebacbd711?tab=egress.rules",
+    "viewport": {
+      "height": 844,
+      "width": 390
+    },
+    "imageSize": {
+      "width": 390,
+      "height": 844
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "32-egress-rule-dialog-390-dark",
+    "cluster": 32,
+    "badLinks": [],
+    "bodyClass": "dark-mode ant-scrolling-effect",
+    "breadcrumb": {
+      "width": 346,
+      "x": 12
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-32-vpn-lb"
+    ],
+    "project": "qa-gn1569-32-shared-reg",
+    "url": "http://10.10.32.10:8080/client/#/guestnetwork/b7cd0439-ed95-4e7d-8b31-eb0ebacbd711?tab=egress.rules",
+    "viewport": {
+      "height": 844,
+      "width": 390
+    },
+    "imageSize": {
+      "width": 390,
+      "height": 844
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "32-vm-list-standard-1280-dark",
+    "cluster": 32,
+    "badLinks": [
+      "#/backupoffering/undefined",
+      "#/backupoffering/undefined"
+    ],
+    "bodyClass": "dark-mode",
+    "breadcrumb": {
+      "width": 990,
+      "x": 268
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [],
+    "project": "qa-gn1569-32-shared-reg",
+    "url": "http://10.10.32.10:8080/client/#/vm?networkid=b7cd0439-ed95-4e7d-8b31-eb0ebacbd711",
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    },
+    "imageSize": {
+      "width": 1280,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "32-vm-detail-standard-1280-dark",
+    "cluster": 32,
+    "badLinks": [],
+    "bodyClass": "dark-mode",
+    "breadcrumb": {
+      "width": 980,
+      "x": 268
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-32-vpn-lb-vm"
+    ],
+    "project": "qa-gn1569-32-shared-reg",
+    "url": "http://10.10.32.10:8080/client/#/vm/e3ddbdd1-ccd7-4299-9461-a33d25d6b645",
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    },
+    "imageSize": {
+      "width": 1280,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "32-vm-connect-dialog-1280-dark",
+    "cluster": 32,
+    "badLinks": [],
+    "bodyClass": "dark-mode ant-scrolling-effect",
+    "breadcrumb": {
+      "width": 980,
+      "x": 268
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-32-vpn-lb-vm"
+    ],
+    "project": "qa-gn1569-32-shared-reg",
+    "url": "http://10.10.32.10:8080/client/#/vm/e3ddbdd1-ccd7-4299-9461-a33d25d6b645?tab=nics",
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    },
+    "imageSize": {
+      "width": 1280,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "32-vm-connect-dialog-390-dark",
+    "cluster": 32,
+    "badLinks": [],
+    "bodyClass": "dark-mode ant-scrolling-effect",
+    "breadcrumb": {
+      "width": 346,
+      "x": 12
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-32-vpn-lb-vm"
+    ],
+    "project": "qa-gn1569-32-shared-reg",
+    "url": "http://10.10.32.10:8080/client/#/vm/e3ddbdd1-ccd7-4299-9461-a33d25d6b645?tab=nics",
+    "viewport": {
+      "height": 844,
+      "width": 390
+    },
+    "imageSize": {
+      "width": 390,
+      "height": 844
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "32-nic-attach-job-success-1280-dark",
+    "cluster": 32,
+    "badLinks": [],
+    "bodyClass": "dark-mode ant-scrolling-effect",
+    "breadcrumb": {
+      "width": 980,
+      "x": 268
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-32-vpn-lb-vm"
+    ],
+    "project": "qa-gn1569-32-shared-reg",
+    "url": "http://10.10.32.10:8080/client/#/vm/e3ddbdd1-ccd7-4299-9461-a33d25d6b645?tab=nics",
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    },
+    "imageSize": {
+      "width": 1280,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "32-ui-nic-attached-1280-dark",
+    "cluster": 32,
+    "badLinks": [],
+    "bodyClass": "dark-mode ant-scrolling-effect",
+    "breadcrumb": {
+      "width": 980,
+      "x": 268
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-32-vpn-lb-vm"
+    ],
+    "project": "qa-gn1569-32-shared-reg",
+    "url": "http://10.10.32.10:8080/client/#/vm/e3ddbdd1-ccd7-4299-9461-a33d25d6b645?tab=nics",
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    },
+    "imageSize": {
+      "width": 1280,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "31-shared-ip-ranges-768-dark",
+    "cluster": 31,
+    "badLinks": [],
+    "bodyClass": "dark-mode",
+    "breadcrumb": {
+      "width": 644,
+      "x": 92
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-31-shared-reg"
+    ],
+    "project": "qa-gn1569-31-shared-reg",
+    "url": "http://10.10.31.10:8080/client/#/guestnetwork/87601b32-f211-4609-819f-6d0f4810b788?tab=guest.ip.range",
+    "viewport": {
+      "height": 1024,
+      "width": 768
+    },
+    "imageSize": {
+      "width": 768,
+      "height": 1024
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "32-nic-detach-job-success-768-dark",
+    "cluster": 32,
+    "badLinks": [],
+    "bodyClass": "dark-mode ant-scrolling-effect",
+    "breadcrumb": {
+      "width": 644,
+      "x": 92
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-32-vpn-lb-vm"
+    ],
+    "project": "qa-gn1569-32-shared-reg",
+    "url": "http://10.10.32.10:8080/client/#/vm/e3ddbdd1-ccd7-4299-9461-a33d25d6b645?tab=nics",
+    "viewport": {
+      "height": 1024,
+      "width": 768
+    },
+    "imageSize": {
+      "width": 768,
+      "height": 1024
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "32-vm-nic-standard-768-dark",
+    "cluster": 32,
+    "badLinks": [],
+    "bodyClass": "dark-mode ant-scrolling-effect",
+    "breadcrumb": {
+      "width": 644,
+      "x": 92
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-32-vpn-lb-vm"
+    ],
+    "project": "qa-gn1569-32-shared-reg",
+    "url": "http://10.10.32.10:8080/client/#/vm/e3ddbdd1-ccd7-4299-9461-a33d25d6b645?tab=nics",
+    "viewport": {
+      "height": 1024,
+      "width": 768
+    },
+    "imageSize": {
+      "width": 768,
+      "height": 1024
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "32-vm-scroll-1600-dark",
+    "cluster": 32,
+    "badLinks": [],
+    "bodyClass": "dark-mode",
+    "breadcrumb": {
+      "width": 1300,
+      "x": 268
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-32-vpn-lb-vm"
+    ],
+    "project": "qa-gn1569-32-shared-reg",
+    "url": "http://10.10.32.10:8080/client/#/vm/e3ddbdd1-ccd7-4299-9461-a33d25d6b645?tab=nics",
+    "viewport": {
+      "height": 1000,
+      "width": 1600
+    },
+    "imageSize": {
+      "width": 1600,
+      "height": 1000
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "32-vm-reload-scroll-1600-dark",
+    "cluster": 32,
+    "badLinks": [],
+    "bodyClass": "dark-mode",
+    "breadcrumb": {
+      "width": 1300,
+      "x": 268
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-32-vpn-lb-vm"
+    ],
+    "project": "qa-gn1569-32-shared-reg",
+    "url": "http://10.10.32.10:8080/client/#/vm/e3ddbdd1-ccd7-4299-9461-a33d25d6b645?tab=nics",
+    "viewport": {
+      "height": 1000,
+      "width": 1600
+    },
+    "imageSize": {
+      "width": 1600,
+      "height": 726
+    },
+    "visibleFrameShorterThanDomViewport": true
+  },
+  {
+    "label": "32-project-default-1600-dark",
+    "cluster": 32,
+    "badLinks": [],
+    "bodyClass": "dark-mode",
+    "breadcrumb": null,
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "인프라스트럭쳐",
+      "컴퓨트",
+      "스토리지",
+      "네트워크",
+      "경보",
+      "이벤트"
+    ],
+    "project": "기본 보기",
+    "url": "http://10.10.32.10:8080/client/#/dashboard",
+    "viewport": {
+      "height": 1000,
+      "width": 1600
+    },
+    "imageSize": {
+      "width": 1600,
+      "height": 726
+    },
+    "visibleFrameShorterThanDomViewport": true
+  },
+  {
+    "label": "31-shared-ip-addresses-768-dark",
+    "cluster": 31,
+    "badLinks": [],
+    "bodyClass": "dark-mode",
+    "breadcrumb": {
+      "width": 644,
+      "x": 92
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-31-shared-reg"
+    ],
+    "project": "qa-gn1569-31-shared-reg",
+    "url": "http://10.10.31.10:8080/client/#/guestnetwork/87601b32-f211-4609-819f-6d0f4810b788?tab=public.ip.addresses",
+    "viewport": {
+      "height": 1024,
+      "width": 768
+    },
+    "imageSize": {
+      "width": 768,
+      "height": 1024
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "32-shared-ip-addresses-1280-dark",
+    "cluster": 32,
+    "badLinks": [],
+    "bodyClass": "dark-mode",
+    "breadcrumb": {
+      "width": 980,
+      "x": 268
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-32-shared-reg"
+    ],
+    "project": "기본 보기",
+    "url": "http://10.10.32.10:8080/client/#/guestnetwork/a57a394e-71a6-4748-9fc3-9bcdc40ed3bd?tab=public.ip.addresses",
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    },
+    "imageSize": {
+      "width": 1280,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "32-project-return-1280-dark",
+    "cluster": 32,
+    "badLinks": [],
+    "bodyClass": "dark-mode",
+    "breadcrumb": null,
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "리소스",
+      "컴퓨트",
+      "스토리지",
+      "네트워크",
+      "도움말",
+      "Documentation",
+      "Documentation",
+      "Email Support",
+      "Email Support",
+      "Report Issue",
+      "Report Issue",
+      "이벤트"
+    ],
+    "project": "qa-gn1569-32-shared-reg",
+    "url": "http://10.10.32.10:8080/client/#/dashboard",
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    },
+    "imageSize": {
+      "width": 1280,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "32-shared-ip-ranges-1280-dark",
+    "cluster": 32,
+    "badLinks": [],
+    "bodyClass": "dark-mode",
+    "breadcrumb": {
+      "width": 980,
+      "x": 268
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-32-shared-reg"
+    ],
+    "project": "qa-gn1569-32-shared-reg",
+    "url": "http://10.10.32.10:8080/client/#/guestnetwork/a57a394e-71a6-4748-9fc3-9bcdc40ed3bd?tab=guest.ip.range",
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    },
+    "imageSize": {
+      "width": 1280,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "32-vnf-network-association-1280-dark",
+    "cluster": 32,
+    "badLinks": [],
+    "bodyClass": "dark-mode",
+    "breadcrumb": {
+      "width": 980,
+      "x": 268
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1597-32-project-nat"
+    ],
+    "project": "qa-gn1597-32-project",
+    "url": "http://10.10.32.10:8080/client/#/guestnetwork/0b5ac89f-cddc-4cf3-9934-b13dc2bd4446?tab=vnf.appliances",
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    },
+    "imageSize": {
+      "width": 1280,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "32-vnf-summary-links-1280-dark",
+    "cluster": 32,
+    "badLinks": [],
+    "bodyClass": "dark-mode",
+    "breadcrumb": {
+      "width": 980,
+      "x": 268
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1597-32-project-vnf"
+    ],
+    "project": "qa-gn1597-32-project",
+    "url": "http://10.10.32.10:8080/client/#/vnfapp/812c5dcc-a538-4a58-be86-6e3dcbbc773a",
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    },
+    "imageSize": {
+      "width": 1280,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "32-vnf-nic-390-dark",
+    "cluster": 32,
+    "badLinks": [],
+    "bodyClass": "dark-mode",
+    "breadcrumb": {
+      "width": 346,
+      "x": 12
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1597-32-project-vnf"
+    ],
+    "project": "qa-gn1597-32-project",
+    "url": "http://10.10.32.10:8080/client/#/vnfapp/812c5dcc-a538-4a58-be86-6e3dcbbc773a?tab=nics",
+    "viewport": {
+      "height": 844,
+      "width": 390
+    },
+    "imageSize": {
+      "width": 390,
+      "height": 844
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "32-readonly-shared-ip-1280-dark",
+    "cluster": 32,
+    "badLinks": [],
+    "bodyClass": "dark-mode",
+    "breadcrumb": {
+      "width": 980,
+      "x": 268
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-32-shared-reg"
+    ],
+    "project": "qa-gn1569-32-shared-reg",
+    "url": "http://10.10.32.10:8080/client/#/guestnetwork/a57a394e-71a6-4748-9fc3-9bcdc40ed3bd?tab=public.ip.addresses",
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    },
+    "imageSize": {
+      "width": 1280,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "32-readonly-vm-nic-1280-dark",
+    "cluster": 32,
+    "badLinks": [],
+    "bodyClass": "dark-mode",
+    "breadcrumb": {
+      "width": 980,
+      "x": 268
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-32-vpn-lb-vm"
+    ],
+    "project": "qa-gn1569-32-shared-reg",
+    "url": "http://10.10.32.10:8080/client/#/vm/e3ddbdd1-ccd7-4299-9461-a33d25d6b645?tab=nics",
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    },
+    "imageSize": {
+      "width": 1280,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "31-project-vnf-768-dark",
+    "cluster": 31,
+    "badLinks": [],
+    "bodyClass": "dark-mode",
+    "breadcrumb": null,
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "리소스",
+      "컴퓨트",
+      "스토리지",
+      "네트워크",
+      "도움말",
+      "Documentation",
+      "Documentation",
+      "Email Support",
+      "Email Support",
+      "Report Issue",
+      "Report Issue",
+      "이벤트"
+    ],
+    "project": "qa-gn1597-31-project",
+    "url": "http://10.10.31.10:8080/client/#/dashboard",
+    "viewport": {
+      "height": 1024,
+      "width": 768
+    },
+    "imageSize": {
+      "width": 768,
+      "height": 1024
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "31-vnf-nic-768-dark",
+    "cluster": 31,
+    "badLinks": [],
+    "bodyClass": "dark-mode",
+    "breadcrumb": {
+      "width": 644,
+      "x": 92
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1597-31-project-vnf"
+    ],
+    "project": "qa-gn1597-31-project",
+    "url": "http://10.10.31.10:8080/client/#/vnfapp/b1a6c573-8c82-4fe8-9537-07e2cd96c1fc?tab=nics",
+    "viewport": {
+      "height": 1024,
+      "width": 768
+    },
+    "imageSize": {
+      "width": 768,
+      "height": 1024
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "31-vnf-nic-390-dark",
+    "cluster": 31,
+    "badLinks": [],
+    "bodyClass": "dark-mode",
+    "breadcrumb": {
+      "width": 346,
+      "x": 12
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1597-31-project-vnf"
+    ],
+    "project": "qa-gn1597-31-project",
+    "url": "http://10.10.31.10:8080/client/#/vnfapp/b1a6c573-8c82-4fe8-9537-07e2cd96c1fc?tab=nics",
+    "viewport": {
+      "height": 844,
+      "width": 390
+    },
+    "imageSize": {
+      "width": 390,
+      "height": 844
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "31-l2-detail-1280-dark",
+    "cluster": 31,
+    "badLinks": [],
+    "bodyClass": "dark-mode",
+    "breadcrumb": {
+      "width": 980,
+      "x": 268
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-31-shared-reg-control"
+    ],
+    "project": "qa-gn1569-31-shared-reg",
+    "url": "http://10.10.31.10:8080/client/#/guestnetwork/a803353e-3992-47fd-b9d5-df789b264f73",
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    },
+    "imageSize": {
+      "width": 1280,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "31-readonly-shared-ip-1280-dark",
+    "cluster": 31,
+    "badLinks": [],
+    "bodyClass": "dark-mode",
+    "breadcrumb": {
+      "width": 980,
+      "x": 268
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-31-shared-reg"
+    ],
+    "project": "qa-gn1569-31-shared-reg",
+    "url": "http://10.10.31.10:8080/client/#/guestnetwork/87601b32-f211-4609-819f-6d0f4810b788?tab=public.ip.addresses",
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    },
+    "imageSize": {
+      "width": 1280,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "31-readonly-vm-nic-1280-dark",
+    "cluster": 31,
+    "badLinks": [],
+    "bodyClass": "dark-mode",
+    "breadcrumb": {
+      "width": 980,
+      "x": 268
+    },
+    "dark": true,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-31-vpn-lb-vm"
+    ],
+    "project": "qa-gn1569-31-shared-reg",
+    "url": "http://10.10.31.10:8080/client/#/vm/551067c6-fbfb-40df-8313-037e21de78cf?tab=nics",
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    },
+    "imageSize": {
+      "width": 1280,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "31-final-review-shared-1280-light",
+    "cluster": 31,
+    "badLinks": [],
+    "bodyClass": "",
+    "breadcrumb": {
+      "width": 980,
+      "x": 268
+    },
+    "dark": false,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-31-shared-reg"
+    ],
+    "project": "qa-gn1569-31-shared-reg",
+    "url": "http://10.10.31.10:8080/client/#/guestnetwork/87601b32-f211-4609-819f-6d0f4810b788?tab=guest.ip.range",
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    },
+    "imageSize": {
+      "width": 1280,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  },
+  {
+    "label": "32-final-review-shared-1280-light",
+    "cluster": 32,
+    "badLinks": [],
+    "bodyClass": "",
+    "breadcrumb": {
+      "width": 980,
+      "x": 268
+    },
+    "dark": false,
+    "documentOverflow": false,
+    "dpr": 1,
+    "headings": [
+      "qa-gn1569-32-shared-reg"
+    ],
+    "project": "qa-gn1569-32-shared-reg",
+    "url": "http://10.10.32.10:8080/client/#/guestnetwork/a57a394e-71a6-4748-9fc3-9bcdc40ed3bd?tab=guest.ip.range",
+    "viewport": {
+      "height": 900,
+      "width": 1280
+    },
+    "imageSize": {
+      "width": 1280,
+      "height": 900
+    },
+    "visibleFrameShorterThanDomViewport": false
+  }
+]

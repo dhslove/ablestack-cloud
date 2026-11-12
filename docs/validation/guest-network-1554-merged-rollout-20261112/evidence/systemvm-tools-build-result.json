@@ -1,0 +1,36 @@
+{
+  "exit": 0,
+  "seconds": 21.2,
+  "command": [
+    "mvn",
+    "-B",
+    "-Psystemvm,developer",
+    "-pl",
+    "systemvm,tools",
+    "-DskipTests",
+    "-Dcheckstyle.skip=true",
+    "-Drat.skip=true",
+    "package"
+  ],
+  "artifacts": {
+    "systemvm/dist/agent.zip": {
+      "bytes": 96934050,
+      "sha256": "32e4a0ffb6ef65897d296cbd5a8c0e088a2a70e874ae76107603924710c26b64"
+    },
+    "systemvm/dist/cloud-scripts.tgz": {
+      "bytes": 407506,
+      "sha256": "b1bb361cd895c437b150f934ec11988dd35e5dcdf124acdd2ff5b68475184222"
+    },
+    "systemvm/dist/patch-sysvms.sh": {
+      "bytes": 6104,
+      "sha256": "2111498c775bd65be885e1d679f3418b02dac7f2178ea556bab7f2d86afd11d3"
+    }
+  },
+  "fullCloudBuild": false,
+  "templateImageBuild": false,
+  "summary": [
+    "[INFO] Apache CloudStack System VM ........................ SUCCESS [ 17.666 s]",
+    "[INFO] Apache CloudStack Developer Tools .................. SUCCESS [  0.033 s]",
+    "[INFO] BUILD SUCCESS"
+  ]
+}

@@ -1,0 +1,219 @@
+[
+  {
+    "cluster": 31,
+    "check": "network-offering-refresh-alignment",
+    "name": "qa-gn1569-31-vpn-lb",
+    "refresh": {
+      "x": 1049,
+      "y": 429
+    },
+    "refreshIconOnly": true,
+    "refreshRight": true,
+    "sameRow": true,
+    "select": {
+      "width": 852,
+      "x": 189,
+      "y": 429
+    }
+  },
+  {
+    "cluster": 31,
+    "check": "immediate-dark-theme",
+    "dark": true
+  },
+  {
+    "cluster": 31,
+    "check": "breadcrumb-live-width",
+    "before": {
+      "viewport": 768,
+      "width": 644
+    },
+    "after": {
+      "viewport": 1600,
+      "width": 1300
+    },
+    "updated": true
+  },
+  {
+    "cluster": 31,
+    "check": "scroll-initial-reload-consistency",
+    "before": {
+      "ancestors": [
+        {
+          "class": "ant-layout-content layout-content is-header-fixed",
+          "height": 822,
+          "scrollHeight": 1506,
+          "scrollTop": 67
+        },
+        {
+          "class": "dark-mode",
+          "height": 900,
+          "scrollHeight": 900,
+          "scrollTop": 0
+        }
+      ],
+      "position": "sticky",
+      "y": 78
+    },
+    "after": {
+      "ancestors": [
+        {
+          "class": "ant-layout-content layout-content is-header-fixed",
+          "height": 822,
+          "scrollHeight": 1506,
+          "scrollTop": 684
+        },
+        {
+          "class": "dark-mode",
+          "height": 900,
+          "scrollHeight": 900,
+          "scrollTop": 0
+        }
+      ],
+      "position": "sticky",
+      "y": 78
+    },
+    "reloadBefore": {
+      "ancestors": [
+        {
+          "class": "ant-layout-content layout-content is-header-fixed",
+          "height": 822,
+          "scrollHeight": 1506,
+          "scrollTop": 0
+        },
+        {
+          "class": "dark-mode",
+          "height": 900,
+          "scrollHeight": 900,
+          "scrollTop": 0
+        }
+      ],
+      "position": "sticky",
+      "y": 78
+    },
+    "reloadAfter": {
+      "ancestors": [
+        {
+          "class": "ant-layout-content layout-content is-header-fixed",
+          "height": 822,
+          "scrollHeight": 1506,
+          "scrollTop": 684
+        },
+        {
+          "class": "dark-mode",
+          "height": 900,
+          "scrollHeight": 900,
+          "scrollTop": 0
+        }
+      ],
+      "position": "sticky",
+      "y": 78
+    },
+    "stickyConsistent": true,
+    "contentScrolled": true
+  },
+  {
+    "cluster": 32,
+    "check": "existing-environment-alerts",
+    "items": [
+      {
+        "name": "호스트 장치 센서 심각 상태",
+        "date": "2026-11-05",
+        "host": "ablecube32-3"
+      },
+      {
+        "name": "사용자_VM_CPU 사용률 (%)",
+        "age": "1일 전",
+        "maximumPercent": 99.7,
+        "averagePercent": 5.99,
+        "thresholdPercent": 75
+      }
+    ],
+    "classification": "Existing environment alerts; no product defect filed"
+  },
+  {
+    "cluster": 32,
+    "test": "instant-dark",
+    "dark": true,
+    "url": "http://10.10.32.10:8080/client/#/guestnetwork/b7cd0439-ed95-4e7d-8b31-eb0ebacbd711?tab=egress.rules"
+  },
+  {
+    "cluster": 32,
+    "test": "breadcrumb-resize-scroll-reload",
+    "small": {
+      "width": 768,
+      "breadcrumbWidth": 644
+    },
+    "large": {
+      "width": 1600,
+      "breadcrumbWidth": 1300
+    },
+    "beforeReload": {
+      "ancestors": [
+        {
+          "class": "ant-layout-content layout-content is-header-fixed",
+          "height": 849,
+          "scrollHeight": 1506,
+          "scrollTop": 657
+        },
+        {
+          "class": "dark-mode",
+          "height": 1000,
+          "scrollHeight": 1000,
+          "scrollTop": 0
+        }
+      ],
+      "position": "sticky",
+      "y": 151
+    },
+    "reload": {
+      "ancestors": [
+        {
+          "class": "ant-layout-content layout-content is-header-fixed",
+          "height": 849,
+          "scrollHeight": 1506,
+          "scrollTop": 0
+        },
+        {
+          "class": "dark-mode",
+          "height": 1000,
+          "scrollHeight": 1000,
+          "scrollTop": 0
+        }
+      ],
+      "position": "sticky",
+      "y": 151
+    }
+  },
+  {
+    "cluster": 32,
+    "check": "project-switch-scoped-final",
+    "from": "qa-gn1569-32-shared-reg",
+    "to": "qa-gn1597-32-project",
+    "selected": "qa-gn1597-32-project",
+    "url": "http://10.10.32.10:8080/client/#/dashboard",
+    "matches": true
+  },
+  {
+    "cluster": 32,
+    "check": "readOnly-shared-ip-nic",
+    "sharedIpRowsProjectOnly": true,
+    "connectButtonAbsent": true,
+    "scope": "추가/연결/해제 버튼과 프로젝트 Shared IP 조회 검증; 모든 NIC 보조 작업 금지 판정 아님"
+  },
+  {
+    "cluster": 31,
+    "check": "project-roundtrip-observed",
+    "from": "qa-gn1569-31-shared-reg",
+    "via": "qa-gn1597-31-project",
+    "to": "qa-gn1569-31-shared-reg",
+    "url": "http://10.10.31.10:8080/client/#/dashboard"
+  },
+  {
+    "cluster": 31,
+    "check": "readOnly-shared-ip-nic",
+    "sharedIpRowsProjectOnly": true,
+    "connectButtonAbsent": true,
+    "scope": "추가/연결/해제 버튼과 프로젝트 Shared IP 조회 검증; 모든 NIC 보조 작업 금지 판정 아님"
+  }
+]

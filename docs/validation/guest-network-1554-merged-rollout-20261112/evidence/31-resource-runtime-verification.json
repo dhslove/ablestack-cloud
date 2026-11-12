@@ -1,0 +1,250 @@
+{
+  "retainedVmCount": 14,
+  "retainedNetworkCount": 16,
+  "retainedVpcCount": 3,
+  "apiNetworkDetails": [
+    {
+      "id": "ad1a8462-ed3d-46f6-894e-e630f0484c13",
+      "type": "Isolated",
+      "projectid": null,
+      "passed": true
+    },
+    {
+      "id": "43c8f6f5-8893-4a1c-bfaa-a569acaf44bb",
+      "type": "Isolated",
+      "projectid": "59614883-4085-4a76-99da-b8a1e3a78eed",
+      "passed": true
+    },
+    {
+      "id": "5a3960c8-ddca-441d-977f-0ff0fa4f6f0a",
+      "type": "Isolated",
+      "projectid": "59614883-4085-4a76-99da-b8a1e3a78eed",
+      "passed": true
+    },
+    {
+      "id": "6a09e40c-0585-4e08-bc3c-c5003f178cd9",
+      "type": "Shared",
+      "projectid": null,
+      "passed": true
+    },
+    {
+      "id": "2de83b57-a297-4bae-868e-cd31d1292f12",
+      "type": "Shared",
+      "projectid": null,
+      "passed": true
+    },
+    {
+      "id": "b92b3567-2b70-47db-8c62-89bec746b5fd",
+      "type": "Shared",
+      "projectid": null,
+      "passed": true
+    },
+    {
+      "id": "b55e3a03-25f0-4790-b576-71d736b5995b",
+      "type": "Shared",
+      "projectid": null,
+      "passed": true
+    },
+    {
+      "id": "a803353e-3992-47fd-b9d5-df789b264f73",
+      "type": "L2",
+      "projectid": "59614883-4085-4a76-99da-b8a1e3a78eed",
+      "passed": true
+    },
+    {
+      "id": "87601b32-f211-4609-819f-6d0f4810b788",
+      "type": "Shared",
+      "projectid": null,
+      "passed": true
+    },
+    {
+      "id": "970f42a1-5570-4872-8faf-3c88ca9a0d3a",
+      "type": "L2",
+      "projectid": "dc9a2e6e-c977-44c2-b87c-dcf3d8e70687",
+      "passed": true
+    },
+    {
+      "id": "b80539e9-306a-4b76-933f-b1f48399627f",
+      "type": "Isolated",
+      "projectid": "dc9a2e6e-c977-44c2-b87c-dcf3d8e70687",
+      "passed": true
+    },
+    {
+      "id": "4dc9dd9e-8b5a-451d-9112-1602b7a0ece1",
+      "type": "Isolated",
+      "projectid": "dc9a2e6e-c977-44c2-b87c-dcf3d8e70687",
+      "passed": true
+    },
+    {
+      "id": "92be2db0-3837-4e3f-8c5b-987cb9d5054b",
+      "type": "L2",
+      "projectid": "dc9a2e6e-c977-44c2-b87c-dcf3d8e70687",
+      "passed": true
+    },
+    {
+      "id": "e186f3a9-a763-400b-b936-4fa4d1e5e7ca",
+      "type": "Isolated",
+      "projectid": "ded3436a-00a8-4043-990d-69200d9a321b",
+      "passed": true
+    },
+    {
+      "id": "4a5ac294-90e7-418c-9755-b17f4a9b78f3",
+      "type": "Isolated",
+      "projectid": null,
+      "passed": true
+    },
+    {
+      "id": "b056b626-fe5e-4b75-ba17-78e421162dd7",
+      "type": "Isolated",
+      "projectid": null,
+      "passed": true
+    }
+  ],
+  "allApiStableFieldsAndNicsPreserved": true,
+  "nonQaPreserved": {
+    "vms": 135,
+    "networks": 28,
+    "vpcs": 2
+  },
+  "hostsUp": 3,
+  "runtime": [
+    {
+      "host": "10.10.31.1",
+      "vms": [
+        {
+          "name": "qa-gn1597-31-project-vnf",
+          "instance": "i-438-970-VM",
+          "state": "running",
+          "macs": [
+            "02:19:97:31:00:01"
+          ]
+        },
+        {
+          "name": "qa-gn1569-31-vpn-lb-vm",
+          "instance": "i-440-994-VM",
+          "state": "running",
+          "macs": [
+            "02:1f:02:77:00:01"
+          ]
+        },
+        {
+          "name": "autoScaleVm-qa-gn1607-31-default-1-dsqime",
+          "instance": "i-440-999-VM",
+          "state": "running",
+          "macs": [
+            "02:1f:02:77:00:06"
+          ]
+        },
+        {
+          "name": "qa-gn1616-31-allocated-vm",
+          "instance": "i-424-1009-VM",
+          "state": "running",
+          "macs": [
+            "02:1f:02:3e:00:01",
+            "02:1f:02:7a:00:02"
+          ]
+        }
+      ]
+    },
+    {
+      "host": "10.10.31.2",
+      "vms": [
+        {
+          "name": "qa-gn1569-31-nosnat-vm",
+          "instance": "i-424-939-VM",
+          "state": "running",
+          "macs": [
+            "1e:1f:58:00:02:bb"
+          ]
+        },
+        {
+          "name": "qa-gn1569-31-cond-vm11",
+          "instance": "i-439-973-VM",
+          "state": "running",
+          "macs": [
+            "02:15:69:31:09:11",
+            "02:1f:02:60:00:01",
+            "02:1f:02:62:00:01"
+          ]
+        },
+        {
+          "name": "qa-gn1569-31-cond-vm12",
+          "instance": "i-439-974-VM",
+          "state": "running",
+          "macs": [
+            "02:15:69:31:09:12",
+            "02:1f:02:61:00:01",
+            "02:1f:02:62:00:02"
+          ]
+        }
+      ]
+    },
+    {
+      "host": "10.10.31.3",
+      "vms": [
+        {
+          "name": "qa-gn1569-31-shared-reg-vm21",
+          "instance": "i-440-976-VM",
+          "state": "running",
+          "macs": [
+            "02:15:69:31:19:21",
+            "02:1f:02:6e:00:01"
+          ]
+        },
+        {
+          "name": "qa-gn1569-31-shared-reg-vm24",
+          "instance": "i-440-982-VM",
+          "state": "running",
+          "macs": [
+            "02:15:69:31:19:24",
+            "02:1f:02:6e:00:04",
+            "02:1f:02:76:00:01"
+          ]
+        },
+        {
+          "name": "qa-gn1569-31-scope-owner-vm",
+          "instance": "i-442-987-VM",
+          "state": "running",
+          "macs": [
+            "02:1f:02:75:00:03",
+            "1e:1f:31:00:03:d2"
+          ]
+        },
+        {
+          "name": "qa-gn1569-31-scope-child-vm",
+          "instance": "i-446-991-VM",
+          "state": "running",
+          "macs": [
+            "02:1f:02:74:00:03",
+            "1e:1f:57:00:03:d4"
+          ]
+        },
+        {
+          "name": "qa-gn1569-31-scope-outsider-vm",
+          "instance": "i-443-992-VM",
+          "state": "running",
+          "macs": [
+            "1e:1f:be:00:03:d5"
+          ]
+        },
+        {
+          "name": "qa-gn1628-31-subnet-vm26",
+          "instance": "i-440-1031-VM",
+          "state": "running",
+          "macs": [
+            "02:16:28:31:26:26",
+            "02:16:28:31:49:26"
+          ]
+        },
+        {
+          "name": "qa-gn1569-31-final-functional-vm",
+          "instance": "i-440-1051-VM",
+          "state": "running",
+          "macs": [
+            "1e:1f:86:00:03:c8"
+          ]
+        }
+      ]
+    }
+  ]
+}

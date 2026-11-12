@@ -1,0 +1,12 @@
+{
+  "source": "8ad2d1ecd47092fd3bba8d445fd2c639c7f4be7c",
+  "exit": 0,
+  "seconds": 720.9,
+  "command": [
+    "npm",
+    "run",
+    "build"
+  ],
+  "heapLimitGiB": 12,
+  "fullCloudBuild": false
+}

@@ -1,0 +1,36 @@
+{
+  "results": [
+    {
+      "role": "peer",
+      "command": "listPublicIpAddresses",
+      "count": 4,
+      "addresses": [
+        "10.247.31.52",
+        "10.247.31.54",
+        "10.247.31.58",
+        "10.249.31.102"
+      ],
+      "onlyProjectAllocatedAddresses": true
+    },
+    {
+      "role": "readOnly",
+      "command": "listPublicIpAddresses",
+      "count": 4,
+      "addresses": [
+        "10.247.31.52",
+        "10.247.31.54",
+        "10.247.31.58",
+        "10.249.31.102"
+      ],
+      "onlyProjectAllocatedAddresses": true
+    },
+    {
+      "role": "readOnly",
+      "command": "addNicToVirtualMachine",
+      "errorcode": 401,
+      "noJob": true,
+      "duplicateExistingNicSafeguard": true
+    }
+  ],
+  "securityPolicyPreserved": true
+}

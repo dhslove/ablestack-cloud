@@ -1,0 +1,43 @@
+{
+  "source": "8ad2d1ecd47092fd3bba8d445fd2c639c7f4be7c",
+  "markers": {
+    "blockingLoadingState": [
+      "js/chunk-370a7226.49fb1335.js"
+    ],
+    "fetchSyncProgress": [
+      "js/chunk-370a7226.49fb1335.js"
+    ],
+    "extractJobId": [
+      "js/chunk-370a7226.49fb1335.js"
+    ],
+    "project-switch-start": [
+      "js/app.9e630348.js",
+      "js/chunk-725f229b.a64bf5e3.js",
+      "js/chunk-19bdfefc.e0f12c10.js",
+      "js/chunk-4a78bba9.8d83e9f7.js",
+      "js/chunk-995536f4.df72411f.js",
+      "js/chunk-4cf16cc0.15c011ee.js",
+      "js/chunk-a59b996a.a704c5da.js",
+      "js/chunk-0bbdb4c1.8517970f.js",
+      "js/chunk-075e52a7.07603940.js"
+    ],
+    "content-breadcrumb": [
+      "js/app.9e630348.js",
+      "js/chunk-6eb68876.8fc24cd4.js",
+      "js/chunk-3bc6349c.576da6a3.js",
+      "js/chunk-4ac5af05.16604cf8.js",
+      "js/chunk-2276cafc.3b14882a.js",
+      "js/chunk-ed1991e2.eaf42445.js",
+      "js/chunk-352a560c.c7424cf5.js",
+      "js/chunk-4df9881a.42b9e923.js",
+      "js/chunk-ab21730c.84ea8bf6.js",
+      "js/chunk-bf91f916.60915288.js",
+      "js/chunk-d190fc90.a39144f8.js"
+    ]
+  },
+  "appBundles": [
+    "app.9e630348.js"
+  ],
+  "indexSha256": "aacff8e209a5722ecbdd5ad4682a0fe56ed68f853a0743b20d215e8ec0b5d65b",
+  "sourceClean": true
+}

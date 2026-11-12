@@ -1,0 +1,52 @@
+{
+  "source": "8ad2d1ecd47092fd3bba8d445fd2c639c7f4be7c",
+  "kind": "management",
+  "status": "APPLIED",
+  "oldPid": "1808499",
+  "newPid": "1851838",
+  "jars": {
+    "/usr/share/cloudstack-management/lib/cloudstack-4.23.0.0-ABLESTACK.Mold.jar": "a9bb46116112cf3bd6c0e8e8d820d8f45fb361aa1a291bfc095fe38295642777"
+  },
+  "files": [
+    {
+      "path": "/usr/share/cloudstack-management/lib/cloudstack-4.23.0.0-ABLESTACK.Mold.jar",
+      "before": "13d1764233e55e7e1e0fafbaa9bdc0652d8439132c90a6d4b7777ec23bd6a21f",
+      "after": "a9bb46116112cf3bd6c0e8e8d820d8f45fb361aa1a291bfc095fe38295642777"
+    },
+    {
+      "path": "/usr/share/cloudstack-common/vms/agent.zip",
+      "before": "aafbf0c40202a308237112b077486d5d92685fe13de47dd825b888073e73e4e9",
+      "after": "32e4a0ffb6ef65897d296cbd5a8c0e088a2a70e874ae76107603924710c26b64"
+    },
+    {
+      "path": "/usr/share/cloudstack-common/vms/cloud-scripts.tgz",
+      "before": "af6320fe79fecbe983711563da6a6e5e41226f73c7deede085fe31b2a97410f6",
+      "after": "b1bb361cd895c437b150f934ec11988dd35e5dcdf124acdd2ff5b68475184222"
+    },
+    {
+      "path": "/usr/share/cloudstack-common/vms/patch-sysvms.sh",
+      "before": "2111498c775bd65be885e1d679f3418b02dac7f2178ea556bab7f2d86afd11d3",
+      "after": "2111498c775bd65be885e1d679f3418b02dac7f2178ea556bab7f2d86afd11d3"
+    }
+  ],
+  "protectedUnchanged": true,
+  "protected": {
+    "webinf": true,
+    "metaInf": false,
+    "index": "b2162a5bdc364c71868ed154a7c0a7ed983884ab5d9228830d8752ac34eed197",
+    "config": "b7de5f6a1f7a3a17310ee7d34ca801bb316fc6f841039f865fbabf154cd59a13",
+    "dbProperties": "2eddd3e1e184d1291c9918ba107d988e23543da7d35552e0579c4a2ce10bf868",
+    "serverFiles": {
+      "WEB-INF/web.xml": "04772d62c28054b1947a84e7b83f2f7c0ab343dc457f0b5e730a631d2ef08c25"
+    }
+  },
+  "runtimeReady": true,
+  "newLinkageErrors": [],
+  "rollbackDirectory": "/var/tmp/gn1554-8ad2d1e-management-31-214618/rollback",
+  "rootFreeAfter": 147161939968,
+  "cluster": 31,
+  "ip": null,
+  "durableBackup": "/home/ablecloud/work/gn1554-rollout-8ad2d1e/backups/31-management-runtime.tar.gz",
+  "backupSha256": "666704ba3b8be32f8a86ec331cad7dd0948652d9fe5377886119c15eb5498dbc",
+  "remoteStage": "/var/tmp/gn1554-8ad2d1e-management-31-214618"
+}

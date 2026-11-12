@@ -1,0 +1,36 @@
+{
+  "source": "8ad2d1ecd47092fd3bba8d445fd2c639c7f4be7c",
+  "command": [
+    "mvn",
+    "-B",
+    "-pl",
+    "api,engine/schema,engine/orchestration,server,plugins/hypervisors/kvm,plugins/storage/sharedfs/storagevm",
+    "-DskipTests",
+    "-Dcheckstyle.skip=true",
+    "-Drat.skip=true",
+    "-Dmaven.javadoc.skip=true",
+    "clean",
+    "install"
+  ],
+  "exit": 0,
+  "seconds": 161.8,
+  "modules": [
+    "api",
+    "engine/schema",
+    "engine/orchestration",
+    "server",
+    "plugins/hypervisors/kvm",
+    "plugins/storage/sharedfs/storagevm"
+  ],
+  "fullCloudBuild": false,
+  "testsExecuted": false,
+  "summary": [
+    "[INFO] Apache CloudStack API .............................. SUCCESS [ 32.779 s]",
+    "[INFO] Apache CloudStack Cloud Engine Schema Component .... SUCCESS [ 26.042 s]",
+    "[INFO] Apache CloudStack Server ........................... SUCCESS [ 51.243 s]",
+    "[INFO] Apache CloudStack Cloud Engine Orchestration Component SUCCESS [ 14.991 s]",
+    "[INFO] Apache CloudStack Plugin - Hypervisor KVM .......... SUCCESS [ 23.974 s]",
+    "[INFO] Apache CloudStack Plugin - StorageVm shared filesystem provider SUCCESS [  7.821 s]",
+    "[INFO] BUILD SUCCESS"
+  ]
+}

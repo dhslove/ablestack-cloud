@@ -1,0 +1,57 @@
+{
+  "source": "8ad2d1ecd47092fd3bba8d445fd2c639c7f4be7c",
+  "management": {
+    "artifactHashes": {
+      "/usr/share/cloudstack-management/lib/cloudstack-4.23.0.0-ABLESTACK.Mold.jar": "3ad3dfd62be5fe016b0456cd2325eab63bef5d0501767ce101541d311c0d8931",
+      "/usr/share/cloudstack-common/vms/agent.zip": "32e4a0ffb6ef65897d296cbd5a8c0e088a2a70e874ae76107603924710c26b64",
+      "/usr/share/cloudstack-common/vms/cloud-scripts.tgz": "b1bb361cd895c437b150f934ec11988dd35e5dcdf124acdd2ff5b68475184222",
+      "/usr/share/cloudstack-common/vms/patch-sysvms.sh": "2111498c775bd65be885e1d679f3418b02dac7f2178ea556bab7f2d86afd11d3"
+    },
+    "uiFileCount": 689,
+    "uiHashMismatches": [],
+    "webInfPreserved": true,
+    "service": "active",
+    "http": "200"
+  },
+  "hosts": [
+    {
+      "ip": "10.10.32.1",
+      "artifactHashes": {
+        "/usr/share/cloudstack-agent/lib/cloud-api-4.23.0.0.jar": "3caae5b8ab4498887a2beaba02b35e507fa2ca260a74d0a2cb7039cf69546b3d",
+        "/usr/share/cloudstack-agent/lib/cloud-engine-schema-4.23.0.0.jar": "3547d5e467e467a2f1b4109ad4d01be22141fce9cf7a75750dd686eee0d9a5a6",
+        "/usr/share/cloudstack-agent/lib/cloud-plugin-hypervisor-kvm-4.23.0.0.jar": "f7cb63d387fb267fb6289c1c096a1b7f76cfe221fcf324192f56d31459bcd2e6",
+        "/usr/share/cloudstack-agent/lib/cloud-server-4.23.0.0.jar": "274b133433b3e964009a95608e62631ad0ddcf6069cee2fd898da3d3f3b0f6e0",
+        "/usr/share/cloudstack-common/vms/agent.zip": "32e4a0ffb6ef65897d296cbd5a8c0e088a2a70e874ae76107603924710c26b64",
+        "/usr/share/cloudstack-common/vms/cloud-scripts.tgz": "b1bb361cd895c437b150f934ec11988dd35e5dcdf124acdd2ff5b68475184222",
+        "/usr/share/cloudstack-common/vms/patch-sysvms.sh": "2111498c775bd65be885e1d679f3418b02dac7f2178ea556bab7f2d86afd11d3"
+      },
+      "service": "active"
+    },
+    {
+      "ip": "10.10.32.2",
+      "artifactHashes": {
+        "/usr/share/cloudstack-agent/lib/cloud-api-4.23.0.0.jar": "3caae5b8ab4498887a2beaba02b35e507fa2ca260a74d0a2cb7039cf69546b3d",
+        "/usr/share/cloudstack-agent/lib/cloud-engine-schema-4.23.0.0.jar": "3547d5e467e467a2f1b4109ad4d01be22141fce9cf7a75750dd686eee0d9a5a6",
+        "/usr/share/cloudstack-agent/lib/cloud-plugin-hypervisor-kvm-4.23.0.0.jar": "f7cb63d387fb267fb6289c1c096a1b7f76cfe221fcf324192f56d31459bcd2e6",
+        "/usr/share/cloudstack-agent/lib/cloud-server-4.23.0.0.jar": "274b133433b3e964009a95608e62631ad0ddcf6069cee2fd898da3d3f3b0f6e0",
+        "/usr/share/cloudstack-common/vms/agent.zip": "32e4a0ffb6ef65897d296cbd5a8c0e088a2a70e874ae76107603924710c26b64",
+        "/usr/share/cloudstack-common/vms/cloud-scripts.tgz": "b1bb361cd895c437b150f934ec11988dd35e5dcdf124acdd2ff5b68475184222",
+        "/usr/share/cloudstack-common/vms/patch-sysvms.sh": "2111498c775bd65be885e1d679f3418b02dac7f2178ea556bab7f2d86afd11d3"
+      },
+      "service": "active"
+    },
+    {
+      "ip": "10.10.32.3",
+      "artifactHashes": {
+        "/usr/share/cloudstack-agent/lib/cloud-api-4.23.0.0.jar": "3caae5b8ab4498887a2beaba02b35e507fa2ca260a74d0a2cb7039cf69546b3d",
+        "/usr/share/cloudstack-agent/lib/cloud-engine-schema-4.23.0.0.jar": "3547d5e467e467a2f1b4109ad4d01be22141fce9cf7a75750dd686eee0d9a5a6",
+        "/usr/share/cloudstack-agent/lib/cloud-plugin-hypervisor-kvm-4.23.0.0.jar": "f7cb63d387fb267fb6289c1c096a1b7f76cfe221fcf324192f56d31459bcd2e6",
+        "/usr/share/cloudstack-agent/lib/cloud-server-4.23.0.0.jar": "274b133433b3e964009a95608e62631ad0ddcf6069cee2fd898da3d3f3b0f6e0",
+        "/usr/share/cloudstack-common/vms/agent.zip": "32e4a0ffb6ef65897d296cbd5a8c0e088a2a70e874ae76107603924710c26b64",
+        "/usr/share/cloudstack-common/vms/cloud-scripts.tgz": "b1bb361cd895c437b150f934ec11988dd35e5dcdf124acdd2ff5b68475184222",
+        "/usr/share/cloudstack-common/vms/patch-sysvms.sh": "2111498c775bd65be885e1d679f3418b02dac7f2178ea556bab7f2d86afd11d3"
+      },
+      "service": "active"
+    }
+  ]
+}

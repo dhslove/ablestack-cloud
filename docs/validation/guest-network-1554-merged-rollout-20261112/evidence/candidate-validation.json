@@ -1,0 +1,87 @@
+{
+  "source": "8ad2d1ecd47092fd3bba8d445fd2c639c7f4be7c",
+  "payload": {
+    "path": "/home/ablecloud/work/gn1554-rollout-8ad2d1e/module-payload.zip",
+    "sha256": "aed03e6a18ae47428f889dde6a6f0049493f13bbd748f444d7cd52c2aa7b3895"
+  },
+  "modules": {
+    "api": {
+      "artifact": "cloud-api",
+      "jarSha256": "3caae5b8ab4498887a2beaba02b35e507fa2ca260a74d0a2cb7039cf69546b3d",
+      "entries": 2311
+    },
+    "engine/orchestration": {
+      "artifact": "cloud-engine-orchestration",
+      "jarSha256": "5a2bb5508ebf1e8f0560320d40876ad8fa950614a77aa0294512c93dc5b91f9f",
+      "entries": 139
+    },
+    "engine/schema": {
+      "artifact": "cloud-engine-schema",
+      "jarSha256": "3547d5e467e467a2f1b4109ad4d01be22141fce9cf7a75750dd686eee0d9a5a6",
+      "entries": 1402
+    },
+    "plugins/hypervisors/kvm": {
+      "artifact": "cloud-plugin-hypervisor-kvm",
+      "jarSha256": "f7cb63d387fb267fb6289c1c096a1b7f76cfe221fcf324192f56d31459bcd2e6",
+      "entries": 553
+    },
+    "plugins/storage/sharedfs/storagevm": {
+      "artifact": "cloud-plugin-sharedfs-provider-storagevm",
+      "jarSha256": "6bb9300ce82923c3753493aa193d494eed33b0b4dc56aea6d4eeace73cf5ddd5",
+      "entries": 5
+    },
+    "server": {
+      "artifact": "cloud-server",
+      "jarSha256": "274b133433b3e964009a95608e62631ad0ddcf6069cee2fd898da3d3f3b0f6e0",
+      "entries": 1228
+    }
+  },
+  "candidates": {
+    "31": {
+      "source": "8ad2d1ecd47092fd3bba8d445fd2c639c7f4be7c",
+      "candidate": "/home/ablecloud/work/gn1554-rollout-8ad2d1e/31-candidate-management.jar",
+      "candidateSha256": "a9bb46116112cf3bd6c0e8e8d820d8f45fb361aa1a291bfc095fe38295642777",
+      "candidateBytes": 279338196,
+      "baselineJarSha256": "13d1764233e55e7e1e0fafbaa9bdc0652d8439132c90a6d4b7777ec23bd6a21f",
+      "modules": 6,
+      "wholeModuleEntries": 5638,
+      "classes": 5354,
+      "newEntries": 154,
+      "deletedEntries": [],
+      "otherEntriesUnchanged": 199391,
+      "baselineMissingOwnClasses": [
+        "org.apache.cloudstack.storage.formatinspector.SnapshotImageMetadata"
+      ],
+      "candidateMissingOwnClasses": [
+        "org.apache.cloudstack.storage.formatinspector.SnapshotImageMetadata"
+      ],
+      "newMissingOwnClasses": [],
+      "jdepsSuccessful": true,
+      "zipIntegrity": true,
+      "cluster": 31
+    },
+    "32": {
+      "source": "8ad2d1ecd47092fd3bba8d445fd2c639c7f4be7c",
+      "candidate": "/home/ablecloud/work/gn1554-rollout-8ad2d1e/32-candidate-management.jar",
+      "candidateSha256": "3ad3dfd62be5fe016b0456cd2325eab63bef5d0501767ce101541d311c0d8931",
+      "candidateBytes": 279338196,
+      "baselineJarSha256": "432e2d2dbd53b65f390bbbbafcee620e00ab5067eb9ed5914c740607af503eb3",
+      "modules": 6,
+      "wholeModuleEntries": 5638,
+      "classes": 5354,
+      "newEntries": 154,
+      "deletedEntries": [],
+      "otherEntriesUnchanged": 199391,
+      "baselineMissingOwnClasses": [
+        "org.apache.cloudstack.storage.formatinspector.SnapshotImageMetadata"
+      ],
+      "candidateMissingOwnClasses": [
+        "org.apache.cloudstack.storage.formatinspector.SnapshotImageMetadata"
+      ],
+      "newMissingOwnClasses": [],
+      "jdepsSuccessful": true,
+      "zipIntegrity": true,
+      "cluster": 32
+    }
+  }
+}

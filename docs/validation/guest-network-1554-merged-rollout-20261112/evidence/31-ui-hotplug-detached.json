@@ -1,0 +1,43 @@
+{
+  "vmId": "551067c6-fbfb-40df-8313-037e21de78cf",
+  "networkId": "a803353e-3992-47fd-b9d5-df789b264f73",
+  "addedNics": [],
+  "nics": [
+    {
+      "id": "40f7075e-2430-483c-a3c9-bf5b68d9a3d2",
+      "networkid": "43c8f6f5-8893-4a1c-bfaa-a569acaf44bb",
+      "networkname": "qa-gn1569-31-vpn-lb",
+      "netmask": "255.255.255.0",
+      "gateway": "10.234.31.1",
+      "ipaddress": "10.234.31.6",
+      "isolationuri": "vlan://152",
+      "broadcasturi": "vlan://152",
+      "traffictype": "Guest",
+      "type": "Isolated",
+      "isdefault": true,
+      "macaddress": "02:1f:02:77:00:01",
+      "secondaryip": [],
+      "extradhcpoption": [],
+      "deviceid": "0",
+      "enabled": true
+    }
+  ],
+  "runtime": {
+    "removedMacs": [
+      "02:1f:02:6f:00:01"
+    ],
+    "removedNicAbsentInGuest": true,
+    "domain": "i-440-994-VM",
+    "domainMacs": [
+      "02:1f:02:77:00:01"
+    ],
+    "guestMacs": [
+      "00:00:00:00:00:00",
+      "02:1f:02:77:00:01"
+    ],
+    "newNicPresentInGuest": true,
+    "running": "running"
+  },
+  "originalDefaultNicPreserved": true,
+  "source": "8ad2d1ecd47092fd3bba8d445fd2c639c7f4be7c"
+}

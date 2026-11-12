@@ -1,0 +1,81 @@
+{
+  "exit": 0,
+  "seconds": 54.9,
+  "suites": [
+    {
+      "name": "com.cloud.metadata.DeploymentStorageMetadataTest",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "com.cloud.vm.UserVmManagerTest",
+      "tests": 19,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "org.apache.cloudstack.network.ssl.RevocationHttpClientTest",
+      "tests": 10,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "com.cloud.server.SharedNetworkIpProjectAccessTest",
+      "tests": 10,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "org.apache.cloudstack.network.ssl.CertServiceTest",
+      "tests": 19,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "com.cloud.network.router.SharedSubnetRouterBootTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "org.apache.cloudstack.network.ssl.CertificateRevocationValidatorTest",
+      "tests": 24,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "com.cloud.network.router.RouterPublicMacManagerTest",
+      "tests": 14,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "com.cloud.network.router.NetworkHelperImplTest",
+      "tests": 18,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "com.cloud.vm.VirtualMachineManagerImplTest",
+      "tests": 101,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  ],
+  "tests": 226,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "fullCloudBuild": false
+}

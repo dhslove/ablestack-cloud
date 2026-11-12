@@ -1,0 +1,59 @@
+{
+  "cohost": true,
+  "topology": {
+    "bridge": "breno12399-2790",
+    "routerMac": "1e:1f:f7:00:03:c7"
+  },
+  "result": {
+    "interface": "ens4",
+    "address": "10.247.31.58",
+    "new": {
+      "mode": "new",
+      "mac": "02:1f:02:6e:00:01",
+      "messages": [
+        {
+          "sent": 1794489723.9570274,
+          "received": 1794489723.9580789,
+          "type": 2,
+          "ip": "10.247.31.58",
+          "server": "10.247.31.51",
+          "xid": 1025738303,
+          "leaseSeconds": 4294967295,
+          "requestCiaddr": "0.0.0.0",
+          "requestDestination": "255.255.255.255"
+        },
+        {
+          "sent": 1794489723.958095,
+          "received": 1794489723.961349,
+          "type": 5,
+          "ip": "10.247.31.58",
+          "server": "10.247.31.51",
+          "xid": 1025738303,
+          "leaseSeconds": 4294967295,
+          "requestCiaddr": "0.0.0.0",
+          "requestDestination": "255.255.255.255"
+        }
+      ]
+    },
+    "renew": {
+      "mode": "renew",
+      "mac": "02:1f:02:6e:00:01",
+      "messages": [
+        {
+          "sent": 1794489723.9799552,
+          "received": 1794489723.9802237,
+          "type": 5,
+          "ip": "10.247.31.58",
+          "server": "10.247.31.51",
+          "xid": 8917084,
+          "leaseSeconds": 4294967295,
+          "requestCiaddr": "10.247.31.58",
+          "requestDestination": "10.247.31.51"
+        }
+      ]
+    },
+    "addressesUnchanged": true
+  },
+  "method": "SSH sudo packet probe; existing QGA guest-exec policy unchanged",
+  "temporaryControlAddressCleaned": true
+}

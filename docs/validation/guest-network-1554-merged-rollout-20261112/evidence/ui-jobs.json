@@ -1,0 +1,108 @@
+[
+  {
+    "cluster": 31,
+    "command": "updateNetwork",
+    "http": 200,
+    "jobid": "29daff9e-0289-4d27-9ca4-13fd437fe89a"
+  },
+  {
+    "cluster": 31,
+    "command": "queryAsyncJobResult",
+    "http": 200,
+    "jobid": "29daff9e-0289-4d27-9ca4-13fd437fe89a",
+    "jobstatus": 1
+  },
+  {
+    "cluster": 31,
+    "command": "addNicToVirtualMachine",
+    "http": 200,
+    "jobid": "0f88237d-d575-4599-9fdb-12dad2b86cf8"
+  },
+  {
+    "cluster": 31,
+    "command": "queryAsyncJobResult",
+    "http": 200,
+    "jobid": "0f88237d-d575-4599-9fdb-12dad2b86cf8",
+    "jobstatus": 0
+  },
+  {
+    "cluster": 31,
+    "command": "queryAsyncJobResult",
+    "http": 200,
+    "jobid": "0f88237d-d575-4599-9fdb-12dad2b86cf8",
+    "jobstatus": 1
+  },
+  {
+    "cluster": 31,
+    "command": "removeNicFromVirtualMachine",
+    "http": 200,
+    "jobid": "a72504a6-c9bb-460d-93fe-2b110658ed4a"
+  },
+  {
+    "cluster": 31,
+    "command": "queryAsyncJobResult",
+    "http": 200,
+    "jobid": "a72504a6-c9bb-460d-93fe-2b110658ed4a",
+    "jobstatus": 0
+  },
+  {
+    "cluster": 31,
+    "command": "queryAsyncJobResult",
+    "http": 200,
+    "jobid": "a72504a6-c9bb-460d-93fe-2b110658ed4a",
+    "jobstatus": 1
+  },
+  {
+    "cluster": 32,
+    "command": "updateNetwork",
+    "http": 200,
+    "jobid": "eb8e910f-9c70-4fca-8dde-e3baeba9b9f0"
+  },
+  {
+    "cluster": 32,
+    "command": "queryAsyncJobResult",
+    "http": 200,
+    "jobid": "eb8e910f-9c70-4fca-8dde-e3baeba9b9f0",
+    "jobstatus": 1
+  },
+  {
+    "cluster": 32,
+    "command": "addNicToVirtualMachine",
+    "http": 200,
+    "jobid": "63058625-a1fc-4b4c-bb68-1cc09e5eb687"
+  },
+  {
+    "cluster": 32,
+    "command": "queryAsyncJobResult",
+    "http": 200,
+    "jobid": "63058625-a1fc-4b4c-bb68-1cc09e5eb687",
+    "jobstatus": 0
+  },
+  {
+    "cluster": 32,
+    "command": "queryAsyncJobResult",
+    "http": 200,
+    "jobid": "63058625-a1fc-4b4c-bb68-1cc09e5eb687",
+    "jobstatus": 1
+  },
+  {
+    "cluster": 32,
+    "command": "removeNicFromVirtualMachine",
+    "http": 200,
+    "jobid": "70497e04-26fc-4fe1-b2b5-f97838bef122"
+  },
+  {
+    "cluster": 32,
+    "command": "queryAsyncJobResult",
+    "http": 200,
+    "jobid": "70497e04-26fc-4fe1-b2b5-f97838bef122",
+    "jobstatus": 0
+  },
+  {
+    "cluster": 32,
+    "command": "queryAsyncJobResult",
+    "http": 200,
+    "jobid": "70497e04-26fc-4fe1-b2b5-f97838bef122",
+    "jobstatus": 1
+  }
+]

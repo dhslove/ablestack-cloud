@@ -1,0 +1,39 @@
+{
+  "cluster": 32,
+  "mode": "connect",
+  "pppReady": true,
+  "routeAdded": {
+    "exit": 0,
+    "out": "",
+    "error": ""
+  },
+  "traffic": {
+    "ping": {
+      "exit": 0,
+      "out": "PING 10.234.32.227 (10.234.32.227) from 10.1.2.2 ppp69: 56(84) bytes of data.\n64 bytes from 10.234.32.227: icmp_seq=1 ttl=63 time=1.90 ms\n64 bytes from 10.234.32.227: icmp_seq=2 ttl=63 time=1.56 ms\n64 bytes from 10.234.32.227: icmp_seq=3 ttl=63 time=1.49 ms\n64 bytes from 10.234.32.227: icmp_seq=4 ttl=63 time=1.54 ms\n64 bytes from 10.234.32.227: icmp_seq=5 ttl=63 time=1.50 ms\n\n--- 10.234.32.227 ping statistics ---\n5 packets transmitted, 5 received, 0% packet loss, time 4007ms\nrtt min/avg/max/mdev = 1.486/1.595/1.903/0.155 ms\n",
+      "error": ""
+    },
+    "tcp": [
+      {
+        "ok": true,
+        "banner": "SSH-2.0-OpenSSH_8.7"
+      },
+      {
+        "ok": true,
+        "banner": "SSH-2.0-OpenSSH_8.7"
+      },
+      {
+        "ok": true,
+        "banner": "SSH-2.0-OpenSSH_8.7"
+      }
+    ],
+    "route": {
+      "exit": 0,
+      "out": "10.234.32.227 dev ppp69 src 10.1.2.2 uid 0 \n    cache \n",
+      "error": ""
+    }
+  },
+  "ikeInitiateExit": null,
+  "loadExit": null,
+  "sequentialSingleExternalClient": true
+}

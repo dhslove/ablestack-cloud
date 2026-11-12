@@ -1,0 +1,19 @@
+{
+  "jar": {
+    "path": "/usr/share/cloudstack-management/lib/cloudstack-4.23.0.0-ABLESTACK.Mold.jar",
+    "bytes": 278786106,
+    "sha256": "432e2d2dbd53b65f390bbbbafcee620e00ab5067eb9ed5914c740607af503eb3"
+  },
+  "rootFree": 29372968960,
+  "webinf": true,
+  "metaInf": false,
+  "configSha": "56e421a72d76daa8dcd007eb0e8669ee2951f3940e02b00e4123c0cf9c2a03ff",
+  "indexSha": "b2162a5bdc364c71868ed154a7c0a7ed983884ab5d9228830d8752ac34eed197",
+  "service": "active",
+  "pid": "2109516",
+  "dbPropertySha": "09de236c463a151c17782d8dc49ccd6c1c04f3e6275b2acb70fa56c9bbc6eb81",
+  "existingSharedfsMarkers": {
+    "com/cloud/agent/api/SharedFSComputeCommand.class": false,
+    "org/apache/cloudstack/storage/sharedfs/SharedFSDeletionPowerGuard.class": false
+  }
+}

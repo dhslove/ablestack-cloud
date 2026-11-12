@@ -1,0 +1,59 @@
+{
+  "source": "8ad2d1ecd47092fd3bba8d445fd2c639c7f4be7c",
+  "sites": [
+    {
+      "cluster": 31,
+      "successfulUiJobs": [
+        {
+          "command": "updateNetwork",
+          "jobid": "29daff9e-0289-4d27-9ca4-13fd437fe89a",
+          "status": 1
+        },
+        {
+          "command": "addNicToVirtualMachine",
+          "jobid": "0f88237d-d575-4599-9fdb-12dad2b86cf8",
+          "status": 1
+        },
+        {
+          "command": "removeNicFromVirtualMachine",
+          "jobid": "a72504a6-c9bb-460d-93fe-2b110658ed4a",
+          "status": 1
+        }
+      ],
+      "retainedVms": 14,
+      "retainedNetworks": 16,
+      "retainedVpcs": 3,
+      "hostsUp": 3
+    },
+    {
+      "cluster": 32,
+      "successfulUiJobs": [
+        {
+          "command": "updateNetwork",
+          "jobid": "eb8e910f-9c70-4fca-8dde-e3baeba9b9f0",
+          "status": 1
+        },
+        {
+          "command": "addNicToVirtualMachine",
+          "jobid": "63058625-a1fc-4b4c-bb68-1cc09e5eb687",
+          "status": 1
+        },
+        {
+          "command": "removeNicFromVirtualMachine",
+          "jobid": "70497e04-26fc-4fe1-b2b5-f97838bef122",
+          "status": 1
+        }
+      ],
+      "retainedVms": 15,
+      "retainedNetworks": 16,
+      "retainedVpcs": 3,
+      "hostsUp": 3
+    }
+  ],
+  "focusedJavaTests": 226,
+  "uiStaticFilesPerSite": 689,
+  "captureCount": 56,
+  "localMarkdownLinksValid": true,
+  "productionSourceChanges": 0,
+  "epicAndRegressionRemainClosed": true
+}

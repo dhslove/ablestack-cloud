@@ -1,0 +1,22 @@
+{
+  "exit": 0,
+  "command": [
+    "mvn",
+    "-B",
+    "-pl",
+    "services/console-proxy,services/console-proxy/rdpconsole,services/console-proxy/server",
+    "-DskipTests",
+    "-Dcheckstyle.skip=true",
+    "-Drat.skip=true",
+    "install"
+  ],
+  "seconds": 22.0,
+  "reason": "Missing local console-proxy artifact required by SystemVM assembly",
+  "fullCloudBuild": false,
+  "summary": [
+    "[INFO] Apache CloudStack Console Proxy .................... SUCCESS [  2.032 s]",
+    "[INFO] Apache CloudStack Console Proxy - RDP Client ....... SUCCESS [  9.363 s]",
+    "[INFO] Apache CloudStack Console Proxy - Server ........... SUCCESS [  7.316 s]",
+    "[INFO] BUILD SUCCESS"
+  ]
+}

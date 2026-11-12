@@ -1,0 +1,30 @@
+{
+  "31": {
+    "jar": {
+      "path": "/home/ablecloud/work/gn1554-rollout-8ad2d1e/backups/31-management-before.jar",
+      "sha256": "13d1764233e55e7e1e0fafbaa9bdc0652d8439132c90a6d4b7777ec23bd6a21f",
+      "bytes": 278786106
+    },
+    "database": {
+      "path": "/home/ablecloud/work/gn1554-rollout-8ad2d1e/backups/31-cloud-before.sql.gz",
+      "sha256": "71841b660df2ec8eccac6f5bf245d7a286d2260dbc5839cda140a6c20ea5284c",
+      "bytes": 15907511,
+      "gzipValid": true
+    },
+    "private": true
+  },
+  "32": {
+    "jar": {
+      "path": "/home/ablecloud/work/gn1554-rollout-8ad2d1e/backups/32-management-before.jar",
+      "sha256": "432e2d2dbd53b65f390bbbbafcee620e00ab5067eb9ed5914c740607af503eb3",
+      "bytes": 278786106
+    },
+    "database": {
+      "path": "/home/ablecloud/work/gn1554-rollout-8ad2d1e/backups/32-cloud-before.sql.gz",
+      "sha256": "1c112cf7f6d25f30fcb2b433d96e4bde8fee523468123a7b1da50031022bdf63",
+      "bytes": 4255166,
+      "gzipValid": true
+    },
+    "private": true
+  }
+}
