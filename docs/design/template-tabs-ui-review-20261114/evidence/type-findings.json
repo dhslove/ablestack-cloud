@@ -1,0 +1,59 @@
+[
+  {
+    "flow": "URL create, initial",
+    "options": [
+      "USER",
+      "VNF",
+      "SYSTEM",
+      "BUILTIN",
+      "ROUTING"
+    ],
+    "sharedfs": false
+  },
+  {
+    "flow": "URL create, 13-Zone and KVM selected",
+    "options": [
+      "USER",
+      "VNF",
+      "SYSTEM",
+      "BUILTIN",
+      "ROUTING",
+      "SHAREDFS"
+    ],
+    "sharedfs": true
+  },
+  {
+    "flow": "Edit existing USER KVM Rocky9",
+    "current": "USER",
+    "options": [
+      "USER",
+      "VNF",
+      "SYSTEM",
+      "BUILTIN",
+      "ROUTING",
+      "SHAREDFS"
+    ],
+    "serverConversionAllowed": false,
+    "submitted": false
+  },
+  {
+    "flow": "Local upload, 13-Zone and KVM",
+    "sharedfsVisible": true,
+    "serverSourceSupportsSharefs": false,
+    "submitted": false
+  },
+  {
+    "flow": "Edit existing SHAREDFS",
+    "current": "SHAREDFS",
+    "options": [
+      "USER",
+      "VNF",
+      "SYSTEM",
+      "BUILTIN",
+      "ROUTING",
+      "SHAREDFS"
+    ],
+    "serverTypeImmutable": true,
+    "submitted": false
+  }
+]

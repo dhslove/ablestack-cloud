@@ -1,0 +1,10 @@
+{
+  "id": "e7785136-ffa5-4a20-b063-7848ad252c0a",
+  "name": "qa-ui-tab-vnf-20261114",
+  "created": true,
+  "deleted": true,
+  "jobId": "8d66ddfd-0677-48b0-aa40-2bbe2b805cb9",
+  "jobStatus": 1,
+  "success": true,
+  "usedFor": "UI empty/populated VNF layout; image download rejected with 302, no Ready or boot success claimed"
+}

@@ -1,0 +1,102 @@
+{
+  "README.ko.md": {
+    "bytes": 10978,
+    "sha256": "52b62180ce7ea15d7fe86870ba25cc2372ee0a0febfecfa660f9c80f8e5ba4e4"
+  },
+  "evidence/observations.json": {
+    "bytes": 78751,
+    "sha256": "ed68eccd371bec7add3b59a75a014382549034177e100065af7521b0ee3a8ce6"
+  },
+  "evidence/source-references.json": {
+    "bytes": 1664,
+    "sha256": "e834b05b8a4c8924ea3b04eaccb5c3e62a4da48447e6d194ff7a700855a0dcdc"
+  },
+  "evidence/test-resource.json": {
+    "bytes": 327,
+    "sha256": "e129076a80c3b787e6125d4013ce8b4ed467cdaa13ee350a9fcbb65fa27520c0"
+  },
+  "evidence/type-findings.json": {
+    "bytes": 1021,
+    "sha256": "0d6780bff9775829255a6af67cdea7d4c182ffeb8b16442191b1a58cf5d3b3a2"
+  },
+  "evidence/scope.json": {
+    "bytes": 871,
+    "sha256": "4c32a0bc5171291e1e046e3d6616a50f035e5470a273b83c6c87a8533429e813"
+  },
+  "screenshots/template-settings-1680-dark.jpg": {
+    "bytes": 86965,
+    "sha256": "a97c56941bb452f818fb9df69a0dedd99d7d73bbad92a256455f20e62ff388a3"
+  },
+  "screenshots/template-zones-expanded-1680-dark.jpg": {
+    "bytes": 107598,
+    "sha256": "359655c4286b5285810bd4c531061ad7f3be5df6571f5c084a55eecbac13d3f2"
+  },
+  "screenshots/sharedfs-runtime-1024-dark.jpg": {
+    "bytes": 88389,
+    "sha256": "d8e4652ae7691789c6ae4d4c84b550cc5105d6a0bbfceedef48c6ce611a82561"
+  },
+  "screenshots/template-zones-expanded-1024-dark.jpg": {
+    "bytes": 76684,
+    "sha256": "a0b51656bf0164e67123ebcdc2c7590864d1af3db4eb582d59b823bb8c417a9e"
+  },
+  "screenshots/vnf-populated-1024-dark.jpg": {
+    "bytes": 81480,
+    "sha256": "6a5cfc973d737750ea51f5571664484386cef8b01ad458482eef7677483edab1"
+  },
+  "screenshots/vnf-populated-390-dark.jpg": {
+    "bytes": 38969,
+    "sha256": "75c8c099ab01cbf5ae1d84a6fdb8d41dcb9b88042776a310d8a7d3d77a02a872"
+  },
+  "screenshots/create-type-kvm-sharedfs.jpg": {
+    "bytes": 138504,
+    "sha256": "f7bc0e4502a4d0a9453f875b9a2a53cba8938504d24dd3d00342dd54b615f15f"
+  },
+  "screenshots/vnf-empty-1680-dark.jpg": {
+    "bytes": 106751,
+    "sha256": "f041d2fbf653b9e6f52c4c1fa24afa8246bb31be5c790f5100193a1c81f3a540"
+  },
+  "screenshots/vnf-populated-1680-dark.jpg": {
+    "bytes": 110032,
+    "sha256": "c05c09b281390460640db4072d16896c187f562dea4bb376dfb643fdd4032f46"
+  },
+  "screenshots/create-type-initial.jpg": {
+    "bytes": 159800,
+    "sha256": "376885383d5e62d6d98fff5ed478c8e97bfc5810322df2172b8b6aa0aa3cc490"
+  },
+  "screenshots/template-zones-selected-1680-dark.jpg": {
+    "bytes": 111878,
+    "sha256": "6046badb62c65b9056e1ea855fa2a1f00753d91c62243fe37ca2781d30223612"
+  },
+  "screenshots/vm-settings-top-1680-dark.jpg": {
+    "bytes": 116405,
+    "sha256": "bf5f9b4c197025ec9eaaec569c4499f684f615bfd4acf231bc35aa66ff13aa42"
+  },
+  "screenshots/upload-kvm-sharedfs-choice.jpg": {
+    "bytes": 138677,
+    "sha256": "8293b833d64e4263bb7954f2a381adf8b2ffbbdf2a6608e9d7865e5f2dfa6738"
+  },
+  "screenshots/vm-nic-1680-dark.jpg": {
+    "bytes": 109265,
+    "sha256": "0b896bc6e217b26e961347e1addfdc86b457564692162834ba4595ae00ec0266"
+  },
+  "screenshots/zone-dark-contrast-final.jpg": {
+    "bytes": 103361,
+    "sha256": "49054301c0d8e89e5ddaa5e673121a241f3667f5dec33fb0acaec59458af39b1"
+  },
+  "screenshots/edit-sharedfs-type-choices.jpg": {
+    "bytes": 89516,
+    "sha256": "23224dc2f398cec25e8d6e6b05a15b2c336504b770b478ef39ddd262e7dde967"
+  },
+  "screenshots/edit-user-type-sharedfs-choice.jpg": {
+    "bytes": 86931,
+    "sha256": "9f74734a281d769dab89720badf6f8ddfc90dcf2912c8ee8e033c266e4153dec"
+  },
+  "screenshots/template-zones-expanded-1680-light.jpg": {
+    "bytes": 107271,
+    "sha256": "c69fed939eb8d66e490c2061cb5f13f5ddc38a052e1c9cf1264ef9abb227d6f6"
+  },
+  "screenshots/sharedfs-tabs-order-1680-dark.jpg": {
+    "bytes": 115053,
+    "sha256": "cd72a03c664cab5d3a026fa13d6c848bd52488a37ba4182e8e6348d7365b384d"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "base": "b8c8300a6303265f364f30c9f4992e8a8671a7e6",
+  "references": {
+    "tab-order": "https://github.com/ablecloud-team/ablestack-cloud/blob/b8c8300a6303265f364f30c9f4992e8a8671a7e6/ui/src/config/section/image.js",
+    "zone": "https://github.com/ablecloud-team/ablestack-cloud/blob/b8c8300a6303265f364f30c9f4992e8a8671a7e6/ui/src/views/image/TemplateZones.vue",
+    "settings": "https://github.com/ablecloud-team/ablestack-cloud/blob/b8c8300a6303265f364f30c9f4992e8a8671a7e6/ui/src/components/view/DetailSettings.vue",
+    "vnf": "https://github.com/ablecloud-team/ablestack-cloud/blob/b8c8300a6303265f364f30c9f4992e8a8671a7e6/ui/src/views/image/TemplateVnfSettings.vue",
+    "vm-standard": "https://github.com/ablecloud-team/ablestack-cloud/blob/b8c8300a6303265f364f30c9f4992e8a8671a7e6/ui/src/views/compute/VmSettingsTab.vue",
+    "create": "https://github.com/ablecloud-team/ablestack-cloud/blob/b8c8300a6303265f364f30c9f4992e8a8671a7e6/ui/src/views/image/RegisterOrUploadTemplate.vue",
+    "edit": "https://github.com/ablecloud-team/ablestack-cloud/blob/b8c8300a6303265f364f30c9f4992e8a8671a7e6/ui/src/views/image/UpdateTemplate.vue",
+    "type-options": "https://github.com/ablecloud-team/ablestack-cloud/blob/b8c8300a6303265f364f30c9f4992e8a8671a7e6/ui/src/utils/plugins.js",
+    "server-types": "https://github.com/ablecloud-team/ablestack-cloud/blob/b8c8300a6303265f364f30c9f4992e8a8671a7e6/server/src/main/java/com/cloud/template/TemplateManagerImpl.java",
+    "server-profile": "https://github.com/ablecloud-team/ablestack-cloud/blob/b8c8300a6303265f364f30c9f4992e8a8671a7e6/server/src/main/java/com/cloud/template/TemplateAdapterBase.java"
+  }
+}
